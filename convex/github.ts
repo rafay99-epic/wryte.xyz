@@ -74,9 +74,7 @@ function buildMarkdownFile(
 function parseRepoString(repo: string): { owner: string; repo: string } {
   const parts = repo.split("/");
   if (parts.length !== 2 || !parts[0] || !parts[1]) {
-    throw new Error(
-      `Invalid repo format: "${repo}". Expected "owner/repo".`,
-    );
+    throw new Error(`Invalid repo format: "${repo}". Expected "owner/repo".`);
   }
   return { owner: parts[0], repo: parts[1] };
 }
@@ -175,7 +173,9 @@ export const publishToGithub = internalAction({
       } catch (error: unknown) {
         const err = error as { status?: number; message?: string };
         if (err.status !== 404) {
-          throw new Error(`Failed to check existing file: ${err.message ?? "Unknown error"}`);
+          throw new Error(
+            `Failed to check existing file: ${err.message ?? "Unknown error"}`,
+          );
         }
         // File doesn't exist yet, that's fine
       }
@@ -252,7 +252,10 @@ export const publish = action({
     }
 
     // Delegate to the internal action which does the actual GitHub work
-    const runArgs: { documentId: typeof args.documentId; githubAccessToken?: string } = {
+    const runArgs: {
+      documentId: typeof args.documentId;
+      githubAccessToken?: string;
+    } = {
       documentId: args.documentId,
     };
     if (args.githubAccessToken !== undefined) {
@@ -332,7 +335,9 @@ export const uploadMediaToGithub = action({
     } catch (error: unknown) {
       const err = error as { status?: number; message?: string };
       if (err.status !== 404) {
-        throw new Error(`Failed to check existing file: ${err.message ?? "Unknown error"}`);
+        throw new Error(
+          `Failed to check existing file: ${err.message ?? "Unknown error"}`,
+        );
       }
     }
 
@@ -367,7 +372,10 @@ export const importFileFromGithub = action({
     filePath: v.string(),
     githubAccessToken: v.optional(v.string()),
   },
-  handler: async (ctx, args): Promise<{ documentId: string; title: string; slug: string }> => {
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ documentId: string; title: string; slug: string }> => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       throw new Error("Not authenticated");
@@ -439,7 +447,10 @@ export const importFileFromGithub = action({
         const colonIdx = line.indexOf(":");
         if (colonIdx > 0) {
           const key = line.slice(0, colonIdx).trim();
-          const value = line.slice(colonIdx + 1).trim().replace(/^["']|["']$/g, "");
+          const value = line
+            .slice(colonIdx + 1)
+            .trim()
+            .replace(/^["']|["']$/g, "");
           fmObj[key] = value;
         }
       }

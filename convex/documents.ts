@@ -11,7 +11,10 @@ import {
  * Throws on missing auth or missing user, ensuring downstream code always
  * has a valid user object to work with.
  */
-async function getCurrentUser(ctx: { auth: { getUserIdentity: () => Promise<{ tokenIdentifier: string } | null> }; db: any }) {
+async function getCurrentUser(ctx: {
+  auth: { getUserIdentity: () => Promise<{ tokenIdentifier: string } | null> };
+  db: any;
+}) {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) {
     throw new Error("Not authenticated");
@@ -36,7 +39,11 @@ async function getCurrentUser(ctx: { auth: { getUserIdentity: () => Promise<{ to
  * Follows the chain: document -> project -> project.userId === userId.
  * Returns the document if ownership is confirmed; throws otherwise.
  */
-async function verifyDocumentOwnership(ctx: { db: any }, documentId: any, userId: any) {
+async function verifyDocumentOwnership(
+  ctx: { db: any },
+  documentId: any,
+  userId: any,
+) {
   const document = await ctx.db.get(documentId);
   if (!document) {
     throw new Error("Document not found");
@@ -142,7 +149,11 @@ export const get = query({
       throw new Error("User not found");
     }
 
-    const document = await verifyDocumentOwnership(ctx, args.documentId, user._id);
+    const document = await verifyDocumentOwnership(
+      ctx,
+      args.documentId,
+      user._id,
+    );
     return document;
   },
 });

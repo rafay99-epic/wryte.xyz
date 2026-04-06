@@ -276,7 +276,9 @@ function FrontmatterField({ field, value, onChange }: FrontmatterFieldProps) {
           <Label className="text-xs text-muted-foreground">{label}</Label>
           <Select
             value={typeof value === "string" ? value : ""}
-            onValueChange={(val) => { if (val !== null) onChange(val); }}
+            onValueChange={(val) => {
+              if (val !== null) onChange(val);
+            }}
           >
             <SelectTrigger className="w-full">
               <SelectValue placeholder={`Select ${label.toLowerCase()}`} />

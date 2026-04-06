@@ -7,7 +7,8 @@
 import { auth, clerkClient } from "@clerk/nextjs/server";
 
 // Matches ISO 8601 dates: "2024-01-15" or "2024-01-15T10:30:00Z" etc.
-const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})?)?$/;
+const ISO_DATE_RE =
+  /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})?)?$/;
 
 /**
  * Retrieves the current user's GitHub OAuth access token via Clerk.

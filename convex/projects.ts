@@ -1,16 +1,15 @@
 import { v } from "convex/values";
-import {
-  query,
-  mutation,
-  internalQuery,
-} from "./_generated/server";
+import { query, mutation, internalQuery } from "./_generated/server";
 
 /**
  * Helper to authenticate and retrieve the current user from the database.
  * Throws if the request is unauthenticated or the user record doesn't exist yet.
  * Used by mutations that require a confirmed user identity.
  */
-async function getCurrentUser(ctx: { auth: { getUserIdentity: () => Promise<{ tokenIdentifier: string } | null> }; db: any }) {
+async function getCurrentUser(ctx: {
+  auth: { getUserIdentity: () => Promise<{ tokenIdentifier: string } | null> };
+  db: any;
+}) {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) {
     throw new Error("Not authenticated");
@@ -155,11 +154,15 @@ export const create = mutation({
     };
 
     if (args.githubRepo !== undefined) insertData.githubRepo = args.githubRepo;
-    if (args.githubBranch !== undefined) insertData.githubBranch = args.githubBranch;
-    if (args.contentPath !== undefined) insertData.contentPath = args.contentPath;
+    if (args.githubBranch !== undefined)
+      insertData.githubBranch = args.githubBranch;
+    if (args.contentPath !== undefined)
+      insertData.contentPath = args.contentPath;
     if (args.mediaPath !== undefined) insertData.mediaPath = args.mediaPath;
-    if (args.mediaStorageMode !== undefined) insertData.mediaStorageMode = args.mediaStorageMode;
-    if (args.frontmatterSchema !== undefined) insertData.frontmatterSchema = args.frontmatterSchema;
+    if (args.mediaStorageMode !== undefined)
+      insertData.mediaStorageMode = args.mediaStorageMode;
+    if (args.frontmatterSchema !== undefined)
+      insertData.frontmatterSchema = args.frontmatterSchema;
 
     const projectId = await ctx.db.insert("projects", insertData);
 

@@ -41,7 +41,13 @@ import { api } from "../../../../../convex/_generated/api";
 import type { Id } from "../../../../../convex/_generated/dataModel";
 
 /** The active tab filter controlling which content rows are visible. */
-type ViewFilter = "all" | "local" | "remote" | "draft" | "published" | "scheduled";
+type ViewFilter =
+  | "all"
+  | "local"
+  | "remote"
+  | "draft"
+  | "published"
+  | "scheduled";
 
 /** A file entry returned from the GitHub Contents API. */
 interface RemoteFile {
@@ -104,7 +110,9 @@ export default function ProjectDetailPage() {
   const [viewFilter, setViewFilter] = useState<ViewFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<Id<"documents"> | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Id<"documents"> | null>(
+    null,
+  );
 
   // --- Remote GitHub files ---
   // These are fetched client-side from our `/api/github/content` route, which
@@ -186,9 +194,7 @@ export default function ProjectDetailPage() {
     // replacing dashes/underscores with spaces.
     for (const file of remoteFiles) {
       if (!importedPaths.has(file.path)) {
-        const title = file.name
-          .replace(/\.mdx?$/, "")
-          .replace(/[-_]/g, " ");
+        const title = file.name.replace(/\.mdx?$/, "").replace(/[-_]/g, " ");
         items.push({
           kind: "remote",
           title,
@@ -220,7 +226,9 @@ export default function ProjectDetailPage() {
         items = items.filter((i) => i.status === "draft");
         break;
       case "published":
-        items = items.filter((i) => i.status === "published" || i.kind === "remote");
+        items = items.filter(
+          (i) => i.status === "published" || i.kind === "remote",
+        );
         break;
       case "scheduled":
         items = items.filter((i) => i.status === "scheduled");
@@ -292,9 +300,7 @@ export default function ProjectDetailPage() {
         toast.success(`Opened "${result.title}"`);
         router.push(`/editor/${result.documentId}`);
       } catch (err) {
-        toast.error(
-          err instanceof Error ? err.message : "Failed to open file",
-        );
+        toast.error(err instanceof Error ? err.message : "Failed to open file");
         setImportingPath(null);
       }
     },
@@ -417,8 +423,12 @@ export default function ProjectDetailPage() {
                 <thead>
                   <tr className="border-b bg-muted/40 text-left text-xs text-muted-foreground">
                     <th className="px-4 py-2.5 font-medium">Title</th>
-                    <th className="hidden px-4 py-2.5 font-medium sm:table-cell">Status</th>
-                    <th className="hidden px-4 py-2.5 font-medium md:table-cell">Updated</th>
+                    <th className="hidden px-4 py-2.5 font-medium sm:table-cell">
+                      Status
+                    </th>
+                    <th className="hidden px-4 py-2.5 font-medium md:table-cell">
+                      Updated
+                    </th>
                     <th className="w-10 px-4 py-2.5" />
                   </tr>
                 </thead>
@@ -689,7 +699,10 @@ function ProjectDetailSkeleton() {
       <Skeleton className="mb-4 h-8 w-64" />
       <div className="overflow-hidden rounded-lg border">
         {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="flex items-center gap-4 border-b px-4 py-3 last:border-b-0">
+          <div
+            key={i}
+            className="flex items-center gap-4 border-b px-4 py-3 last:border-b-0"
+          >
             <Skeleton className="h-4 w-4 rounded" />
             <div className="flex-1 space-y-1.5">
               <Skeleton className="h-4 w-48" />

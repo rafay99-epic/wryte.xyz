@@ -16,7 +16,10 @@ import { internal } from "./_generated/api";
  * Authenticates the caller and retrieves their user record.
  * Shared helper used by the public-facing mutations in this file.
  */
-async function getCurrentUser(ctx: { auth: { getUserIdentity: () => Promise<{ tokenIdentifier: string } | null> }; db: any }) {
+async function getCurrentUser(ctx: {
+  auth: { getUserIdentity: () => Promise<{ tokenIdentifier: string } | null> };
+  db: any;
+}) {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) {
     throw new Error("Not authenticated");
@@ -170,7 +173,10 @@ export const processScheduled = internalAction({
           status: "completed",
         });
       } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : "Unknown error during publishing";
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Unknown error during publishing";
         await ctx.runMutation(internal.scheduling.updatePublishStatus, {
           publishId: publish._id,
           status: "failed",

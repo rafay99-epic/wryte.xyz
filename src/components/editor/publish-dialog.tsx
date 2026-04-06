@@ -135,7 +135,10 @@ export function PublishDialog({
         // OAuth token not available, will fall back to stored PAT
       }
 
-      const publishArgs: { documentId: Id<"documents">; githubAccessToken?: string } = {
+      const publishArgs: {
+        documentId: Id<"documents">;
+        githubAccessToken?: string;
+      } = {
         documentId: documentId as Id<"documents">,
       };
       if (githubAccessToken) {

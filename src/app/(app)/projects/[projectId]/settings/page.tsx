@@ -59,11 +59,35 @@ interface FrontmatterField {
 }
 
 const DEFAULT_FIELDS: FrontmatterField[] = [
-  { name: "title", type: "string", required: true, defaultValue: "", options: "" },
-  { name: "description", type: "text", required: false, defaultValue: "", options: "" },
+  {
+    name: "title",
+    type: "string",
+    required: true,
+    defaultValue: "",
+    options: "",
+  },
+  {
+    name: "description",
+    type: "text",
+    required: false,
+    defaultValue: "",
+    options: "",
+  },
   { name: "date", type: "date", required: true, defaultValue: "", options: "" },
-  { name: "tags", type: "tags", required: false, defaultValue: "", options: "" },
-  { name: "draft", type: "boolean", required: false, defaultValue: "true", options: "" },
+  {
+    name: "tags",
+    type: "tags",
+    required: false,
+    defaultValue: "",
+    options: "",
+  },
+  {
+    name: "draft",
+    type: "boolean",
+    required: false,
+    defaultValue: "true",
+    options: "",
+  },
 ];
 
 export default function ProjectSettingsPage() {
@@ -289,7 +313,9 @@ function GitHubSection({
     // Use OAuth token if available, otherwise fall back to PAT
     const verifyToken = oauthToken ?? token.trim();
     if (!verifyToken) {
-      toast.error("Connect GitHub via OAuth or save a Personal Access Token first");
+      toast.error(
+        "Connect GitHub via OAuth or save a Personal Access Token first",
+      );
       return;
     }
     if (!trimmedRepo) {
@@ -340,7 +366,8 @@ function GitHubSection({
           ) : oauthConnected ? (
             <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
               <CheckCircle2 className="size-4" />
-              GitHub connected via OAuth — publishing will use your OAuth token automatically.
+              GitHub connected via OAuth — publishing will use your OAuth token
+              automatically.
             </div>
           ) : (
             <div className="space-y-2">
@@ -349,8 +376,8 @@ function GitHubSection({
                 GitHub not connected via OAuth
               </div>
               <p className="text-xs text-muted-foreground">
-                Connect GitHub via Clerk to auto-import repos, or use a
-                Personal Access Token below as a fallback.
+                Connect GitHub via Clerk to auto-import repos, or use a Personal
+                Access Token below as a fallback.
               </p>
             </div>
           )}
@@ -364,7 +391,8 @@ function GitHubSection({
               onClick={() => setShowPatFallback(!showPatFallback)}
               className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
             >
-              {showPatFallback ? "Hide" : "Show"} Personal Access Token (fallback)
+              {showPatFallback ? "Hide" : "Show"} Personal Access Token
+              (fallback)
             </button>
             {showPatFallback && (
               <PatTokenInput
@@ -425,11 +453,7 @@ function GitHubSection({
               )}
               Verify Connection
             </Button>
-            <Button
-              size="sm"
-              onClick={handleSaveRepo}
-              disabled={isSavingRepo}
-            >
+            <Button size="sm" onClick={handleSaveRepo} disabled={isSavingRepo}>
               {isSavingRepo && <Loader2 className="size-4 animate-spin" />}
               Save
             </Button>
@@ -688,28 +712,27 @@ function FrontmatterSchemaSection({
   const updateField = useCallback(
     (index: number, updates: Partial<FrontmatterField>) => {
       setFields((prev) =>
-        prev.map((field, i) => (i === index ? { ...field, ...updates } : field)),
+        prev.map((field, i) =>
+          i === index ? { ...field, ...updates } : field,
+        ),
       );
     },
     [],
   );
 
-  const moveField = useCallback(
-    (index: number, direction: "up" | "down") => {
-      setFields((prev) => {
-        const newFields = [...prev];
-        const targetIndex = direction === "up" ? index - 1 : index + 1;
-        if (targetIndex < 0 || targetIndex >= newFields.length) return prev;
-        const a = newFields[index];
-        const b = newFields[targetIndex];
-        if (!a || !b) return prev;
-        newFields[targetIndex] = a;
-        newFields[index] = b;
-        return newFields;
-      });
-    },
-    [],
-  );
+  const moveField = useCallback((index: number, direction: "up" | "down") => {
+    setFields((prev) => {
+      const newFields = [...prev];
+      const targetIndex = direction === "up" ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= newFields.length) return prev;
+      const a = newFields[index];
+      const b = newFields[targetIndex];
+      if (!a || !b) return prev;
+      newFields[targetIndex] = a;
+      newFields[index] = b;
+      return newFields;
+    });
+  }, []);
 
   const handleSave = useCallback(async () => {
     const invalidField = fields.find((f) => !f.name.trim());
@@ -934,9 +957,7 @@ function DangerZoneSection({ projectId }: { projectId: Id<"projects"> }) {
     <Card className="border-destructive/50">
       <CardHeader>
         <CardTitle className="text-destructive">Danger Zone</CardTitle>
-        <CardDescription>
-          Irreversible and destructive actions.
-        </CardDescription>
+        <CardDescription>Irreversible and destructive actions.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="flex items-center justify-between rounded-lg border border-destructive/30 p-3">

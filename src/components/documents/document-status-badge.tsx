@@ -19,8 +19,7 @@ const statusConfig: Record<
 > = {
   draft: {
     label: "Draft",
-    className:
-      "bg-muted text-muted-foreground",
+    className: "bg-muted text-muted-foreground",
     icon: null,
   },
   scheduled: {

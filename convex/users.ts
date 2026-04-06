@@ -1,9 +1,5 @@
 import { v } from "convex/values";
-import {
-  query,
-  mutation,
-  internalQuery,
-} from "./_generated/server";
+import { query, mutation, internalQuery } from "./_generated/server";
 
 /**
  * Finds the current user by their Clerk token, or creates a new user record

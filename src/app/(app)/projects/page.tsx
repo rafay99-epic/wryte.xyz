@@ -116,7 +116,8 @@ function ProjectCard({
 
 function ProjectDocCount({ projectId }: { projectId: string }) {
   const docs = useQuery(api.documents.list, {
-    projectId: projectId as import("../../../../convex/_generated/dataModel").Id<"projects">,
+    projectId:
+      projectId as import("../../../../convex/_generated/dataModel").Id<"projects">,
   });
 
   return (

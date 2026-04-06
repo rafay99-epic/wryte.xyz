@@ -1,5 +1,5 @@
-import { clsx, type ClassValue } from "clsx"
-import { twMerge } from "tailwind-merge"
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
 
 /**
  * Merges CSS class names with Tailwind CSS conflict resolution.
@@ -12,5 +12,5 @@ import { twMerge } from "tailwind-merge"
  * @example cn("px-2 py-1", isActive && "bg-blue-500", className)
  */
 export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs))
+  return twMerge(clsx(inputs));
 }

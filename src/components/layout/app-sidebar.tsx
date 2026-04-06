@@ -174,7 +174,9 @@ export function AppSidebar() {
               </span>
               <Link
                 href="/projects/new"
-                className={cn(buttonVariants({ variant: "ghost", size: "icon-xs" }))}
+                className={cn(
+                  buttonVariants({ variant: "ghost", size: "icon-xs" }),
+                )}
                 aria-label="Create new project"
               >
                 <Plus className="size-3.5" />

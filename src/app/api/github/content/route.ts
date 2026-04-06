@@ -47,7 +47,10 @@ export async function GET(request: Request) {
       parsed = parseRepoString(repo);
     } catch {
       return NextResponse.json(
-        { files: [], error: `Invalid repo format: "${repo}". Expected "owner/repo".` },
+        {
+          files: [],
+          error: `Invalid repo format: "${repo}". Expected "owner/repo".`,
+        },
         { status: 400 },
       );
     }
@@ -133,7 +136,12 @@ export async function POST(request: Request) {
 
     if (!repo || !branch || !path) {
       return NextResponse.json(
-        { frontmatter: null, content: null, sha: null, error: "Missing required fields: repo, branch, path" },
+        {
+          frontmatter: null,
+          content: null,
+          sha: null,
+          error: "Missing required fields: repo, branch, path",
+        },
         { status: 400 },
       );
     }
@@ -142,7 +150,12 @@ export async function POST(request: Request) {
 
     if ("error" in tokenResult) {
       return NextResponse.json(
-        { frontmatter: null, content: null, sha: null, error: tokenResult.error },
+        {
+          frontmatter: null,
+          content: null,
+          sha: null,
+          error: tokenResult.error,
+        },
         { status: 401 },
       );
     }
@@ -154,7 +167,12 @@ export async function POST(request: Request) {
       parsed = parseRepoString(repo);
     } catch {
       return NextResponse.json(
-        { frontmatter: null, content: null, sha: null, error: `Invalid repo format: "${repo}". Expected "owner/repo".` },
+        {
+          frontmatter: null,
+          content: null,
+          sha: null,
+          error: `Invalid repo format: "${repo}". Expected "owner/repo".`,
+        },
         { status: 400 },
       );
     }
@@ -176,7 +194,12 @@ export async function POST(request: Request) {
         (err as { status: number })["status"] === 404
       ) {
         return NextResponse.json(
-          { frontmatter: null, content: null, sha: null, error: `File "${path}" not found.` },
+          {
+            frontmatter: null,
+            content: null,
+            sha: null,
+            error: `File "${path}" not found.`,
+          },
           { status: 404 },
         );
       }
@@ -191,14 +214,21 @@ export async function POST(request: Request) {
       !("content" in fileData)
     ) {
       return NextResponse.json(
-        { frontmatter: null, content: null, sha: null, error: "Unable to read file content." },
+        {
+          frontmatter: null,
+          content: null,
+          sha: null,
+          error: "Unable to read file content.",
+        },
         { status: 500 },
       );
     }
 
     const typedFileData = fileData as { content: string; sha: string };
     // GitHub API returns file content as base64 — decode it before parsing
-    const rawContent = Buffer.from(typedFileData["content"], "base64").toString("utf-8");
+    const rawContent = Buffer.from(typedFileData["content"], "base64").toString(
+      "utf-8",
+    );
     // gray-matter splits the YAML frontmatter block from the markdown body
     const { data: frontmatter, content } = matter(rawContent);
 
@@ -210,7 +240,12 @@ export async function POST(request: Request) {
     });
   } catch (_err: unknown) {
     return NextResponse.json(
-      { frontmatter: null, content: null, sha: null, error: "Failed to fetch file content" },
+      {
+        frontmatter: null,
+        content: null,
+        sha: null,
+        error: "Failed to fetch file content",
+      },
       { status: 500 },
     );
   }

@@ -2,7 +2,17 @@
 
 import { useUser } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
-import { CheckCircle2, Eye, EyeOff, GitFork, Loader2, Monitor, Moon, Sun, XCircle } from "lucide-react";
+import {
+  CheckCircle2,
+  Eye,
+  EyeOff,
+  GitFork,
+  Loader2,
+  Monitor,
+  Moon,
+  Sun,
+  XCircle,
+} from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -40,12 +50,14 @@ export default function SettingsPage() {
       <div className="mx-auto max-w-2xl space-y-6">
         <AccountSection
           name={clerkUser?.fullName ?? convexUser?.name ?? "User"}
-          email={clerkUser?.primaryEmailAddress?.emailAddress ?? convexUser?.email ?? ""}
+          email={
+            clerkUser?.primaryEmailAddress?.emailAddress ??
+            convexUser?.email ??
+            ""
+          }
           imageUrl={clerkUser?.imageUrl ?? convexUser?.imageUrl}
         />
-        <GitHubConnectionSection
-          githubUsername={convexUser?.githubUsername}
-        />
+        <GitHubConnectionSection githubUsername={convexUser?.githubUsername} />
         <GitHubTokenSection
           existingToken={convexUser?.githubAccessToken ?? ""}
         />

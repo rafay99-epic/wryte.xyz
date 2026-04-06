@@ -45,7 +45,10 @@ export async function POST(request: Request) {
 
     if (!repo || !branch || !contentPath) {
       return NextResponse.json(
-        { fields: null, error: "Missing required fields: repo, branch, contentPath" },
+        {
+          fields: null,
+          error: "Missing required fields: repo, branch, contentPath",
+        },
         { status: 400 },
       );
     }
@@ -66,7 +69,10 @@ export async function POST(request: Request) {
       parsed = parseRepoString(repo);
     } catch {
       return NextResponse.json(
-        { fields: null, error: `Invalid repo format: "${repo}". Expected "owner/repo".` },
+        {
+          fields: null,
+          error: `Invalid repo format: "${repo}". Expected "owner/repo".`,
+        },
         { status: 400 },
       );
     }
@@ -100,7 +106,9 @@ export async function POST(request: Request) {
     }
 
     // Step 2: Find the first markdown file to use as a representative sample
-    const markdownFile = (dirContents as Array<{ name: string; path: string; type: string }>).find(
+    const markdownFile = (
+      dirContents as Array<{ name: string; path: string; type: string }>
+    ).find(
       (file) =>
         file["type"] === "file" &&
         (file["name"].endsWith(".md") || file["name"].endsWith(".mdx")),
