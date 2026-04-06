@@ -37,12 +37,17 @@ interface SchemaField {
   defaultValue?: string | boolean;
 }
 
+/** Fallback schema used when a project has no custom frontmatter schema defined. */
 const DEFAULT_FIELDS: SchemaField[] = [
   { name: "title", type: "string", label: "Title" },
   { name: "description", type: "text", label: "Description" },
   { name: "tags", type: "tags", label: "Tags" },
 ];
 
+/**
+ * Parse the project's JSON-encoded frontmatter schema string into typed fields.
+ * Falls back to DEFAULT_FIELDS when the schema is missing or malformed.
+ */
 function parseSchema(schemaString: string | undefined): SchemaField[] {
   if (!schemaString) return DEFAULT_FIELDS;
   try {
@@ -53,6 +58,12 @@ function parseSchema(schemaString: string | undefined): SchemaField[] {
   }
 }
 
+/**
+ * Collapsible panel that renders a dynamic form for editing document frontmatter.
+ * Form fields are generated from the project's frontmatter schema (or defaults).
+ * Changes are persisted immediately to Convex on each field edit.
+ * A slug field is auto-generated from the title to keep URL-friendly identifiers in sync.
+ */
 export function FrontmatterEditor({
   projectId,
   documentId,
@@ -74,7 +85,8 @@ export function FrontmatterEditor({
     [project?.frontmatterSchema],
   );
 
-  // Load existing frontmatter
+  // Load existing frontmatter from the document on first render.
+  // `hasLoadedInitial` prevents overwriting user edits when the query re-fires.
   useEffect(() => {
     if (document && !hasLoadedInitial) {
       setHasLoadedInitial(true);
@@ -92,6 +104,7 @@ export function FrontmatterEditor({
     }
   }, [document, hasLoadedInitial]);
 
+  /** Persist frontmatter values to Convex as a JSON string. */
   const saveValues = useCallback(
     (newValues: Record<string, string | boolean>) => {
       void updateDocument({
@@ -102,10 +115,11 @@ export function FrontmatterEditor({
     [documentId, updateDocument],
   );
 
+  /** Update a single field and auto-derive the slug when the title changes. */
   function handleFieldChange(name: string, value: string | boolean) {
     const newValues = { ...values, [name]: value };
 
-    // Auto-generate slug from title
+    // Auto-generate slug from title so the user always has a URL-friendly identifier
     if (name === "title" && typeof value === "string") {
       newValues["slug"] = generateSlug(value);
     }
@@ -171,6 +185,11 @@ interface FrontmatterFieldProps {
   onChange: (value: string | boolean) => void;
 }
 
+/**
+ * Renders a single frontmatter form field based on its schema type.
+ * Supports string, text (multiline), boolean (switch), tags (comma-separated),
+ * date (native date picker), and select (dropdown) field types.
+ */
 function FrontmatterField({ field, value, onChange }: FrontmatterFieldProps) {
   const label = field.label ?? field.name;
   const id = `fm-${field.name}`;

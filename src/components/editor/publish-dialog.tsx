@@ -35,6 +35,15 @@ interface PublishDialogProps {
   projectId: string;
 }
 
+/**
+ * Dialog that previews and triggers publishing a document to GitHub.
+ * Shows the target file path, generated YAML frontmatter, content preview,
+ * and a commit message field before the user confirms.
+ *
+ * On publish, attempts to fetch an OAuth token from Clerk first (for users
+ * who connected GitHub via OAuth). Falls back to a stored Personal Access Token
+ * if the OAuth route is unavailable.
+ */
 export function PublishDialog({
   open,
   onOpenChange,
@@ -59,6 +68,7 @@ export function PublishDialog({
 
   const publishToGithub = useAction(publishAction);
 
+  // If the document already has a GitHub SHA, this is an update (not a first publish)
   const isUpdate = Boolean(document?.githubSha);
   const defaultCommitMessage = isUpdate
     ? `Update ${title || "document"}`
@@ -66,12 +76,14 @@ export function PublishDialog({
 
   const [commitMessage, setCommitMessage] = useState(defaultCommitMessage);
 
-  // Compute file path preview
+  // Compute the target file path in the repo for display purposes
   const contentPath = project?.contentPath ?? "content";
   const slug = document?.slug ?? "untitled";
   const filePath = `${contentPath}/${slug}.md`;
 
-  // Parse frontmatter for preview
+  // Build a YAML frontmatter preview by merging the document's saved frontmatter
+  // with a title and current timestamp. This shows the user exactly what will be
+  // written to the file's front matter block.
   let frontmatterPreview = "";
   if (document?.frontmatter) {
     try {
@@ -100,12 +112,37 @@ export function PublishDialog({
   const contentPreview =
     content.length > 200 ? `${content.slice(0, 200)}...` : content;
 
+  /**
+   * Execute the publish flow:
+   * 1. Attempt to fetch a fresh OAuth token from the `/api/github/token` route
+   * 2. Call the Convex `github.publish` action, passing the token if available
+   * 3. Show success/error toast and close the dialog
+   */
   async function handlePublish() {
     setIsPublishing(true);
     try {
-      await publishToGithub({
+      // Try to get OAuth token from Clerk first, fall back to stored PAT
+      let githubAccessToken: string | undefined;
+      try {
+        const res = await fetch("/api/github/token");
+        if (res.ok) {
+          const data = (await res.json()) as { token?: string };
+          if (data.token) {
+            githubAccessToken = data.token;
+          }
+        }
+      } catch {
+        // OAuth token not available, will fall back to stored PAT
+      }
+
+      const publishArgs: { documentId: Id<"documents">; githubAccessToken?: string } = {
         documentId: documentId as Id<"documents">,
-      });
+      };
+      if (githubAccessToken) {
+        publishArgs.githubAccessToken = githubAccessToken;
+      }
+
+      await publishToGithub(publishArgs);
       toast.success("Published successfully!", {
         description: `${title} has been published to GitHub.`,
       });

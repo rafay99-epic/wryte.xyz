@@ -28,13 +28,19 @@ import { ComingSoonCard } from "@/components/ui/coming-soon-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "../../../../convex/_generated/api";
 
+/** Props for a single metric card shown in the stats grid. */
 interface StatCardProps {
   title: string;
+  /** `undefined` while the backing query is still loading. */
   value: number | undefined;
   icon: React.ReactNode;
   description: string;
 }
 
+/**
+ * Renders a single stat metric card with a loading skeleton placeholder
+ * while the value is still being fetched.
+ */
 function StatCard({ title, value, icon, description }: StatCardProps) {
   return (
     <Card>
@@ -54,12 +60,20 @@ function StatCard({ title, value, icon, description }: StatCardProps) {
   );
 }
 
+/**
+ * Dashboard page — the authenticated user's landing screen.
+ *
+ * Displays:
+ *  - A personalised welcome greeting (Clerk first name).
+ *  - Aggregate document statistics across all projects (via `ProjectStats`).
+ *  - Quick-action links for creating a project or document.
+ *  - A "Coming Soon" section previewing future features.
+ */
 export default function DashboardPage() {
   const { user } = useUser();
   const projects = useQuery(api.projects.list);
 
-  // Aggregate document counts across all projects
-  // We query documents per project and sum them up
+  // Collect all project IDs so we can fan out document queries in ProjectStats.
   const allProjectIds = projects?.map((p) => p._id) ?? [];
   const firstName = user?.firstName ?? "there";
 
@@ -130,6 +144,13 @@ export default function DashboardPage() {
   );
 }
 
+/**
+ * Aggregates document counts across every project and renders four stat cards.
+ *
+ * Relies on `useAllDocuments` to fan out per-project queries and merge them.
+ * While any query is still loading the stat values remain `undefined`, which
+ * causes `StatCard` to show skeleton placeholders.
+ */
 function ProjectStats({
   projectIds,
 }: {
@@ -137,11 +158,9 @@ function ProjectStats({
     import("../../../../convex/_generated/dataModel").Id<"projects">
   >;
 }) {
-  // Query documents for each project
-  // For simplicity with Convex reactivity, we query each status separately
-  // using the first project or show zeros if none
   const allDocs = useAllDocuments(projectIds);
 
+  // Derive per-status counts from the flattened document list.
   const total = allDocs?.length;
   const drafts = allDocs?.filter((d) => d.status === "draft").length;
   const published = allDocs?.filter((d) => d.status === "published").length;
@@ -177,14 +196,22 @@ function ProjectStats({
   );
 }
 
-// Custom hook to aggregate documents across all projects
+/**
+ * Custom hook that aggregates documents across up to 8 projects.
+ *
+ * React's rules of hooks forbid calling `useQuery` inside a loop, so we
+ * declare a fixed number of hook slots (p0..p7) and conditionally skip the
+ * ones beyond the user's actual project count via Convex's `"skip"` sentinel.
+ *
+ * Returns `undefined` while any active query is still loading, or the merged
+ * array of `{ status }` objects once all queries have resolved.
+ */
 function useAllDocuments(
   projectIds: Array<
     import("../../../../convex/_generated/dataModel").Id<"projects">
   >,
 ) {
-  // Query each project's documents. Due to hooks rules, we need a stable approach.
-  // We'll query up to a reasonable number of projects.
+  // Each slot maps to a project by index; unused slots are skipped.
   const p0 = useQuery(
     api.documents.list,
     projectIds[0] ? { projectId: projectIds[0] } : "skip",
@@ -221,11 +248,13 @@ function useAllDocuments(
   const results = [p0, p1, p2, p3, p4, p5, p6, p7];
   const activeCount = projectIds.length;
 
-  // If any active query is still loading, return undefined
+  // Wait until every active slot has resolved before returning data,
+  // so consumers see either "all loading" or "all ready" — never partial.
   for (let i = 0; i < activeCount && i < results.length; i++) {
     if (results[i] === undefined) return undefined;
   }
 
+  // Flatten all per-project document arrays into a single list.
   const allDocs: Array<{ status: string }> = [];
   for (let i = 0; i < activeCount && i < results.length; i++) {
     const docs = results[i];

@@ -30,6 +30,16 @@ interface ImageInsertDialogProps {
   projectId: string;
 }
 
+/**
+ * Dialog for inserting images into the markdown editor.
+ * Offers two tabs:
+ *  - URL tab:    Paste an external image URL and preview it before inserting `![alt](url)`.
+ *  - Upload tab: Drag-and-drop or file-pick an image to upload to GitHub (if the project
+ *                uses GitHub media storage), or paste an external URL otherwise.
+ *
+ * The upload flow reads the file as base64, sends it to the Convex `github.uploadMediaToGithub`
+ * action, and inserts the resulting URL as markdown.
+ */
 export function ImageInsertDialog({
   open,
   onOpenChange,
@@ -49,6 +59,7 @@ export function ImageInsertDialog({
 
   const isGithubStorage = project?.mediaStorageMode === "github";
 
+  /** Build the markdown image syntax from the URL tab inputs and close the dialog. */
   function handleUrlInsert() {
     if (!imageUrl) return;
     const alt = altText || "image";
@@ -57,6 +68,10 @@ export function ImageInsertDialog({
     onOpenChange(false);
   }
 
+  /**
+   * Upload an image file to the GitHub repo via the Convex action.
+   * Converts the file to base64 first, since Convex actions cannot receive binary blobs.
+   */
   const handleFileUpload = useCallback(
     async (file: File) => {
       setIsUploading(true);
@@ -64,6 +79,7 @@ export function ImageInsertDialog({
 
       try {
         const reader = new FileReader();
+        // Read the file as a data URL, then strip the prefix to get raw base64
         const base64 = await new Promise<string>((resolve, reject) => {
           reader.onload = () => {
             const result = reader.result as string;
@@ -101,6 +117,7 @@ export function ImageInsertDialog({
     [altText, onInsert, onOpenChange, projectId, uploadMedia],
   );
 
+  /** Handle drag-and-drop; only accepts image/* MIME types. */
   function handleDrop(e: React.DragEvent) {
     e.preventDefault();
     const file = e.dataTransfer.files[0];

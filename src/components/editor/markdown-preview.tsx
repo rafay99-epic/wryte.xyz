@@ -7,7 +7,13 @@ import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
 import { useEditorStore } from "@/stores/editor-store";
 
+/**
+ * Custom component overrides for react-markdown rendering.
+ * These ensure images are lazy-loaded, links open in new tabs,
+ * and code blocks are distinguished from inline code.
+ */
 const components: Components = {
+  // Lazy-load images and constrain them to the container width
   img: ({ alt, src, ...props }) => (
     // eslint-disable-next-line @next/next/no-img-element
     <img
@@ -18,6 +24,7 @@ const components: Components = {
       {...props}
     />
   ),
+  // Force all links to open in a new tab for safety (noopener noreferrer)
   a: ({ children, href, ...props }) => (
     <a
       href={href}
@@ -29,6 +36,8 @@ const components: Components = {
       {children}
     </a>
   ),
+  // Differentiate fenced code blocks (which have a `language-*` class from
+  // rehype-highlight) from inline `code` spans so they get distinct styling
   code: ({ children, className, ...props }) => {
     const isBlock = className?.startsWith("language-");
     if (isBlock) {
@@ -49,9 +58,18 @@ const components: Components = {
   },
 };
 
+/**
+ * Live markdown preview panel.
+ * Rendering pipeline:
+ *  1. remark-gfm   -- adds GitHub Flavored Markdown (tables, strikethrough, task lists)
+ *  2. rehype-sanitize -- strips dangerous HTML to prevent XSS
+ *  3. rehype-highlight -- applies syntax highlighting to fenced code blocks
+ *  4. custom `components` -- overrides for img, a, and code elements
+ */
 export function MarkdownPreview() {
   const content = useEditorStore((state) => state.content);
 
+  // Show an empty-state prompt when the document has no content yet
   if (!content) {
     return (
       <div className="flex h-full items-center justify-center p-6 text-muted-foreground">
@@ -62,6 +80,7 @@ export function MarkdownPreview() {
 
   return (
     <div className="h-full overflow-y-auto p-6">
+      {/* Tailwind Typography plugin (`prose`) handles base markdown styling */}
       <article className="prose prose-neutral dark:prose-invert max-w-none">
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}

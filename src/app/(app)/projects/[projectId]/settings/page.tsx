@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   Eye,
   EyeOff,
+  GitFork,
   GripVertical,
   Loader2,
   Plus,
@@ -195,8 +196,12 @@ function GitHubSection({
   const updateGithubToken = useMutation(api.users.updateGithubToken);
   const verifyRepoAccess = useAction(api["github"]["verifyRepoAccess"]);
 
+  const [oauthConnected, setOauthConnected] = useState<boolean | null>(null);
+  const [oauthToken, setOauthToken] = useState<string | null>(null);
+
   const [token, setToken] = useState(existingToken);
   const [showToken, setShowToken] = useState(false);
+  const [showPatFallback, setShowPatFallback] = useState(false);
   const [isSavingToken, setIsSavingToken] = useState(false);
 
   const [repo, setRepo] = useState(project.githubRepo ?? "");
@@ -207,6 +212,27 @@ function GitHubSection({
     project.githubRepo ? "connected" : "idle",
   );
   const [verifyError, setVerifyError] = useState("");
+
+  // Check OAuth connection on mount
+  useEffect(() => {
+    async function checkOAuth() {
+      try {
+        const res = await fetch("/api/github/token");
+        if (res.ok) {
+          const data = (await res.json()) as { token?: string };
+          if (data.token) {
+            setOauthConnected(true);
+            setOauthToken(data.token);
+            return;
+          }
+        }
+        setOauthConnected(false);
+      } catch {
+        setOauthConnected(false);
+      }
+    }
+    void checkOAuth();
+  }, []);
 
   useEffect(() => {
     setToken(existingToken);
@@ -260,9 +286,10 @@ function GitHubSection({
 
   const handleVerify = useCallback(async () => {
     const trimmedRepo = repo.trim();
-    const trimmedToken = token.trim();
-    if (!trimmedToken) {
-      toast.error("Save your GitHub token first");
+    // Use OAuth token if available, otherwise fall back to PAT
+    const verifyToken = oauthToken ?? token.trim();
+    if (!verifyToken) {
+      toast.error("Connect GitHub via OAuth or save a Personal Access Token first");
       return;
     }
     if (!trimmedRepo) {
@@ -273,7 +300,7 @@ function GitHubSection({
     setVerifyError("");
     try {
       const result = await verifyRepoAccess({
-        token: trimmedToken,
+        token: verifyToken,
         repo: trimmedRepo,
       });
       if (result.valid) {
@@ -289,57 +316,77 @@ function GitHubSection({
       setVerifyError("Failed to verify repository access");
       toast.error("Failed to verify repository access");
     }
-  }, [repo, token, verifyRepoAccess]);
+  }, [repo, token, oauthToken, verifyRepoAccess]);
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>GitHub Repository</CardTitle>
+        <CardTitle className="flex items-center gap-2">
+          <GitFork className="size-5" />
+          GitHub Repository
+        </CardTitle>
         <CardDescription>
           Connect your project to a GitHub repository for publishing.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Token */}
-        <div className="space-y-3">
-          <div className="space-y-2">
-            <Label htmlFor="gh-token">GitHub Personal Access Token</Label>
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <Input
-                  id="gh-token"
-                  type={showToken ? "text" : "password"}
-                  value={token}
-                  onChange={(e) => setToken(e.target.value)}
-                  placeholder="ghp_..."
-                  className="pr-10"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowToken(!showToken)}
-                  className="absolute top-1/2 right-2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  {showToken ? (
-                    <EyeOff className="size-4" />
-                  ) : (
-                    <Eye className="size-4" />
-                  )}
-                </button>
-              </div>
-              <Button
-                size="sm"
-                onClick={handleSaveToken}
-                disabled={isSavingToken}
-              >
-                {isSavingToken && <Loader2 className="size-4 animate-spin" />}
-                Save Token
-              </Button>
+        {/* OAuth Status */}
+        <div className="rounded-lg border p-3">
+          {oauthConnected === null ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" />
+              Checking GitHub connection...
             </div>
-            <p className="text-xs text-muted-foreground">
-              Needs repo access. Stored securely and used for publishing only.
-            </p>
-          </div>
+          ) : oauthConnected ? (
+            <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
+              <CheckCircle2 className="size-4" />
+              GitHub connected via OAuth — publishing will use your OAuth token automatically.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <XCircle className="size-4" />
+                GitHub not connected via OAuth
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Connect GitHub via Clerk to auto-import repos, or use a
+                Personal Access Token below as a fallback.
+              </p>
+            </div>
+          )}
         </div>
+
+        {/* PAT Fallback — collapsible when OAuth is connected */}
+        {oauthConnected ? (
+          <div className="space-y-3">
+            <button
+              type="button"
+              onClick={() => setShowPatFallback(!showPatFallback)}
+              className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+            >
+              {showPatFallback ? "Hide" : "Show"} Personal Access Token (fallback)
+            </button>
+            {showPatFallback && (
+              <PatTokenInput
+                token={token}
+                showToken={showToken}
+                isSaving={isSavingToken}
+                onTokenChange={setToken}
+                onToggleShow={() => setShowToken(!showToken)}
+                onSave={handleSaveToken}
+              />
+            )}
+          </div>
+        ) : (
+          <PatTokenInput
+            token={token}
+            showToken={showToken}
+            isSaving={isSavingToken}
+            onTokenChange={setToken}
+            onToggleShow={() => setShowToken(!showToken)}
+            onSave={handleSaveToken}
+          />
+        )}
 
         <Separator />
 
@@ -391,6 +438,58 @@ function GitHubSection({
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function PatTokenInput({
+  token,
+  showToken,
+  isSaving,
+  onTokenChange,
+  onToggleShow,
+  onSave,
+}: {
+  token: string;
+  showToken: boolean;
+  isSaving: boolean;
+  onTokenChange: (value: string) => void;
+  onToggleShow: () => void;
+  onSave: () => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <Label htmlFor="gh-token">Personal Access Token</Label>
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <Input
+            id="gh-token"
+            type={showToken ? "text" : "password"}
+            value={token}
+            onChange={(e) => onTokenChange(e.target.value)}
+            placeholder="ghp_..."
+            className="pr-10"
+          />
+          <button
+            type="button"
+            onClick={onToggleShow}
+            className="absolute top-1/2 right-2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+          >
+            {showToken ? (
+              <EyeOff className="size-4" />
+            ) : (
+              <Eye className="size-4" />
+            )}
+          </button>
+        </div>
+        <Button size="sm" onClick={onSave} disabled={isSaving}>
+          {isSaving && <Loader2 className="size-4 animate-spin" />}
+          Save Token
+        </Button>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Needs repo access. Stored securely and used for publishing only.
+      </p>
+    </div>
   );
 }
 

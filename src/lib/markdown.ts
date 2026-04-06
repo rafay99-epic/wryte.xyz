@@ -13,16 +13,30 @@ export function generateSlug(title: string): string {
 
 /**
  * Generates a YAML frontmatter block from a record of fields.
+ *
+ * Handles type-specific serialization:
+ * - Strings are double-quoted with escaped inner quotes.
+ * - Dates are serialized to ISO 8601 format.
+ * - Arrays are rendered as YAML list syntax (one `- item` per line).
+ * - All other types are coerced to strings via String().
+ *
+ * The result is wrapped in `---` delimiters, ready to prepend to markdown content.
+ *
+ * @param fields - Key-value pairs representing frontmatter metadata.
+ * @returns A complete YAML frontmatter block string (e.g., "---\ntitle: \"Hello\"\n---").
  */
 export function buildFrontmatter(fields: Record<string, unknown>): string {
   const lines = Object.entries(fields).map(([key, value]) => {
+    // Wrap strings in double quotes, escaping any inner quotes
     if (typeof value === "string") {
       const escaped = value.replace(/"/g, '\\"');
       return `${key}: "${escaped}"`;
     }
+    // Dates need ISO format for consistent parsing by static site generators
     if (value instanceof Date) {
       return `${key}: ${value.toISOString()}`;
     }
+    // Arrays (e.g., tags) use YAML block sequence syntax
     if (Array.isArray(value)) {
       const items = value
         .map((item) => {
@@ -34,6 +48,7 @@ export function buildFrontmatter(fields: Record<string, unknown>): string {
         .join("\n");
       return `${key}:\n${items}`;
     }
+    // Fallback: booleans, numbers, etc.
     return `${key}: ${String(value)}`;
   });
 

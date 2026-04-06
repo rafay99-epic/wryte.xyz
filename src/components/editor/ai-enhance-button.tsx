@@ -44,6 +44,14 @@ async function enhanceContent(content: string): Promise<string> {
   return enhanced;
 }
 
+/**
+ * Placeholder dialog for the AI content enhancement feature.
+ * Shows a preview of the current content and a button to trigger enhancement.
+ * Currently uses a stub `enhanceContent` function that simulates AI processing
+ * with a delay and basic formatting tweaks. In production, this would call
+ * an AI API endpoint. The enhancement result replaces the editor content
+ * via the Zustand store, and can be undone with Ctrl+Z.
+ */
 export function AiEnhanceButton({ open, onOpenChange }: AiEnhanceButtonProps) {
   const [isEnhancing, setIsEnhancing] = useState(false);
   const { content, setContent } = useEditorStore(

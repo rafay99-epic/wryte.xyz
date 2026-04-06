@@ -2,7 +2,7 @@
 
 import { useUser } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
-import { Eye, EyeOff, Loader2, Monitor, Moon, Sun } from "lucide-react";
+import { CheckCircle2, Eye, EyeOff, GitFork, Loader2, Monitor, Moon, Sun, XCircle } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -42,6 +42,9 @@ export default function SettingsPage() {
           name={clerkUser?.fullName ?? convexUser?.name ?? "User"}
           email={clerkUser?.primaryEmailAddress?.emailAddress ?? convexUser?.email ?? ""}
           imageUrl={clerkUser?.imageUrl ?? convexUser?.imageUrl}
+        />
+        <GitHubConnectionSection
+          githubUsername={convexUser?.githubUsername}
         />
         <GitHubTokenSection
           existingToken={convexUser?.githubAccessToken ?? ""}
@@ -95,6 +98,79 @@ function AccountSection({
   );
 }
 
+function GitHubConnectionSection({
+  githubUsername,
+}: {
+  githubUsername: string | undefined;
+}) {
+  const [isChecking, setIsChecking] = useState(false);
+  const [oauthConnected, setOauthConnected] = useState<boolean | null>(null);
+
+  const checkOAuthConnection = useCallback(async () => {
+    setIsChecking(true);
+    try {
+      const res = await fetch("/api/github/token");
+      setOauthConnected(res.ok);
+    } catch {
+      setOauthConnected(false);
+    } finally {
+      setIsChecking(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void checkOAuthConnection();
+  }, [checkOAuthConnection]);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <GitFork className="size-5" />
+          GitHub Connection
+        </CardTitle>
+        <CardDescription>
+          Connect your GitHub account via OAuth to auto-import repositories and
+          publish content. This is the recommended method.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="flex items-center gap-3 rounded-lg border p-3">
+          {isChecking ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" />
+              Checking connection...
+            </div>
+          ) : oauthConnected ? (
+            <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
+              <CheckCircle2 className="size-4" />
+              GitHub connected via OAuth
+              {githubUsername && (
+                <span className="text-muted-foreground">
+                  ({githubUsername})
+                </span>
+              )}
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <XCircle className="size-4" />
+              GitHub not connected via OAuth
+            </div>
+          )}
+        </div>
+        {!oauthConnected && !isChecking && (
+          <p className="text-xs text-muted-foreground">
+            To connect GitHub via OAuth, sign in with GitHub through Clerk or
+            link your GitHub account in your Clerk profile. Once connected,
+            Wryte will automatically access your repositories without needing a
+            Personal Access Token.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function GitHubTokenSection({ existingToken }: { existingToken: string }) {
   const updateGithubToken = useMutation(api.users.updateGithubToken);
 
@@ -125,10 +201,10 @@ function GitHubTokenSection({ existingToken }: { existingToken: string }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>GitHub Token</CardTitle>
+        <CardTitle>GitHub Token (Fallback)</CardTitle>
         <CardDescription>
-          Your GitHub Personal Access Token is used across all projects for
-          publishing content.
+          If you haven&apos;t connected GitHub via OAuth above, you can use a
+          Personal Access Token as a fallback for publishing content.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">

@@ -6,6 +6,11 @@ import {
   internalMutation,
 } from "./_generated/server";
 
+/**
+ * Authenticates the caller and retrieves their user record from the database.
+ * Throws on missing auth or missing user, ensuring downstream code always
+ * has a valid user object to work with.
+ */
 async function getCurrentUser(ctx: { auth: { getUserIdentity: () => Promise<{ tokenIdentifier: string } | null> }; db: any }) {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) {
@@ -26,6 +31,11 @@ async function getCurrentUser(ctx: { auth: { getUserIdentity: () => Promise<{ to
   return user;
 }
 
+/**
+ * Verifies that a document exists and that the given user owns the parent project.
+ * Follows the chain: document -> project -> project.userId === userId.
+ * Returns the document if ownership is confirmed; throws otherwise.
+ */
 async function verifyDocumentOwnership(ctx: { db: any }, documentId: any, userId: any) {
   const document = await ctx.db.get(documentId);
   if (!document) {
@@ -44,6 +54,16 @@ async function verifyDocumentOwnership(ctx: { db: any }, documentId: any, userId
   return document;
 }
 
+/**
+ * Lists documents within a project, optionally filtered by status.
+ * Uses the compound index `by_projectId_and_status` when a status filter is
+ * provided for efficient querying, falling back to `by_projectId` otherwise.
+ * Returns an empty array for unauthenticated or unauthorized users.
+ *
+ * @param args.projectId - The project whose documents to list.
+ * @param args.status - Optional filter: "draft", "scheduled", or "published".
+ * @returns Documents sorted by most recently updated.
+ */
 export const list = query({
   args: {
     projectId: v.id("projects"),
@@ -96,6 +116,13 @@ export const list = query({
   },
 });
 
+/**
+ * Fetches a single document by ID with full ownership verification.
+ *
+ * @requires Authentication + document ownership (via parent project)
+ * @param args.documentId - The document to retrieve.
+ * @returns The document record.
+ */
 export const get = query({
   args: { documentId: v.id("documents") },
   handler: async (ctx, args) => {
@@ -120,6 +147,16 @@ export const get = query({
   },
 });
 
+/**
+ * Creates a new blank document in draft status within the specified project.
+ * Verifies the user owns the target project before inserting.
+ *
+ * @requires Authentication + project ownership
+ * @param args.projectId - The project to add the document to.
+ * @param args.title - Document title.
+ * @param args.slug - URL-safe identifier used as the filename when publishing.
+ * @returns The new document's ID.
+ */
 export const create = mutation({
   args: {
     projectId: v.id("projects"),
@@ -155,6 +192,13 @@ export const create = mutation({
   },
 });
 
+/**
+ * Partially updates a document's content, metadata, or status.
+ * Only fields that are explicitly provided are written; `updatedAt` is always refreshed.
+ *
+ * @requires Authentication + document ownership
+ * @param args.documentId - The document to update.
+ */
 export const update = mutation({
   args: {
     documentId: v.id("documents"),
@@ -188,6 +232,14 @@ export const update = mutation({
   },
 });
 
+/**
+ * Transitions a document's status. When transitioning to "published",
+ * `publishedAt` is automatically set to the current timestamp.
+ *
+ * @requires Authentication + document ownership
+ * @param args.documentId - The document to update.
+ * @param args.status - The new status: "draft", "scheduled", or "published".
+ */
 export const updateStatus = mutation({
   args: {
     documentId: v.id("documents"),
@@ -214,6 +266,14 @@ export const updateStatus = mutation({
   },
 });
 
+/**
+ * Deletes a document and all its associated scheduled publish records.
+ * The cascade to scheduled_publishes prevents orphaned jobs from firing
+ * after the document is gone.
+ *
+ * @requires Authentication + document ownership
+ * @param args.documentId - The document to delete.
+ */
 export const remove = mutation({
   args: { documentId: v.id("documents") },
   handler: async (ctx, args) => {
@@ -233,6 +293,97 @@ export const remove = mutation({
   },
 });
 
+/**
+ * Imports a markdown file from GitHub into the project as a published document.
+ * Uses `githubPath` for duplicate detection: if a document with the same GitHub
+ * file path already exists in the project, it returns the existing document's ID
+ * instead of creating a duplicate. This makes the import idempotent — safe to
+ * retry or call multiple times for the same file.
+ *
+ * @requires Authentication + project ownership
+ * @param args.githubPath - The file path in the repo, used as the dedup key.
+ * @param args.githubSha - The Git blob SHA, used for future update detection.
+ * @returns The document ID (existing or newly created).
+ */
+export const importFromGithub = mutation({
+  args: {
+    projectId: v.id("projects"),
+    title: v.string(),
+    slug: v.string(),
+    content: v.string(),
+    frontmatter: v.optional(v.string()),
+    githubPath: v.string(),
+    githubSha: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+
+    const project = await ctx.db.get(args.projectId);
+    if (!project) {
+      throw new Error("Project not found");
+    }
+    if (project.userId !== user._id) {
+      throw new Error("Unauthorized: you do not own this project");
+    }
+
+    // Check for duplicate import by githubPath
+    const existing = await ctx.db
+      .query("documents")
+      .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
+      .collect();
+
+    const duplicate = existing.find((d) => d.githubPath === args.githubPath);
+    if (duplicate) {
+      return duplicate._id;
+    }
+
+    const now = Date.now();
+
+    const insertData: {
+      projectId: typeof args.projectId;
+      userId: typeof user._id;
+      title: string;
+      slug: string;
+      content: string;
+      status: "published";
+      githubPath: string;
+      githubSha: string;
+      publishedAt: number;
+      createdAt: number;
+      updatedAt: number;
+      frontmatter?: string;
+    } = {
+      projectId: args.projectId,
+      userId: user._id,
+      title: args.title,
+      slug: args.slug,
+      content: args.content,
+      status: "published" as const,
+      githubPath: args.githubPath,
+      githubSha: args.githubSha,
+      publishedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    if (args.frontmatter !== undefined) {
+      insertData.frontmatter = args.frontmatter;
+    }
+
+    const documentId = await ctx.db.insert("documents", insertData);
+    return documentId;
+  },
+});
+
+/**
+ * Looks up a document by its slug within a project. Returns null for
+ * unauthenticated/unauthorized users rather than throwing, so the client
+ * can handle missing documents gracefully.
+ *
+ * @param args.projectId - The project to search within.
+ * @param args.slug - The document slug to find.
+ * @returns The matching document, or null.
+ */
 export const getBySlug = query({
   args: {
     projectId: v.id("projects"),
@@ -269,6 +420,10 @@ export const getBySlug = query({
   },
 });
 
+/**
+ * Internal-only query to fetch a document by ID without auth checks.
+ * Used by server-side actions that have already verified access.
+ */
 export const internalGet = internalQuery({
   args: { documentId: v.id("documents") },
   handler: async (ctx, args) => {
@@ -276,6 +431,12 @@ export const internalGet = internalQuery({
   },
 });
 
+/**
+ * Internal mutation called after a successful GitHub publish to record
+ * the resulting file path, SHA, and publication timestamp on the document.
+ * Keeping this separate from the GitHub action allows the action to remain
+ * stateless while the mutation handles the database write transactionally.
+ */
 export const internalUpdateAfterPublish = internalMutation({
   args: {
     documentId: v.id("documents"),

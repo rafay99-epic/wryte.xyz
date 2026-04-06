@@ -31,6 +31,7 @@ interface ScheduleDialogProps {
   documentId: string;
 }
 
+/** Convert a UTC timestamp to a `datetime-local` input value in the user's timezone. */
 function toDatetimeLocalString(timestamp: number): string {
   const date = new Date(timestamp);
   const offset = date.getTimezoneOffset();
@@ -38,6 +39,12 @@ function toDatetimeLocalString(timestamp: number): string {
   return local.toISOString().slice(0, 16);
 }
 
+/**
+ * Dialog for scheduling (or rescheduling/cancelling) a document's future publication.
+ * If the document is already scheduled, it shows the existing date and allows
+ * the user to reschedule or cancel. Validates that the chosen date is in the future
+ * before submitting to the Convex `scheduling.schedule` mutation.
+ */
 export function ScheduleDialog({
   open,
   onOpenChange,
@@ -57,10 +64,12 @@ export function ScheduleDialog({
   const isAlreadyScheduled = document?.status === "scheduled";
   const existingScheduledAt = document?.scheduledAt;
 
+  /** Validate the chosen date and submit the schedule mutation. */
   async function handleSchedule() {
     if (!scheduledDate) return;
 
     const timestamp = new Date(scheduledDate).getTime();
+    // Prevent scheduling in the past
     if (timestamp <= Date.now()) {
       toast.error("Invalid date", {
         description: "Scheduled time must be in the future.",
@@ -88,6 +97,7 @@ export function ScheduleDialog({
     }
   }
 
+  /** Cancel an existing schedule and revert the document back to draft status. */
   async function handleCancel() {
     setIsCancelling(true);
     try {

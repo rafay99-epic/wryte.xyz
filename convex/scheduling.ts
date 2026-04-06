@@ -1,3 +1,8 @@
+/**
+ * Scheduled publishing system — allows users to queue documents for future publication.
+ * Works in tandem with crons.ts which polls every 5 minutes, and github.ts which
+ * performs the actual GitHub commit.
+ */
 import { v } from "convex/values";
 import {
   mutation,
@@ -7,6 +12,10 @@ import {
 } from "./_generated/server";
 import { internal } from "./_generated/api";
 
+/**
+ * Authenticates the caller and retrieves their user record.
+ * Shared helper used by the public-facing mutations in this file.
+ */
 async function getCurrentUser(ctx: { auth: { getUserIdentity: () => Promise<{ tokenIdentifier: string } | null> }; db: any }) {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) {
@@ -27,6 +36,16 @@ async function getCurrentUser(ctx: { auth: { getUserIdentity: () => Promise<{ to
   return user;
 }
 
+/**
+ * Schedules a document for future publishing at a specific timestamp.
+ * Replaces any existing pending scheduled publish for the same document
+ * (only one pending publish per document at a time). Also updates the
+ * document's status to "scheduled" so the UI reflects the pending state.
+ *
+ * @requires Authentication + document ownership
+ * @param args.documentId - The document to schedule.
+ * @param args.scheduledAt - Unix timestamp (ms) for when to publish. Must be in the future.
+ */
 export const schedule = mutation({
   args: {
     documentId: v.id("documents"),
@@ -76,6 +95,14 @@ export const schedule = mutation({
   },
 });
 
+/**
+ * Cancels all pending scheduled publishes for a document and reverts its
+ * status back to "draft". Only deletes records with "pending" status —
+ * completed or failed records are kept for audit purposes.
+ *
+ * @requires Authentication + document ownership
+ * @param args.documentId - The document whose schedule to cancel.
+ */
 export const cancel = mutation({
   args: { documentId: v.id("documents") },
   handler: async (ctx, args) => {
@@ -110,6 +137,15 @@ export const cancel = mutation({
   },
 });
 
+/**
+ * Cron-invoked action that processes all due scheduled publishes.
+ * For each pending item whose scheduledAt has passed:
+ * 1. Marks it as "processing" to prevent duplicate processing on the next cron tick
+ * 2. Delegates to github.publishToGithub for the actual commit
+ * 3. Marks it as "completed" on success or "failed" (with error message) on failure
+ *
+ * Sequential processing ensures one failure doesn't block the rest of the batch.
+ */
 export const processScheduled = internalAction({
   args: {},
   handler: async (ctx) => {
@@ -145,6 +181,11 @@ export const processScheduled = internalAction({
   },
 });
 
+/**
+ * Internal query that returns all scheduled publishes that are pending and
+ * whose scheduledAt timestamp has passed. Used by processScheduled to find
+ * work to do on each cron tick.
+ */
 export const getPendingPublishes = internalQuery({
   args: {},
   handler: async (ctx) => {
@@ -161,6 +202,15 @@ export const getPendingPublishes = internalQuery({
   },
 });
 
+/**
+ * Internal mutation to update a scheduled publish record's status.
+ * Called by processScheduled to track progress through the
+ * pending -> processing -> completed/failed lifecycle.
+ *
+ * @param args.publishId - The scheduled_publishes record to update.
+ * @param args.status - New status value.
+ * @param args.error - Optional error message (set when status is "failed").
+ */
 export const updatePublishStatus = internalMutation({
   args: {
     publishId: v.id("scheduled_publishes"),

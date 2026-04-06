@@ -1,143 +1,265 @@
 "use client";
 
 import { useMutation } from "convex/react";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
+import { StepConfigurePaths } from "@/components/projects/wizard/step-configure-paths";
+import { StepFrontmatterSchema } from "@/components/projects/wizard/step-frontmatter-schema";
+import { StepSelectRepo } from "@/components/projects/wizard/step-select-repo";
+import { WizardStepper } from "@/components/projects/wizard/wizard-stepper";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { generateSlug } from "@/lib/markdown";
+import type { FrontmatterField } from "@/types/frontmatter";
+import { DEFAULT_FRONTMATTER_FIELDS } from "@/types/frontmatter";
 import { api } from "../../../../../convex/_generated/api";
 
+/**
+ * Shape of the multi-step project creation wizard.
+ *
+ * All three steps share a single state object so values entered in earlier
+ * steps are preserved when navigating back and forth.
+ */
+export interface WizardState {
+  step: 1 | 2 | 3;
+  // Step 1 — repo selection & project identity
+  selectedRepo: {
+    fullName: string;
+    name: string;
+    defaultBranch: string;
+    description: string | null;
+    isPrivate: boolean;
+  } | null;
+  projectName: string;
+  projectSlug: string;
+  /** When true the user skips the GitHub repo picker and enters details manually. */
+  useManualSetup: boolean;
+  // Step 2 — directory paths & media config
+  contentPath: string;
+  mediaPath: string;
+  mediaStorageMode: "github" | "external";
+  // Step 3 — frontmatter schema definition
+  frontmatterFields: FrontmatterField[];
+  /** If frontmatter fields were auto-detected from an existing file, its name is stored here. */
+  detectedFromFile: string | null;
+}
+
+/** Sensible defaults so the wizard is usable without touching every field. */
+const INITIAL_STATE: WizardState = {
+  step: 1,
+  selectedRepo: null,
+  projectName: "",
+  projectSlug: "",
+  useManualSetup: false,
+  contentPath: "content/blog",
+  mediaPath: "public/images",
+  mediaStorageMode: "github",
+  frontmatterFields: DEFAULT_FRONTMATTER_FIELDS,
+  detectedFromFile: null,
+};
+
+/**
+ * Three-step wizard for creating a new project.
+ *
+ * Step 1: Select a GitHub repo (or opt for manual setup) and name the project.
+ * Step 2: Configure content and media directory paths.
+ * Step 3: Define the frontmatter schema for documents.
+ *
+ * On final submission, the wizard calls the `projects.create` Convex mutation
+ * and redirects the user to the newly created project page.
+ */
 export default function NewProjectPage() {
   const router = useRouter();
   const createProject = useMutation(api.projects.create);
-
-  const [name, setName] = useState("");
-  const [slug, setSlug] = useState("");
-  const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
+  const [state, setState] = useState<WizardState>(INITIAL_STATE);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleNameChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const newName = e.target.value;
-      setName(newName);
-      if (!slugManuallyEdited) {
-        setSlug(generateSlug(newName));
+  // Merge partial updates into the wizard state — used by each step component.
+  const handleChange = useCallback((updates: Partial<WizardState>) => {
+    setState((prev) => ({ ...prev, ...updates }));
+  }, []);
+
+  /**
+   * Validates the fields for the given step number.
+   * Returns `true` if valid; on failure, shows an error toast and returns `false`.
+   */
+  const validateStep = useCallback(
+    (step: 1 | 2 | 3): boolean => {
+      switch (step) {
+        case 1: {
+          if (!state.projectName.trim()) {
+            toast.error("Project name is required");
+            return false;
+          }
+          if (!state.projectSlug.trim()) {
+            toast.error("Slug is required");
+            return false;
+          }
+          // Slug must be a valid URL segment: lowercase alphanumeric + hyphens.
+          if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(state.projectSlug.trim())) {
+            toast.error(
+              "Slug must contain only lowercase letters, numbers, and hyphens",
+            );
+            return false;
+          }
+          return true;
+        }
+        case 2: {
+          if (!state.contentPath.trim()) {
+            toast.error("Content directory is required");
+            return false;
+          }
+          return true;
+        }
+        case 3: {
+          // Every frontmatter field must be named.
+          const emptyName = state.frontmatterFields.some((f) => !f.name.trim());
+          if (emptyName) {
+            toast.error("All frontmatter fields must have a name");
+            return false;
+          }
+          // Duplicate field names would cause YAML key collisions.
+          const names = state.frontmatterFields.map((f) => f.name.trim());
+          const hasDuplicates = new Set(names).size !== names.length;
+          if (hasDuplicates) {
+            toast.error("Frontmatter field names must be unique");
+            return false;
+          }
+          return true;
+        }
       }
     },
-    [slugManuallyEdited],
+    [state],
   );
 
-  const handleSlugChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      setSlugManuallyEdited(true);
-      setSlug(generateSlug(e.target.value));
-    },
-    [],
-  );
+  // Advance to the next step after validating the current one.
+  const handleNext = useCallback(() => {
+    if (!validateStep(state.step)) return;
 
-  const handleSubmit = useCallback(
-    async (e: React.FormEvent) => {
-      e.preventDefault();
+    if (state.step < 3) {
+      const nextStep = (state.step + 1) as 2 | 3;
+      setState((prev) => ({ ...prev, step: nextStep }));
+    }
+  }, [state.step, validateStep]);
 
-      const trimmedName = name.trim();
-      const trimmedSlug = slug.trim();
+  const handleBack = useCallback(() => {
+    if (state.step > 1) {
+      const prevStep = (state.step - 1) as 1 | 2;
+      setState((prev) => ({ ...prev, step: prevStep }));
+    }
+  }, [state.step]);
 
-      if (!trimmedName) {
-        toast.error("Project name is required");
-        return;
+  /**
+   * Final submission handler.
+   *
+   * Validates step 3, serialises the frontmatter schema to JSON, builds
+   * the mutation args (attaching GitHub repo details only if a repo was
+   * selected), creates the project in Convex, and navigates to it.
+   */
+  const handleCreate = useCallback(async () => {
+    if (!validateStep(3)) return;
+
+    setIsSubmitting(true);
+    try {
+      // Serialize frontmatter fields for storage as a JSON string in Convex.
+      const schemaFields = state.frontmatterFields.map((f) => ({
+        name: f.name.trim(),
+        type: f.type,
+        required: f.required,
+        defaultValue: f.defaultValue,
+        options: f.options,
+      }));
+
+      const args: {
+        name: string;
+        slug: string;
+        githubRepo?: string;
+        githubBranch?: string;
+        contentPath?: string;
+        mediaPath?: string;
+        mediaStorageMode?: "github" | "external";
+        frontmatterSchema?: string;
+      } = {
+        name: state.projectName.trim(),
+        slug: state.projectSlug.trim(),
+        contentPath: state.contentPath.trim(),
+        mediaPath: state.mediaPath.trim(),
+        mediaStorageMode: state.mediaStorageMode,
+        frontmatterSchema: JSON.stringify(schemaFields),
+      };
+
+      // Only attach GitHub fields when the user picked a repo (not manual setup).
+      if (state.selectedRepo) {
+        args.githubRepo = state.selectedRepo.fullName;
+        args.githubBranch = state.selectedRepo.defaultBranch;
       }
 
-      if (!trimmedSlug) {
-        toast.error("Slug is required");
-        return;
-      }
+      const projectId = await createProject(args);
 
-      if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(trimmedSlug)) {
-        toast.error(
-          "Slug must contain only lowercase letters, numbers, and hyphens",
-        );
-        return;
-      }
-
-      setIsSubmitting(true);
-      try {
-        const projectId = await createProject({
-          name: trimmedName,
-          slug: trimmedSlug,
-        });
-        toast.success("Project created");
-        router.push(`/projects/${projectId}/settings`);
-      } catch {
-        toast.error("Failed to create project");
-      } finally {
-        setIsSubmitting(false);
-      }
-    },
-    [name, slug, createProject, router],
-  );
+      toast.success("Project created successfully");
+      router.push(`/projects/${projectId}`);
+    } catch {
+      toast.error("Failed to create project. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [state, createProject, router, validateStep]);
 
   return (
     <div className="p-6">
       <div className="mb-6">
-        <Link href="/projects" className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}>
+        <Link
+          href="/projects"
+          className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
+        >
           <ArrowLeft className="size-4" />
           Back to Projects
         </Link>
       </div>
 
-      <div className="mx-auto max-w-lg">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-xl">Create New Project</CardTitle>
-            <CardDescription>
-              Set up a new project to organize your content. You can configure
-              GitHub integration in the next step.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="project-name">Project Name</Label>
-                <Input
-                  id="project-name"
-                  placeholder="My Blog"
-                  value={name}
-                  onChange={handleNameChange}
-                  autoFocus
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="project-slug">Slug</Label>
-                <Input
-                  id="project-slug"
-                  placeholder="my-blog"
-                  value={slug}
-                  onChange={handleSlugChange}
-                />
-                <p className="text-xs text-muted-foreground">
-                  URL-friendly identifier. Auto-generated from the name.
-                </p>
-              </div>
-              <Button type="submit" disabled={isSubmitting} className="w-full">
-                {isSubmitting && <Loader2 className="size-4 animate-spin" />}
-                Create Project
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
+      <div className="mx-auto max-w-2xl">
+        <h1 className="mb-6 text-2xl font-bold">Create New Project</h1>
+
+        <div className="mb-8">
+          <WizardStepper currentStep={state.step} />
+        </div>
+
+        <div className="min-h-[400px] rounded-lg border bg-card p-6">
+          {state.step === 1 && (
+            <StepSelectRepo state={state} onChange={handleChange} />
+          )}
+          {state.step === 2 && (
+            <StepConfigurePaths state={state} onChange={handleChange} />
+          )}
+          {state.step === 3 && (
+            <StepFrontmatterSchema state={state} onChange={handleChange} />
+          )}
+        </div>
+
+        <div className="mt-6 flex items-center justify-between">
+          <Button
+            variant="outline"
+            onClick={handleBack}
+            disabled={state.step === 1}
+          >
+            <ArrowLeft className="size-4" />
+            Back
+          </Button>
+
+          {state.step < 3 ? (
+            <Button onClick={handleNext}>
+              Next
+              <ArrowRight className="size-4" />
+            </Button>
+          ) : (
+            <Button onClick={() => void handleCreate()} disabled={isSubmitting}>
+              {isSubmitting && <Loader2 className="size-4 animate-spin" />}
+              Create Project
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   );

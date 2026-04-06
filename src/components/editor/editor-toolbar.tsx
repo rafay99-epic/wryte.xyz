@@ -43,11 +43,22 @@ interface EditorToolbarProps {
   projectId: string;
 }
 
+/** Format a Unix timestamp into a short HH:MM display for the "Saved at" indicator. */
 function formatTime(timestamp: number): string {
   const date = new Date(timestamp);
   return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
+/**
+ * Editor toolbar spanning the top of the editor layout.
+ * Organized into three sections:
+ *  - Left:   Markdown formatting buttons (bold, italic, heading, etc.) + AI enhance
+ *  - Center: View mode toggle (edit / split / preview)
+ *  - Right:  Save status indicator, schedule button, publish button
+ *
+ * Formatting actions delegate to EditorContext helpers (insertAtCursor, wrapSelection)
+ * so the toolbar never directly touches the textarea DOM.
+ */
 export function EditorToolbar({ documentId, projectId }: EditorToolbarProps) {
   const { viewMode, setViewMode, isSaving, isDirty, lastSavedAt } =
     useEditorStore(
@@ -66,6 +77,9 @@ export function EditorToolbar({ documentId, projectId }: EditorToolbarProps) {
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
 
+  // --- Formatting action handlers ---
+  // Each wraps or inserts standard Markdown syntax at the cursor position.
+
   function handleBold() {
     wrapSelection("**", "**");
   }
@@ -75,6 +89,7 @@ export function EditorToolbar({ documentId, projectId }: EditorToolbarProps) {
   }
 
   function handleLink() {
+    // Wraps selection as link text; user replaces "url" placeholder
     wrapSelection("[", "](url)");
   }
 
@@ -99,6 +114,7 @@ export function EditorToolbar({ documentId, projectId }: EditorToolbarProps) {
     insertAtCursor(`\n${prefix} `);
   }
 
+  /** Callback passed to ImageInsertDialog; receives the final `![alt](url)` markdown string. */
   function handleImageInsert(markdown: string) {
     insertAtCursor(markdown);
   }
@@ -260,7 +276,7 @@ export function EditorToolbar({ documentId, projectId }: EditorToolbarProps) {
           Enhance with AI
         </Button>
 
-        {/* Middle section - view mode toggle */}
+        {/* Middle section - segmented control for switching between edit/split/preview modes */}
         <div className="ml-auto flex items-center gap-0.5 rounded-lg bg-muted p-0.5">
           <Button
             variant={viewMode === "edit" ? "secondary" : "ghost"}
@@ -285,10 +301,11 @@ export function EditorToolbar({ documentId, projectId }: EditorToolbarProps) {
           </Button>
         </div>
 
-        {/* Right section - save status, schedule, publish */}
+        {/* Right section - save status indicator, schedule, and publish buttons */}
         <Separator orientation="vertical" className="mx-1 h-5" />
 
         <div className="flex items-center gap-1.5">
+          {/* Save status: cycles through saving spinner -> "Unsaved changes" -> "Saved at HH:MM" */}
           <span className="flex items-center gap-1 text-xs text-muted-foreground">
             {isSaving ? (
               <>

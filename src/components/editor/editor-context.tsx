@@ -9,7 +9,12 @@ import {
   useRef,
 } from "react";
 
+/**
+ * Shape of the editor context value shared across all editor sub-components.
+ * Provides a shared textarea ref and helper functions for programmatic text manipulation.
+ */
 interface EditorContextValue {
+  /** Ref to the underlying <textarea> so toolbar/shortcuts can manipulate it directly */
   textareaRef: RefObject<HTMLTextAreaElement | null>;
   insertAtCursor: (text: string) => void;
   wrapSelection: (before: string, after: string) => void;
@@ -18,19 +23,36 @@ interface EditorContextValue {
 
 const EditorContext = createContext<EditorContextValue | null>(null);
 
+/**
+ * Provides editor text-manipulation utilities to all children via React context.
+ * Holds a single shared ref to the markdown textarea, enabling the toolbar,
+ * keyboard shortcuts, and dialogs to insert/wrap/replace text without prop drilling.
+ */
 export function EditorProvider({ children }: { children: ReactNode }) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
+  /**
+   * Insert text at the current cursor position (or replace the current selection).
+   * Uses the native `setRangeText` API so the browser's undo stack is preserved.
+   * Dispatches a synthetic `input` event so React state stays in sync.
+   */
   const insertAtCursor = useCallback((text: string) => {
     const textarea = textareaRef.current;
     if (!textarea) return;
 
     const { selectionStart, selectionEnd } = textarea;
     textarea.focus();
+    // "end" moves the cursor to after the inserted text
     textarea.setRangeText(text, selectionStart, selectionEnd, "end");
+    // Synthetic event ensures the Zustand store picks up the change
     textarea.dispatchEvent(new Event("input", { bubbles: true }));
   }, []);
 
+  /**
+   * Wrap the currently selected text with `before` and `after` strings.
+   * e.g. wrapSelection("**", "**") turns "hello" into "**hello**".
+   * If nothing is selected, inserts both markers at the cursor so the user can type between them.
+   */
   const wrapSelection = useCallback((before: string, after: string) => {
     const textarea = textareaRef.current;
     if (!textarea) return;
@@ -40,10 +62,15 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     const replacement = `${before}${selected}${after}`;
 
     textarea.focus();
+    // "select" keeps the wrapped text highlighted for easy further editing
     textarea.setRangeText(replacement, selectionStart, selectionEnd, "select");
     textarea.dispatchEvent(new Event("input", { bubbles: true }));
   }, []);
 
+  /**
+   * Replace the entire textarea content. Used by the AI enhancement feature
+   * to swap the full document body in one operation.
+   */
   const replaceContent = useCallback((content: string) => {
     const textarea = textareaRef.current;
     if (!textarea) return;
@@ -61,6 +88,10 @@ export function EditorProvider({ children }: { children: ReactNode }) {
   );
 }
 
+/**
+ * Hook to access the shared editor context. Must be called inside an <EditorProvider>.
+ * Throws a descriptive error if used outside the provider boundary to aid debugging.
+ */
 export function useEditorContext() {
   const context = useContext(EditorContext);
   if (!context) {
