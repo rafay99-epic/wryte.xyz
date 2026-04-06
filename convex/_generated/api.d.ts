@@ -8,13 +8,29 @@
  * @module
  */
 
+import type * as crons from "../crons.js";
+import type * as documents from "../documents.js";
+import type * as github from "../github.js";
+import type * as http from "../http.js";
+import type * as projects from "../projects.js";
+import type * as scheduling from "../scheduling.js";
+import type * as users from "../users.js";
+
 import type {
   ApiFromModules,
   FilterApi,
   FunctionReference,
 } from "convex/server";
 
-declare const fullApi: ApiFromModules<{}>;
+declare const fullApi: ApiFromModules<{
+  crons: typeof crons;
+  documents: typeof documents;
+  github: typeof github;
+  http: typeof http;
+  projects: typeof projects;
+  scheduling: typeof scheduling;
+  users: typeof users;
+}>;
 
 /**
  * A utility for referencing Convex functions in your app's public API.
