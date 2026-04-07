@@ -24,12 +24,15 @@ interface CreateDocumentDialogProps {
   projectId: Id<"projects">;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Optional initial status for the new document (e.g., from a board column's "+" button). */
+  initialStatus?: string | undefined;
 }
 
 export function CreateDocumentDialog({
   projectId,
   open,
   onOpenChange,
+  initialStatus,
 }: CreateDocumentDialogProps) {
   const router = useRouter();
   const createDocument = useMutation(api.documents.create);
@@ -77,11 +80,20 @@ export function CreateDocumentDialog({
 
       setIsSubmitting(true);
       try {
-        const documentId = await createDocument({
+        const args: {
+          projectId: Id<"projects">;
+          title: string;
+          slug: string;
+          status?: string;
+        } = {
           projectId,
           title: trimmedTitle,
           slug: trimmedSlug,
-        });
+        };
+        if (initialStatus) {
+          args.status = initialStatus;
+        }
+        const documentId = await createDocument(args);
         toast.success("Document created");
         onOpenChange(false);
         setTitle("");

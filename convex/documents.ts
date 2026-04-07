@@ -5,6 +5,7 @@ import {
   internalQuery,
   internalMutation,
 } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
 
 /**
  * Authenticates the caller and retrieves their user record from the database.
@@ -74,13 +75,7 @@ async function verifyDocumentOwnership(
 export const list = query({
   args: {
     projectId: v.id("projects"),
-    status: v.optional(
-      v.union(
-        v.literal("draft"),
-        v.literal("scheduled"),
-        v.literal("published"),
-      ),
-    ),
+    status: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -245,6 +240,8 @@ export const create = mutation({
     projectId: v.id("projects"),
     title: v.string(),
     slug: v.string(),
+    status: v.optional(v.string()),
+    tags: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
     const user = await getCurrentUser(ctx);
@@ -260,16 +257,22 @@ export const create = mutation({
 
     const now = Date.now();
 
-    const documentId = await ctx.db.insert("documents", {
+    const insertData: Record<string, unknown> = {
       projectId: args.projectId,
       userId: user._id,
       title: args.title,
       slug: args.slug,
       content: "",
-      status: "draft" as const,
+      status: args.status ?? "draft",
       createdAt: now,
       updatedAt: now,
-    });
+    };
+
+    if (args.tags !== undefined) {
+      insertData["tags"] = args.tags;
+    }
+
+    const documentId = await ctx.db.insert("documents", insertData as any);
 
     return documentId;
   },
@@ -289,13 +292,9 @@ export const update = mutation({
     slug: v.optional(v.string()),
     content: v.optional(v.string()),
     frontmatter: v.optional(v.string()),
-    status: v.optional(
-      v.union(
-        v.literal("draft"),
-        v.literal("scheduled"),
-        v.literal("published"),
-      ),
-    ),
+    status: v.optional(v.string()),
+    tags: v.optional(v.array(v.string())),
+    boardPosition: v.optional(v.number()),
     scheduledAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
@@ -316,6 +315,50 @@ export const update = mutation({
 });
 
 /**
+ * Creates a duplicate of an existing document in the same project.
+ * Copies content, frontmatter, tags, and status but generates a new slug.
+ *
+ * @requires Authentication + document ownership
+ * @param args.documentId - The document to duplicate.
+ * @returns The new document's ID.
+ */
+export const duplicate = mutation({
+  args: {
+    documentId: v.id("documents"),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    const doc = await verifyDocumentOwnership(ctx, args.documentId, user._id);
+
+    const now = Date.now();
+    const newTitle = `${doc.title} (copy)`;
+    const newSlug = `${doc.slug}-copy-${Date.now().toString(36)}`;
+
+    const insertData: Record<string, unknown> = {
+      projectId: doc.projectId,
+      userId: user._id,
+      title: newTitle,
+      slug: newSlug,
+      content: doc.content,
+      status: doc.status,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    if (doc.frontmatter) {
+      insertData["frontmatter"] = doc.frontmatter;
+    }
+    if (doc.tags) {
+      insertData["tags"] = doc.tags;
+    }
+
+    // biome-ignore lint/suspicious/noExplicitAny: dynamic insert data
+    const newId = await ctx.db.insert("documents", insertData as any);
+    return { documentId: newId, title: newTitle };
+  },
+});
+
+/**
  * Transitions a document's status. When transitioning to "published",
  * `publishedAt` is automatically set to the current timestamp.
  *
@@ -326,11 +369,7 @@ export const update = mutation({
 export const updateStatus = mutation({
   args: {
     documentId: v.id("documents"),
-    status: v.union(
-      v.literal("draft"),
-      v.literal("scheduled"),
-      v.literal("published"),
-    ),
+    status: v.string(),
   },
   handler: async (ctx, args) => {
     const user = await getCurrentUser(ctx);
@@ -428,7 +467,7 @@ export const importFromGithub = mutation({
       title: string;
       slug: string;
       content: string;
-      status: "published";
+      status: string;
       githubPath: string;
       githubSha: string;
       publishedAt: number;
@@ -504,6 +543,34 @@ export const getBySlug = query({
 });
 
 /**
+ * Toggles the bookmarked flag on a document.
+ * If the document is currently bookmarked it becomes un-bookmarked, and vice versa.
+ *
+ * @requires Authentication + document ownership
+ * @param args.documentId - The document to toggle.
+ * @returns The new bookmarked state.
+ */
+export const toggleBookmark = mutation({
+  args: { documentId: v.id("documents") },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    const document = await verifyDocumentOwnership(
+      ctx,
+      args.documentId,
+      user._id,
+    );
+
+    const newBookmarked = !document.bookmarked;
+    await ctx.db.patch(args.documentId, {
+      bookmarked: newBookmarked,
+      updatedAt: Date.now(),
+    });
+
+    return newBookmarked;
+  },
+});
+
+/**
  * Internal-only query to fetch a document by ID without auth checks.
  * Used by server-side actions that have already verified access.
  */
@@ -520,16 +587,109 @@ export const internalGet = internalQuery({
  * Keeping this separate from the GitHub action allows the action to remain
  * stateless while the mutation handles the database write transactionally.
  */
+/**
+ * Moves a board card to a new column and position.
+ * Used by the kanban board's drag-and-drop handler to update a document's
+ * status and ordering in a single atomic operation.
+ *
+ * Returns the target column's behavior so the client knows whether to
+ * trigger publish or schedule flows.
+ */
+export const moveCard = mutation({
+  args: {
+    documentId: v.id("documents"),
+    targetStatus: v.string(),
+    boardPosition: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    const document = await verifyDocumentOwnership(
+      ctx,
+      args.documentId,
+      user._id,
+    );
+
+    const updates: Record<string, unknown> = {
+      status: args.targetStatus,
+      boardPosition: args.boardPosition,
+      updatedAt: Date.now(),
+    };
+
+    // Check if the target column has special behavior
+    const project = await ctx.db.get(document.projectId as Id<"projects">);
+    let behavior = "none";
+
+    if (project && "boardColumns" in project && project.boardColumns) {
+      try {
+        const columns = JSON.parse(project.boardColumns) as Array<{
+          id: string;
+          behavior: string;
+        }>;
+        const targetCol = columns.find((c) => c.id === args.targetStatus);
+        if (targetCol) {
+          behavior = targetCol.behavior;
+          if (targetCol.behavior === "publish") {
+            updates["publishedAt"] = Date.now();
+          }
+        }
+      } catch {
+        // Invalid board columns JSON, fall through
+      }
+    } else {
+      // No custom columns — use default behavior mapping
+      if (args.targetStatus === "published") {
+        updates["publishedAt"] = Date.now();
+        behavior = "publish";
+      } else if (args.targetStatus === "scheduled") {
+        behavior = "schedule";
+      }
+    }
+
+    await ctx.db.patch(args.documentId, updates);
+    return { behavior };
+  },
+});
+
+/**
+ * Updates the tags on a document, keeping both the denormalized `tags` array
+ * and the `frontmatter` JSON string in sync.
+ */
+export const updateTags = mutation({
+  args: {
+    documentId: v.id("documents"),
+    tags: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    await verifyDocumentOwnership(ctx, args.documentId, user._id);
+
+    const doc = await ctx.db.get(args.documentId);
+
+    // Update tags in frontmatter JSON to keep in sync
+    let frontmatter: Record<string, unknown> = {};
+    if (doc?.frontmatter) {
+      try {
+        frontmatter = JSON.parse(doc.frontmatter);
+      } catch {
+        // Invalid JSON, start fresh
+      }
+    }
+    frontmatter["tags"] = args.tags;
+
+    await ctx.db.patch(args.documentId, {
+      tags: args.tags,
+      frontmatter: JSON.stringify(frontmatter),
+      updatedAt: Date.now(),
+    });
+  },
+});
+
 export const internalUpdateAfterPublish = internalMutation({
   args: {
     documentId: v.id("documents"),
     githubPath: v.string(),
     githubSha: v.string(),
-    status: v.union(
-      v.literal("draft"),
-      v.literal("scheduled"),
-      v.literal("published"),
-    ),
+    status: v.string(),
     publishedAt: v.number(),
   },
   handler: async (ctx, args) => {

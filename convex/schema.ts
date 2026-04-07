@@ -60,6 +60,8 @@ export default defineSchema({
     ),
     /** Default author name injected into frontmatter */
     defaultAuthor: v.optional(v.string()),
+    /** JSON-serialized BoardColumnDef[] for custom kanban columns */
+    boardColumns: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
   }).index("by_userId", ["userId"]),
@@ -82,13 +84,12 @@ export default defineSchema({
     slug: v.string(),
     content: v.string(),
     frontmatter: v.optional(v.string()),
-    status: v.union(
-      v.literal("draft"),
-      v.literal("scheduled"),
-      v.literal("published"),
-    ),
+    status: v.string(),
+    tags: v.optional(v.array(v.string())),
+    boardPosition: v.optional(v.number()),
     scheduledAt: v.optional(v.number()),
     publishedAt: v.optional(v.number()),
+    bookmarked: v.optional(v.boolean()),
     githubPath: v.optional(v.string()),
     githubSha: v.optional(v.string()),
     createdAt: v.number(),

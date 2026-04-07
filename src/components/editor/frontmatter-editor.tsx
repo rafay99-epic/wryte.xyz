@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { generateSlug } from "@/lib/markdown";
+import { getTagFieldName } from "@/lib/parse-frontmatter";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 
@@ -92,6 +93,11 @@ export function FrontmatterEditor({
     [project?.frontmatterSchema],
   );
 
+  const tagFieldName = useMemo(
+    () => getTagFieldName(project?.frontmatterSchema),
+    [project?.frontmatterSchema],
+  );
+
   const filledCount = useMemo(() => {
     let count = 0;
     for (const f of fields) {
@@ -120,12 +126,27 @@ export function FrontmatterEditor({
 
   const saveValues = useCallback(
     (newValues: Record<string, string | boolean>) => {
-      void updateDocument({
+      // Extract tags from frontmatter to sync with denormalized tags field
+      const tagValue = newValues[tagFieldName];
+      let tags: string[] | undefined;
+      if (typeof tagValue === "string" && tagValue.trim()) {
+        tags = tagValue
+          .split(",")
+          .map((t) => t.trim())
+          .filter(Boolean);
+      }
+
+      const mutation: Record<string, unknown> = {
         documentId: documentId as Id<"documents">,
         frontmatter: JSON.stringify(newValues),
-      });
+      };
+      if (tags) {
+        mutation["tags"] = tags;
+      }
+
+      void updateDocument(mutation);
     },
-    [documentId, updateDocument],
+    [documentId, updateDocument, tagFieldName],
   );
 
   function handleFieldChange(name: string, value: string | boolean) {

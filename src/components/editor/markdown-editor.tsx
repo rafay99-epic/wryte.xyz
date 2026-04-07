@@ -7,14 +7,10 @@ import { useEditorStore } from "@/stores/editor-store";
 import { useEditorContext } from "./editor-context";
 
 /**
- * Redesigned raw markdown textarea editor.
- *
- * Uses an uncontrolled textarea (via `defaultValue` + ref) for performance.
- * Now features:
- *  - Custom caret color via .editor-textarea class
- *  - Improved typography with relaxed leading
- *  - Centered max-width for comfortable reading line length
- *  - Generous padding for a spacious writing feel
+ * Raw markdown textarea editor matching the Seospace reference feel:
+ * - Clean, spacious writing area with comfortable line length
+ * - Generous padding for a focused writing experience
+ * - Slightly larger text for readability
  */
 export function MarkdownEditor() {
   const { content, setContent } = useEditorStore(
@@ -62,15 +58,17 @@ export function MarkdownEditor() {
   }, [content, textareaRef]);
 
   return (
-    <textarea
-      ref={textareaRef}
-      defaultValue={content}
-      className="editor-textarea h-full w-full resize-none border-0 bg-transparent px-8 py-6 font-mono text-sm leading-[1.8] text-foreground outline-none placeholder:text-muted-foreground/50 focus:ring-0"
-      placeholder="Start writing..."
-      spellCheck={false}
-      autoComplete="off"
-      autoCorrect="off"
-      data-gramm="false"
-    />
+    <div className="mx-auto w-full max-w-[860px]">
+      <textarea
+        ref={textareaRef}
+        defaultValue={content}
+        className="editor-textarea h-full min-h-[calc(100vh-120px)] w-full resize-none border-0 bg-transparent px-10 py-8 text-[15px] leading-[1.85] text-foreground outline-none placeholder:text-muted-foreground/40 focus:ring-0"
+        placeholder="Start writing your article..."
+        spellCheck={false}
+        autoComplete="off"
+        autoCorrect="off"
+        data-gramm="false"
+      />
+    </div>
   );
 }

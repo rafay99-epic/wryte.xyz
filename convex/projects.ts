@@ -227,6 +227,7 @@ export const update = mutation({
       v.union(v.literal("yaml"), v.literal("toml")),
     ),
     defaultAuthor: v.optional(v.string()),
+    boardColumns: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const user = await getCurrentUser(ctx);

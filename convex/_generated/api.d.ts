@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as boardColumns from "../boardColumns.js";
 import type * as crons from "../crons.js";
 import type * as documents from "../documents.js";
 import type * as github from "../github.js";
@@ -23,6 +24,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  boardColumns: typeof boardColumns;
   crons: typeof crons;
   documents: typeof documents;
   github: typeof github;

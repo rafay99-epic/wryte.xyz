@@ -14,16 +14,14 @@ interface EditorLayoutProps {
 }
 
 /**
- * Editor layout with CSS-only fade-in transitions between view modes.
- *
- * Uses a pure CSS animation (.editor-pane-enter) triggered by React key
- * remounts instead of Framer Motion AnimatePresence. This keeps the pane
- * in normal document flow at all times — no position:absolute during
- * exit, so the flex container never collapses and the textarea keeps
- * its full width.
+ * Editor layout matching the Seospace reference:
+ * - Toolbar bar at top with formatting + AI button
+ * - Frontmatter collapsible panel
+ * - Full-width clean editor area below
  */
 export function EditorLayout({ documentId, projectId }: EditorLayoutProps) {
   const viewMode = useEditorStore((state) => state.viewMode);
+  const focusMode = useEditorStore((state) => state.focusMode);
   const previewRef = useRef<HTMLDivElement>(null);
   const isSyncingScroll = useRef(false);
 
@@ -69,10 +67,12 @@ export function EditorLayout({ documentId, projectId }: EditorLayoutProps) {
   return (
     <EditorProvider>
       <div className="flex h-full flex-col">
-        <EditorToolbar projectId={projectId} />
-        <FrontmatterEditor documentId={documentId} projectId={projectId} />
+        {!focusMode && <EditorToolbar projectId={projectId} />}
+        {!focusMode && (
+          <FrontmatterEditor documentId={documentId} projectId={projectId} />
+        )}
 
-        {/* Editor content area — min-h-0 prevents flex overflow */}
+        {/* Editor content area */}
         <div className="flex min-h-0 flex-1">
           {/* ── Edit-only view ── */}
           {viewMode === "edit" && (
@@ -114,7 +114,7 @@ export function EditorLayout({ documentId, projectId }: EditorLayoutProps) {
               {/* Preview pane */}
               <div
                 ref={previewRef}
-                className="h-full w-1/2 overflow-y-auto hide-scrollbar bg-muted/20"
+                className="h-full w-1/2 overflow-y-auto hide-scrollbar bg-muted/10"
                 onScroll={handlePreviewScroll}
               >
                 <div className="mx-auto max-w-[640px]">

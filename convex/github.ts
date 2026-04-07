@@ -200,11 +200,26 @@ export const publishToGithub = internalAction({
       throw new Error("GitHub API did not return a file SHA");
     }
 
+    // Determine the publish column ID — use custom board columns if configured
+    let publishStatus = "published";
+    if (project.boardColumns) {
+      try {
+        const columns = JSON.parse(project.boardColumns) as Array<{
+          id: string;
+          behavior: string;
+        }>;
+        const publishCol = columns.find((c) => c.behavior === "publish");
+        if (publishCol) publishStatus = publishCol.id;
+      } catch {
+        // Invalid JSON, fall back to "published"
+      }
+    }
+
     await ctx.runMutation(internal.documents.internalUpdateAfterPublish, {
       documentId: args.documentId,
       githubPath: filePath,
       githubSha: newSha,
-      status: "published",
+      status: publishStatus,
       publishedAt: Date.now(),
     });
   },

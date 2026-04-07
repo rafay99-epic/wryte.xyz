@@ -1,26 +1,48 @@
 "use client";
 
 import { useConvexAuth, useMutation } from "convex/react";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
+import { Minimize2 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { AppHeader } from "@/components/layout/app-header";
 import { AppSidebar } from "@/components/layout/app-sidebar";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/stores/editor-store";
 import { api } from "../../../convex/_generated/api";
 
 /**
- * Redesigned app shell with smooth sidebar animation and cleaner structure.
+ * App shell with smooth sidebar animation, focus mode support, and cleaner structure.
  */
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useConvexAuth();
   const getOrCreate = useMutation(api.users.getOrCreate);
   const sidebarOpen = useEditorStore((s) => s.sidebarOpen);
+  const focusMode = useEditorStore((s) => s.focusMode);
+  const toggleFocusMode = useEditorStore((s) => s.toggleFocusMode);
   const pathname = usePathname();
   const isEditorPage = pathname.startsWith("/editor/");
   const hasInitialized = useRef(false);
+
+  // Exit focus mode when navigating away from editor
+  useEffect(() => {
+    if (!isEditorPage && focusMode) {
+      toggleFocusMode();
+    }
+  }, [isEditorPage, focusMode, toggleFocusMode]);
+
+  // Handle Escape key to exit focus mode
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape" && focusMode) {
+        toggleFocusMode();
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [focusMode, toggleFocusMode]);
 
   useEffect(() => {
     if (isAuthenticated && !hasInitialized.current) {
@@ -82,11 +104,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   // --- Main app chrome ---
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div className="relative flex h-screen overflow-hidden bg-background">
       {/* Sidebar with smooth width transition */}
       <motion.aside
         className="shrink-0 overflow-hidden border-r border-border/50"
-        animate={{ width: sidebarOpen ? 260 : 0 }}
+        animate={{ width: sidebarOpen && !focusMode ? 260 : 0 }}
         transition={{ type: "spring", stiffness: 400, damping: 35 }}
       >
         <AppSidebar />
@@ -94,7 +116,21 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       {/* Main content */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        <AppHeader />
+        {/* Hide header in focus mode */}
+        <AnimatePresence>
+          {!focusMode && (
+            <motion.div
+              initial={false}
+              animate={{ height: 48, opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
+              className="shrink-0 overflow-hidden"
+            >
+              <AppHeader />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <main
           className={cn(
             "flex-1",
@@ -104,6 +140,29 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </div>
+
+      {/* Focus mode exit button — floating in bottom-right */}
+      <AnimatePresence>
+        {focusMode && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.8, y: 10 }}
+            transition={{ duration: 0.2 }}
+            className="fixed bottom-4 right-4 z-50"
+          >
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={toggleFocusMode}
+              className="gap-1.5 rounded-full bg-background/80 px-3 shadow-lg backdrop-blur-md"
+            >
+              <Minimize2 className="size-3.5" />
+              <span className="text-xs">Exit Focus</span>
+            </Button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

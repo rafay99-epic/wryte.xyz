@@ -27,6 +27,8 @@ interface EditorState {
   sidebarOpen: boolean;
   /** Currently selected project ID for sidebar navigation — null when on dashboard/global pages. */
   activeProjectId: string | null;
+  /** When true, hides sidebar, header, and toolbar for distraction-free writing. */
+  focusMode: boolean;
 
   /** Update markdown content and mark the document as dirty (unsaved changes). */
   setContent: (content: string) => void;
@@ -48,6 +50,8 @@ interface EditorState {
   toggleSidebar: () => void;
   /** Set the active project for sidebar navigation. */
   setActiveProjectId: (id: string | null) => void;
+  /** Toggle focus (distraction-free) mode on/off. */
+  toggleFocusMode: () => void;
   /** Reset all editor state back to defaults (e.g. when navigating away from a document). */
   reset: () => void;
 }
@@ -62,6 +66,7 @@ const initialState = {
   viewMode: "edit" as const,
   sidebarOpen: true,
   activeProjectId: null as string | null,
+  focusMode: false,
 };
 
 /**
@@ -108,6 +113,14 @@ export const useEditorStore = create<EditorState>()((set) => ({
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
 
   setActiveProjectId: (id) => set({ activeProjectId: id }),
+
+  // Toggle focus mode — hides sidebar, header, toolbar for clean writing
+  toggleFocusMode: () =>
+    set((state) => ({
+      focusMode: !state.focusMode,
+      // Close sidebar when entering focus mode
+      sidebarOpen: state.focusMode ? true : false,
+    })),
 
   // Wipe everything — prevents stale data when switching documents
   reset: () => set(initialState),

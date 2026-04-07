@@ -16,9 +16,11 @@ import {
   ListOrdered,
   Minus,
   Quote,
+  Redo2,
   Sparkles,
   Strikethrough,
   Type,
+  Undo2,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
@@ -54,9 +56,9 @@ const VIEW_MODES: { value: ViewMode; label: string }[] = [
 ];
 
 /**
- * Redesigned floating editor toolbar with grouped formatting controls,
- * an animated view mode switcher with a sliding pill indicator,
- * word/char count, and an AI button with shimmer effect.
+ * Toolbar matching Seospace reference layout:
+ * Left: Undo/Redo + Text dropdown + formatting buttons
+ * Right: Word count + View mode switcher + AI Assistant button
  */
 export function EditorToolbar({ projectId }: EditorToolbarProps) {
   const { viewMode, setViewMode, content } = useEditorStore(
@@ -71,14 +73,13 @@ export function EditorToolbar({ projectId }: EditorToolbarProps) {
   const [imageDialogOpen, setImageDialogOpen] = useState(false);
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
 
-  // Word & character count
+  // Word count
   const stats = useMemo(() => {
     const trimmed = content.trim();
-    if (!trimmed) return { words: 0, chars: 0, readTime: 0 };
+    if (!trimmed) return { words: 0, readTime: 0 };
     const words = trimmed.split(/\s+/).length;
     return {
       words,
-      chars: trimmed.length,
       readTime: Math.max(1, Math.ceil(words / 238)),
     };
   }, [content]);
@@ -122,176 +123,159 @@ export function EditorToolbar({ projectId }: EditorToolbarProps) {
 
   return (
     <>
-      <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-2">
+      <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border/40 bg-background px-3 py-1.5">
         {/* ── Left: Formatting tools ── */}
         <TooltipProvider>
-          <motion.div
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}
-            className="flex items-center gap-0.5 rounded-xl border border-border/60 bg-background/90 px-1.5 py-1 shadow-sm backdrop-blur-md"
-          >
-            {/* Text formatting group */}
-            <div className="flex items-center gap-0.5">
-              <ToolbarButton
-                icon={Bold}
-                tooltip="Bold (Ctrl+B)"
-                onClick={handleBold}
-              />
-              <ToolbarButton
-                icon={Italic}
-                tooltip="Italic (Ctrl+I)"
-                onClick={handleItalic}
-              />
-              <ToolbarButton
-                icon={Strikethrough}
-                tooltip="Strikethrough"
-                onClick={handleStrikethrough}
-              />
-              <ToolbarButton
-                icon={Highlighter}
-                tooltip="Highlight"
-                onClick={handleHighlight}
-              />
-            </div>
+          <div className="flex items-center gap-0.5">
+            {/* Undo / Redo */}
+            <ToolbarButton
+              icon={Undo2}
+              tooltip="Undo (Ctrl+Z)"
+              onClick={() => document.execCommand("undo")}
+            />
+            <ToolbarButton
+              icon={Redo2}
+              tooltip="Redo (Ctrl+Y)"
+              onClick={() => document.execCommand("redo")}
+            />
 
             <ToolbarDivider />
 
-            {/* Structure group */}
-            <div className="flex items-center gap-0.5">
-              <DropdownMenu>
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <DropdownMenuTrigger
-                        render={
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            className="text-muted-foreground hover:text-foreground"
-                          />
-                        }
-                      >
-                        <Type className="size-3.5" />
-                      </DropdownMenuTrigger>
-                    }
-                  />
-                  <TooltipContent>Heading</TooltipContent>
-                </Tooltip>
-                <DropdownMenuContent align="start" className="min-w-[160px]">
-                  <DropdownMenuItem onClick={() => insertAtCursor("\n# ")}>
-                    <Heading1 className="size-4 mr-2" />
-                    <span className="font-semibold">Heading 1</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => insertAtCursor("\n## ")}>
-                    <Heading2 className="size-4 mr-2" />
-                    <span className="font-semibold text-[0.95em]">
-                      Heading 2
-                    </span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => insertAtCursor("\n### ")}>
-                    <Heading3 className="size-4 mr-2" />
-                    <span className="font-semibold text-[0.9em]">
-                      Heading 3
-                    </span>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-
-              <ToolbarButton
-                icon={Link}
-                tooltip="Link (Ctrl+K)"
-                onClick={handleLink}
-              />
-              <ToolbarButton
-                icon={ImagePlus}
-                tooltip="Image"
-                onClick={() => setImageDialogOpen(true)}
-              />
-            </div>
+            {/* Text type dropdown */}
+            <DropdownMenu>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <DropdownMenuTrigger
+                      render={
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="gap-1 text-muted-foreground hover:text-foreground"
+                        />
+                      }
+                    >
+                      <Type className="size-3.5" />
+                      <span className="text-xs">Text</span>
+                    </DropdownMenuTrigger>
+                  }
+                />
+                <TooltipContent>Block type</TooltipContent>
+              </Tooltip>
+              <DropdownMenuContent align="start" className="min-w-[160px]">
+                <DropdownMenuItem onClick={() => insertAtCursor("\n# ")}>
+                  <Heading1 className="size-4 mr-2" />
+                  <span className="font-semibold">Heading 1</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => insertAtCursor("\n## ")}>
+                  <Heading2 className="size-4 mr-2" />
+                  <span className="font-semibold text-[0.95em]">Heading 2</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => insertAtCursor("\n### ")}>
+                  <Heading3 className="size-4 mr-2" />
+                  <span className="font-semibold text-[0.9em]">Heading 3</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => insertAtCursor("")}>
+                  <Type className="size-4 mr-2" />
+                  <span>Paragraph</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
             <ToolbarDivider />
 
-            {/* Block group */}
-            <div className="flex items-center gap-0.5">
-              <ToolbarButton
-                icon={Code}
-                tooltip="Inline code"
-                onClick={handleInlineCode}
-              />
-              <ToolbarButton
-                icon={Braces}
-                tooltip="Code block (Ctrl+Shift+K)"
-                onClick={handleCodeBlock}
-              />
-              <ToolbarButton
-                icon={List}
-                tooltip="Bullet list"
-                onClick={handleList}
-              />
-              <ToolbarButton
-                icon={ListOrdered}
-                tooltip="Numbered list"
-                onClick={handleOrderedList}
-              />
-              <ToolbarButton
-                icon={Quote}
-                tooltip="Blockquote"
-                onClick={handleBlockquote}
-              />
-              <ToolbarButton
-                icon={Minus}
-                tooltip="Divider"
-                onClick={handleDivider}
-              />
-            </div>
+            {/* Text formatting */}
+            <ToolbarButton
+              icon={Highlighter}
+              tooltip="Highlight"
+              onClick={handleHighlight}
+            />
+            <ToolbarButton
+              icon={Bold}
+              tooltip="Bold (Ctrl+B)"
+              onClick={handleBold}
+            />
+            <ToolbarButton
+              icon={Italic}
+              tooltip="Italic (Ctrl+I)"
+              onClick={handleItalic}
+            />
+            <ToolbarButton
+              icon={Strikethrough}
+              tooltip="Strikethrough"
+              onClick={handleStrikethrough}
+            />
 
             <ToolbarDivider />
 
-            {/* AI button */}
-            <button
-              type="button"
-              onClick={() => setAiDialogOpen(true)}
-              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all hover:bg-primary/10 active:scale-95"
-            >
-              <Sparkles className="size-3.5 text-primary" />
-              <span className="ai-shimmer font-semibold">AI</span>
-            </button>
-          </motion.div>
+            {/* Lists & blocks */}
+            <ToolbarButton
+              icon={List}
+              tooltip="Bullet list"
+              onClick={handleList}
+            />
+            <ToolbarButton
+              icon={ListOrdered}
+              tooltip="Numbered list"
+              onClick={handleOrderedList}
+            />
+            <ToolbarButton
+              icon={Quote}
+              tooltip="Blockquote"
+              onClick={handleBlockquote}
+            />
+            <ToolbarButton
+              icon={Minus}
+              tooltip="Divider"
+              onClick={handleDivider}
+            />
+
+            <ToolbarDivider />
+
+            {/* Insert */}
+            <ToolbarButton
+              icon={Code}
+              tooltip="Inline code"
+              onClick={handleInlineCode}
+            />
+            <ToolbarButton
+              icon={Braces}
+              tooltip="Code block (Ctrl+Shift+K)"
+              onClick={handleCodeBlock}
+            />
+            <ToolbarButton
+              icon={Link}
+              tooltip="Link (Ctrl+K)"
+              onClick={handleLink}
+            />
+            <ToolbarButton
+              icon={ImagePlus}
+              tooltip="Image"
+              onClick={() => setImageDialogOpen(true)}
+            />
+          </div>
         </TooltipProvider>
 
-        {/* ── Right: View mode + Stats ── */}
-        <motion.div
-          initial={{ opacity: 0, y: -8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{
-            duration: 0.25,
-            delay: 0.05,
-            ease: [0.25, 0.1, 0.25, 1],
-          }}
-          className="flex items-center gap-3"
-        >
+        {/* ── Right: Stats + View mode + AI ── */}
+        <div className="flex items-center gap-2">
           {/* Word count */}
           <AnimatePresence mode="wait">
             {stats.words > 0 && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                className="hidden items-center gap-2 text-[11px] text-muted-foreground sm:flex"
+              <motion.span
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="hidden text-[11px] tabular-nums text-muted-foreground/60 lg:inline"
               >
-                <span>{stats.words.toLocaleString()} words</span>
-                <span className="text-border">·</span>
-                <span>{stats.readTime} min read</span>
-              </motion.div>
+                {stats.words.toLocaleString()} words
+              </motion.span>
             )}
           </AnimatePresence>
 
-          {/* View mode switcher with sliding indicator */}
-          <div className="relative flex items-center rounded-xl border border-border/60 bg-muted/50 p-0.5 backdrop-blur-md">
-            {/* Animated background indicator */}
+          {/* View mode switcher */}
+          <div className="relative flex items-center rounded-lg border border-border/50 bg-muted/40 p-0.5">
             <motion.div
-              className="absolute inset-y-0.5 rounded-[10px] bg-background shadow-sm border border-border/40"
+              className="absolute inset-y-0.5 rounded-md bg-background shadow-sm border border-border/40"
               layoutId="viewModeIndicator"
               style={{
                 width: `${100 / VIEW_MODES.length}%`,
@@ -305,7 +289,7 @@ export function EditorToolbar({ projectId }: EditorToolbarProps) {
                 type="button"
                 onClick={() => setViewMode(mode.value)}
                 className={cn(
-                  "relative z-10 rounded-[10px] px-3 py-1 text-xs font-medium transition-colors duration-200",
+                  "relative z-10 rounded-md px-2.5 py-0.5 text-[11px] font-medium transition-colors duration-200",
                   viewMode === mode.value
                     ? "text-foreground"
                     : "text-muted-foreground hover:text-foreground/70",
@@ -315,7 +299,17 @@ export function EditorToolbar({ projectId }: EditorToolbarProps) {
               </button>
             ))}
           </div>
-        </motion.div>
+
+          {/* AI Assistant button — prominent pill */}
+          <button
+            type="button"
+            onClick={() => setAiDialogOpen(true)}
+            className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground shadow-sm transition-all hover:bg-primary/90 active:scale-[0.97]"
+          >
+            <Sparkles className="size-3.5" />
+            <span>AI Assistant</span>
+          </button>
+        </div>
       </div>
 
       <ImageInsertDialog
@@ -349,7 +343,7 @@ function ToolbarButton({
             variant="ghost"
             size="icon-sm"
             onClick={onClick}
-            className="text-muted-foreground hover:text-foreground active:scale-90 transition-all"
+            className="text-muted-foreground hover:bg-muted hover:text-foreground active:scale-90 transition-all"
           />
         }
       >
@@ -363,5 +357,5 @@ function ToolbarButton({
 }
 
 function ToolbarDivider() {
-  return <div className="mx-0.5 h-4 w-px bg-border/60" />;
+  return <div className="mx-1 h-4 w-px bg-border/50" />;
 }
