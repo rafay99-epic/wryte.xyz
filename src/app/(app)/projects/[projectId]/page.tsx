@@ -2,6 +2,7 @@
 
 import { useAction, useMutation, useQuery } from "convex/react";
 import {
+  AlertTriangle,
   Cloud,
   FileText,
   Loader2,
@@ -13,10 +14,17 @@ import {
   Trash2,
 } from "lucide-react";
 import Link from "next/link";
+import { motion } from "framer-motion";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useGithubContentList,
+  useGithubInvalidation,
+  type ContentFile,
+} from "@/hooks/use-github";
 import { toast } from "sonner";
 import { DocumentStatusBadge } from "@/components/documents/document-status-badge";
+import { Pagination, PaginationInfo } from "@/components/ui/pagination";
 import { CreateDocumentDialog } from "@/components/projects/create-document-dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -37,6 +45,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useEditorStore } from "@/stores/editor-store";
+import {
+  fadeSlideUp,
+  smoothTransition,
+  staggerContainer,
+  staggerItem,
+} from "@/lib/motion";
 import { api } from "../../../../../convex/_generated/api";
 import type { Id } from "../../../../../convex/_generated/dataModel";
 
@@ -49,13 +64,8 @@ type ViewFilter =
   | "published"
   | "scheduled";
 
-/** A file entry returned from the GitHub Contents API. */
-interface RemoteFile {
-  name: string;
-  path: string;
-  sha: string;
-  size: number;
-}
+/** A file entry returned from the GitHub Contents API (alias for ContentFile). */
+type RemoteFile = ContentFile;
 
 /**
  * Unified content row used in the project content table.
@@ -81,6 +91,16 @@ interface ContentItem {
   updatedAt?: number;
   /** File size in bytes — only present for remote items. */
   size?: number;
+  /** Git blob SHA — only present for remote items. */
+  sha?: string;
+}
+
+/** Info about the document targeted for deletion. */
+interface DeleteTarget {
+  documentId: Id<"documents">;
+  title: string;
+  githubPath?: string;
+  githubSha?: string;
 }
 
 // Dynamic import reference — cast needed because the GitHub action is generated at build time.
@@ -106,53 +126,52 @@ export default function ProjectDetailPage() {
 
   const project = useQuery(api.projects.get, { projectId });
   const documents = useQuery(api.documents.list, { projectId });
+  const projectDeleted = project === null;
+
+  // Redirect to projects list if the project was deleted
+  useEffect(() => {
+    if (projectDeleted) {
+      router.push("/projects");
+    }
+  }, [projectDeleted, router]);
+
+  // Set active project in sidebar on mount
+  useEffect(() => {
+    useEditorStore.getState().setActiveProjectId(projectId);
+  }, [projectId]);
 
   const [viewFilter, setViewFilter] = useState<ViewFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<Id<"documents"> | null>(
-    null,
-  );
-
-  // --- Remote GitHub files ---
-  // These are fetched client-side from our `/api/github/content` route, which
-  // proxies the GitHub Contents API. They supplement the Convex document list.
-  const [remoteFiles, setRemoteFiles] = useState<RemoteFile[]>([]);
-  const [isLoadingRemote, setIsLoadingRemote] = useState(false);
-  const [hasLoadedRemote, setHasLoadedRemote] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
+  const [remoteDeleteTarget, setRemoteDeleteTarget] = useState<{
+    path: string;
+    sha: string;
+    title: string;
+  } | null>(null);
 
   // Only attempt remote file fetching when the project has GitHub configured.
   const hasGithub = Boolean(project?.githubRepo && project?.contentPath);
 
-  /** Fetch the list of markdown files from the GitHub content directory. */
-  const fetchRemoteFiles = useCallback(async () => {
-    if (!project?.githubRepo || !project?.contentPath) return;
-    setIsLoadingRemote(true);
-    try {
-      const params = new URLSearchParams({
-        repo: project.githubRepo,
-        branch: project.githubBranch ?? "main",
-        path: project.contentPath,
-      });
-      const res = await fetch(`/api/github/content?${params.toString()}`);
-      const data = (await res.json()) as { files: RemoteFile[] };
-      if (res.ok) {
-        setRemoteFiles(data.files);
-      }
-    } catch {
-      // Silently fail — remote files are supplementary and non-blocking.
-    } finally {
-      setIsLoadingRemote(false);
-      setHasLoadedRemote(true);
-    }
-  }, [project?.githubRepo, project?.githubBranch, project?.contentPath]);
+  // --- Remote GitHub files via TanStack Query ---
+  const {
+    data: remoteData,
+    isLoading: isLoadingRemote,
+    isFetched: hasLoadedRemote,
+    refetch: refetchRemoteFiles,
+  } = useGithubContentList({
+    repo: project?.githubRepo ?? null,
+    branch: project?.githubBranch ?? "main",
+    path: project?.contentPath ?? null,
+  });
+  const remoteFiles: RemoteFile[] = remoteData?.files ?? [];
 
-  // Auto-fetch remote files once the project data is available.
-  useEffect(() => {
-    if (hasGithub) {
-      void fetchRemoteFiles();
-    }
-  }, [hasGithub, fetchRemoteFiles]);
+  const { invalidateContent } = useGithubInvalidation();
+
+  /** Refresh remote files — used after delete/import. */
+  const fetchRemoteFiles = useCallback(async () => {
+    await invalidateContent();
+  }, [invalidateContent]);
 
   // --- Build unified content items ---
 
@@ -203,6 +222,7 @@ export default function ProjectDetailPage() {
           synced: false,
           excerpt: "",
           size: file.size,
+          sha: file.sha,
         });
       }
     }
@@ -261,6 +281,28 @@ export default function ProjectDetailPage() {
   const localCount = contentItems.filter((i) => i.kind === "local").length;
   const remoteCount = contentItems.filter((i) => i.kind === "remote").length;
 
+  // --- Pagination ---
+  const PAGE_SIZE = 10;
+  const [currentPage, setCurrentPage] = useState(1);
+  const totalPages = Math.max(1, Math.ceil(filteredItems.length / PAGE_SIZE));
+
+  // Reset to page 1 when filters or search change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [viewFilter, searchQuery]);
+
+  // Clamp current page if items shrink (e.g. after delete)
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
+  const paginatedItems = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filteredItems.slice(start, start + PAGE_SIZE);
+  }, [filteredItems, currentPage]);
+
   // Auto-import + navigate for remote files
   const importFile = useAction(importAction);
   const [importingPath, setImportingPath] = useState<string | null>(null);
@@ -307,14 +349,20 @@ export default function ProjectDetailPage() {
     [projectId, importFile, router],
   );
 
-  if (project === undefined || documents === undefined) {
+  if (project === undefined || documents === undefined || projectDeleted) {
     return <ProjectDetailSkeleton />;
   }
 
   return (
     <div className="p-6">
       {/* Header */}
-      <div className="mb-6 flex items-center justify-between">
+      <motion.div
+        variants={fadeSlideUp}
+        initial="initial"
+        animate="animate"
+        transition={smoothTransition}
+        className="mb-6 flex items-center justify-between"
+      >
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{project.name}</h1>
           <p className="mt-1 font-mono text-sm text-muted-foreground">
@@ -340,7 +388,7 @@ export default function ProjectDetailPage() {
             New Document
           </Button>
         </div>
-      </div>
+      </motion.div>
 
       {/* Search + Refresh */}
       <div className="mb-4 flex items-center gap-3">
@@ -357,7 +405,7 @@ export default function ProjectDetailPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={fetchRemoteFiles}
+            onClick={() => void refetchRemoteFiles()}
             disabled={isLoadingRemote}
           >
             <RefreshCw
@@ -418,37 +466,83 @@ export default function ProjectDetailPage() {
               onCreateClick={() => setCreateDialogOpen(true)}
             />
           ) : (
-            <div className="overflow-hidden rounded-lg border">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b bg-muted/40 text-left text-xs text-muted-foreground">
-                    <th className="px-4 py-2.5 font-medium">Title</th>
-                    <th className="hidden px-4 py-2.5 font-medium sm:table-cell">
-                      Status
-                    </th>
-                    <th className="hidden px-4 py-2.5 font-medium md:table-cell">
-                      Updated
-                    </th>
-                    <th className="w-10 px-4 py-2.5" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredItems.map((item) => (
-                    <ContentRow
-                      key={item.kind === "local" ? item.id : item.path}
-                      item={item}
-                      isImporting={importingPath === item.path}
-                      onOpen={() => void handleOpenItem(item)}
-                      onDelete={
-                        item.kind === "local" && item.id
-                          ? () => setDeleteTarget(item.id as Id<"documents">)
-                          : undefined
-                      }
-                    />
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <>
+              <div className="overflow-hidden rounded-lg border">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b bg-muted/40 text-left text-xs text-muted-foreground">
+                      <th className="px-4 py-2.5 font-medium">Title</th>
+                      <th className="hidden px-4 py-2.5 font-medium sm:table-cell">
+                        Status
+                      </th>
+                      <th className="hidden px-4 py-2.5 font-medium md:table-cell">
+                        Updated
+                      </th>
+                      <th className="w-10 px-4 py-2.5" />
+                    </tr>
+                  </thead>
+                  <motion.tbody
+                    variants={staggerContainer}
+                    initial="initial"
+                    animate="animate"
+                  >
+                    {paginatedItems.map((item) => (
+                      <ContentRow
+                        key={item.kind === "local" ? item.id : item.path}
+                        item={item}
+                        isImporting={importingPath === item.path}
+                        onOpen={() => void handleOpenItem(item)}
+                        onDelete={
+                          item.kind === "local" && item.id
+                            ? () => {
+                                const doc = (documents ?? []).find(
+                                  (d) => d._id === item.id,
+                                );
+                                const target: DeleteTarget = {
+                                  documentId: item.id as Id<"documents">,
+                                  title: item.title,
+                                };
+                                if (doc?.githubPath)
+                                  target.githubPath = doc.githubPath;
+                                if (doc?.githubSha)
+                                  target.githubSha = doc.githubSha;
+                                setDeleteTarget(target);
+                              }
+                            : undefined
+                        }
+                        onDeleteRemote={
+                          item.kind === "remote" && item.sha
+                            ? () =>
+                                setRemoteDeleteTarget({
+                                  path: item.path,
+                                  sha: item.sha!,
+                                  title: item.title,
+                                })
+                            : undefined
+                        }
+                      />
+                    ))}
+                  </motion.tbody>
+                </table>
+              </div>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="mt-4 flex items-center justify-between">
+                  <PaginationInfo
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    totalItems={filteredItems.length}
+                    pageSize={PAGE_SIZE}
+                  />
+                  <Pagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    onPageChange={setCurrentPage}
+                  />
+                </div>
+              )}
+            </>
           )}
         </div>
       </Tabs>
@@ -461,11 +555,24 @@ export default function ProjectDetailPage() {
 
       {deleteTarget && (
         <DeleteDocumentDialog
-          documentId={deleteTarget}
+          target={deleteTarget}
+          projectId={projectId}
           open={deleteTarget !== null}
           onOpenChange={(open) => {
             if (!open) setDeleteTarget(null);
           }}
+        />
+      )}
+
+      {remoteDeleteTarget && (
+        <DeleteRemoteFileDialog
+          target={remoteDeleteTarget}
+          projectId={projectId}
+          open={remoteDeleteTarget !== null}
+          onOpenChange={(open) => {
+            if (!open) setRemoteDeleteTarget(null);
+          }}
+          onDeleted={fetchRemoteFiles}
         />
       )}
     </div>
@@ -479,14 +586,18 @@ function ContentRow({
   isImporting,
   onOpen,
   onDelete,
+  onDeleteRemote,
 }: {
   item: ContentItem;
   isImporting: boolean;
   onOpen: () => void;
   onDelete?: (() => void) | undefined;
+  onDeleteRemote?: (() => void) | undefined;
 }) {
   return (
-    <tr
+    <motion.tr
+      variants={staggerItem}
+      transition={smoothTransition}
       className="group cursor-pointer border-b last:border-b-0 transition-colors hover:bg-muted/30"
       onClick={onOpen}
     >
@@ -545,7 +656,7 @@ function ContentRow({
 
       {/* Actions */}
       <td className="px-4 py-3">
-        {onDelete && (
+        {(onDelete || onDeleteRemote) && (
           <DropdownMenu>
             <DropdownMenuTrigger
               render={
@@ -560,21 +671,35 @@ function ContentRow({
               <MoreHorizontal className="size-4" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem
-                className="text-destructive"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDelete();
-                }}
-              >
-                <Trash2 className="size-4" />
-                Delete
-              </DropdownMenuItem>
+              {onDelete && (
+                <DropdownMenuItem
+                  className="text-destructive"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete();
+                  }}
+                >
+                  <Trash2 className="size-4" />
+                  Delete
+                </DropdownMenuItem>
+              )}
+              {onDeleteRemote && (
+                <DropdownMenuItem
+                  className="text-destructive"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDeleteRemote();
+                  }}
+                >
+                  <Trash2 className="size-4" />
+                  Delete from GitHub
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         )}
       </td>
-    </tr>
+    </motion.tr>
   );
 }
 
@@ -628,29 +753,84 @@ function EmptyState({
 // --- Delete Dialog ---
 
 function DeleteDocumentDialog({
-  documentId,
+  target,
+  projectId,
   open,
   onOpenChange,
 }: {
-  documentId: Id<"documents">;
+  target: DeleteTarget;
+  projectId: Id<"projects">;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
   const removeDocument = useMutation(api.documents.remove);
+  const deleteFromGithub = useAction(api.github.deleteFileFromGithub);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteMode, setDeleteMode] = useState<"local" | "github" | "both">(
+    "local",
+  );
+
+  const isSynced = Boolean(target.githubPath);
 
   const handleDelete = useCallback(async () => {
     setIsDeleting(true);
     try {
-      await removeDocument({ documentId });
-      toast.success("Document deleted");
+      // Delete local copy
+      if (deleteMode === "local" || deleteMode === "both") {
+        await removeDocument({ documentId: target.documentId });
+      }
+
+      // Delete from GitHub
+      if (
+        (deleteMode === "github" || deleteMode === "both") &&
+        target.githubPath &&
+        target.githubSha
+      ) {
+        let githubAccessToken: string | undefined;
+        try {
+          const res = await fetch("/api/github/token");
+          if (res.ok) {
+            const data = (await res.json()) as { token?: string };
+            if (data.token) githubAccessToken = data.token;
+          }
+        } catch {
+          // Fall back to stored PAT
+        }
+
+        const ghArgs: {
+          projectId: Id<"projects">;
+          filePath: string;
+          sha: string;
+          githubAccessToken?: string;
+        } = {
+          projectId,
+          filePath: target.githubPath,
+          sha: target.githubSha,
+        };
+        if (githubAccessToken) ghArgs.githubAccessToken = githubAccessToken;
+        await deleteFromGithub(ghArgs);
+      }
+
+      const messages: Record<string, string> = {
+        local: "Local copy deleted",
+        github: "Deleted from GitHub",
+        both: "Deleted from both local and GitHub",
+      };
+      toast.success(messages[deleteMode]);
       onOpenChange(false);
     } catch {
       toast.error("Failed to delete document");
     } finally {
       setIsDeleting(false);
     }
-  }, [documentId, removeDocument, onOpenChange]);
+  }, [
+    deleteMode,
+    target,
+    projectId,
+    removeDocument,
+    deleteFromGithub,
+    onOpenChange,
+  ]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -658,8 +838,171 @@ function DeleteDocumentDialog({
         <DialogHeader>
           <DialogTitle>Delete Document</DialogTitle>
           <DialogDescription>
-            Are you sure you want to delete this document? This action cannot be
-            undone.
+            {isSynced
+              ? `Choose how to delete "${target.title}". This document is synced with GitHub.`
+              : `Are you sure you want to delete "${target.title}"? This action cannot be undone.`}
+          </DialogDescription>
+        </DialogHeader>
+
+        {isSynced && (
+          <div className="flex flex-col gap-2 py-2">
+            <DeleteModeOption
+              selected={deleteMode === "local"}
+              onClick={() => setDeleteMode("local")}
+              icon={<FileText className="size-4 text-muted-foreground" />}
+              label="Delete local copy only"
+              description="Remove from Wryte but keep the file on GitHub"
+            />
+            <DeleteModeOption
+              selected={deleteMode === "github"}
+              onClick={() => setDeleteMode("github")}
+              icon={<Cloud className="size-4 text-blue-500" />}
+              label="Delete from GitHub only"
+              description="Remove from GitHub but keep the local copy in Wryte"
+            />
+            <DeleteModeOption
+              selected={deleteMode === "both"}
+              onClick={() => setDeleteMode("both")}
+              icon={<AlertTriangle className="size-4 text-destructive" />}
+              label="Delete both copies"
+              description="Remove from Wryte and GitHub permanently"
+            />
+          </div>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button
+            variant="destructive"
+            onClick={handleDelete}
+            disabled={isDeleting}
+          >
+            {isDeleting && <Loader2 className="size-4 animate-spin" />}
+            Delete
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** A clickable card-style option for selecting delete mode. */
+function DeleteModeOption({
+  selected,
+  onClick,
+  icon,
+  label,
+  description,
+}: {
+  selected: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
+  label: string;
+  description: string;
+}) {
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+      className={cn(
+        "flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors",
+        selected
+          ? "border-primary bg-primary/5 ring-1 ring-primary"
+          : "border-border hover:bg-muted/50",
+      )}
+    >
+      <div
+        className={cn(
+          "flex size-4 shrink-0 items-center justify-center rounded-full border-2",
+          selected ? "border-primary" : "border-muted-foreground/30",
+        )}
+      >
+        {selected && <div className="size-2 rounded-full bg-primary" />}
+      </div>
+      <div className="flex items-center gap-2">
+        {icon}
+        <div>
+          <p className="text-sm font-medium">{label}</p>
+          <p className="text-xs text-muted-foreground">{description}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// --- Delete Remote File Dialog ---
+
+function DeleteRemoteFileDialog({
+  target,
+  projectId,
+  open,
+  onOpenChange,
+  onDeleted,
+}: {
+  target: { path: string; sha: string; title: string };
+  projectId: Id<"projects">;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onDeleted: () => void;
+}) {
+  const deleteFromGithub = useAction(api.github.deleteFileFromGithub);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDelete = useCallback(async () => {
+    setIsDeleting(true);
+    try {
+      let githubAccessToken: string | undefined;
+      try {
+        const res = await fetch("/api/github/token");
+        if (res.ok) {
+          const data = (await res.json()) as { token?: string };
+          if (data.token) githubAccessToken = data.token;
+        }
+      } catch {
+        // Fall back to stored PAT
+      }
+
+      const ghArgs2: {
+        projectId: Id<"projects">;
+        filePath: string;
+        sha: string;
+        githubAccessToken?: string;
+      } = {
+        projectId,
+        filePath: target.path,
+        sha: target.sha,
+      };
+      if (githubAccessToken) ghArgs2.githubAccessToken = githubAccessToken;
+      await deleteFromGithub(ghArgs2);
+
+      toast.success(`Deleted "${target.title}" from GitHub`);
+      onOpenChange(false);
+      onDeleted();
+    } catch {
+      toast.error("Failed to delete file from GitHub");
+    } finally {
+      setIsDeleting(false);
+    }
+  }, [target, projectId, deleteFromGithub, onOpenChange, onDeleted]);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Delete from GitHub</DialogTitle>
+          <DialogDescription>
+            Are you sure you want to delete &ldquo;{target.title}&rdquo; from
+            GitHub? This will remove the file from the repository. This action
+            cannot be undone.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
@@ -672,7 +1015,7 @@ function DeleteDocumentDialog({
             disabled={isDeleting}
           >
             {isDeleting && <Loader2 className="size-4 animate-spin" />}
-            Delete
+            Delete from GitHub
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -1,6 +1,14 @@
 "use client";
 
-import { CheckCircle2, Info, Plus, Trash2 } from "lucide-react";
+import {
+  CheckCircle2,
+  Code2,
+  FileCode,
+  GripVertical,
+  Info,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { useCallback, useMemo } from "react";
 import type { WizardState } from "@/app/(app)/projects/new/page";
 import { Button } from "@/components/ui/button";
@@ -99,43 +107,48 @@ export function StepFrontmatterSchema({
   }, [state.frontmatterFields, onChange]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div>
-        <h2 className="text-lg font-semibold">Frontmatter Schema</h2>
-        <p className="text-sm text-muted-foreground">
+        <div className="flex items-center gap-2">
+          <FileCode className="size-[18px] text-primary" />
+          <h2 className="text-base font-semibold">Frontmatter Schema</h2>
+        </div>
+        <p className="mt-1 text-sm text-muted-foreground">
           Define the frontmatter fields for your markdown files.
         </p>
       </div>
 
+      {/* Detection status */}
       {state.detectedFromFile ? (
-        <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 p-3 dark:border-green-900 dark:bg-green-950/50">
-          <CheckCircle2 className="size-4 shrink-0 text-green-600 dark:text-green-400" />
-          <p className="text-sm text-green-700 dark:text-green-300">
-            Schema detected from{" "}
+        <div className="flex items-center gap-2.5 rounded-lg bg-emerald-500/10 px-3 py-2.5">
+          <CheckCircle2 className="size-4 shrink-0 text-emerald-500" />
+          <p className="text-sm text-emerald-600 dark:text-emerald-400">
+            Schema auto-detected from{" "}
             <span className="font-medium">{state.detectedFromFile}</span>
           </p>
         </div>
       ) : (
-        <div className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-900 dark:bg-blue-950/50">
-          <Info className="size-4 shrink-0 text-blue-600 dark:text-blue-400" />
-          <p className="text-sm text-blue-700 dark:text-blue-300">
+        <div className="flex items-center gap-2.5 rounded-lg bg-blue-500/10 px-3 py-2.5">
+          <Info className="size-4 shrink-0 text-blue-500" />
+          <p className="text-sm text-blue-600 dark:text-blue-400">
             Using default schema. You can customize it after creating the
             project.
           </p>
         </div>
       )}
 
-      <div className="space-y-3">
+      {/* Field list */}
+      <div className="space-y-2">
         {state.frontmatterFields.map((field, index) => (
           <div
             key={`field-${String(index)}-${field.name}`}
-            className="rounded-lg border bg-card p-3"
+            className="group rounded-lg border border-border/60 bg-muted/20 transition-colors hover:border-border"
           >
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto_auto_auto]">
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">
-                  Field Name
-                </Label>
+            <div className="flex items-center gap-2 p-3">
+              <GripVertical className="size-3.5 shrink-0 text-muted-foreground/30" />
+
+              {/* Field Name */}
+              <div className="min-w-0 flex-1">
                 <Input
                   placeholder="field_name"
                   value={field.name}
@@ -144,109 +157,115 @@ export function StepFrontmatterSchema({
                       name: (e.target as HTMLInputElement).value,
                     })
                   }
+                  className="h-7 border-transparent bg-transparent px-1.5 text-sm font-medium shadow-none focus-visible:border-input focus-visible:bg-background"
                 />
               </div>
 
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Type</Label>
-                <Select
-                  value={field.type}
-                  onValueChange={(val) =>
-                    updateField(index, {
-                      type: val as FrontmatterField["type"],
-                    })
-                  }
-                >
-                  <SelectTrigger className="w-[110px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(FIELD_TYPE_LABELS).map(([value, label]) => (
-                      <SelectItem key={value} value={value}>
-                        {label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {/* Type */}
+              <Select
+                value={field.type}
+                onValueChange={(val) =>
+                  updateField(index, {
+                    type: val as FrontmatterField["type"],
+                  })
+                }
+              >
+                <SelectTrigger className="h-7 w-[100px] border-transparent bg-transparent text-xs shadow-none focus:border-input focus:bg-background">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(FIELD_TYPE_LABELS).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-              <div className="flex flex-col items-center space-y-1">
-                <Label className="text-xs text-muted-foreground">
-                  Required
+              {/* Required toggle */}
+              <div className="flex items-center gap-1.5">
+                <Label className="text-[10px] uppercase tracking-wider text-muted-foreground/50">
+                  Req
                 </Label>
-                <div className="flex h-8 items-center">
-                  <Switch
-                    checked={field.required}
-                    onCheckedChange={(checked) =>
-                      updateField(index, { required: Boolean(checked) })
-                    }
-                    size="sm"
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-end">
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  onClick={() => removeField(index)}
-                  disabled={state.frontmatterFields.length <= 1}
-                >
-                  <Trash2 className="size-4 text-muted-foreground" />
-                </Button>
-              </div>
-            </div>
-
-            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">
-                  Default Value
-                </Label>
-                <Input
-                  placeholder="Default value"
-                  value={field.defaultValue}
-                  onChange={(e) =>
-                    updateField(index, {
-                      defaultValue: (e.target as HTMLInputElement).value,
-                    })
+                <Switch
+                  checked={field.required}
+                  onCheckedChange={(checked) =>
+                    updateField(index, { required: Boolean(checked) })
                   }
+                  size="sm"
                 />
               </div>
 
-              {field.type === "select" && (
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">
-                    Options (comma-separated)
-                  </Label>
-                  <Input
-                    placeholder="option1, option2, option3"
-                    value={field.options}
-                    onChange={(e) =>
-                      updateField(index, {
-                        options: (e.target as HTMLInputElement).value,
-                      })
-                    }
-                  />
-                </div>
-              )}
+              {/* Delete */}
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                onClick={() => removeField(index)}
+                disabled={state.frontmatterFields.length <= 1}
+                className="opacity-0 transition-opacity group-hover:opacity-100"
+              >
+                <Trash2 className="size-3 text-muted-foreground" />
+              </Button>
             </div>
+
+            {/* Expandable details row */}
+            {(field.defaultValue || field.type === "select") && (
+              <div className="border-t border-border/40 px-3 py-2">
+                <div className="flex items-center gap-2 pl-5">
+                  {field.defaultValue !== undefined && (
+                    <div className="flex-1">
+                      <Input
+                        placeholder="Default value"
+                        value={field.defaultValue}
+                        onChange={(e) =>
+                          updateField(index, {
+                            defaultValue: (e.target as HTMLInputElement).value,
+                          })
+                        }
+                        className="h-6 border-transparent bg-transparent px-1.5 text-xs shadow-none placeholder:text-muted-foreground/40 focus-visible:border-input focus-visible:bg-background"
+                      />
+                    </div>
+                  )}
+                  {field.type === "select" && (
+                    <div className="flex-1">
+                      <Input
+                        placeholder="Options: option1, option2, option3"
+                        value={field.options}
+                        onChange={(e) =>
+                          updateField(index, {
+                            options: (e.target as HTMLInputElement).value,
+                          })
+                        }
+                        className="h-6 border-transparent bg-transparent px-1.5 text-xs shadow-none placeholder:text-muted-foreground/40 focus-visible:border-input focus-visible:bg-background"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         ))}
 
         <Button
-          variant="outline"
+          variant="ghost"
           size="sm"
           onClick={addField}
-          className="w-full"
+          className="w-full border border-dashed border-border/60 text-muted-foreground hover:border-border hover:text-foreground"
         >
-          <Plus className="size-4" />
+          <Plus className="size-3.5" />
           Add Field
         </Button>
       </div>
 
+      {/* YAML Preview */}
       <div className="space-y-2">
-        <Label className="text-xs text-muted-foreground">YAML Preview</Label>
-        <pre className="overflow-x-auto rounded-lg border bg-muted/50 p-3 text-xs font-mono">
+        <div className="flex items-center gap-1.5">
+          <Code2 className="size-3 text-muted-foreground/50" />
+          <Label className="text-[11px] uppercase tracking-wider text-muted-foreground/50">
+            YAML Preview
+          </Label>
+        </div>
+        <pre className="overflow-x-auto rounded-lg border border-border/40 bg-muted/30 p-3 font-mono text-xs leading-relaxed text-muted-foreground">
           {yamlPreview}
         </pre>
       </div>

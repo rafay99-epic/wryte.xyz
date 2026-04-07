@@ -2,253 +2,323 @@
 
 import { UserButton } from "@clerk/nextjs";
 import { useQuery } from "convex/react";
+import { AnimatePresence, motion } from "framer-motion";
 import {
-  BarChart3,
-  ChevronRight,
+  ArrowLeft,
   FileText,
-  Image,
+  FolderOpen,
+  ImageIcon,
   LayoutDashboard,
-  PenLine,
   Plus,
-  Search,
   Settings,
-  Users,
 } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
-import { Badge } from "@/components/ui/badge";
-import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
-import { Skeleton } from "@/components/ui/skeleton";
-import { TooltipProvider } from "@/components/ui/tooltip";
+import { useEditorStore } from "@/stores/editor-store";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 
-interface NavLinkProps {
-  href: string;
-  icon: React.ReactNode;
-  label: string;
-  active: boolean;
-}
+/* ------------------------------------------------------------------ */
+/*  NavLink                                                            */
+/* ------------------------------------------------------------------ */
 
-function NavLink({ href, icon, label, active }: NavLinkProps) {
+function NavLink({
+  href,
+  icon: Icon,
+  label,
+  active,
+  exact,
+}: {
+  href: string;
+  icon: React.ElementType;
+  label: string;
+  active?: boolean;
+  exact?: boolean;
+}) {
+  const pathname = usePathname();
+  const isActive =
+    active ??
+    (exact
+      ? pathname === href
+      : pathname === href || pathname.startsWith(href + "/"));
+
   return (
     <Link
       href={href}
-      className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
-        active
+      className={cn(
+        "group relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] transition-all duration-150",
+        isActive
           ? "bg-primary/10 font-medium text-primary"
-          : "text-muted-foreground hover:bg-muted hover:text-foreground"
-      }`}
+          : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+      )}
     >
-      {icon}
-      {label}
+      <Icon className="size-4 shrink-0" />
+      <span>{label}</span>
+      {isActive && (
+        <motion.div
+          layoutId="sidebarActiveIndicator"
+          className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-primary"
+          transition={{ type: "spring", stiffness: 400, damping: 30 }}
+        />
+      )}
     </Link>
   );
 }
 
-function ProjectItem({
-  project,
-  isActive,
-  pathname,
-}: {
-  project: { _id: Id<"projects">; name: string };
-  isActive: boolean;
-  pathname: string;
-}) {
-  const [expanded, setExpanded] = useState(isActive);
-  const documents = useQuery(api.documents.list, { projectId: project._id });
-  const docCount = documents?.length ?? 0;
+/* ------------------------------------------------------------------ */
+/*  Status dot                                                         */
+/* ------------------------------------------------------------------ */
 
+function StatusDot({ status }: { status: string }) {
   return (
-    <div>
-      <div className="flex items-center gap-1">
-        <button
-          type="button"
-          onClick={() => setExpanded(!expanded)}
-          className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
-        >
-          <ChevronRight
-            className={`size-3.5 transition-transform ${expanded ? "rotate-90" : ""}`}
-          />
-        </button>
-        <Link
-          href={`/projects/${project._id}`}
-          className={`flex flex-1 items-center justify-between rounded-lg px-2 py-1.5 text-sm transition-colors ${
-            isActive
-              ? "bg-primary/10 font-medium text-primary"
-              : "text-muted-foreground hover:bg-muted hover:text-foreground"
-          }`}
-        >
-          <span className="truncate">{project.name}</span>
-          {docCount > 0 && (
-            <Badge
-              variant="secondary"
-              className="ml-2 h-5 min-w-[1.25rem] px-1.5 text-[10px]"
-            >
-              {docCount}
-            </Badge>
-          )}
-        </Link>
-      </div>
-      {expanded && (
-        <div className="ml-6 mt-1 space-y-0.5 border-l pl-3">
-          <Link
-            href={`/projects/${project._id}`}
-            className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors ${
-              pathname === `/projects/${project._id}`
-                ? "text-primary"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <FileText className="size-3.5" />
-            Documents
-          </Link>
-          <Link
-            href={`/projects/${project._id}/media`}
-            className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors ${
-              pathname === `/projects/${project._id}/media`
-                ? "text-primary"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <Image className="size-3.5" />
-            Media
-          </Link>
-          <Link
-            href={`/projects/${project._id}/settings`}
-            className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors ${
-              pathname === `/projects/${project._id}/settings`
-                ? "text-primary"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <Settings className="size-3.5" />
-            Settings
-          </Link>
-        </div>
+    <span
+      className={cn(
+        "size-1.5 rounded-full shrink-0 transition-colors",
+        status === "published" && "bg-emerald-500",
+        status === "scheduled" && "bg-amber-500",
+        status !== "published" &&
+          status !== "scheduled" &&
+          "bg-muted-foreground/30",
       )}
-    </div>
+    />
   );
 }
 
+/* ------------------------------------------------------------------ */
+/*  AppSidebar                                                         */
+/* ------------------------------------------------------------------ */
+
 export function AppSidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const activeProjectId = useEditorStore((s) => s.activeProjectId);
+  const setActiveProjectId = useEditorStore((s) => s.setActiveProjectId);
+
   const projects = useQuery(api.projects.list);
+  const documents = useQuery(
+    api.documents.list,
+    activeProjectId ? { projectId: activeProjectId as Id<"projects"> } : "skip",
+  );
+
+  function handleBack() {
+    setActiveProjectId(null);
+    router.push("/dashboard");
+  }
+
+  function handleSelectProject(projectId: string) {
+    setActiveProjectId(projectId);
+    router.push(`/projects/${projectId}`);
+  }
 
   return (
-    <TooltipProvider>
-      <div className="flex h-full w-[280px] flex-col">
-        {/* Logo */}
-        <div className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
-          <PenLine className="size-5 text-primary" />
-          <span className="text-lg font-semibold tracking-tight">Wryte</span>
-        </div>
+    <div className="flex h-full w-[260px] flex-col bg-sidebar">
+      {/* Product header */}
+      <div className="flex h-12 shrink-0 items-center gap-2 border-b border-sidebar-border px-4">
+        <Image
+          src="/wryte-icon.png"
+          alt="Wryte"
+          width={24}
+          height={24}
+          className="rounded-md"
+          style={{ width: 24, height: "auto" }}
+        />
+        <span className="text-sm font-semibold tracking-tight text-sidebar-foreground">
+          wryte
+        </span>
+      </div>
 
-        {/* Navigation */}
-        <ScrollArea className="flex-1 px-3 py-3">
-          <div className="space-y-1">
-            <NavLink
-              href="/dashboard"
-              icon={<LayoutDashboard className="size-4" />}
-              label="Dashboard"
-              active={pathname === "/dashboard"}
-            />
-            <NavLink
-              href="/documents"
-              icon={<FileText className="size-4" />}
-              label="All Documents"
-              active={pathname === "/documents"}
-            />
-          </div>
+      {/* Navigation */}
+      <div className="flex-1 overflow-y-auto slim-scrollbar px-3 py-3">
+        <AnimatePresence mode="wait" initial={false}>
+          {!activeProjectId ? (
+            <motion.div
+              key="default"
+              initial={{ opacity: 0, x: -8 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -8 }}
+              transition={{ duration: 0.15 }}
+            >
+              {/* Home */}
+              <div className="space-y-0.5">
+                <NavLink
+                  href="/dashboard"
+                  icon={LayoutDashboard}
+                  label="Home"
+                />
+              </div>
 
-          {/* Projects */}
-          <div className="mt-6">
-            <div className="mb-2 flex items-center justify-between px-3">
-              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Projects
-              </span>
-              <Link
-                href="/projects/new"
-                className={cn(
-                  buttonVariants({ variant: "ghost", size: "icon-xs" }),
-                )}
-                aria-label="Create new project"
-              >
-                <Plus className="size-3.5" />
-              </Link>
-            </div>
-            <div className="space-y-0.5">
-              {projects === undefined ? (
-                <div className="space-y-2 px-3">
-                  <Skeleton className="h-7 w-full" />
-                  <Skeleton className="h-7 w-3/4" />
-                </div>
-              ) : projects.length === 0 ? (
-                <p className="px-3 py-2 text-xs text-muted-foreground">
-                  No projects yet.{" "}
-                  <Link
-                    href="/projects/new"
-                    className="text-primary underline-offset-4 hover:underline"
+              <div className="my-3 h-px bg-sidebar-border" />
+
+              {/* Projects */}
+              <div>
+                <div className="mb-1.5 flex items-center justify-between px-3">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                    Projects
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => router.push("/projects/new")}
+                    className="flex size-5 items-center justify-center rounded-md text-muted-foreground/60 hover:bg-muted hover:text-foreground transition-all"
+                    aria-label="Create new project"
                   >
-                    Create one
-                  </Link>
-                </p>
-              ) : (
-                projects.map((project) => (
-                  <ProjectItem
-                    key={project._id}
-                    project={project}
-                    isActive={pathname.startsWith(`/projects/${project._id}`)}
-                    pathname={pathname}
-                  />
-                ))
-              )}
-            </div>
-          </div>
-
-          {/* Coming Soon */}
-          <Separator className="my-4" />
-          <div className="px-3">
-            <span className="mb-2 block text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              Coming Soon
-            </span>
-            <div className="space-y-1">
-              {[
-                { icon: BarChart3, label: "Analytics" },
-                { icon: Search, label: "SEO Tools" },
-                { icon: Users, label: "Team" },
-              ].map((item) => (
-                <div
-                  key={item.label}
-                  className="flex cursor-not-allowed items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground/50"
-                >
-                  <item.icon className="size-4" />
-                  {item.label}
+                    <Plus className="size-3" />
+                  </button>
                 </div>
-              ))}
-            </div>
-          </div>
-        </ScrollArea>
 
-        {/* Bottom */}
-        <div className="shrink-0 border-t p-3">
-          <div className="flex items-center justify-between">
-            <ThemeToggle />
-            <UserButton
-              appearance={{
-                elements: {
-                  avatarBox: "size-8",
-                },
-              }}
-            />
-          </div>
+                {projects === undefined ? (
+                  <div className="space-y-1.5 px-3">
+                    {[1, 2, 3].map((i) => (
+                      <div
+                        key={i}
+                        className="h-8 animate-pulse rounded-lg bg-muted/40"
+                      />
+                    ))}
+                  </div>
+                ) : projects.length === 0 ? (
+                  <p className="px-3 py-4 text-center text-xs text-muted-foreground/50">
+                    No projects yet
+                  </p>
+                ) : (
+                  <div className="space-y-0.5">
+                    {projects.map((project, index) => (
+                      <motion.button
+                        key={project._id}
+                        type="button"
+                        initial={{ opacity: 0, y: 4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.03, duration: 0.2 }}
+                        onClick={() => handleSelectProject(project._id)}
+                        className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] text-left text-muted-foreground transition-all hover:bg-muted/60 hover:text-foreground"
+                      >
+                        <FolderOpen className="size-4 shrink-0 text-muted-foreground/60" />
+                        <span className="truncate">{project.name}</span>
+                      </motion.button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="project"
+              initial={{ opacity: 0, x: 8 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 8 }}
+              transition={{ duration: 0.15 }}
+            >
+              {/* Back */}
+              <button
+                type="button"
+                onClick={handleBack}
+                className="mb-2 flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-[13px] text-muted-foreground transition-all hover:bg-muted/60 hover:text-foreground"
+              >
+                <ArrowLeft className="size-3.5" />
+                <span>Back</span>
+              </button>
+
+              {/* Project nav */}
+              <div className="space-y-0.5">
+                <NavLink
+                  href={`/projects/${activeProjectId}`}
+                  icon={FileText}
+                  label="Articles"
+                  exact
+                />
+                <NavLink
+                  href={`/projects/${activeProjectId}/media`}
+                  icon={ImageIcon}
+                  label="Media"
+                />
+                <NavLink
+                  href={`/projects/${activeProjectId}/settings`}
+                  icon={Settings}
+                  label="Settings"
+                />
+              </div>
+
+              <div className="my-3 h-px bg-sidebar-border" />
+
+              {/* Articles list */}
+              <div>
+                <div className="mb-1.5 flex items-center justify-between px-3">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                    Articles
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      router.push(`/projects/${activeProjectId}/documents/new`)
+                    }
+                    className="flex size-5 items-center justify-center rounded-md text-muted-foreground/60 hover:bg-muted hover:text-foreground transition-all"
+                    aria-label="Create new article"
+                  >
+                    <Plus className="size-3" />
+                  </button>
+                </div>
+
+                {documents === undefined ? (
+                  <div className="space-y-1 px-3">
+                    {[1, 2, 3, 4].map((i) => (
+                      <div
+                        key={i}
+                        className="h-7 animate-pulse rounded-md bg-muted/40"
+                      />
+                    ))}
+                  </div>
+                ) : documents.length === 0 ? (
+                  <p className="px-3 py-4 text-center text-xs text-muted-foreground/50">
+                    No articles yet
+                  </p>
+                ) : (
+                  <div className="space-y-0.5">
+                    {documents.map((doc, index) => {
+                      const isActive = pathname.includes(doc._id);
+
+                      return (
+                        <motion.div
+                          key={doc._id}
+                          initial={{ opacity: 0, y: 4 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: index * 0.03, duration: 0.2 }}
+                          onClick={() => router.push(`/editor/${doc._id}`)}
+                          className={cn(
+                            "flex cursor-pointer items-center gap-2.5 rounded-lg px-3 py-1.5 text-[13px] transition-all",
+                            isActive
+                              ? "bg-primary/10 font-medium text-primary"
+                              : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+                          )}
+                        >
+                          <StatusDot status={doc.status ?? "draft"} />
+                          <span className="truncate">
+                            {doc.title || "Untitled"}
+                          </span>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* Footer */}
+      <div className="border-t border-sidebar-border px-4 py-2.5">
+        <div className="flex items-center justify-between">
+          <ThemeToggle />
+          <UserButton
+            appearance={{
+              elements: {
+                avatarBox: "size-6",
+              },
+            }}
+          />
         </div>
       </div>
-    </TooltipProvider>
+    </div>
   );
 }

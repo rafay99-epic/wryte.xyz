@@ -1,10 +1,10 @@
 "use client";
 
 import { useQuery } from "convex/react";
-import { FolderPlus, FileText, FolderOpen, GitBranch } from "lucide-react";
+import { FileText, FolderOpen, FolderPlus, GitBranch } from "lucide-react";
 import Link from "next/link";
+import { useEffect } from "react";
 import { buttonVariants } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import {
   Card,
   CardContent,
@@ -13,10 +13,17 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
+import { useEditorStore } from "@/stores/editor-store";
 import { api } from "../../../../convex/_generated/api";
 
 export default function ProjectsPage() {
   const projects = useQuery(api.projects.list);
+
+  // Clear active project so sidebar shows default view
+  useEffect(() => {
+    useEditorStore.getState().setActiveProjectId(null);
+  }, []);
 
   return (
     <div className="p-6">

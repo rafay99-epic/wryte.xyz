@@ -41,3 +41,5 @@ Long term maintainability is a core priority. If you add new functionality, firs
   1. **`bun run lint`** — Biome check (lint).
   2. **`bun run format`** — Biome write (format).
   3. **`bun run type`** — TypeScript `tsc --noEmit` (resolve all type errors before finishing).
+
+Stop with the fucking builing up the project, I will build the project myself, and the dev server is running all the time, constantly, so stop fucking building the server again and again and again and wasting tokens. If you want to verify that it is working or not, just run the `bun run lint` command or the type check to make sure that it is up to the quality standards.

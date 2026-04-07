@@ -62,9 +62,10 @@ export function PublishDialog({
   const document = useQuery(documentsGet, {
     documentId: documentId as Id<"documents">,
   });
-  const project = useQuery(projectsGet, {
-    projectId: projectId as Id<"projects">,
-  });
+  const project = useQuery(
+    projectsGet,
+    projectId ? { projectId: projectId as Id<"projects"> } : "skip",
+  );
 
   const publishToGithub = useAction(publishAction);
 

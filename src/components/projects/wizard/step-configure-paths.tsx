@@ -1,7 +1,14 @@
 "use client";
 
-import { Loader2, Search } from "lucide-react";
-import { useCallback, useState } from "react";
+import {
+  FolderOpen,
+  HardDrive,
+  Image,
+  Loader2,
+  ScanSearch,
+  Sparkles,
+} from "lucide-react";
+import { useCallback } from "react";
 import { toast } from "sonner";
 import type { WizardState } from "@/app/(app)/projects/new/page";
 import { Button } from "@/components/ui/button";
@@ -14,23 +21,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useDetectFrontmatter } from "@/hooks/use-github";
 import type { FrontmatterField } from "@/types/frontmatter";
 
 interface StepConfigurePathsProps {
   state: WizardState;
   onChange: (updates: Partial<WizardState>) => void;
-}
-
-interface DetectResponse {
-  fields: Array<{
-    name: string;
-    type: string;
-    required: boolean;
-    defaultValue: string;
-    options: string;
-  }> | null;
-  sourceFile?: string;
-  error?: string;
 }
 
 const FIELD_TYPES = [
@@ -54,7 +50,8 @@ export function StepConfigurePaths({
   state,
   onChange,
 }: StepConfigurePathsProps) {
-  const [isDetecting, setIsDetecting] = useState(false);
+  const detectMutation = useDetectFrontmatter();
+  const isDetecting = detectMutation.isPending;
 
   const hasRepo = state.selectedRepo !== null;
   const canDetect = hasRepo && state.contentPath.trim().length > 0;
@@ -62,19 +59,12 @@ export function StepConfigurePaths({
   const handleDetectFrontmatter = useCallback(async () => {
     if (!state.selectedRepo || !state.contentPath.trim()) return;
 
-    setIsDetecting(true);
     try {
-      const res = await fetch("/api/github/detect-frontmatter", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          repo: state.selectedRepo.fullName,
-          branch: state.selectedRepo.defaultBranch,
-          contentPath: state.contentPath.trim(),
-        }),
+      const data = await detectMutation.mutateAsync({
+        repo: state.selectedRepo.fullName,
+        branch: state.selectedRepo.defaultBranch,
+        contentPath: state.contentPath.trim(),
       });
-
-      const data: DetectResponse = await res.json();
 
       if (data.fields && data.fields.length > 0) {
         const fields: FrontmatterField[] = data.fields.map((f) => ({
@@ -101,23 +91,28 @@ export function StepConfigurePaths({
       toast.warning(
         "Failed to detect frontmatter. You can configure fields manually in the next step.",
       );
-    } finally {
-      setIsDetecting(false);
     }
-  }, [state.selectedRepo, state.contentPath, onChange]);
+  }, [state.selectedRepo, state.contentPath, onChange, detectMutation]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div>
-        <h2 className="text-lg font-semibold">Configure Content Structure</h2>
-        <p className="text-sm text-muted-foreground">
+        <div className="flex items-center gap-2">
+          <FolderOpen className="size-[18px] text-primary" />
+          <h2 className="text-base font-semibold">Configure Content Structure</h2>
+        </div>
+        <p className="mt-1 text-sm text-muted-foreground">
           Tell us where your content and media files live in the repository.
         </p>
       </div>
 
       <div className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="content-path">Content Directory</Label>
+        {/* Content Directory */}
+        <div className="space-y-1.5">
+          <Label htmlFor="content-path" className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+            <FolderOpen className="size-3" />
+            Content Directory
+          </Label>
           <Input
             id="content-path"
             placeholder="content/blog"
@@ -126,14 +121,18 @@ export function StepConfigurePaths({
               onChange({ contentPath: (e.target as HTMLInputElement).value })
             }
           />
-          <p className="text-xs text-muted-foreground">
+          <p className="text-[11px] text-muted-foreground/60">
             The directory where markdown files will be published (e.g.,
             content/blog, src/content/posts)
           </p>
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="media-path">Media Directory</Label>
+        {/* Media Directory */}
+        <div className="space-y-1.5">
+          <Label htmlFor="media-path" className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+            <Image className="size-3" />
+            Media Directory
+          </Label>
           <Input
             id="media-path"
             placeholder="public/images"
@@ -142,13 +141,17 @@ export function StepConfigurePaths({
               onChange({ mediaPath: (e.target as HTMLInputElement).value })
             }
           />
-          <p className="text-xs text-muted-foreground">
+          <p className="text-[11px] text-muted-foreground/60">
             Where images and media files are stored
           </p>
         </div>
 
-        <div className="space-y-2">
-          <Label>Media Storage Mode</Label>
+        {/* Media Storage Mode */}
+        <div className="space-y-1.5">
+          <Label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+            <HardDrive className="size-3" />
+            Media Storage Mode
+          </Label>
           <Select
             value={state.mediaStorageMode}
             onValueChange={(val) =>
@@ -163,7 +166,7 @@ export function StepConfigurePaths({
               <SelectItem value="external">External URL</SelectItem>
             </SelectContent>
           </Select>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-[11px] text-muted-foreground/60">
             {state.mediaStorageMode === "github"
               ? "Images will be committed directly to your repository."
               : "Images hosted externally (Cloudinary, S3, etc.)"}
@@ -171,34 +174,41 @@ export function StepConfigurePaths({
         </div>
       </div>
 
+      {/* Detect Frontmatter */}
       {hasRepo && (
-        <div className="rounded-lg border border-dashed p-4">
-          <div className="flex items-center justify-between">
-            <div>
+        <div className="rounded-xl border bg-muted/30 p-4">
+          <div className="flex items-start gap-3">
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+              <Sparkles className="size-4 text-primary" />
+            </div>
+            <div className="flex-1">
               <p className="text-sm font-medium">Detect Frontmatter Schema</p>
-              <p className="text-xs text-muted-foreground">
-                Scan your repository for existing frontmatter fields.
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Scan your repository for existing frontmatter fields to
+                auto-configure your schema.
               </p>
+              {state.detectedFromFile && (
+                <p className="mt-2 flex items-center gap-1 text-xs text-emerald-500">
+                  <ScanSearch className="size-3" />
+                  Schema detected from {state.detectedFromFile}
+                </p>
+              )}
             </div>
             <Button
               variant="outline"
               size="sm"
               disabled={!canDetect || isDetecting}
               onClick={() => void handleDetectFrontmatter()}
+              className="shrink-0"
             >
               {isDetecting ? (
-                <Loader2 className="size-4 animate-spin" />
+                <Loader2 className="size-3.5 animate-spin" />
               ) : (
-                <Search className="size-4" />
+                <ScanSearch className="size-3.5" />
               )}
-              {isDetecting ? "Detecting..." : "Detect"}
+              {isDetecting ? "Scanning..." : "Detect"}
             </Button>
           </div>
-          {state.detectedFromFile && (
-            <p className="mt-2 text-xs text-green-600 dark:text-green-400">
-              Schema detected from {state.detectedFromFile}
-            </p>
-          )}
         </div>
       )}
     </div>

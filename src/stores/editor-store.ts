@@ -25,11 +25,19 @@ interface EditorState {
   viewMode: ViewMode;
   /** Whether the document/navigation sidebar is expanded. */
   sidebarOpen: boolean;
+  /** Currently selected project ID for sidebar navigation — null when on dashboard/global pages. */
+  activeProjectId: string | null;
 
   /** Update markdown content and mark the document as dirty (unsaved changes). */
   setContent: (content: string) => void;
   /** Update the document title and mark the document as dirty. */
   setTitle: (title: string) => void;
+  /**
+   * Initialise the editor with a loaded document's data in a single atomic update.
+   * Unlike calling setTitle + setContent separately, this does NOT mark the store
+   * as dirty — preventing the autosave hook from triggering a spurious save.
+   */
+  initDocument: (title: string, content: string, projectId: string) => void;
   /** Called after a successful save — clears dirty/saving flags and records the timestamp. */
   markSaved: () => void;
   /** Toggle the saving indicator (used by the autosave hook). */
@@ -38,6 +46,8 @@ interface EditorState {
   setViewMode: (viewMode: ViewMode) => void;
   /** Toggle sidebar open/closed. */
   toggleSidebar: () => void;
+  /** Set the active project for sidebar navigation. */
+  setActiveProjectId: (id: string | null) => void;
   /** Reset all editor state back to defaults (e.g. when navigating away from a document). */
   reset: () => void;
 }
@@ -51,6 +61,7 @@ const initialState = {
   lastSavedAt: null,
   viewMode: "edit" as const,
   sidebarOpen: true,
+  activeProjectId: null as string | null,
 };
 
 /**
@@ -69,6 +80,18 @@ export const useEditorStore = create<EditorState>()((set) => ({
   // Title changes are also unsaved mutations
   setTitle: (title) => set({ title, isDirty: true }),
 
+  // Atomic init — sets title, content, and activeProjectId without marking dirty.
+  // This prevents the autosave hook from firing on initial document load.
+  initDocument: (title, content, projectId) =>
+    set({
+      title,
+      content,
+      activeProjectId: projectId,
+      isDirty: false,
+      isSaving: false,
+      lastSavedAt: null,
+    }),
+
   // Snapshot the save timestamp so the UI can display "saved X seconds ago"
   markSaved: () =>
     set({
@@ -83,6 +106,8 @@ export const useEditorStore = create<EditorState>()((set) => ({
 
   // Derive new value from previous state to avoid stale-closure issues
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
+
+  setActiveProjectId: (id) => set({ activeProjectId: id }),
 
   // Wipe everything — prevents stale data when switching documents
   reset: () => set(initialState),

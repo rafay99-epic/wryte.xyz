@@ -1,23 +1,23 @@
 "use client";
 
-import { GitBranch, Globe, Lock, Search } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import {
+  ArrowLeftRight,
+  GitBranch,
+  Globe,
+  Lock,
+  Search,
+  Settings2,
+} from "lucide-react";
+import { useCallback, useState } from "react";
 import type { WizardState } from "@/app/(app)/projects/new/page";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useGithubRepos, type RepoItem } from "@/hooks/use-github";
 import { generateSlug } from "@/lib/markdown";
 import { cn } from "@/lib/utils";
-
-interface RepoItem {
-  fullName: string;
-  name: string;
-  defaultBranch: string;
-  description: string | null;
-  private: boolean;
-  updatedAt: string;
-}
 
 interface StepSelectRepoProps {
   state: WizardState;
@@ -34,58 +34,20 @@ function formatDate(dateStr: string): string {
   const diffMs = now.getTime() - date.getTime();
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
-  if (diffDays === 0) return "today";
-  if (diffDays === 1) return "yesterday";
-  if (diffDays < 30) return `${String(diffDays)}d ago`;
-  if (diffDays < 365) return `${String(Math.floor(diffDays / 30))}mo ago`;
-  return `${String(Math.floor(diffDays / 365))}y ago`;
+  if (diffDays === 0) return "Updated today";
+  if (diffDays === 1) return "Updated yesterday";
+  if (diffDays < 30) return `Updated ${String(diffDays)}d ago`;
+  if (diffDays < 365) return `Updated ${String(Math.floor(diffDays / 30))}mo ago`;
+  return `Updated ${String(Math.floor(diffDays / 365))}y ago`;
 }
 
 export function StepSelectRepo({ state, onChange }: StepSelectRepoProps) {
-  const [repos, setRepos] = useState<RepoItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isConnected, setIsConnected] = useState(true);
+  const { data, isLoading, isError } = useGithubRepos();
+  const repos = data?.repos ?? [];
+  const isConnected = !isError;
+
   const [searchQuery, setSearchQuery] = useState("");
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function fetchRepos() {
-      try {
-        const res = await fetch("/api/github/repos");
-        const data: {
-          repos?: RepoItem[];
-          error?: string;
-          connected?: boolean;
-        } = await res.json();
-
-        if (cancelled) return;
-
-        if (!res.ok || data.connected === false) {
-          setIsConnected(false);
-          setIsLoading(false);
-          return;
-        }
-
-        setRepos(data.repos ?? []);
-        setIsConnected(true);
-      } catch {
-        if (!cancelled) {
-          setIsConnected(false);
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
-      }
-    }
-
-    void fetchRepos();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const handleSelectRepo = useCallback(
     (repo: RepoItem) => {
@@ -151,17 +113,22 @@ export function StepSelectRepo({ state, onChange }: StepSelectRepoProps) {
 
   if (state.useManualSetup) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-5">
         <div>
-          <h2 className="text-lg font-semibold">Manual Setup</h2>
-          <p className="text-sm text-muted-foreground">
+          <div className="flex items-center gap-2">
+            <Settings2 className="size-[18px] text-primary" />
+            <h2 className="text-base font-semibold">Manual Setup</h2>
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">
             Configure your project without importing from GitHub.
           </p>
         </div>
 
         <div className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="manual-name">Project Name</Label>
+          <div className="space-y-1.5">
+            <Label htmlFor="manual-name" className="text-xs font-medium text-muted-foreground">
+              Project Name
+            </Label>
             <Input
               id="manual-name"
               placeholder="My Blog"
@@ -173,8 +140,10 @@ export function StepSelectRepo({ state, onChange }: StepSelectRepoProps) {
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="manual-slug">Slug</Label>
+          <div className="space-y-1.5">
+            <Label htmlFor="manual-slug" className="text-xs font-medium text-muted-foreground">
+              Slug
+            </Label>
             <Input
               id="manual-slug"
               placeholder="my-blog"
@@ -183,15 +152,17 @@ export function StepSelectRepo({ state, onChange }: StepSelectRepoProps) {
                 handleSlugChange((e.target as HTMLInputElement).value)
               }
             />
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground/70">
               URL-friendly identifier. Auto-generated from the name.
             </p>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="manual-repo">
+          <div className="my-4 h-px bg-border" />
+
+          <div className="space-y-1.5">
+            <Label htmlFor="manual-repo" className="text-xs font-medium text-muted-foreground">
               GitHub Repository{" "}
-              <span className="text-muted-foreground">(optional)</span>
+              <span className="text-muted-foreground/50">(optional)</span>
             </Label>
             <Input
               id="manual-repo"
@@ -216,8 +187,10 @@ export function StepSelectRepo({ state, onChange }: StepSelectRepoProps) {
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="manual-branch">Branch</Label>
+          <div className="space-y-1.5">
+            <Label htmlFor="manual-branch" className="text-xs font-medium text-muted-foreground">
+              Branch
+            </Label>
             <Input
               id="manual-branch"
               placeholder="main"
@@ -237,70 +210,72 @@ export function StepSelectRepo({ state, onChange }: StepSelectRepoProps) {
           </div>
         </div>
 
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={handleManualToggle}
-          className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+          className="gap-1.5 text-muted-foreground"
         >
-          Back to repository selection
-        </button>
+          <ArrowLeftRight className="size-3.5" />
+          Switch to repository selection
+        </Button>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div>
-        <h2 className="text-lg font-semibold">Connect a GitHub Repository</h2>
-        <p className="text-sm text-muted-foreground">
+        <div className="flex items-center gap-2">
+          <GitBranch className="size-[18px] text-primary" />
+          <h2 className="text-base font-semibold">Connect a GitHub Repository</h2>
+        </div>
+        <p className="mt-1 text-sm text-muted-foreground">
           Select a repository to import, or set up manually.
         </p>
       </div>
 
       {isLoading ? (
-        <div className="space-y-3">
-          {Array.from({ length: 5 }, (_, i) => (
+        <div className="space-y-2">
+          {Array.from({ length: 4 }, (_, i) => (
             <div
               key={`skeleton-${String(i)}`}
-              className="flex items-center gap-3 rounded-lg border p-3"
+              className="flex items-center gap-3 rounded-lg border border-border/50 p-3"
             >
-              <Skeleton className="size-5 rounded" />
+              <Skeleton className="size-8 rounded-lg" />
               <div className="flex-1 space-y-2">
-                <Skeleton className="h-4 w-1/3" />
+                <Skeleton className="h-3.5 w-1/3" />
                 <Skeleton className="h-3 w-2/3" />
               </div>
             </div>
           ))}
         </div>
       ) : !isConnected ? (
-        <div className="rounded-lg border border-dashed p-6 text-center">
-          <GitBranch className="mx-auto mb-3 size-8 text-muted-foreground" />
-          <h3 className="mb-1 font-medium">GitHub Not Connected</h3>
-          <p className="mb-1 text-sm text-muted-foreground">
-            Connect your GitHub account to import repositories automatically.
-          </p>
-          <p className="text-sm text-muted-foreground">
-            You can connect GitHub from your account settings in Clerk.
-          </p>
-          <p className="mt-3 text-sm text-muted-foreground">
-            Or use manual setup below.
+        <div className="flex flex-col items-center rounded-xl border border-dashed border-border/60 bg-muted/30 px-6 py-8 text-center">
+          <div className="mb-3 flex size-12 items-center justify-center rounded-full bg-muted">
+            <GitBranch className="size-5 text-muted-foreground" />
+          </div>
+          <h3 className="mb-1 text-sm font-medium">GitHub Not Connected</h3>
+          <p className="max-w-sm text-xs text-muted-foreground">
+            Connect your GitHub account from your account settings to import
+            repositories automatically, or use manual setup below.
           </p>
         </div>
       ) : (
         <>
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Search repositories..."
               value={searchQuery}
               onChange={(e) =>
                 setSearchQuery((e.target as HTMLInputElement).value)
               }
-              className="pl-9"
+              className="pl-8"
             />
           </div>
 
-          <div className="max-h-[320px] space-y-2 overflow-y-auto pr-1">
+          <div className="max-h-[280px] space-y-1.5 overflow-y-auto">
             {filteredRepos.length === 0 ? (
               <p className="py-8 text-center text-sm text-muted-foreground">
                 {searchQuery
@@ -317,35 +292,54 @@ export function StepSelectRepo({ state, onChange }: StepSelectRepoProps) {
                     type="button"
                     onClick={() => handleSelectRepo(repo)}
                     className={cn(
-                      "flex w-full items-start gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-muted/50",
-                      isSelected && "border-primary bg-primary/5",
+                      "flex w-full items-start gap-3 rounded-lg border border-transparent px-3 py-2.5 text-left transition-all",
+                      "hover:bg-muted/60",
+                      isSelected &&
+                        "border-primary/40 bg-primary/5 ring-1 ring-primary/20",
                     )}
                   >
-                    <GitBranch className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                    <div
+                      className={cn(
+                        "mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg transition-colors",
+                        isSelected
+                          ? "bg-primary/10 text-primary"
+                          : "bg-muted text-muted-foreground",
+                      )}
+                    >
+                      <GitBranch className="size-3.5" />
+                    </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="truncate font-medium text-sm">
+                        <span className="truncate text-sm font-medium">
                           {repo.fullName}
                         </span>
-                        <Badge variant="outline" className="shrink-0">
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "shrink-0 text-[10px] px-1.5 py-0",
+                            repo.private
+                              ? "border-amber-500/30 text-amber-500"
+                              : "border-emerald-500/30 text-emerald-500",
+                          )}
+                        >
                           {repo.private ? (
                             <>
-                              <Lock className="size-3" /> Private
+                              <Lock className="mr-0.5 size-2.5" /> Private
                             </>
                           ) : (
                             <>
-                              <Globe className="size-3" /> Public
+                              <Globe className="mr-0.5 size-2.5" /> Public
                             </>
                           )}
                         </Badge>
                       </div>
                       {repo.description && (
-                        <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                        <p className="mt-0.5 truncate text-xs text-muted-foreground/80">
                           {repo.description}
                         </p>
                       )}
-                      <p className="mt-1 text-xs text-muted-foreground/70">
-                        Updated {formatDate(repo.updatedAt)}
+                      <p className="mt-0.5 text-[11px] text-muted-foreground/50">
+                        {formatDate(repo.updatedAt)}
                       </p>
                     </div>
                   </button>
@@ -358,9 +352,11 @@ export function StepSelectRepo({ state, onChange }: StepSelectRepoProps) {
 
       {/* Project name/slug when a repo is selected */}
       {state.selectedRepo && !state.useManualSetup && (
-        <div className="space-y-4 border-t pt-4">
-          <div className="space-y-2">
-            <Label htmlFor="project-name">Project Name</Label>
+        <div className="space-y-4 border-t pt-5">
+          <div className="space-y-1.5">
+            <Label htmlFor="project-name" className="text-xs font-medium text-muted-foreground">
+              Project Name
+            </Label>
             <Input
               id="project-name"
               placeholder="My Blog"
@@ -370,8 +366,10 @@ export function StepSelectRepo({ state, onChange }: StepSelectRepoProps) {
               }
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="project-slug">Slug</Label>
+          <div className="space-y-1.5">
+            <Label htmlFor="project-slug" className="text-xs font-medium text-muted-foreground">
+              Slug
+            </Label>
             <Input
               id="project-slug"
               placeholder="my-blog"
@@ -380,20 +378,22 @@ export function StepSelectRepo({ state, onChange }: StepSelectRepoProps) {
                 handleSlugChange((e.target as HTMLInputElement).value)
               }
             />
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground/70">
               URL-friendly identifier. Auto-generated from the name.
             </p>
           </div>
         </div>
       )}
 
-      <button
-        type="button"
+      <Button
+        variant="ghost"
+        size="sm"
         onClick={handleManualToggle}
-        className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+        className="gap-1.5 text-muted-foreground"
       >
+        <Settings2 className="size-3.5" />
         Set up manually without GitHub
-      </button>
+      </Button>
     </div>
   );
 }

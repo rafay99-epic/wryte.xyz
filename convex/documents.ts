@@ -123,6 +123,78 @@ export const list = query({
   },
 });
 
+/** Returns the N most recently updated documents across all projects for the current user. */
+export const listRecent = query({
+  args: {
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      return [];
+    }
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_tokenIdentifier", (q) =>
+        q.eq("tokenIdentifier", identity.tokenIdentifier),
+      )
+      .unique();
+
+    if (!user) {
+      return [];
+    }
+
+    const limit = args.limit ?? 5;
+
+    const documents = await ctx.db
+      .query("documents")
+      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .collect();
+
+    return documents.sort((a, b) => b.updatedAt - a.updatedAt).slice(0, limit);
+  },
+});
+
+/**
+ * Lists all documents across all projects for the current user.
+ * Returns minimal fields for dashboard stats (avoids transferring full content).
+ */
+export const listAllForUser = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      return [];
+    }
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_tokenIdentifier", (q) =>
+        q.eq("tokenIdentifier", identity.tokenIdentifier),
+      )
+      .unique();
+
+    if (!user) {
+      return [];
+    }
+
+    const documents = await ctx.db
+      .query("documents")
+      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .collect();
+
+    return documents
+      .sort((a, b) => b.updatedAt - a.updatedAt)
+      .map((d) => ({
+        _id: d._id,
+        status: d.status,
+        updatedAt: d.updatedAt,
+        projectId: d.projectId,
+      }));
+  },
+});
+
 /**
  * Fetches a single document by ID with full ownership verification.
  *

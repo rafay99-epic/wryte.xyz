@@ -2,7 +2,9 @@
 
 import { useUser } from "@clerk/nextjs";
 import { useQuery } from "convex/react";
+import { motion } from "framer-motion";
 import {
+  ArrowRight,
   BarChart3,
   Calendar,
   Clock,
@@ -12,11 +14,14 @@ import {
   Globe,
   Plus,
   Search,
+  Sparkles,
   Users,
 } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 import { buttonVariants } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import {
   Card,
   CardContent,
@@ -26,145 +31,382 @@ import {
 } from "@/components/ui/card";
 import { ComingSoonCard } from "@/components/ui/coming-soon-card";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  fadeSlideUp,
+  smoothTransition,
+  staggerContainer,
+  staggerItem,
+} from "@/lib/motion";
+import { cn } from "@/lib/utils";
+import { useEditorStore } from "@/stores/editor-store";
 import { api } from "../../../../convex/_generated/api";
 
-/** Props for a single metric card shown in the stats grid. */
+/* ------------------------------------------------------------------ */
+/*  Helpers                                                            */
+/* ------------------------------------------------------------------ */
+
+/** Returns a time-of-day greeting. */
+function getGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
+}
+
+/** Icon-to-color mapping for stat cards. */
+const statAccents = {
+  total: {
+    bg: "bg-primary/10",
+    text: "text-primary",
+    border: "border-l-primary/60",
+  },
+  drafts: {
+    bg: "bg-amber-500/10 dark:bg-amber-400/10",
+    text: "text-amber-600 dark:text-amber-400",
+    border: "border-l-amber-500/60 dark:border-l-amber-400/60",
+  },
+  published: {
+    bg: "bg-emerald-500/10 dark:bg-emerald-400/10",
+    text: "text-emerald-600 dark:text-emerald-400",
+    border: "border-l-emerald-500/60 dark:border-l-emerald-400/60",
+  },
+  scheduled: {
+    bg: "bg-blue-500/10 dark:bg-blue-400/10",
+    text: "text-blue-600 dark:text-blue-400",
+    border: "border-l-blue-500/60 dark:border-l-blue-400/60",
+  },
+};
+
+/* ------------------------------------------------------------------ */
+/*  StatCard                                                           */
+/* ------------------------------------------------------------------ */
+
 interface StatCardProps {
   title: string;
-  /** `undefined` while the backing query is still loading. */
   value: number | undefined;
   icon: React.ReactNode;
   description: string;
+  accent: keyof typeof statAccents;
 }
 
-/**
- * Renders a single stat metric card with a loading skeleton placeholder
- * while the value is still being fetched.
- */
-function StatCard({ title, value, icon, description }: StatCardProps) {
+function StatCard({ title, value, icon, description, accent }: StatCardProps) {
+  const colors = statAccents[accent];
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardDescription>{title}</CardDescription>
-          <div className="text-muted-foreground">{icon}</div>
-        </div>
-        <CardTitle className="text-2xl tabular-nums">
-          {value === undefined ? <Skeleton className="h-8 w-12" /> : value}
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <p className="text-xs text-muted-foreground">{description}</p>
-      </CardContent>
-    </Card>
+    <motion.div variants={staggerItem} transition={smoothTransition}>
+      <Card
+        className={cn(
+          "border-l-[3px] transition-shadow hover:shadow-md",
+          colors.border,
+        )}
+      >
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardDescription className="text-xs font-medium uppercase tracking-wider">
+              {title}
+            </CardDescription>
+            <div
+              className={cn(
+                "flex size-8 items-center justify-center rounded-lg",
+                colors.bg,
+              )}
+            >
+              <div className={colors.text}>{icon}</div>
+            </div>
+          </div>
+          <CardTitle className="text-3xl font-bold tabular-nums tracking-tight">
+            {value === undefined ? <Skeleton className="h-9 w-14" /> : value}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-xs text-muted-foreground">{description}</p>
+        </CardContent>
+      </Card>
+    </motion.div>
   );
 }
 
-/**
- * Dashboard page — the authenticated user's landing screen.
- *
- * Displays:
- *  - A personalised welcome greeting (Clerk first name).
- *  - Aggregate document statistics across all projects (via `ProjectStats`).
- *  - Quick-action links for creating a project or document.
- *  - A "Coming Soon" section previewing future features.
- */
+/* ------------------------------------------------------------------ */
+/*  Dashboard page                                                     */
+/* ------------------------------------------------------------------ */
+
+// biome-ignore lint/suspicious/noExplicitAny: api types are generated at build time via `npx convex dev`
+const listRecent = (api as any).documents.listRecent;
+
 export default function DashboardPage() {
   const { user } = useUser();
+  const router = useRouter();
   const projects = useQuery(api.projects.list);
+  const recentDocs = useQuery(listRecent, { limit: 5 });
 
-  // Collect all project IDs so we can fan out document queries in ProjectStats.
-  const allProjectIds = projects?.map((p) => p._id) ?? [];
+  // Reset active project when landing on dashboard so sidebar shows default view
+  useEffect(() => {
+    useEditorStore.getState().setActiveProjectId(null);
+  }, []);
+
+  // allProjectIds kept for potential future use but stats now use a single backend query
   const firstName = user?.firstName ?? "there";
 
   return (
-    <div className="p-6">
-      {/* Welcome */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold tracking-tight">
-          Welcome back, {firstName}
-        </h1>
-        <p className="mt-1 text-muted-foreground">
-          Here is an overview of your content workspace.
-        </p>
-      </div>
-
-      {/* Stats */}
-      <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <ProjectStats projectIds={allProjectIds} />
-      </div>
-
-      {/* Quick Actions */}
-      <div className="mb-8">
-        <h2 className="mb-4 text-lg font-semibold">Quick Actions</h2>
-        <div className="flex flex-wrap gap-3">
-          <Link href="/projects/new" className={cn(buttonVariants())}>
-            <FolderPlus className="size-4" />
-            New Project
-          </Link>
-          {projects && projects.length > 0 && (
-            <Link
-              href={`/projects/${projects[0]!._id}`}
-              className={cn(buttonVariants({ variant: "outline" }))}
-            >
-              <Plus className="size-4" />
-              New Document
-            </Link>
-          )}
+    <div className="mx-auto max-w-6xl p-6 lg:p-8">
+      {/* ── Greeting ─────────────────────────────────────────────── */}
+      <motion.div
+        variants={fadeSlideUp}
+        initial="initial"
+        animate="animate"
+        transition={smoothTransition}
+        className="mb-10"
+      >
+        <div className="flex items-center gap-3">
+          <Image
+            src="/wryte-icon.png"
+            alt=""
+            width={36}
+            height={36}
+            className="rounded-xl"
+            style={{ width: 36, height: "auto" }}
+          />
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">
+              {getGreeting()}, {firstName}
+            </h1>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              Here&apos;s your content workspace overview.
+            </p>
+          </div>
         </div>
+      </motion.div>
+
+      {/* ── Stats ────────────────────────────────────────────────── */}
+      <motion.div
+        variants={staggerContainer}
+        initial="initial"
+        animate="animate"
+        className="mb-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
+      >
+        <ProjectStats />
+      </motion.div>
+
+      {/* ── Two-column: Recent Docs + Quick Actions ──────────────── */}
+      <div className="mb-10 grid gap-6 lg:grid-cols-[1fr_320px]">
+        {/* Recent Documents */}
+        {recentDocs && recentDocs.length > 0 && (
+          <motion.div
+            variants={fadeSlideUp}
+            initial="initial"
+            animate="animate"
+            transition={{ ...smoothTransition, delay: 0.1 }}
+          >
+            <Card>
+              <CardHeader className="border-b">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base">Recent Documents</CardTitle>
+                  <span className="text-xs text-muted-foreground">
+                    {recentDocs.length} document
+                    {recentDocs.length !== 1 ? "s" : ""}
+                  </span>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                <motion.div
+                  variants={staggerContainer}
+                  initial="initial"
+                  animate="animate"
+                >
+                  {recentDocs.map(
+                    (
+                      doc: {
+                        _id: string;
+                        title: string;
+                        status: string;
+                        updatedAt: number;
+                      },
+                      i: number,
+                    ) => (
+                      <motion.div
+                        key={doc._id}
+                        variants={staggerItem}
+                        transition={smoothTransition}
+                        onClick={() => router.push(`/editor/${doc._id}`)}
+                        className={cn(
+                          "group flex cursor-pointer items-center gap-3 px-4 py-3 text-sm transition-colors hover:bg-muted/50",
+                          i < recentDocs.length - 1 &&
+                            "border-b border-border/50",
+                        )}
+                      >
+                        <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted/70">
+                          <FileText className="size-3.5 text-muted-foreground" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <span className="block truncate font-medium text-foreground">
+                            {doc.title || "Untitled"}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(doc.updatedAt).toLocaleDateString(
+                              undefined,
+                              { month: "short", day: "numeric" },
+                            )}
+                          </span>
+                        </div>
+                        <span
+                          className={cn(
+                            "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
+                            doc.status === "published" &&
+                              "bg-emerald-500/10 text-emerald-600 dark:bg-emerald-400/10 dark:text-emerald-400",
+                            doc.status === "scheduled" &&
+                              "bg-blue-500/10 text-blue-600 dark:bg-blue-400/10 dark:text-blue-400",
+                            doc.status === "draft" &&
+                              "bg-muted text-muted-foreground",
+                          )}
+                        >
+                          {doc.status}
+                        </span>
+                        <ArrowRight className="size-3.5 text-muted-foreground/0 transition-all group-hover:text-muted-foreground group-hover:translate-x-0.5" />
+                      </motion.div>
+                    ),
+                  )}
+                </motion.div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+
+        {/* Quick Actions sidebar */}
+        <motion.div
+          variants={fadeSlideUp}
+          initial="initial"
+          animate="animate"
+          transition={{ ...smoothTransition, delay: 0.15 }}
+          className="space-y-4"
+        >
+          {/* Create card */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Quick Actions</CardTitle>
+              <CardDescription>Jump back into your workflow.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <Link
+                href="/projects/new"
+                className={cn(buttonVariants(), "w-full justify-start gap-2")}
+              >
+                <FolderPlus className="size-4" />
+                New Project
+              </Link>
+              {projects && projects.length > 0 && (
+                <Link
+                  href={`/projects/${projects[0]!._id}/documents/new`}
+                  className={cn(
+                    buttonVariants({ variant: "outline" }),
+                    "w-full justify-start gap-2",
+                  )}
+                >
+                  <Plus className="size-4" />
+                  New Document
+                </Link>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Tip card */}
+          <Card className="border-primary/20 bg-primary/[0.03]">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Sparkles className="size-4 text-primary" />
+                <CardTitle className="text-sm">Pro Tip</CardTitle>
+              </div>
+              <CardDescription className="text-xs leading-relaxed">
+                Use{" "}
+                <kbd className="rounded bg-muted px-1 py-0.5 font-mono text-[10px]">
+                  Ctrl+B
+                </kbd>
+                ,{" "}
+                <kbd className="rounded bg-muted px-1 py-0.5 font-mono text-[10px]">
+                  Ctrl+I
+                </kbd>
+                , and{" "}
+                <kbd className="rounded bg-muted px-1 py-0.5 font-mono text-[10px]">
+                  Ctrl+K
+                </kbd>{" "}
+                in the editor for quick formatting.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        </motion.div>
       </div>
 
-      {/* Coming Soon */}
-      <div>
-        <h2 className="mb-4 text-lg font-semibold">Coming Soon</h2>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <ComingSoonCard
-            icon={BarChart3}
-            title="Content Analytics"
-            description="Track views, engagement, and performance of your published content."
-          />
-          <ComingSoonCard
-            icon={Search}
-            title="SEO Insights"
-            description="Get recommendations to improve search visibility for your content."
-          />
-          <ComingSoonCard
-            icon={Calendar}
-            title="Content Calendar"
-            description="Visualize your publishing schedule across all projects."
-          />
-          <ComingSoonCard
-            icon={Users}
-            title="Team Collaboration"
-            description="Invite team members to review and co-author your content."
-          />
+      {/* ── Coming Soon ──────────────────────────────────────────── */}
+      <motion.div
+        variants={fadeSlideUp}
+        initial="initial"
+        animate="animate"
+        transition={{ ...smoothTransition, delay: 0.2 }}
+      >
+        <div className="mb-4 flex items-center gap-2">
+          <h2 className="text-lg font-semibold">On the Roadmap</h2>
+          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-primary">
+            Soon
+          </span>
         </div>
-      </div>
+        <motion.div
+          variants={staggerContainer}
+          initial="initial"
+          animate="animate"
+          className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
+        >
+          <motion.div variants={staggerItem}>
+            <ComingSoonCard
+              icon={BarChart3}
+              title="Content Analytics"
+              description="Track views, engagement, and performance of your published content."
+            />
+          </motion.div>
+          <motion.div variants={staggerItem}>
+            <ComingSoonCard
+              icon={Search}
+              title="SEO Insights"
+              description="Get recommendations to improve search visibility for your content."
+            />
+          </motion.div>
+          <motion.div variants={staggerItem}>
+            <ComingSoonCard
+              icon={Calendar}
+              title="Content Calendar"
+              description="Visualize your publishing schedule across all projects."
+            />
+          </motion.div>
+          <motion.div variants={staggerItem}>
+            <ComingSoonCard
+              icon={Users}
+              title="Team Collaboration"
+              description="Invite team members to review and co-author your content."
+            />
+          </motion.div>
+        </motion.div>
+      </motion.div>
     </div>
   );
 }
 
-/**
- * Aggregates document counts across every project and renders four stat cards.
- *
- * Relies on `useAllDocuments` to fan out per-project queries and merge them.
- * While any query is still loading the stat values remain `undefined`, which
- * causes `StatCard` to show skeleton placeholders.
- */
-function ProjectStats({
-  projectIds,
-}: {
-  projectIds: Array<
-    import("../../../../convex/_generated/dataModel").Id<"projects">
-  >;
-}) {
-  const allDocs = useAllDocuments(projectIds);
+/* ------------------------------------------------------------------ */
+/*  ProjectStats — aggregates counts using a single backend query      */
+/* ------------------------------------------------------------------ */
 
-  // Derive per-status counts from the flattened document list.
+// biome-ignore lint/suspicious/noExplicitAny: api types are generated at build time via `npx convex dev`
+const listAllForUser = (api as any).documents.listAllForUser;
+
+function ProjectStats() {
+  const allDocs = useQuery(listAllForUser);
+
   const total = allDocs?.length;
-  const drafts = allDocs?.filter((d) => d.status === "draft").length;
-  const published = allDocs?.filter((d) => d.status === "published").length;
-  const scheduled = allDocs?.filter((d) => d.status === "scheduled").length;
+  const drafts = allDocs?.filter(
+    (d: { status: string }) => d.status === "draft",
+  ).length;
+  const published = allDocs?.filter(
+    (d: { status: string }) => d.status === "published",
+  ).length;
+  const scheduled = allDocs?.filter(
+    (d: { status: string }) => d.status === "scheduled",
+  ).length;
 
   return (
     <>
@@ -173,95 +415,29 @@ function ProjectStats({
         value={total}
         icon={<FileText className="size-4" />}
         description="Across all projects"
+        accent="total"
       />
       <StatCard
         title="Drafts"
         value={drafts}
         icon={<FilePen className="size-4" />}
         description="Work in progress"
+        accent="drafts"
       />
       <StatCard
         title="Published"
         value={published}
         icon={<Globe className="size-4" />}
         description="Live on GitHub"
+        accent="published"
       />
       <StatCard
         title="Scheduled"
         value={scheduled}
         icon={<Clock className="size-4" />}
         description="Queued for publishing"
+        accent="scheduled"
       />
     </>
   );
-}
-
-/**
- * Custom hook that aggregates documents across up to 8 projects.
- *
- * React's rules of hooks forbid calling `useQuery` inside a loop, so we
- * declare a fixed number of hook slots (p0..p7) and conditionally skip the
- * ones beyond the user's actual project count via Convex's `"skip"` sentinel.
- *
- * Returns `undefined` while any active query is still loading, or the merged
- * array of `{ status }` objects once all queries have resolved.
- */
-function useAllDocuments(
-  projectIds: Array<
-    import("../../../../convex/_generated/dataModel").Id<"projects">
-  >,
-) {
-  // Each slot maps to a project by index; unused slots are skipped.
-  const p0 = useQuery(
-    api.documents.list,
-    projectIds[0] ? { projectId: projectIds[0] } : "skip",
-  );
-  const p1 = useQuery(
-    api.documents.list,
-    projectIds[1] ? { projectId: projectIds[1] } : "skip",
-  );
-  const p2 = useQuery(
-    api.documents.list,
-    projectIds[2] ? { projectId: projectIds[2] } : "skip",
-  );
-  const p3 = useQuery(
-    api.documents.list,
-    projectIds[3] ? { projectId: projectIds[3] } : "skip",
-  );
-  const p4 = useQuery(
-    api.documents.list,
-    projectIds[4] ? { projectId: projectIds[4] } : "skip",
-  );
-  const p5 = useQuery(
-    api.documents.list,
-    projectIds[5] ? { projectId: projectIds[5] } : "skip",
-  );
-  const p6 = useQuery(
-    api.documents.list,
-    projectIds[6] ? { projectId: projectIds[6] } : "skip",
-  );
-  const p7 = useQuery(
-    api.documents.list,
-    projectIds[7] ? { projectId: projectIds[7] } : "skip",
-  );
-
-  const results = [p0, p1, p2, p3, p4, p5, p6, p7];
-  const activeCount = projectIds.length;
-
-  // Wait until every active slot has resolved before returning data,
-  // so consumers see either "all loading" or "all ready" — never partial.
-  for (let i = 0; i < activeCount && i < results.length; i++) {
-    if (results[i] === undefined) return undefined;
-  }
-
-  // Flatten all per-project document arrays into a single list.
-  const allDocs: Array<{ status: string }> = [];
-  for (let i = 0; i < activeCount && i < results.length; i++) {
-    const docs = results[i];
-    if (docs) {
-      allDocs.push(...docs);
-    }
-  }
-
-  return allDocs;
 }

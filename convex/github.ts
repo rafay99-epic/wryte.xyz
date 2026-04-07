@@ -527,3 +527,71 @@ export const verifyRepoAccess = action({
     }
   },
 });
+
+/**
+ * Deletes a file from the project's GitHub repository.
+ * Uses the GitHub Contents API to remove the file at the specified path,
+ * requiring the current file SHA to prevent accidental deletions of stale content.
+ *
+ * @requires Authentication + project ownership
+ * @param args.projectId - The project whose repo contains the file.
+ * @param args.filePath - Path to the file in the repo (e.g., "content/hello.md").
+ * @param args.sha - Current SHA of the file (used by GitHub to prevent conflicts).
+ * @param args.githubAccessToken - Optional override (falls back to stored token).
+ */
+export const deleteFileFromGithub = action({
+  args: {
+    projectId: v.id("projects"),
+    filePath: v.string(),
+    sha: v.string(),
+    githubAccessToken: v.optional(v.string()),
+  },
+  handler: async (ctx, args): Promise<void> => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    const project = await ctx.runQuery(internal.projects.internalGet, {
+      projectId: args.projectId,
+    });
+    if (!project) {
+      throw new Error("Project not found");
+    }
+
+    const user = await ctx.runQuery(internal.users.internalGet, {
+      userId: project.userId,
+    });
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    if (user.tokenIdentifier !== identity.tokenIdentifier) {
+      throw new Error("Unauthorized: you do not own this project");
+    }
+
+    // Token fallback: prefer explicitly passed token, then user's stored token
+    const token = args.githubAccessToken ?? user.githubAccessToken;
+    if (!token) {
+      throw new Error("No GitHub access token available");
+    }
+
+    if (!project.githubRepo) {
+      throw new Error("GitHub repository not configured for this project");
+    }
+
+    const { owner, repo } = parseRepoString(project.githubRepo);
+    const branch = project.githubBranch ?? "main";
+
+    const octokit = new Octokit({ auth: token });
+
+    await octokit.repos.deleteFile({
+      owner,
+      repo,
+      path: args.filePath,
+      message: `Delete ${args.filePath.split("/").pop()}`,
+      sha: args.sha,
+      branch,
+    });
+  },
+});

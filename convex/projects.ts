@@ -94,7 +94,7 @@ export const get = query({
 
     const project = await ctx.db.get(args.projectId);
     if (!project) {
-      throw new Error("Project not found");
+      return null;
     }
 
     if (project.userId !== user._id) {
@@ -128,6 +128,15 @@ export const create = mutation({
       v.union(v.literal("github"), v.literal("external")),
     ),
     frontmatterSchema: v.optional(v.string()),
+    commitMessageTemplate: v.optional(v.string()),
+    filenamePattern: v.optional(v.string()),
+    defaultDraft: v.optional(v.boolean()),
+    siteUrl: v.optional(v.string()),
+    deployHookUrl: v.optional(v.string()),
+    frontmatterFormat: v.optional(
+      v.union(v.literal("yaml"), v.literal("toml")),
+    ),
+    defaultAuthor: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const user = await getCurrentUser(ctx);
@@ -143,6 +152,13 @@ export const create = mutation({
       mediaPath?: string;
       mediaStorageMode?: "github" | "external";
       frontmatterSchema?: string;
+      commitMessageTemplate?: string;
+      filenamePattern?: string;
+      defaultDraft?: boolean;
+      siteUrl?: string;
+      deployHookUrl?: string;
+      frontmatterFormat?: "yaml" | "toml";
+      defaultAuthor?: string;
       createdAt: number;
       updatedAt: number;
     } = {
@@ -163,6 +179,19 @@ export const create = mutation({
       insertData.mediaStorageMode = args.mediaStorageMode;
     if (args.frontmatterSchema !== undefined)
       insertData.frontmatterSchema = args.frontmatterSchema;
+    if (args.commitMessageTemplate !== undefined)
+      insertData.commitMessageTemplate = args.commitMessageTemplate;
+    if (args.filenamePattern !== undefined)
+      insertData.filenamePattern = args.filenamePattern;
+    if (args.defaultDraft !== undefined)
+      insertData.defaultDraft = args.defaultDraft;
+    if (args.siteUrl !== undefined) insertData.siteUrl = args.siteUrl;
+    if (args.deployHookUrl !== undefined)
+      insertData.deployHookUrl = args.deployHookUrl;
+    if (args.frontmatterFormat !== undefined)
+      insertData.frontmatterFormat = args.frontmatterFormat;
+    if (args.defaultAuthor !== undefined)
+      insertData.defaultAuthor = args.defaultAuthor;
 
     const projectId = await ctx.db.insert("projects", insertData);
 
@@ -189,6 +218,15 @@ export const update = mutation({
       v.union(v.literal("github"), v.literal("external")),
     ),
     frontmatterSchema: v.optional(v.string()),
+    commitMessageTemplate: v.optional(v.string()),
+    filenamePattern: v.optional(v.string()),
+    defaultDraft: v.optional(v.boolean()),
+    siteUrl: v.optional(v.string()),
+    deployHookUrl: v.optional(v.string()),
+    frontmatterFormat: v.optional(
+      v.union(v.literal("yaml"), v.literal("toml")),
+    ),
+    defaultAuthor: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const user = await getCurrentUser(ctx);

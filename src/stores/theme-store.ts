@@ -6,7 +6,7 @@ type ThemeMode = "light" | "dark" | "system";
 
 /** Theme state — intentionally minimal; only stores the user's preference. */
 interface ThemeState {
-  /** The active theme mode. Defaults to "system" so first-time users inherit their OS setting. */
+  /** The active theme mode. Defaults to "dark" so first-time users get the branded dark experience. */
   mode: ThemeMode;
   /** Switch to a specific theme mode. The new value is persisted to localStorage automatically. */
   setMode: (mode: ThemeMode) => void;
@@ -22,7 +22,7 @@ interface ThemeState {
 export const useThemeStore = create<ThemeState>()(
   persist(
     (set) => ({
-      mode: "system",
+      mode: "dark",
       setMode: (mode) => set({ mode }),
     }),
     {

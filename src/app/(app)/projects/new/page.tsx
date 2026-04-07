@@ -1,10 +1,10 @@
 "use client";
 
 import { useMutation } from "convex/react";
-import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Loader2, Plus } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { StepConfigurePaths } from "@/components/projects/wizard/step-configure-paths";
 import { StepFrontmatterSchema } from "@/components/projects/wizard/step-frontmatter-schema";
@@ -12,6 +12,7 @@ import { StepSelectRepo } from "@/components/projects/wizard/step-select-repo";
 import { WizardStepper } from "@/components/projects/wizard/wizard-stepper";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useEditorStore } from "@/stores/editor-store";
 import type { FrontmatterField } from "@/types/frontmatter";
 import { DEFAULT_FRONTMATTER_FIELDS } from "@/types/frontmatter";
 import { api } from "../../../../../convex/_generated/api";
@@ -75,6 +76,11 @@ export default function NewProjectPage() {
   const createProject = useMutation(api.projects.create);
   const [state, setState] = useState<WizardState>(INITIAL_STATE);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Clear active project so sidebar shows default view
+  useEffect(() => {
+    useEditorStore.getState().setActiveProjectId(null);
+  }, []);
 
   // Merge partial updates into the wizard state — used by each step component.
   const handleChange = useCallback((updates: Partial<WizardState>) => {
@@ -208,57 +214,85 @@ export default function NewProjectPage() {
   }, [state, createProject, router, validateStep]);
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <Link
-          href="/projects"
-          className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
-        >
-          <ArrowLeft className="size-4" />
-          Back to Projects
-        </Link>
-      </div>
-
+    <div className="min-h-screen p-4 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-2xl">
-        <h1 className="mb-6 text-2xl font-bold">Create New Project</h1>
+        {/* Header */}
+        <div className="mb-8">
+          <Link
+            href="/projects"
+            className={cn(
+              buttonVariants({ variant: "ghost", size: "sm" }),
+              "mb-4 text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <ArrowLeft className="size-4" />
+            Back to Projects
+          </Link>
 
+          <div className="flex items-center gap-3">
+            <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10">
+              <Plus className="size-5 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-xl font-semibold tracking-tight">
+                Create New Project
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                Set up your content project in a few steps
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Stepper */}
         <div className="mb-8">
           <WizardStepper currentStep={state.step} />
         </div>
 
-        <div className="min-h-[400px] rounded-lg border bg-card p-6">
-          {state.step === 1 && (
-            <StepSelectRepo state={state} onChange={handleChange} />
-          )}
-          {state.step === 2 && (
-            <StepConfigurePaths state={state} onChange={handleChange} />
-          )}
-          {state.step === 3 && (
-            <StepFrontmatterSchema state={state} onChange={handleChange} />
-          )}
-        </div>
+        {/* Step content */}
+        <div className="rounded-xl border bg-card/50 shadow-sm">
+          <div className="p-5 sm:p-6">
+            {state.step === 1 && (
+              <StepSelectRepo state={state} onChange={handleChange} />
+            )}
+            {state.step === 2 && (
+              <StepConfigurePaths state={state} onChange={handleChange} />
+            )}
+            {state.step === 3 && (
+              <StepFrontmatterSchema state={state} onChange={handleChange} />
+            )}
+          </div>
 
-        <div className="mt-6 flex items-center justify-between">
-          <Button
-            variant="outline"
-            onClick={handleBack}
-            disabled={state.step === 1}
-          >
-            <ArrowLeft className="size-4" />
-            Back
-          </Button>
+          {/* Navigation footer */}
+          <div className="flex items-center justify-between border-t bg-muted/30 px-5 py-3 sm:px-6">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleBack}
+              disabled={state.step === 1}
+              className="gap-1.5"
+            >
+              <ArrowLeft className="size-3.5" />
+              Back
+            </Button>
 
-          {state.step < 3 ? (
-            <Button onClick={handleNext}>
-              Next
-              <ArrowRight className="size-4" />
-            </Button>
-          ) : (
-            <Button onClick={() => void handleCreate()} disabled={isSubmitting}>
-              {isSubmitting && <Loader2 className="size-4 animate-spin" />}
-              Create Project
-            </Button>
-          )}
+            {state.step < 3 ? (
+              <Button size="sm" onClick={handleNext} className="gap-1.5">
+                Continue
+                <ArrowRight className="size-3.5" />
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                onClick={() => void handleCreate()}
+                disabled={isSubmitting}
+                className="gap-1.5"
+              >
+                {isSubmitting && <Loader2 className="size-3.5 animate-spin" />}
+                Create Project
+              </Button>
+            )}
+          </div>
         </div>
       </div>
     </div>

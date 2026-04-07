@@ -44,6 +44,22 @@ export default defineSchema({
       v.union(v.literal("github"), v.literal("external")),
     ),
     frontmatterSchema: v.optional(v.string()),
+    /** Custom commit message template, e.g. "docs: update {{filename}}" */
+    commitMessageTemplate: v.optional(v.string()),
+    /** Filename pattern for new posts, e.g. "{{slug}}.md" or "{{date}}-{{slug}}.md" */
+    filenamePattern: v.optional(v.string()),
+    /** Whether new documents default to draft: true */
+    defaultDraft: v.optional(v.boolean()),
+    /** Site URL for preview links and canonical URLs */
+    siteUrl: v.optional(v.string()),
+    /** Webhook URL to trigger after publishing (e.g. Vercel/Netlify deploy hook) */
+    deployHookUrl: v.optional(v.string()),
+    /** Frontmatter delimiter format */
+    frontmatterFormat: v.optional(
+      v.union(v.literal("yaml"), v.literal("toml")),
+    ),
+    /** Default author name injected into frontmatter */
+    defaultAuthor: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
   }).index("by_userId", ["userId"]),

@@ -1,6 +1,5 @@
 import type { LucideIcon } from "lucide-react";
 import { Lock } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardDescription,
@@ -20,19 +19,22 @@ export function ComingSoonCard({
   icon: Icon,
 }: ComingSoonCardProps) {
   return (
-    <Card className="relative opacity-60">
-      <CardHeader>
+    <Card className="group relative overflow-hidden border-dashed opacity-70 transition-opacity hover:opacity-90">
+      {/* Subtle gradient overlay */}
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/[0.02] to-transparent" />
+
+      <CardHeader className="relative">
         <div className="mb-2 flex items-center justify-between">
-          <div className="flex size-10 items-center justify-center rounded-lg bg-muted">
-            <Icon className="size-5 text-muted-foreground" />
+          <div className="flex size-9 items-center justify-center rounded-lg bg-muted">
+            <Icon className="size-4 text-muted-foreground" />
           </div>
-          <Badge variant="secondary" className="gap-1 text-xs">
-            <Lock className="size-3" />
-            Coming Soon
-          </Badge>
+          <span className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/50 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+            <Lock className="size-2.5" />
+            Soon
+          </span>
         </div>
-        <CardTitle className="text-muted-foreground">{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
+        <CardTitle className="text-sm text-muted-foreground">{title}</CardTitle>
+        <CardDescription className="text-xs">{description}</CardDescription>
       </CardHeader>
     </Card>
   );

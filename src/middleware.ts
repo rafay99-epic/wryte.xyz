@@ -16,15 +16,14 @@ const isProtectedRoute = createRouteMatcher([
 ]);
 
 /**
- * Public / auth-related routes where signed-in users should NOT linger.
+ * Auth-related routes where signed-in users should NOT linger.
  * If an authenticated user hits one of these, they are redirected to /dashboard
  * to avoid a confusing "sign in again" UX.
+ *
+ * Note: "/" (landing page) is NOT included — signed-in users can still view it,
+ * and the header adapts to show their profile + a Dashboard link.
  */
-const isPublicAuthRoute = createRouteMatcher([
-  "/",
-  "/sign-in(.*)",
-  "/sign-up(.*)",
-]);
+const isPublicAuthRoute = createRouteMatcher(["/sign-in(.*)", "/sign-up(.*)"]);
 
 /**
  * Clerk-powered middleware that enforces two rules on every matched request:

@@ -1,6 +1,6 @@
 "use client";
 
-import { FileCode, FolderTree, GitBranch } from "lucide-react";
+import { Check, FileCode, FolderTree, GitBranch } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface WizardStepperProps {
@@ -15,7 +15,7 @@ const steps = [
 
 export function WizardStepper({ currentStep }: WizardStepperProps) {
   return (
-    <div className="flex items-center justify-center gap-0">
+    <div className="flex items-center justify-center">
       {steps.map((step, index) => {
         const isCompleted = currentStep > step.number;
         const isCurrent = currentStep === step.number;
@@ -23,42 +23,31 @@ export function WizardStepper({ currentStep }: WizardStepperProps) {
 
         return (
           <div key={step.number} className="flex items-center">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col items-center gap-1.5">
               <div
                 className={cn(
-                  "flex size-8 items-center justify-center rounded-full border-2 transition-colors",
+                  "relative flex size-10 items-center justify-center rounded-full transition-all duration-300",
                   isCompleted &&
-                    "border-primary bg-primary text-primary-foreground",
-                  isCurrent && "border-primary bg-primary/10 text-primary",
+                    "bg-primary text-primary-foreground shadow-md shadow-primary/25",
+                  isCurrent &&
+                    "bg-primary/15 text-primary ring-2 ring-primary/50",
                   !isCompleted &&
                     !isCurrent &&
-                    "border-muted-foreground/30 text-muted-foreground/50",
+                    "bg-muted text-muted-foreground/40",
                 )}
               >
                 {isCompleted ? (
-                  <svg
-                    className="size-4"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="3"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    role="img"
-                    aria-label="Completed"
-                  >
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
+                  <Check className="size-5" strokeWidth={2.5} />
                 ) : (
-                  <Icon className="size-4" />
+                  <Icon className="size-[18px]" />
                 )}
               </div>
               <span
                 className={cn(
-                  "hidden text-sm font-medium sm:inline",
+                  "text-xs font-medium transition-colors duration-300",
                   isCurrent && "text-foreground",
                   isCompleted && "text-foreground",
-                  !isCompleted && !isCurrent && "text-muted-foreground/50",
+                  !isCompleted && !isCurrent && "text-muted-foreground/40",
                 )}
               >
                 {step.label}
@@ -67,10 +56,10 @@ export function WizardStepper({ currentStep }: WizardStepperProps) {
             {index < steps.length - 1 && (
               <div
                 className={cn(
-                  "mx-3 h-px w-8 sm:w-12",
+                  "mx-4 mb-5 h-[2px] w-12 rounded-full transition-colors duration-300 sm:w-20",
                   currentStep > step.number
                     ? "bg-primary"
-                    : "bg-muted-foreground/20",
+                    : "bg-muted",
                 )}
               />
             )}

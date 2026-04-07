@@ -27,12 +27,19 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useGithubToken } from "@/hooks/use-github";
+import { useEditorStore } from "@/stores/editor-store";
 import { useThemeStore } from "@/stores/theme-store";
 import { api } from "../../../../convex/_generated/api";
 
 export default function SettingsPage() {
   const { user: clerkUser, isLoaded: clerkLoaded } = useUser();
   const convexUser = useQuery(api.users.get);
+
+  // Clear active project so sidebar shows default view
+  useEffect(() => {
+    useEditorStore.getState().setActiveProjectId(null);
+  }, []);
 
   if (!clerkLoaded || convexUser === undefined) {
     return <SettingsSkeleton />;
@@ -115,24 +122,7 @@ function GitHubConnectionSection({
 }: {
   githubUsername: string | undefined;
 }) {
-  const [isChecking, setIsChecking] = useState(false);
-  const [oauthConnected, setOauthConnected] = useState<boolean | null>(null);
-
-  const checkOAuthConnection = useCallback(async () => {
-    setIsChecking(true);
-    try {
-      const res = await fetch("/api/github/token");
-      setOauthConnected(res.ok);
-    } catch {
-      setOauthConnected(false);
-    } finally {
-      setIsChecking(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void checkOAuthConnection();
-  }, [checkOAuthConnection]);
+  const { isLoading: isChecking, isSuccess: oauthConnected } = useGithubToken();
 
   return (
     <Card>

@@ -1,4 +1,4 @@
-import { type RefObject, useEffect } from "react";
+import { type RefObject, useEffect, useRef } from "react";
 
 /** Callback map for notifying the parent component when a shortcut fires. */
 interface KeyboardShortcutCallbacks {
@@ -53,6 +53,9 @@ function insertAtCursor(textarea: HTMLTextAreaElement, text: string) {
  * Each shortcut also fires the corresponding callback so the parent can
  * run side-effects (e.g. analytics, toast notifications).
  *
+ * Uses a stable ref for callbacks so the event listener is not torn down
+ * and re-attached on every render (prevents excessive addEventListener cycles).
+ *
  * @param textareaRef - Ref to the target textarea element
  * @param callbacks - Handlers invoked after each shortcut is applied
  */
@@ -60,6 +63,13 @@ export function useKeyboardShortcuts(
   textareaRef: RefObject<HTMLTextAreaElement | null>,
   callbacks: KeyboardShortcutCallbacks,
 ) {
+  // Store the latest callbacks in a ref to avoid re-registering the listener
+  // every time the parent re-renders with a new callback object.
+  const callbacksRef = useRef(callbacks);
+  useEffect(() => {
+    callbacksRef.current = callbacks;
+  });
+
   useEffect(() => {
     const textarea = textareaRef.current;
     if (!textarea) return;
@@ -68,6 +78,8 @@ export function useKeyboardShortcuts(
       const target = textareaRef.current;
       if (!target) return;
 
+      const cb = callbacksRef.current;
+
       // Normalize Ctrl (Windows/Linux) and Cmd (macOS) into a single flag
       const isCtrl = event.ctrlKey || event.metaKey;
 
@@ -75,7 +87,7 @@ export function useKeyboardShortcuts(
       if (isCtrl && !event.shiftKey && event.key === "b") {
         event.preventDefault();
         wrapSelection(target, "**", "**");
-        callbacks.onBold();
+        cb.onBold();
         return;
       }
 
@@ -83,7 +95,7 @@ export function useKeyboardShortcuts(
       if (isCtrl && !event.shiftKey && event.key === "i") {
         event.preventDefault();
         wrapSelection(target, "*", "*");
-        callbacks.onItalic();
+        cb.onItalic();
         return;
       }
 
@@ -102,7 +114,7 @@ export function useKeyboardShortcuts(
           "select",
         );
         target.dispatchEvent(new Event("input", { bubbles: true }));
-        callbacks.onLink();
+        cb.onLink();
         return;
       }
 
@@ -120,7 +132,7 @@ export function useKeyboardShortcuts(
           "select",
         );
         target.dispatchEvent(new Event("input", { bubbles: true }));
-        callbacks.onCodeBlock();
+        cb.onCodeBlock();
         return;
       }
 
@@ -135,5 +147,6 @@ export function useKeyboardShortcuts(
     return () => {
       textarea.removeEventListener("keydown", handleKeyDown);
     };
-  }, [textareaRef, callbacks]);
+    // Only re-register when the textarea ref changes, NOT on callback changes
+  }, [textareaRef]);
 }

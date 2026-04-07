@@ -50,72 +50,72 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
+  --background: oklch(0.995 0.002 80);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
+  --primary: oklch(0.52 0.13 58);
   --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.965 0.005 80);
+  --secondary-foreground: oklch(0.25 0.02 60);
+  --muted: oklch(0.965 0.005 80);
+  --muted-foreground: oklch(0.52 0.01 60);
+  --accent: oklch(0.96 0.01 80);
+  --accent-foreground: oklch(0.25 0.02 60);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
+  --border: oklch(0.91 0.008 80);
+  --input: oklch(0.91 0.008 80);
+  --ring: oklch(0.65 0.1 65);
+  --chart-1: oklch(0.75 0.15 65);
+  --chart-2: oklch(0.6 0.12 55);
+  --chart-3: oklch(0.5 0.1 50);
+  --chart-4: oklch(0.4 0.08 55);
+  --chart-5: oklch(0.3 0.06 55);
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
+  --sidebar: oklch(0.98 0.005 80);
   --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary: oklch(0.52 0.13 58);
   --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar-accent: oklch(0.955 0.015 75);
+  --sidebar-accent-foreground: oklch(0.25 0.02 60);
+  --sidebar-border: oklch(0.91 0.008 80);
+  --sidebar-ring: oklch(0.65 0.1 65);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
+  --background: oklch(0.13 0.005 270);
   --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
+  --card: oklch(0.17 0.006 270);
+  --card-foreground: oklch(0.96 0 0);
+  --popover: oklch(0.17 0.006 270);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.82 0.16 80);
+  --primary-foreground: oklch(0.16 0.04 65);
+  --secondary: oklch(0.22 0.008 270);
+  --secondary-foreground: oklch(0.92 0 0);
+  --muted: oklch(0.22 0.008 270);
+  --muted-foreground: oklch(0.65 0 0);
+  --accent: oklch(0.22 0.01 270);
+  --accent-foreground: oklch(0.92 0 0);
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --border: oklch(1 0 0 / 8%);
+  --input: oklch(1 0 0 / 12%);
+  --ring: oklch(0.7 0.12 75);
+  --chart-1: oklch(0.82 0.16 80);
+  --chart-2: oklch(0.65 0.12 280);
+  --chart-3: oklch(0.55 0.1 55);
+  --chart-4: oklch(0.45 0.08 270);
+  --chart-5: oklch(0.35 0.06 55);
+  --sidebar: oklch(0.15 0.006 270);
+  --sidebar-foreground: oklch(0.92 0 0);
+  --sidebar-primary: oklch(0.82 0.16 80);
+  --sidebar-primary-foreground: oklch(0.16 0.04 65);
+  --sidebar-accent: oklch(0.2 0.01 270);
+  --sidebar-accent-foreground: oklch(0.92 0 0);
+  --sidebar-border: oklch(1 0 0 / 8%);
+  --sidebar-ring: oklch(0.7 0.12 75);
 }
 
 @layer base {
@@ -128,4 +128,320 @@
   html {
     @apply font-sans;
   }
+}
+
+/* ── Editor pane fade-in (CSS-only, no layout side-effects) ────────── */
+/* Uses a key-triggered remount so the animation replays on tab switch. */
+@keyframes editorFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.editor-pane-enter {
+  animation: editorFadeIn 0.2s cubic-bezier(0.25, 0.1, 0.25, 1) both;
+}
+
+/* ── Hide scrollbars for editor panes ──────────────────────────────── */
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* ── Slim custom scrollbar ─────────────────────────────────────────── */
+.slim-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: oklch(0.7 0 0 / 20%) transparent;
+}
+.slim-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.slim-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.slim-scrollbar::-webkit-scrollbar-thumb {
+  background: oklch(0.7 0 0 / 20%);
+  border-radius: 4px;
+}
+.slim-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.7 0 0 / 40%);
+}
+.dark .slim-scrollbar {
+  scrollbar-color: oklch(1 0 0 / 10%) transparent;
+}
+.dark .slim-scrollbar::-webkit-scrollbar-thumb {
+  background: oklch(1 0 0 / 10%);
+}
+.dark .slim-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: oklch(1 0 0 / 20%);
+}
+
+/* ── Editor textarea cursor ────────────────────────────────────────── */
+.editor-textarea {
+  caret-color: oklch(0.52 0.13 58);
+}
+.dark .editor-textarea {
+  caret-color: oklch(0.82 0.16 80);
+}
+
+/* ── Split divider ─────────────────────────────────────────────────── */
+.split-divider {
+  position: relative;
+  width: 1px;
+  background: var(--border);
+  cursor: col-resize;
+  transition: background 0.15s ease;
+  flex-shrink: 0;
+}
+.split-divider::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 3px;
+  height: 32px;
+  border-radius: 3px;
+  background: oklch(0.7 0 0 / 25%);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.split-divider:hover {
+  background: var(--primary);
+}
+.split-divider:hover::after {
+  opacity: 1;
+}
+
+/* ── Gradient text helper ──────────────────────────────────────────── */
+.gradient-text {
+  background: linear-gradient(135deg, oklch(0.82 0.16 80), oklch(0.75 0.15 50));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── AI shimmer animation ──────────────────────────────────────────── */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+.ai-shimmer {
+  background: linear-gradient(
+    90deg,
+    oklch(0.82 0.16 80) 0%,
+    oklch(0.75 0.18 50) 25%,
+    oklch(0.82 0.16 80) 50%,
+    oklch(0.75 0.18 50) 75%,
+    oklch(0.82 0.16 80) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 3s linear infinite;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── View mode indicator slide ─────────────────────────────────────── */
+@keyframes slideIndicator {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ── Subtle pulse for unsaved indicator ────────────────────────────── */
+@keyframes subtlePulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+.pulse-subtle {
+  animation: subtlePulse 2s ease-in-out infinite;
+}
+
+/* ── Syntax highlighting (highlight.js) ────────────────────────────── */
+/* Light theme - GitHub */
+pre code.hljs {
+  display: block;
+  overflow-x: auto;
+  padding: 1em;
+}
+code.hljs {
+  padding: 3px 5px;
+}
+.hljs {
+  color: #24292e;
+  background: transparent;
+}
+.hljs-doctag,
+.hljs-keyword,
+.hljs-meta .hljs-keyword,
+.hljs-template-tag,
+.hljs-template-variable,
+.hljs-type,
+.hljs-variable.language_ {
+  color: #d73a49;
+}
+.hljs-title,
+.hljs-title.class_,
+.hljs-title.class_.inherited__,
+.hljs-title.function_ {
+  color: #6f42c1;
+}
+.hljs-attr,
+.hljs-attribute,
+.hljs-literal,
+.hljs-meta,
+.hljs-number,
+.hljs-operator,
+.hljs-selector-attr,
+.hljs-selector-class,
+.hljs-selector-id,
+.hljs-variable {
+  color: #005cc5;
+}
+.hljs-meta .hljs-string,
+.hljs-regexp,
+.hljs-string {
+  color: #032f62;
+}
+.hljs-built_in,
+.hljs-symbol {
+  color: #e36209;
+}
+.hljs-code,
+.hljs-comment,
+.hljs-formula {
+  color: #6a737d;
+}
+.hljs-name,
+.hljs-quote,
+.hljs-selector-pseudo,
+.hljs-selector-tag {
+  color: #22863a;
+}
+.hljs-subst {
+  color: #24292e;
+}
+.hljs-section {
+  color: #005cc5;
+  font-weight: 700;
+}
+.hljs-bullet {
+  color: #735c0f;
+}
+.hljs-emphasis {
+  color: #24292e;
+  font-style: italic;
+}
+.hljs-strong {
+  color: #24292e;
+  font-weight: 700;
+}
+.hljs-addition {
+  color: #22863a;
+  background-color: #f0fff4;
+}
+.hljs-deletion {
+  color: #b31d28;
+  background-color: #ffeef0;
+}
+
+/* Dark theme - GitHub Dark Dimmed (scoped to .dark) */
+.dark .hljs {
+  color: #adbac7;
+  background: transparent;
+}
+.dark .hljs-doctag,
+.dark .hljs-keyword,
+.dark .hljs-meta .hljs-keyword,
+.dark .hljs-template-tag,
+.dark .hljs-template-variable,
+.dark .hljs-type,
+.dark .hljs-variable.language_ {
+  color: #f47067;
+}
+.dark .hljs-title,
+.dark .hljs-title.class_,
+.dark .hljs-title.class_.inherited__,
+.dark .hljs-title.function_ {
+  color: #dcbdfb;
+}
+.dark .hljs-attr,
+.dark .hljs-attribute,
+.dark .hljs-literal,
+.dark .hljs-meta,
+.dark .hljs-number,
+.dark .hljs-operator,
+.dark .hljs-selector-attr,
+.dark .hljs-selector-class,
+.dark .hljs-selector-id,
+.dark .hljs-variable {
+  color: #6cb6ff;
+}
+.dark .hljs-meta .hljs-string,
+.dark .hljs-regexp,
+.dark .hljs-string {
+  color: #96d0ff;
+}
+.dark .hljs-built_in,
+.dark .hljs-symbol {
+  color: #f69d50;
+}
+.dark .hljs-code,
+.dark .hljs-comment,
+.dark .hljs-formula {
+  color: #768390;
+}
+.dark .hljs-name,
+.dark .hljs-quote,
+.dark .hljs-selector-pseudo,
+.dark .hljs-selector-tag {
+  color: #8ddb8c;
+}
+.dark .hljs-subst {
+  color: #adbac7;
+}
+.dark .hljs-section {
+  color: #316dca;
+  font-weight: 700;
+}
+.dark .hljs-bullet {
+  color: #eac55f;
+}
+.dark .hljs-emphasis {
+  color: #adbac7;
+  font-style: italic;
+}
+.dark .hljs-strong {
+  color: #adbac7;
+  font-weight: 700;
+}
+.dark .hljs-addition {
+  color: #b4f1b4;
+  background-color: #1b4721;
+}
+.dark .hljs-deletion {
+  color: #ffd8d3;
+  background-color: #78191b;
 }
