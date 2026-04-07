@@ -141,12 +141,17 @@ export function AppSidebar() {
               exit={{ opacity: 0, x: -8 }}
               transition={{ duration: 0.15 }}
             >
-              {/* Home */}
+              {/* Home & Settings */}
               <div className="space-y-0.5">
                 <NavLink
                   href="/dashboard"
                   icon={LayoutDashboard}
                   label="Home"
+                />
+                <NavLink
+                  href="/settings"
+                  icon={Settings}
+                  label="Settings"
                 />
               </div>
 

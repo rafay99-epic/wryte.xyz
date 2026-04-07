@@ -4,17 +4,23 @@ import { useConvexAuth, useMutation } from "convex/react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Minimize2 } from "lucide-react";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { CommandPalette } from "@/components/command-palette";
 import { AppHeader } from "@/components/layout/app-header";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { Button } from "@/components/ui/button";
+import { KbdGroup } from "@/components/ui/kbd";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useAppHotkeys } from "@/hooks/use-app-hotkeys";
+import { splitShortcutKeys } from "@/lib/shortcuts";
 import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/stores/editor-store";
+import { useShortcutsStore } from "@/stores/shortcuts-store";
 import { api } from "../../../convex/_generated/api";
 
 /**
- * App shell with smooth sidebar animation, focus mode support, and cleaner structure.
+ * App shell with smooth sidebar animation, focus mode support,
+ * command palette, and global keyboard shortcuts.
  */
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useConvexAuth();
@@ -26,23 +32,34 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const isEditorPage = pathname.startsWith("/editor/");
   const hasInitialized = useRef(false);
 
+  // Command palette state
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+
+  const openCommandPalette = useCallback(
+    () => setCommandPaletteOpen(true),
+    [],
+  );
+  const closeCommandPalette = useCallback(
+    () => setCommandPaletteOpen(false),
+    [],
+  );
+
+  // Register global keyboard shortcuts
+  useAppHotkeys({
+    openCommandPalette,
+    closeCommandPalette,
+    isCommandPaletteOpen: commandPaletteOpen,
+  });
+
+  const getKeys = useShortcutsStore((s) => s.getKeys);
+  const focusKeys = splitShortcutKeys(getKeys("toggleFocusMode"));
+
   // Exit focus mode when navigating away from editor
   useEffect(() => {
     if (!isEditorPage && focusMode) {
       toggleFocusMode();
     }
   }, [isEditorPage, focusMode, toggleFocusMode]);
-
-  // Handle Escape key to exit focus mode
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape" && focusMode) {
-        toggleFocusMode();
-      }
-    }
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [focusMode, toggleFocusMode]);
 
   useEffect(() => {
     if (isAuthenticated && !hasInitialized.current) {
@@ -141,6 +158,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </main>
       </div>
 
+      {/* Command Palette */}
+      <CommandPalette
+        open={commandPaletteOpen}
+        onOpenChange={setCommandPaletteOpen}
+      />
+
       {/* Focus mode exit button — floating in bottom-right */}
       <AnimatePresence>
         {focusMode && (
@@ -159,6 +182,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             >
               <Minimize2 className="size-3.5" />
               <span className="text-xs">Exit Focus</span>
+              {focusKeys.length > 0 && (
+                <KbdGroup keys={focusKeys} className="ml-1" />
+              )}
             </Button>
           </motion.div>
         )}

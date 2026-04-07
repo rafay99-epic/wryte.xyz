@@ -70,6 +70,16 @@ export function ContentDashboard({
   const activeTagFilters = useBoardStore((s) => s.activeTagFilters);
   const setSettingsDialogOpen = useBoardStore((s) => s.setSettingsDialogOpen);
 
+  // Listen for keyboard shortcut layout switch event
+  useEffect(() => {
+    function handleSwitchLayout() {
+      setViewMode(viewMode === "table" ? "board" : "table");
+    }
+    window.addEventListener("wryte:switch-layout", handleSwitchLayout);
+    return () =>
+      window.removeEventListener("wryte:switch-layout", handleSwitchLayout);
+  }, [viewMode, setViewMode]);
+
   // Pagination state (table only)
   const [currentPage, setCurrentPage] = useState(1);
   const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));

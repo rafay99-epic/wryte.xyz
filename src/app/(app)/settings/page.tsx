@@ -2,20 +2,25 @@
 
 import { useUser } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
+import { useHotkeyRecorder } from "@tanstack/react-hotkeys";
 import {
+  AlertCircle,
   CheckCircle2,
   Eye,
   EyeOff,
   GitFork,
+  Keyboard,
   Loader2,
   Monitor,
   Moon,
+  RotateCcw,
   Sun,
   XCircle,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -25,10 +30,19 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { KbdGroup } from "@/components/ui/kbd";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useGithubToken } from "@/hooks/use-github";
+import { splitShortcutKeys } from "@/lib/shortcuts";
+import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/stores/editor-store";
+import {
+  DEFAULT_SHORTCUTS,
+  findConflict,
+  useShortcutsStore,
+  type ShortcutCategory,
+} from "@/stores/shortcuts-store";
 import { useThemeStore } from "@/stores/theme-store";
 import { api } from "../../../../convex/_generated/api";
 
@@ -69,6 +83,7 @@ export default function SettingsPage() {
           existingToken={convexUser?.githubAccessToken ?? ""}
         />
         <ThemeSection />
+        <KeyboardShortcutsSection />
       </div>
     </div>
   );
@@ -298,6 +313,228 @@ function ThemeSection() {
     </Card>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Keyboard Shortcuts Section
+// ---------------------------------------------------------------------------
+
+const CATEGORY_LABELS: Record<ShortcutCategory, string> = {
+  general: "General",
+  navigation: "Navigation",
+  editor: "Editor",
+};
+
+const CATEGORY_ORDER: ShortcutCategory[] = ["general", "navigation", "editor"];
+
+function KeyboardShortcutsSection() {
+  const { bindings, getKeys, setBinding, resetBinding, resetAll } =
+    useShortcutsStore();
+  const [recordingId, setRecordingId] = useState<string | null>(null);
+  const [conflict, setConflict] = useState<string | null>(null);
+
+  const recorder = useHotkeyRecorder({
+    onRecord: (hotkey) => {
+      if (!recordingId) return;
+      // Check for conflicts
+      const conflicting = findConflict(hotkey, recordingId);
+      if (conflicting) {
+        setConflict(
+          `"${hotkey}" is already used by "${conflicting.label}". Press another key or click Cancel.`,
+        );
+        return;
+      }
+      setBinding(recordingId, hotkey);
+      setRecordingId(null);
+      setConflict(null);
+      toast.success("Shortcut updated");
+    },
+    onCancel: () => {
+      setRecordingId(null);
+      setConflict(null);
+    },
+  });
+
+  const handleStartRecording = useCallback(
+    (id: string) => {
+      setRecordingId(id);
+      setConflict(null);
+      recorder.startRecording();
+    },
+    [recorder],
+  );
+
+  const handleCancelRecording = useCallback(() => {
+    recorder.cancelRecording();
+    setRecordingId(null);
+    setConflict(null);
+  }, [recorder]);
+
+  const handleReset = useCallback(
+    (id: string) => {
+      resetBinding(id);
+      toast.success("Shortcut reset to default");
+    },
+    [resetBinding],
+  );
+
+  const handleResetAll = useCallback(() => {
+    resetAll();
+    toast.success("All shortcuts reset to defaults");
+  }, [resetAll]);
+
+  // Group shortcuts by category
+  const grouped = useMemo(() => {
+    const groups = new Map<ShortcutCategory, typeof DEFAULT_SHORTCUTS>();
+    for (const cat of CATEGORY_ORDER) {
+      groups.set(
+        cat,
+        DEFAULT_SHORTCUTS.filter((s) => s.category === cat),
+      );
+    }
+    return groups;
+  }, []);
+
+  // Check if any bindings have been customized
+  const hasCustomBindings = Object.keys(bindings).length > 0;
+
+  return (
+    <Card id="shortcuts">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Keyboard className="size-5" />
+          Keyboard Shortcuts
+        </CardTitle>
+        <CardDescription>
+          Customize keyboard shortcuts. Click a shortcut to change its binding.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {CATEGORY_ORDER.map((category) => {
+          const shortcuts = grouped.get(category);
+          if (!shortcuts || shortcuts.length === 0) return null;
+
+          return (
+            <div key={category}>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground/60">
+                {CATEGORY_LABELS[category]}
+              </p>
+              <div className="space-y-1">
+                {shortcuts.map((shortcut) => {
+                  const currentKeys = getKeys(shortcut.id);
+                  const isRecording = recordingId === shortcut.id;
+                  const isCustomized =
+                    bindings[shortcut.id] !== undefined;
+                  const keys = splitShortcutKeys(currentKeys);
+
+                  return (
+                    <div
+                      key={shortcut.id}
+                      className={cn(
+                        "flex items-center justify-between rounded-lg px-3 py-2 transition-colors",
+                        isRecording
+                          ? "bg-primary/5 ring-1 ring-primary/30"
+                          : "hover:bg-muted/40",
+                      )}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium">
+                            {shortcut.label}
+                          </span>
+                          {isCustomized && (
+                            <Badge
+                              variant="outline"
+                              className="px-1 py-0 text-[9px]"
+                            >
+                              custom
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground/60">
+                          {shortcut.description}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {isRecording ? (
+                          <div className="flex items-center gap-2">
+                            {recorder.recordedHotkey ? (
+                              <KbdGroup
+                                keys={splitShortcutKeys(recorder.recordedHotkey)}
+                              />
+                            ) : (
+                              <span className="animate-pulse text-xs text-primary">
+                                Press keys...
+                              </span>
+                            )}
+                            <Button
+                              variant="ghost"
+                              size="icon-xs"
+                              onClick={handleCancelRecording}
+                              className="text-muted-foreground"
+                            >
+                              <XCircle className="size-3.5" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => handleStartRecording(shortcut.id)}
+                              className="rounded-md px-1.5 py-1 transition-colors hover:bg-muted"
+                            >
+                              <KbdGroup keys={keys} />
+                            </button>
+                            {isCustomized && (
+                              <Button
+                                variant="ghost"
+                                size="icon-xs"
+                                onClick={() => handleReset(shortcut.id)}
+                                title="Reset to default"
+                                className="text-muted-foreground/50 opacity-0 transition-opacity group-hover:opacity-100 hover:text-foreground [div:hover>&]:opacity-100"
+                              >
+                                <RotateCcw className="size-3" />
+                              </Button>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+
+        {/* Conflict warning */}
+        {conflict && (
+          <div className="flex items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            <AlertCircle className="size-4 shrink-0" />
+            <span>{conflict}</span>
+          </div>
+        )}
+
+        {/* Reset all */}
+        {hasCustomBindings && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleResetAll}
+            className="gap-1.5"
+          >
+            <RotateCcw className="size-3.5" />
+            Reset all to defaults
+          </Button>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Settings Skeleton
+// ---------------------------------------------------------------------------
 
 function SettingsSkeleton() {
   return (
