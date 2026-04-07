@@ -46,29 +46,73 @@ export async function getGithubToken(): Promise<
 }
 
 /**
- * Infers a frontmatter field type from its runtime value.
+ * Infers a frontmatter field type from its runtime value and optional key name.
  * Used during auto-detection to map existing frontmatter values
- * to the UI field types (string, text, boolean, date, tags).
+ * to the UI field types.
  *
  * Heuristics:
  * - boolean values -> "boolean"
- * - arrays -> "tags" (assumed to be tag lists like ["go", "rust"])
+ * - number values -> "number"
+ * - arrays -> "tags"
+ * - objects -> "json"
+ * - ISO datetime strings (with T) -> "datetime"
  * - ISO date strings -> "date"
+ * - hex color strings -> "color"
+ * - URL strings -> "url"
+ * - image-like key names or file extensions -> "image"
+ * - slug/permalink key names -> "slug"
  * - long strings (100+ chars) -> "text" (textarea in UI)
  * - everything else -> "string" (single-line input)
  */
-export function inferFieldType(value: unknown): string {
+export function inferFieldType(value: unknown, key?: string): string {
   if (typeof value === "boolean") {
     return "boolean";
+  }
+
+  if (typeof value === "number") {
+    return "number";
   }
 
   if (Array.isArray(value)) {
     return "tags";
   }
 
+  if (typeof value === "object" && value !== null) {
+    return "json";
+  }
+
   if (typeof value === "string") {
+    // Full ISO datetime with time component
+    if (/^\d{4}-\d{2}-\d{2}T/.test(value)) {
+      return "datetime";
+    }
+    // Date-only
     if (ISO_DATE_RE.test(value)) {
       return "date";
+    }
+    // Hex color
+    if (/^#[0-9a-fA-F]{3,8}$/.test(value)) {
+      return "color";
+    }
+    // URLs
+    if (/^https?:\/\//i.test(value)) {
+      return "url";
+    }
+    // Image paths (common extensions or key name hints)
+    const lowerKey = key?.toLowerCase() ?? "";
+    if (
+      lowerKey.includes("image") ||
+      lowerKey.includes("avatar") ||
+      lowerKey.includes("cover") ||
+      lowerKey.includes("thumbnail") ||
+      lowerKey.includes("hero") ||
+      /\.(jpe?g|png|gif|webp|svg|avif)$/i.test(value)
+    ) {
+      return "image";
+    }
+    // Slug-like keys
+    if (lowerKey === "slug" || lowerKey === "permalink") {
+      return "slug";
     }
     // Long strings are likely descriptions/summaries — use a textarea
     if (value.length >= 100) {

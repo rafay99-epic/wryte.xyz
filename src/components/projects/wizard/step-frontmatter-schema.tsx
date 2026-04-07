@@ -32,10 +32,19 @@ interface StepFrontmatterSchemaProps {
 const FIELD_TYPE_LABELS: Record<FrontmatterField["type"], string> = {
   string: "String",
   text: "Text",
-  boolean: "Boolean",
+  url: "URL",
+  image: "Image",
+  slug: "Slug",
+  number: "Number",
   date: "Date",
+  datetime: "DateTime",
+  boolean: "Boolean",
   tags: "Tags",
+  list: "List",
   select: "Select",
+  multiselect: "Multi-Select",
+  color: "Color",
+  json: "JSON",
 };
 
 function generateYamlPreview(fields: FrontmatterField[]): string {
@@ -49,12 +58,35 @@ function generateYamlPreview(fields: FrontmatterField[]): string {
       case "date":
         value = field.defaultValue || "2024-01-01";
         break;
+      case "datetime":
+        value = field.defaultValue || "2024-01-01T12:00:00Z";
+        break;
+      case "number":
+        value = field.defaultValue || "0";
+        break;
       case "tags":
-        value = "\n  - tag1\n  - tag2";
+      case "list":
+      case "multiselect":
+        value = "\n  - item1\n  - item2";
         break;
       case "select":
         value =
           field.defaultValue || field.options.split(",")[0]?.trim() || '""';
+        break;
+      case "color":
+        value = field.defaultValue || '"#000000"';
+        break;
+      case "json":
+        value = "{}";
+        break;
+      case "url":
+        value = field.defaultValue ? `"${field.defaultValue}"` : '"https://example.com"';
+        break;
+      case "image":
+        value = field.defaultValue ? `"${field.defaultValue}"` : '"/images/cover.jpg"';
+        break;
+      case "slug":
+        value = field.defaultValue ? `"${field.defaultValue}"` : '"my-post"';
         break;
       default:
         value = field.defaultValue ? `"${field.defaultValue}"` : '""';
@@ -209,7 +241,7 @@ export function StepFrontmatterSchema({
             </div>
 
             {/* Expandable details row */}
-            {(field.defaultValue || field.type === "select") && (
+            {(field.defaultValue || field.type === "select" || field.type === "multiselect") && (
               <div className="border-t border-border/40 px-3 py-2">
                 <div className="flex items-center gap-2 pl-5">
                   {field.defaultValue !== undefined && (
@@ -226,7 +258,7 @@ export function StepFrontmatterSchema({
                       />
                     </div>
                   )}
-                  {field.type === "select" && (
+                  {(field.type === "select" || field.type === "multiselect") && (
                     <div className="flex-1">
                       <Input
                         placeholder="Options: option1, option2, option3"

@@ -67,10 +67,18 @@ import type { Id } from "../../../../../../convex/_generated/dataModel";
 
 interface FrontmatterField {
   name: string;
-  type: "string" | "text" | "boolean" | "date" | "tags" | "select";
+  type: import("@/types/frontmatter").FrontmatterFieldType;
   required: boolean;
   defaultValue: string;
   options: string;
+  label?: string | undefined;
+  description?: string | undefined;
+  placeholder?: string | undefined;
+  min?: number | undefined;
+  max?: number | undefined;
+  group?: string | undefined;
+  hidden?: boolean | undefined;
+  step?: number | undefined;
 }
 
 interface ProjectData {
@@ -1161,10 +1169,45 @@ function FrontmatterSection({
 
   const [fields, setFields] = useState<FrontmatterField[]>(initialFields);
   const [isSaving, setIsSaving] = useState(false);
+  const [editorMode, setEditorMode] = useState<"visual" | "code">("visual");
+  const [codeValue, setCodeValue] = useState("");
+  const [codeError, setCodeError] = useState<string | null>(null);
 
   useEffect(() => {
     setFields(initialFields);
   }, [initialFields]);
+
+  // Sync code editor when switching to code mode
+  useEffect(() => {
+    if (editorMode === "code") {
+      setCodeValue(JSON.stringify(fields, null, 2));
+      setCodeError(null);
+    }
+  }, [editorMode]); // intentionally only on mode switch
+
+  // Parse code editor changes
+  const handleCodeChange = useCallback((value: string) => {
+    setCodeValue(value);
+    try {
+      const parsed = JSON.parse(value);
+      if (!Array.isArray(parsed)) {
+        setCodeError("Schema must be an array of field definitions");
+        return;
+      }
+      for (const field of parsed) {
+        if (!field.name || !field.type) {
+          setCodeError("Each field must have a 'name' and 'type' property");
+          return;
+        }
+      }
+      setCodeError(null);
+      setFields(parsed as FrontmatterField[]);
+    } catch (err) {
+      setCodeError(
+        err instanceof SyntaxError ? err.message : "Invalid JSON",
+      );
+    }
+  }, []);
 
   const addField = useCallback(() => {
     setFields((prev) => [
@@ -1209,6 +1252,10 @@ function FrontmatterSection({
   }, []);
 
   const handleSave = useCallback(async () => {
+    if (editorMode === "code" && codeError) {
+      toast.error("Fix JSON errors before saving");
+      return;
+    }
     const invalidField = fields.find((f) => !f.name.trim());
     if (invalidField) {
       toast.error("All fields must have a name");
@@ -1226,7 +1273,7 @@ function FrontmatterSection({
     } finally {
       setIsSaving(false);
     }
-  }, [fields, projectId, updateProject]);
+  }, [fields, projectId, updateProject, editorMode, codeError]);
 
   const yamlPreview = useMemo(() => {
     const lines = fields
@@ -1246,10 +1293,12 @@ function FrontmatterSection({
         description="Define the metadata fields included at the top of each markdown file."
         footer={
           <>
-            <Button variant="outline" size="sm" onClick={addField}>
-              <Plus className="size-3.5" />
-              Add Field
-            </Button>
+            {editorMode === "visual" && (
+              <Button variant="outline" size="sm" onClick={addField}>
+                <Plus className="size-3.5" />
+                Add Field
+              </Button>
+            )}
             <SaveButton
               isSaving={isSaving}
               onClick={handleSave}
@@ -1258,35 +1307,110 @@ function FrontmatterSection({
           </>
         }
       >
-        {fields.length === 0 ? (
-          <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-8">
-            <Code2 className="mb-2 size-8 text-muted-foreground/40" />
-            <p className="text-sm text-muted-foreground">
-              No fields defined yet.
-            </p>
-            <Button
-              variant="outline"
-              size="sm"
-              className="mt-3"
-              onClick={addField}
+        {/* Visual / Code toggle */}
+        <div className="mb-4 flex items-center gap-2">
+          <div className="inline-flex rounded-lg border bg-muted/30 p-0.5">
+            <button
+              type="button"
+              onClick={() => setEditorMode("visual")}
+              className={cn(
+                "rounded-md px-3 py-1 text-xs font-medium transition-colors",
+                editorMode === "visual"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
             >
-              <Plus className="size-3.5" />
-              Add your first field
-            </Button>
+              <Settings2 className="mr-1.5 inline-block size-3" />
+              Visual
+            </button>
+            <button
+              type="button"
+              onClick={() => setEditorMode("code")}
+              className={cn(
+                "rounded-md px-3 py-1 text-xs font-medium transition-colors",
+                editorMode === "code"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <Code2 className="mr-1.5 inline-block size-3" />
+              Code
+            </button>
           </div>
+          <span className="text-xs text-muted-foreground">
+            {editorMode === "code"
+              ? "Edit schema as JSON — supports all field properties"
+              : `${fields.length} field${fields.length !== 1 ? "s" : ""} defined`}
+          </span>
+        </div>
+
+        {editorMode === "visual" ? (
+          // --- Visual editor ---
+          fields.length === 0 ? (
+            <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-8">
+              <Code2 className="mb-2 size-8 text-muted-foreground/40" />
+              <p className="text-sm text-muted-foreground">
+                No fields defined yet.
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-3"
+                onClick={addField}
+              >
+                <Plus className="size-3.5" />
+                Add your first field
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {fields.map((field, index) => (
+                <FrontmatterFieldRow
+                  key={index}
+                  field={field}
+                  index={index}
+                  totalFields={fields.length}
+                  onUpdate={(updates) => updateField(index, updates)}
+                  onRemove={() => removeField(index)}
+                  onMove={(dir) => moveField(index, dir)}
+                />
+              ))}
+            </div>
+          )
         ) : (
+          // --- Code editor ---
           <div className="space-y-2">
-            {fields.map((field, index) => (
-              <FrontmatterFieldRow
-                key={index}
-                field={field}
-                index={index}
-                totalFields={fields.length}
-                onUpdate={(updates) => updateField(index, updates)}
-                onRemove={() => removeField(index)}
-                onMove={(dir) => moveField(index, dir)}
-              />
-            ))}
+            <textarea
+              value={codeValue}
+              onChange={(e) => handleCodeChange(e.target.value)}
+              spellCheck={false}
+              className={cn(
+                "w-full rounded-lg border bg-[#0d1117] p-4 font-mono text-xs leading-relaxed text-green-300 outline-none transition-colors",
+                "focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30",
+                "placeholder:text-green-800",
+                "min-h-[300px] resize-y",
+                codeError && "border-destructive focus-visible:ring-destructive/30",
+              )}
+              placeholder={`[\n  {\n    "name": "title",\n    "type": "string",\n    "required": true\n  }\n]`}
+            />
+            {codeError && (
+              <div className="flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+                <AlertTriangle className="mt-0.5 size-3 shrink-0" />
+                <span>{codeError}</span>
+              </div>
+            )}
+            <div className="rounded-lg border bg-muted/20 px-3 py-2 text-[11px] text-muted-foreground">
+              <p className="font-medium">Available field types:</p>
+              <p className="mt-1 font-mono">
+                string · text · url · image · slug · number · date · datetime ·
+                boolean · tags · list · select · multiselect · color · json
+              </p>
+              <p className="mt-2 font-medium">Optional properties:</p>
+              <p className="mt-1 font-mono">
+                label · description · placeholder · group · hidden · min · max ·
+                step · options · defaultValue · required
+              </p>
+            </div>
           </div>
         )}
       </SettingsCard>
@@ -1326,6 +1450,12 @@ function FrontmatterFieldRow({
   onRemove: () => void;
   onMove: (direction: "up" | "down") => void;
 }) {
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const hasAdvancedSettings =
+    field.label || field.description || field.placeholder || field.group ||
+    field.min !== undefined || field.max !== undefined || field.step !== undefined ||
+    field.hidden;
+
   return (
     <div className="group flex items-start gap-2 rounded-lg border bg-card p-3 transition-colors hover:bg-muted/20">
       {/* Reorder handle */}
@@ -1352,9 +1482,10 @@ function FrontmatterFieldRow({
 
       {/* Fields */}
       <div className="flex-1 space-y-2">
+        {/* Row 1: Name + Type */}
         <div className="flex gap-2">
           <Input
-            placeholder="Field name"
+            placeholder="Field name (YAML key)"
             value={field.name}
             onChange={(e) => onUpdate({ name: e.target.value })}
             className="flex-1 font-mono text-sm"
@@ -1365,19 +1496,30 @@ function FrontmatterFieldRow({
               onUpdate({ type: val as FrontmatterField["type"] })
             }
           >
-            <SelectTrigger className="w-28">
+            <SelectTrigger className="w-32">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="string">String</SelectItem>
               <SelectItem value="text">Text</SelectItem>
-              <SelectItem value="boolean">Boolean</SelectItem>
+              <SelectItem value="url">URL</SelectItem>
+              <SelectItem value="image">Image</SelectItem>
+              <SelectItem value="slug">Slug</SelectItem>
+              <SelectItem value="number">Number</SelectItem>
               <SelectItem value="date">Date</SelectItem>
+              <SelectItem value="datetime">DateTime</SelectItem>
+              <SelectItem value="boolean">Boolean</SelectItem>
               <SelectItem value="tags">Tags</SelectItem>
+              <SelectItem value="list">List</SelectItem>
               <SelectItem value="select">Select</SelectItem>
+              <SelectItem value="multiselect">Multi-Select</SelectItem>
+              <SelectItem value="color">Color</SelectItem>
+              <SelectItem value="json">JSON</SelectItem>
             </SelectContent>
           </Select>
         </div>
+
+        {/* Row 2: Required + Default */}
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
             <Switch
@@ -1393,14 +1535,186 @@ function FrontmatterFieldRow({
             onChange={(e) => onUpdate({ defaultValue: e.target.value })}
             className="flex-1 text-sm"
           />
+          <button
+            type="button"
+            onClick={() => setShowAdvanced(!showAdvanced)}
+            className={cn(
+              "rounded px-2 py-1 text-[10px] font-medium transition-colors",
+              showAdvanced || hasAdvancedSettings
+                ? "bg-primary/10 text-primary"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground",
+            )}
+          >
+            {showAdvanced ? "Less" : "More"}
+          </button>
         </div>
-        {field.type === "select" && (
+
+        {/* Options for select/multiselect */}
+        {(field.type === "select" || field.type === "multiselect") && (
           <Input
             placeholder="Options (comma-separated, e.g. tech, lifestyle, travel)"
             value={field.options}
             onChange={(e) => onUpdate({ options: e.target.value })}
             className="text-sm"
           />
+        )}
+
+        {/* Advanced settings (collapsible) */}
+        {showAdvanced && (
+          <div className="space-y-2 rounded-lg border border-dashed bg-muted/10 p-2.5">
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <Label className="text-[10px] text-muted-foreground">
+                  Display Label
+                </Label>
+                <Input
+                  placeholder="Human-readable name"
+                  value={field.label ?? ""}
+                  onChange={(e) =>
+                    onUpdate({
+                      label: e.target.value || undefined,
+                    })
+                  }
+                  className="text-sm"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px] text-muted-foreground">
+                  Group
+                </Label>
+                <Input
+                  placeholder="e.g. SEO, Author, Meta"
+                  value={field.group ?? ""}
+                  onChange={(e) =>
+                    onUpdate({
+                      group: e.target.value || undefined,
+                    })
+                  }
+                  className="text-sm"
+                />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground">
+                Placeholder
+              </Label>
+              <Input
+                placeholder="Placeholder text in editor"
+                value={field.placeholder ?? ""}
+                onChange={(e) =>
+                  onUpdate({
+                    placeholder: e.target.value || undefined,
+                  })
+                }
+                className="text-sm"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground">
+                Description
+              </Label>
+              <Input
+                placeholder="Help text shown below field"
+                value={field.description ?? ""}
+                onChange={(e) =>
+                  onUpdate({
+                    description: e.target.value || undefined,
+                  })
+                }
+                className="text-sm"
+              />
+            </div>
+
+            {/* Number-specific: min, max, step */}
+            {field.type === "number" && (
+              <div className="grid grid-cols-3 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-muted-foreground">
+                    Min
+                  </Label>
+                  <Input
+                    type="number"
+                    placeholder="—"
+                    value={field.min ?? ""}
+                    onChange={(e) =>
+                      onUpdate({
+                        min: e.target.value ? Number(e.target.value) : undefined,
+                      })
+                    }
+                    className="text-sm"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-muted-foreground">
+                    Max
+                  </Label>
+                  <Input
+                    type="number"
+                    placeholder="—"
+                    value={field.max ?? ""}
+                    onChange={(e) =>
+                      onUpdate({
+                        max: e.target.value ? Number(e.target.value) : undefined,
+                      })
+                    }
+                    className="text-sm"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-muted-foreground">
+                    Step
+                  </Label>
+                  <Input
+                    type="number"
+                    placeholder="1"
+                    value={field.step ?? ""}
+                    onChange={(e) =>
+                      onUpdate({
+                        step: e.target.value ? Number(e.target.value) : undefined,
+                      })
+                    }
+                    className="text-sm"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* String/text: max length */}
+            {(field.type === "string" || field.type === "text") && (
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-muted-foreground">
+                    Max Length
+                  </Label>
+                  <Input
+                    type="number"
+                    placeholder="—"
+                    value={field.max ?? ""}
+                    onChange={(e) =>
+                      onUpdate({
+                        max: e.target.value ? Number(e.target.value) : undefined,
+                      })
+                    }
+                    className="text-sm"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Hidden toggle */}
+            <div className="flex items-center gap-2">
+              <Switch
+                size="sm"
+                checked={field.hidden ?? false}
+                onCheckedChange={(checked) =>
+                  onUpdate({ hidden: checked || undefined })
+                }
+              />
+              <span className="text-xs text-muted-foreground">
+                Hidden from editor
+              </span>
+            </div>
+          </div>
         )}
       </div>
 
@@ -1423,14 +1737,32 @@ function getPlaceholderForType(type: FrontmatterField["type"]): string {
       return '"example"';
     case "text":
       return '"A longer text..."';
+    case "url":
+      return '"https://example.com"';
+    case "image":
+      return '"/images/hero.jpg"';
+    case "slug":
+      return '"my-post-slug"';
+    case "number":
+      return "0";
     case "boolean":
       return "true";
     case "date":
       return new Date().toISOString().split("T")[0] ?? "";
+    case "datetime":
+      return new Date().toISOString();
     case "tags":
       return '["tag1", "tag2"]';
+    case "list":
+      return '["item1", "item2"]';
     case "select":
       return '"option1"';
+    case "multiselect":
+      return '["opt1", "opt2"]';
+    case "color":
+      return '"#3b82f6"';
+    case "json":
+      return '{"key": "value"}';
     default:
       return '""';
   }

@@ -32,10 +32,19 @@ interface StepConfigurePathsProps {
 const FIELD_TYPES = [
   "string",
   "text",
-  "boolean",
+  "url",
+  "image",
+  "slug",
+  "number",
   "date",
+  "datetime",
+  "boolean",
   "tags",
+  "list",
   "select",
+  "multiselect",
+  "color",
+  "json",
 ] as const;
 
 function normalizeFieldType(type: string): FrontmatterField["type"] {
