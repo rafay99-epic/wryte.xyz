@@ -3,7 +3,6 @@
 import {
   CheckCircle2,
   Code2,
-  FileCode,
   GripVertical,
   Info,
   Plus,
@@ -140,16 +139,6 @@ export function StepFrontmatterSchema({
 
   return (
     <div className="space-y-5">
-      <div>
-        <div className="flex items-center gap-2">
-          <FileCode className="size-[18px] text-primary" />
-          <h2 className="text-base font-semibold">Frontmatter Schema</h2>
-        </div>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Define the frontmatter fields for your markdown files.
-        </p>
-      </div>
-
       {/* Detection status */}
       {state.detectedFromFile ? (
         <div className="flex items-center gap-2.5 rounded-lg bg-emerald-500/10 px-3 py-2.5">

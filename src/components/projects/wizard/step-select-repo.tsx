@@ -114,16 +114,6 @@ export function StepSelectRepo({ state, onChange }: StepSelectRepoProps) {
   if (state.useManualSetup) {
     return (
       <div className="space-y-5">
-        <div>
-          <div className="flex items-center gap-2">
-            <Settings2 className="size-[18px] text-primary" />
-            <h2 className="text-base font-semibold">Manual Setup</h2>
-          </div>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Configure your project without importing from GitHub.
-          </p>
-        </div>
-
         <div className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="manual-name" className="text-xs font-medium text-muted-foreground">
@@ -225,16 +215,6 @@ export function StepSelectRepo({ state, onChange }: StepSelectRepoProps) {
 
   return (
     <div className="space-y-5">
-      <div>
-        <div className="flex items-center gap-2">
-          <GitBranch className="size-[18px] text-primary" />
-          <h2 className="text-base font-semibold">Connect a GitHub Repository</h2>
-        </div>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Select a repository to import, or set up manually.
-        </p>
-      </div>
-
       {isLoading ? (
         <div className="space-y-2">
           {Array.from({ length: 4 }, (_, i) => (

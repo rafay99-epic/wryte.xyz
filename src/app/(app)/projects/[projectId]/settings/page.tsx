@@ -1,9 +1,9 @@
 "use client";
 
 import { useAction, useMutation, useQuery } from "convex/react";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   AlertTriangle,
-  ArrowLeft,
   BookText,
   CheckCircle2,
   Code2,
@@ -14,7 +14,6 @@ import {
   GitBranch,
   Globe,
   GripVertical,
-  Info,
   Loader2,
   Plus,
   Rocket,
@@ -24,20 +23,18 @@ import {
   Webhook,
   XCircle,
 } from "lucide-react";
-import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useEditorStore } from "@/stores/editor-store";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  fadeSlideUp,
+  smoothTransition,
+  staggerContainer,
+  staggerItem,
+} from "@/lib/motion";
 import {
   Dialog,
   DialogContent,
@@ -57,7 +54,6 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "../../../../../../convex/_generated/api";
 import type { Id } from "../../../../../../convex/_generated/dataModel";
 
@@ -132,6 +128,20 @@ const DEFAULT_FIELDS: FrontmatterField[] = [
 ];
 
 /* ------------------------------------------------------------------ */
+/*  Tab definitions                                                    */
+/* ------------------------------------------------------------------ */
+
+type SettingsTab = "general" | "github" | "content" | "publishing" | "frontmatter";
+
+const TABS: { id: SettingsTab; label: string; icon: React.ElementType }[] = [
+  { id: "general", label: "General", icon: Settings2 },
+  { id: "github", label: "GitHub", icon: GitBranch },
+  { id: "content", label: "Content", icon: FolderTree },
+  { id: "publishing", label: "Publishing", icon: Rocket },
+  { id: "frontmatter", label: "Frontmatter", icon: Code2 },
+];
+
+/* ------------------------------------------------------------------ */
 /*  Page                                                               */
 /* ------------------------------------------------------------------ */
 
@@ -142,6 +152,7 @@ export default function ProjectSettingsPage() {
   const project = useQuery(api.projects.get, { projectId });
   const user = useQuery(api.users.get);
   const projectDeleted = project === null;
+  const [activeTab, setActiveTab] = useState<SettingsTab>("general");
 
   // Set active project in sidebar on mount
   useEffect(() => {
@@ -159,128 +170,155 @@ export default function ProjectSettingsPage() {
   }
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <Link
-          href={`/projects/${projectId}`}
-          className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
-        >
-          <ArrowLeft className="size-4" />
-          Back to Project
-        </Link>
-      </div>
-
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Configure your project, integrations, and publishing workflow.
+    <motion.div
+      variants={fadeSlideUp}
+      initial="initial"
+      animate="animate"
+      transition={smoothTransition}
+      className="flex h-full"
+    >
+      {/* Sidebar tabs */}
+      <div className="w-56 shrink-0 border-r border-border/40 bg-muted/20 p-4 pt-6">
+        <h1 className="mb-1 px-3 text-lg font-semibold tracking-tight">
+          Settings
+        </h1>
+        <p className="mb-5 px-3 text-[11px] text-muted-foreground/60">
+          Project configuration
         </p>
+
+        <nav className="space-y-0.5">
+          {TABS.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={cn(
+                  "relative flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium transition-all duration-150",
+                  isActive
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:bg-background/50 hover:text-foreground",
+                )}
+              >
+                <Icon className="size-4 shrink-0" />
+                {tab.label}
+                {isActive && (
+                  <motion.div
+                    layoutId="projectSettingsTabIndicator"
+                    className="absolute inset-0 rounded-lg bg-background shadow-sm -z-10"
+                    transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                  />
+                )}
+              </button>
+            );
+          })}
+        </nav>
       </div>
 
-      <Tabs defaultValue="general" className="mx-auto max-w-3xl">
-        <TabsList
-          variant="line"
-          className="mb-8 w-full justify-start border-b pb-px"
-        >
-          <TabsTrigger value="general" className="gap-1.5 px-3">
-            <Settings2 className="size-3.5" />
-            General
-          </TabsTrigger>
-          <TabsTrigger value="github" className="gap-1.5 px-3">
-            <GitBranch className="size-3.5" />
-            GitHub
-          </TabsTrigger>
-          <TabsTrigger value="content" className="gap-1.5 px-3">
-            <FolderTree className="size-3.5" />
-            Content
-          </TabsTrigger>
-          <TabsTrigger value="publishing" className="gap-1.5 px-3">
-            <Rocket className="size-3.5" />
-            Publishing
-          </TabsTrigger>
-          <TabsTrigger value="frontmatter" className="gap-1.5 px-3">
-            <Code2 className="size-3.5" />
-            Frontmatter
-          </TabsTrigger>
-        </TabsList>
-
-        {/* General Tab */}
-        <TabsContent value="general">
-          <div className="space-y-6">
-            <GeneralSection projectId={projectId} project={project} />
-            <DangerZoneSection projectId={projectId} />
-          </div>
-        </TabsContent>
-
-        {/* GitHub Tab */}
-        <TabsContent value="github">
-          <GitHubSection
-            projectId={projectId}
-            project={project}
-            existingToken={user?.githubAccessToken ?? ""}
-          />
-        </TabsContent>
-
-        {/* Content Tab */}
-        <TabsContent value="content">
-          <ContentSection projectId={projectId} project={project} />
-        </TabsContent>
-
-        {/* Publishing Tab */}
-        <TabsContent value="publishing">
-          <PublishingSection projectId={projectId} project={project} />
-        </TabsContent>
-
-        {/* Frontmatter Tab */}
-        <TabsContent value="frontmatter">
-          <FrontmatterSection projectId={projectId} project={project} />
-        </TabsContent>
-      </Tabs>
-    </div>
+      {/* Content area */}
+      <div className="flex-1 overflow-y-auto slim-scrollbar">
+        <div className="mx-auto max-w-xl px-8 py-8">
+          <AnimatePresence mode="wait" initial={false}>
+            {activeTab === "general" && (
+              <motion.div
+                key="general"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.15 }}
+              >
+                <GeneralSection projectId={projectId} project={project} />
+                <Divider />
+                <DangerZoneSection projectId={projectId} />
+              </motion.div>
+            )}
+            {activeTab === "github" && (
+              <motion.div
+                key="github"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.15 }}
+              >
+                <GitHubSection
+                  projectId={projectId}
+                  project={project}
+                  existingToken={user?.githubAccessToken ?? ""}
+                />
+              </motion.div>
+            )}
+            {activeTab === "content" && (
+              <motion.div
+                key="content"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.15 }}
+              >
+                <ContentSection projectId={projectId} project={project} />
+              </motion.div>
+            )}
+            {activeTab === "publishing" && (
+              <motion.div
+                key="publishing"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.15 }}
+              >
+                <PublishingSection projectId={projectId} project={project} />
+              </motion.div>
+            )}
+            {activeTab === "frontmatter" && (
+              <motion.div
+                key="frontmatter"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.15 }}
+              >
+                <FrontmatterSection projectId={projectId} project={project} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </div>
+    </motion.div>
   );
 }
 
 /* ------------------------------------------------------------------ */
-/*  Reusable: Section wrapper                                          */
+/*  Reusable helpers                                                   */
 /* ------------------------------------------------------------------ */
 
-function SettingsCard({
+function SectionHeader({
   icon: Icon,
   title,
   description,
-  children,
-  footer,
-  variant,
 }: {
-  icon?: React.ElementType;
+  icon: React.ElementType;
   title: string;
   description: string;
-  children: React.ReactNode;
-  footer?: React.ReactNode;
-  variant?: "destructive";
 }) {
   return (
-    <Card className={cn(variant === "destructive" && "border-destructive/30")}>
-      <CardHeader>
-        <CardTitle
-          className={cn(
-            "flex items-center gap-2 text-base",
-            variant === "destructive" && "text-destructive",
-          )}
-        >
-          {Icon && <Icon className="size-4" />}
-          {title}
-        </CardTitle>
-        <CardDescription>{description}</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-5">{children}</CardContent>
-      {footer && (
-        <div className="flex items-center justify-between border-t bg-muted/30 px-6 py-3">
-          {footer}
+    <div className="mb-6">
+      <div className="flex items-center gap-2.5">
+        <div className="flex size-8 items-center justify-center rounded-lg bg-primary/10">
+          <Icon className="size-4 text-primary" />
         </div>
-      )}
-    </Card>
+        <div>
+          <h2 className="text-base font-semibold tracking-tight">{title}</h2>
+          <p className="text-xs text-muted-foreground">{description}</p>
+        </div>
+      </div>
+    </div>
   );
+}
+
+function Divider() {
+  return <div className="my-6 h-px bg-border/40" />;
 }
 
 function FieldGroup({
@@ -295,12 +333,12 @@ function FieldGroup({
   children: React.ReactNode;
 }) {
   return (
-    <div className="space-y-2">
-      <Label htmlFor={htmlFor} className="text-sm font-medium">
+    <div className="space-y-1.5">
+      <Label htmlFor={htmlFor} className="text-xs font-medium text-muted-foreground">
         {label}
       </Label>
       {children}
-      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+      {hint && <p className="text-[11px] text-muted-foreground/60">{hint}</p>}
     </div>
   );
 }
@@ -378,13 +416,64 @@ function GeneralSection({
   }, [name, siteUrl, defaultAuthor, projectId, updateProject]);
 
   return (
-    <SettingsCard
-      icon={Settings2}
-      title="General"
-      description="Basic project information and identity."
-      footer={
-        <>
-          <p className="text-xs text-muted-foreground">
+    <motion.div variants={staggerContainer} initial="initial" animate="animate">
+      <SectionHeader
+        icon={Settings2}
+        title="General"
+        description="Basic project information and identity"
+      />
+
+      <motion.div variants={staggerItem} transition={smoothTransition} className="space-y-4">
+        <FieldGroup label="Project Name" htmlFor="s-name">
+          <Input
+            id="s-name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="My Blog"
+          />
+        </FieldGroup>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <FieldGroup
+            label="Site URL"
+            htmlFor="s-site-url"
+            hint="Used for preview links and canonical URLs."
+          >
+            <div className="flex items-center gap-0">
+              <div className="flex h-9 items-center rounded-l-md border border-r-0 bg-muted/50 px-3 text-xs text-muted-foreground">
+                <Globe className="mr-1.5 size-3.5" />
+                https://
+              </div>
+              <Input
+                id="s-site-url"
+                value={siteUrl.replace(/^https?:\/\//, "")}
+                onChange={(e) => setSiteUrl(e.target.value)}
+                placeholder="example.com"
+                className="rounded-l-none"
+              />
+            </div>
+          </FieldGroup>
+
+          <FieldGroup
+            label="Default Author"
+            htmlFor="s-author"
+            hint="Injected into frontmatter for new posts."
+          >
+            <div className="relative">
+              <User className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                id="s-author"
+                value={defaultAuthor}
+                onChange={(e) => setDefaultAuthor(e.target.value)}
+                placeholder="John Doe"
+                className="pl-9"
+              />
+            </div>
+          </FieldGroup>
+        </div>
+
+        <div className="flex items-center justify-between pt-2">
+          <p className="text-[11px] text-muted-foreground/50">
             The slug{" "}
             <span className="font-mono text-foreground/70">{project.slug}</span>{" "}
             cannot be changed after creation.
@@ -394,57 +483,9 @@ function GeneralSection({
             disabled={!hasChanges}
             onClick={handleSave}
           />
-        </>
-      }
-    >
-      <FieldGroup label="Project Name" htmlFor="s-name">
-        <Input
-          id="s-name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="My Blog"
-        />
-      </FieldGroup>
-
-      <div className="grid gap-5 sm:grid-cols-2">
-        <FieldGroup
-          label="Site URL"
-          htmlFor="s-site-url"
-          hint="Used for preview links and canonical URLs."
-        >
-          <div className="flex items-center gap-0">
-            <div className="flex h-9 items-center rounded-l-md border border-r-0 bg-muted/50 px-3 text-xs text-muted-foreground">
-              <Globe className="mr-1.5 size-3.5" />
-              https://
-            </div>
-            <Input
-              id="s-site-url"
-              value={siteUrl.replace(/^https?:\/\//, "")}
-              onChange={(e) => setSiteUrl(e.target.value)}
-              placeholder="example.com"
-              className="rounded-l-none"
-            />
-          </div>
-        </FieldGroup>
-
-        <FieldGroup
-          label="Default Author"
-          htmlFor="s-author"
-          hint="Injected into frontmatter for new posts."
-        >
-          <div className="relative">
-            <User className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              id="s-author"
-              value={defaultAuthor}
-              onChange={(e) => setDefaultAuthor(e.target.value)}
-              placeholder="John Doe"
-              className="pl-9"
-            />
-          </div>
-        </FieldGroup>
-      </div>
-    </SettingsCard>
+        </div>
+      </motion.div>
+    </motion.div>
   );
 }
 
@@ -593,112 +634,154 @@ function GitHubSection({
   }, [repo, token, oauthToken, verifyRepoAccess]);
 
   return (
-    <div className="space-y-6">
-      {/* Connection Status */}
-      <SettingsCard
+    <motion.div variants={staggerContainer} initial="initial" animate="animate">
+      <SectionHeader
         icon={GitBranch}
-        title="Connection"
-        description="Link your GitHub account to enable publishing."
-      >
+        title="GitHub"
+        description="Connect your account and configure your repository"
+      />
+
+      {/* Connection status */}
+      <motion.div variants={staggerItem} transition={smoothTransition}>
         <div
           className={cn(
-            "flex items-start gap-3 rounded-lg border p-4",
-            oauthConnected === true &&
-              "border-green-200 bg-green-50 dark:border-green-900/50 dark:bg-green-950/20",
-            oauthConnected === false &&
-              "border-amber-200 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/20",
+            "rounded-xl border p-4 transition-colors",
+            oauthConnected === true
+              ? "border-emerald-500/20 bg-emerald-500/5"
+              : "border-border/40 bg-card",
           )}
         >
           {oauthConnected === null ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="size-4 animate-spin" />
-              Checking GitHub connection…
+            <div className="flex items-center gap-3">
+              <div className="flex size-9 items-center justify-center rounded-lg bg-muted">
+                <Loader2 className="size-4 animate-spin text-muted-foreground" />
+              </div>
+              <span className="text-sm text-muted-foreground">
+                Checking connection...
+              </span>
             </div>
           ) : oauthConnected ? (
-            <div className="flex items-center gap-2 text-sm text-green-700 dark:text-green-400">
-              <CheckCircle2 className="size-4 shrink-0" />
+            <div className="flex items-center gap-3">
+              <div className="flex size-9 items-center justify-center rounded-lg bg-emerald-500/10">
+                <CheckCircle2 className="size-4 text-emerald-500" />
+              </div>
               <div>
-                <p className="font-medium">GitHub connected via OAuth</p>
-                <p className="mt-0.5 text-xs text-green-600/80 dark:text-green-400/60">
+                <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">
+                  Connected via OAuth
+                </p>
+                <p className="text-xs text-muted-foreground">
                   Publishing will use your OAuth token automatically.
                 </p>
               </div>
             </div>
           ) : (
-            <div className="flex items-center gap-2 text-sm text-amber-700 dark:text-amber-400">
-              <Info className="size-4 shrink-0" />
+            <div className="flex items-center gap-3">
+              <div className="flex size-9 items-center justify-center rounded-lg bg-muted">
+                <XCircle className="size-4 text-muted-foreground/50" />
+              </div>
               <div>
-                <p className="font-medium">GitHub not connected via OAuth</p>
-                <p className="mt-0.5 text-xs text-amber-600/80 dark:text-amber-400/60">
-                  Connect GitHub via Clerk, or add a Personal Access Token
-                  below.
+                <p className="text-sm font-medium">Not connected</p>
+                <p className="text-xs text-muted-foreground">
+                  Connect via Clerk, or add a Personal Access Token below.
                 </p>
               </div>
             </div>
           )}
         </div>
+      </motion.div>
 
-        {/* PAT Fallback */}
+      {/* PAT Fallback */}
+      <motion.div variants={staggerItem} transition={smoothTransition}>
         {oauthConnected === true && (
           <button
             type="button"
             onClick={() => setShowPatFallback(!showPatFallback)}
-            className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+            className="mt-3 text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
           >
             {showPatFallback ? "Hide" : "Show"} Personal Access Token (fallback)
           </button>
         )}
         {(oauthConnected === false || showPatFallback) && (
-          <div className="space-y-2">
-            <Label htmlFor="gh-token" className="text-sm font-medium">
-              Personal Access Token
-            </Label>
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <Input
-                  id="gh-token"
-                  type={showToken ? "text" : "password"}
-                  value={token}
-                  onChange={(e) => setToken(e.target.value)}
-                  placeholder="ghp_..."
-                  className="pr-10 font-mono text-xs"
+          <div className="mt-4 space-y-3 rounded-xl border border-border/40 bg-card p-4">
+            <FieldGroup label="Personal Access Token" htmlFor="gh-token">
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Input
+                    id="gh-token"
+                    type={showToken ? "text" : "password"}
+                    value={token}
+                    onChange={(e) => setToken(e.target.value)}
+                    placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                    className="pr-10 font-mono text-xs"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowToken(!showToken)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/50 transition-colors hover:text-foreground"
+                  >
+                    {showToken ? (
+                      <EyeOff className="size-3.5" />
+                    ) : (
+                      <Eye className="size-3.5" />
+                    )}
+                  </button>
+                </div>
+                <SaveButton
+                  isSaving={isSavingToken}
+                  onClick={handleSaveToken}
+                  label="Save"
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowToken(!showToken)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  {showToken ? (
-                    <EyeOff className="size-4" />
-                  ) : (
-                    <Eye className="size-4" />
-                  )}
-                </button>
               </div>
-              <SaveButton
-                isSaving={isSavingToken}
-                onClick={handleSaveToken}
-                label="Save Token"
-              />
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Needs{" "}
-              <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px]">
-                repo
-              </code>{" "}
-              scope. Stored securely and used as a fallback only.
+            </FieldGroup>
+            <p className="text-[11px] leading-relaxed text-muted-foreground/60">
+              Requires <code className="rounded bg-muted px-1 py-px text-[10px]">repo</code> scope.
+              Stored securely and used as a fallback only.
             </p>
           </div>
         )}
-      </SettingsCard>
+      </motion.div>
+
+      <Divider />
 
       {/* Repository */}
-      <SettingsCard
-        icon={FileCode}
-        title="Repository"
-        description="The GitHub repository where content will be published."
-        footer={
-          <>
+      <motion.div variants={staggerItem} transition={smoothTransition}>
+        <div className="mb-3 flex items-center gap-2">
+          <FileCode className="size-4 text-muted-foreground" />
+          <span className="text-sm font-medium">Repository</span>
+        </div>
+
+        <div className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <FieldGroup
+              label="Repository"
+              htmlFor="gh-repo"
+              hint='Format: owner/repo (e.g. "username/my-blog")'
+            >
+              <Input
+                id="gh-repo"
+                value={repo}
+                onChange={(e) => setRepo(e.target.value)}
+                placeholder="username/my-blog"
+                className="font-mono text-sm"
+              />
+            </FieldGroup>
+
+            <FieldGroup
+              label="Branch"
+              htmlFor="gh-branch"
+              hint="The branch to commit content to."
+            >
+              <Input
+                id="gh-branch"
+                value={branch}
+                onChange={(e) => setBranch(e.target.value)}
+                placeholder="main"
+                className="font-mono text-sm"
+              />
+            </FieldGroup>
+          </div>
+
+          <div className="flex items-center justify-between">
             <ConnectionStatusBadge status={verifyStatus} error={verifyError} />
             <div className="flex items-center gap-2">
               <Button
@@ -718,40 +801,10 @@ function GitHubSection({
                 onClick={handleSaveRepo}
               />
             </div>
-          </>
-        }
-      >
-        <div className="grid gap-5 sm:grid-cols-2">
-          <FieldGroup
-            label="Repository"
-            htmlFor="gh-repo"
-            hint='Format: owner/repo (e.g. "username/my-blog")'
-          >
-            <Input
-              id="gh-repo"
-              value={repo}
-              onChange={(e) => setRepo(e.target.value)}
-              placeholder="username/my-blog"
-              className="font-mono text-sm"
-            />
-          </FieldGroup>
-
-          <FieldGroup
-            label="Branch"
-            htmlFor="gh-branch"
-            hint="The branch to commit content to."
-          >
-            <Input
-              id="gh-branch"
-              value={branch}
-              onChange={(e) => setBranch(e.target.value)}
-              placeholder="main"
-              className="font-mono text-sm"
-            />
-          </FieldGroup>
+          </div>
         </div>
-      </SettingsCard>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }
 
@@ -855,39 +908,27 @@ function ContentSection({
   ]);
 
   return (
-    <div className="space-y-6">
-      {/* Directory Structure */}
-      <SettingsCard
+    <motion.div variants={staggerContainer} initial="initial" animate="animate">
+      <SectionHeader
         icon={FolderTree}
-        title="Directory Structure"
-        description="Where your content and media files live in the repository."
-        footer={
-          <>
-            <span />
-            <SaveButton
-              isSaving={isSaving}
-              disabled={!hasChanges}
-              onClick={handleSave}
-            />
-          </>
-        }
-      >
-        <div className="grid gap-5 sm:grid-cols-2">
+        title="Content Structure"
+        description="Where your content and media files live"
+      />
+
+      <motion.div variants={staggerItem} transition={smoothTransition} className="space-y-4">
+        <div className="grid gap-4 sm:grid-cols-2">
           <FieldGroup
             label="Content Directory"
             htmlFor="s-content-path"
             hint="Where markdown files are published."
           >
-            <div className="relative">
-              <FolderTree className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                id="s-content-path"
-                value={contentPath}
-                onChange={(e) => setContentPath(e.target.value)}
-                placeholder="content/blog"
-                className="pl-9 font-mono text-sm"
-              />
-            </div>
+            <Input
+              id="s-content-path"
+              value={contentPath}
+              onChange={(e) => setContentPath(e.target.value)}
+              placeholder="content/blog"
+              className="font-mono text-sm"
+            />
           </FieldGroup>
 
           <FieldGroup
@@ -895,16 +936,13 @@ function ContentSection({
             htmlFor="s-media-path"
             hint="Where images and assets are stored."
           >
-            <div className="relative">
-              <FolderTree className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                id="s-media-path"
-                value={mediaPath}
-                onChange={(e) => setMediaPath(e.target.value)}
-                placeholder="public/images"
-                className="pl-9 font-mono text-sm"
-              />
-            </div>
+            <Input
+              id="s-media-path"
+              value={mediaPath}
+              onChange={(e) => setMediaPath(e.target.value)}
+              placeholder="public/images"
+              className="font-mono text-sm"
+            />
           </FieldGroup>
         </div>
 
@@ -921,8 +959,12 @@ function ContentSection({
             className="max-w-sm font-mono text-sm"
           />
         </FieldGroup>
+      </motion.div>
 
-        <FieldGroup label="Media Storage" hint="">
+      <Divider />
+
+      <motion.div variants={staggerItem} transition={smoothTransition}>
+        <FieldGroup label="Media Storage">
           <div className="grid gap-3 sm:grid-cols-2">
             <MediaModeOption
               active={mediaStorageMode === "github"}
@@ -938,8 +980,16 @@ function ContentSection({
             />
           </div>
         </FieldGroup>
-      </SettingsCard>
-    </div>
+
+        <div className="mt-4 flex justify-end">
+          <SaveButton
+            isSaving={isSaving}
+            disabled={!hasChanges}
+            onClick={handleSave}
+          />
+        </div>
+      </motion.div>
+    </motion.div>
   );
 }
 
@@ -1055,22 +1105,14 @@ function PublishingSection({
   ]);
 
   return (
-    <div className="space-y-6">
-      <SettingsCard
+    <motion.div variants={staggerContainer} initial="initial" animate="animate">
+      <SectionHeader
         icon={Rocket}
-        title="Workflow"
-        description="Control how content is committed and deployed."
-        footer={
-          <>
-            <span />
-            <SaveButton
-              isSaving={isSaving}
-              disabled={!hasChanges}
-              onClick={handleSave}
-            />
-          </>
-        }
-      >
+        title="Publishing"
+        description="Control how content is committed and deployed"
+      />
+
+      <motion.div variants={staggerItem} transition={smoothTransition} className="space-y-4">
         <FieldGroup
           label="Commit Message Template"
           htmlFor="s-commit"
@@ -1081,16 +1123,16 @@ function PublishingSection({
             value={commitTemplate}
             onChange={(e) => setCommitTemplate(e.target.value)}
             placeholder="docs: publish {{filename}}"
-            className="max-w-lg font-mono text-sm"
+            className="font-mono text-sm"
           />
         </FieldGroup>
 
-        <div className="flex items-center justify-between rounded-lg border bg-muted/20 px-4 py-3">
+        <div className="flex items-center justify-between rounded-xl border border-border/40 bg-card px-4 py-3">
           <div>
             <p className="text-sm font-medium">Default to draft</p>
             <p className="text-xs text-muted-foreground">
               New documents will have{" "}
-              <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px]">
+              <code className="rounded bg-muted px-1 py-px text-[10px]">
                 draft: true
               </code>{" "}
               in frontmatter.
@@ -1118,13 +1160,17 @@ function PublishingSection({
             />
           </div>
         </FieldGroup>
-      </SettingsCard>
+      </motion.div>
 
-      <SettingsCard
-        icon={Webhook}
-        title="Deploy Hook"
-        description="Trigger a deployment after publishing content."
-      >
+      <Divider />
+
+      {/* Deploy Hook */}
+      <motion.div variants={staggerItem} transition={smoothTransition}>
+        <div className="mb-3 flex items-center gap-2">
+          <Webhook className="size-4 text-muted-foreground" />
+          <span className="text-sm font-medium">Deploy Hook</span>
+        </div>
+
         <FieldGroup
           label="Webhook URL"
           htmlFor="s-deploy-hook"
@@ -1138,8 +1184,16 @@ function PublishingSection({
             className="font-mono text-xs"
           />
         </FieldGroup>
-      </SettingsCard>
-    </div>
+
+        <div className="mt-4 flex justify-end">
+          <SaveButton
+            isSaving={isSaving}
+            disabled={!hasChanges}
+            onClick={handleSave}
+          />
+        </div>
+      </motion.div>
+    </motion.div>
   );
 }
 
@@ -1286,29 +1340,16 @@ function FrontmatterSection({
   }, [fields]);
 
   return (
-    <div className="space-y-6">
-      <SettingsCard
+    <motion.div variants={staggerContainer} initial="initial" animate="animate">
+      <SectionHeader
         icon={BookText}
-        title="Schema"
-        description="Define the metadata fields included at the top of each markdown file."
-        footer={
-          <>
-            {editorMode === "visual" && (
-              <Button variant="outline" size="sm" onClick={addField}>
-                <Plus className="size-3.5" />
-                Add Field
-              </Button>
-            )}
-            <SaveButton
-              isSaving={isSaving}
-              onClick={handleSave}
-              label="Save Schema"
-            />
-          </>
-        }
-      >
-        {/* Visual / Code toggle */}
-        <div className="mb-4 flex items-center gap-2">
+        title="Frontmatter Schema"
+        description="Define the metadata fields for your markdown files"
+      />
+
+      {/* Visual / Code toggle */}
+      <motion.div variants={staggerItem} transition={smoothTransition} className="mb-5">
+        <div className="flex items-center gap-2">
           <div className="inline-flex rounded-lg border bg-muted/30 p-0.5">
             <button
               type="button"
@@ -1337,17 +1378,19 @@ function FrontmatterSection({
               Code
             </button>
           </div>
-          <span className="text-xs text-muted-foreground">
+          <span className="text-[11px] text-muted-foreground/60">
             {editorMode === "code"
               ? "Edit schema as JSON — supports all field properties"
               : `${fields.length} field${fields.length !== 1 ? "s" : ""} defined`}
           </span>
         </div>
+      </motion.div>
 
+      <motion.div variants={staggerItem} transition={smoothTransition}>
         {editorMode === "visual" ? (
           // --- Visual editor ---
           fields.length === 0 ? (
-            <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-8">
+            <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border/60 py-8">
               <Code2 className="mb-2 size-8 text-muted-foreground/40" />
               <p className="text-sm text-muted-foreground">
                 No fields defined yet.
@@ -1375,6 +1418,15 @@ function FrontmatterSection({
                   onMove={(dir) => moveField(index, dir)}
                 />
               ))}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={addField}
+                className="w-full border border-dashed border-border/60 text-muted-foreground hover:border-border hover:text-foreground"
+              >
+                <Plus className="size-3.5" />
+                Add Field
+              </Button>
             </div>
           )
         ) : (
@@ -1385,7 +1437,7 @@ function FrontmatterSection({
               onChange={(e) => handleCodeChange(e.target.value)}
               spellCheck={false}
               className={cn(
-                "w-full rounded-lg border bg-[#0d1117] p-4 font-mono text-xs leading-relaxed text-green-300 outline-none transition-colors",
+                "w-full rounded-xl border bg-[#0d1117] p-4 font-mono text-xs leading-relaxed text-green-300 outline-none transition-colors",
                 "focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30",
                 "placeholder:text-green-800",
                 "min-h-[300px] resize-y",
@@ -1413,21 +1465,32 @@ function FrontmatterSection({
             </div>
           </div>
         )}
-      </SettingsCard>
+
+        <div className="mt-4 flex justify-end">
+          <SaveButton
+            isSaving={isSaving}
+            onClick={handleSave}
+            label="Save Schema"
+          />
+        </div>
+      </motion.div>
 
       {/* YAML Preview */}
       {fields.length > 0 && (
-        <SettingsCard
-          icon={Code2}
-          title="Preview"
-          description="How your frontmatter will look in the published markdown file."
-        >
-          <pre className="overflow-x-auto rounded-lg border bg-muted/30 p-4 font-mono text-xs leading-relaxed">
-            {yamlPreview}
-          </pre>
-        </SettingsCard>
+        <>
+          <Divider />
+          <motion.div variants={staggerItem} transition={smoothTransition}>
+            <div className="mb-3 flex items-center gap-2">
+              <Code2 className="size-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Preview</span>
+            </div>
+            <pre className="overflow-x-auto rounded-xl border border-border/40 bg-muted/30 p-4 font-mono text-xs leading-relaxed text-muted-foreground">
+              {yamlPreview}
+            </pre>
+          </motion.div>
+        </>
       )}
-    </div>
+    </motion.div>
   );
 }
 
@@ -1792,13 +1855,18 @@ function DangerZoneSection({ projectId }: { projectId: Id<"projects"> }) {
   }, [projectId, removeProject, router]);
 
   return (
-    <SettingsCard
-      icon={AlertTriangle}
-      title="Danger Zone"
-      description="Irreversible and destructive actions."
-      variant="destructive"
-    >
-      <div className="flex items-center justify-between rounded-lg border border-destructive/20 bg-destructive/5 p-4">
+    <div>
+      <div className="mb-4 flex items-center gap-2.5">
+        <div className="flex size-8 items-center justify-center rounded-lg bg-destructive/10">
+          <AlertTriangle className="size-4 text-destructive" />
+        </div>
+        <div>
+          <h2 className="text-base font-semibold tracking-tight text-destructive">Danger Zone</h2>
+          <p className="text-xs text-muted-foreground">Irreversible and destructive actions</p>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between rounded-xl border border-destructive/20 bg-destructive/5 p-4">
         <div>
           <p className="text-sm font-medium">Delete this project</p>
           <p className="text-xs text-muted-foreground">
@@ -1848,7 +1916,7 @@ function DangerZoneSection({ projectId }: { projectId: Id<"projects"> }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </SettingsCard>
+    </div>
   );
 }
 
@@ -1858,26 +1926,24 @@ function DangerZoneSection({ projectId }: { projectId: Id<"projects"> }) {
 
 function SettingsSkeleton() {
   return (
-    <div className="p-6">
-      <Skeleton className="mb-6 h-7 w-24" />
-      <Skeleton className="mb-2 h-8 w-48" />
-      <Skeleton className="mb-8 h-4 w-72" />
-      <div className="mx-auto max-w-3xl">
-        <Skeleton className="mb-8 h-9 w-full max-w-md" />
-        <div className="space-y-6">
-          {Array.from({ length: 2 }).map((_, i) => (
-            <Card key={i}>
-              <CardHeader>
-                <Skeleton className="h-5 w-32" />
-                <Skeleton className="h-4 w-48" />
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <Skeleton className="h-9 w-full" />
-                <Skeleton className="h-9 w-full" />
-                <Skeleton className="h-9 w-32" />
-              </CardContent>
-            </Card>
+    <div className="flex h-full">
+      <div className="w-56 shrink-0 border-r border-border/40 bg-muted/20 p-4 pt-6">
+        <Skeleton className="mb-1 ml-3 h-6 w-20" />
+        <Skeleton className="mb-5 ml-3 h-3 w-28" />
+        <div className="space-y-1">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} className="h-9 w-full rounded-lg" />
           ))}
+        </div>
+      </div>
+      <div className="flex-1 p-8">
+        <div className="mx-auto max-w-xl space-y-6">
+          <Skeleton className="h-6 w-32" />
+          <Skeleton className="h-24 w-full rounded-xl" />
+          <Skeleton className="h-px w-full" />
+          <Skeleton className="h-20 w-full rounded-xl" />
+          <Skeleton className="h-px w-full" />
+          <Skeleton className="h-32 w-full rounded-xl" />
         </div>
       </div>
     </div>

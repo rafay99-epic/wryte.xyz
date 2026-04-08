@@ -1,7 +1,8 @@
 "use client";
 
 import { useMutation } from "convex/react";
-import { ArrowLeft, ArrowRight, Loader2, Plus } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -11,6 +12,7 @@ import { StepFrontmatterSchema } from "@/components/projects/wizard/step-frontma
 import { StepSelectRepo } from "@/components/projects/wizard/step-select-repo";
 import { WizardStepper } from "@/components/projects/wizard/wizard-stepper";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { smoothTransition } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/stores/editor-store";
 import type { FrontmatterField } from "@/types/frontmatter";
@@ -61,16 +63,25 @@ const INITIAL_STATE: WizardState = {
   detectedFromFile: null,
 };
 
-/**
- * Three-step wizard for creating a new project.
- *
- * Step 1: Select a GitHub repo (or opt for manual setup) and name the project.
- * Step 2: Configure content and media directory paths.
- * Step 3: Define the frontmatter schema for documents.
- *
- * On final submission, the wizard calls the `projects.create` Convex mutation
- * and redirects the user to the newly created project page.
- */
+const STEP_TITLES: Record<1 | 2 | 3, { title: string; description: string }> =
+  {
+    1: {
+      title: "Connect your repository",
+      description:
+        "Link a GitHub repo or set up manually to get started.",
+    },
+    2: {
+      title: "Configure paths",
+      description:
+        "Tell us where your content and media files live.",
+    },
+    3: {
+      title: "Define your schema",
+      description:
+        "Set up the frontmatter fields for your markdown files.",
+    },
+  };
+
 export default function NewProjectPage() {
   const router = useRouter();
   const createProject = useMutation(api.projects.create);
@@ -82,15 +93,10 @@ export default function NewProjectPage() {
     useEditorStore.getState().setActiveProjectId(null);
   }, []);
 
-  // Merge partial updates into the wizard state — used by each step component.
   const handleChange = useCallback((updates: Partial<WizardState>) => {
     setState((prev) => ({ ...prev, ...updates }));
   }, []);
 
-  /**
-   * Validates the fields for the given step number.
-   * Returns `true` if valid; on failure, shows an error toast and returns `false`.
-   */
   const validateStep = useCallback(
     (step: 1 | 2 | 3): boolean => {
       switch (step) {
@@ -103,7 +109,6 @@ export default function NewProjectPage() {
             toast.error("Slug is required");
             return false;
           }
-          // Slug must be a valid URL segment: lowercase alphanumeric + hyphens.
           if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(state.projectSlug.trim())) {
             toast.error(
               "Slug must contain only lowercase letters, numbers, and hyphens",
@@ -120,13 +125,11 @@ export default function NewProjectPage() {
           return true;
         }
         case 3: {
-          // Every frontmatter field must be named.
           const emptyName = state.frontmatterFields.some((f) => !f.name.trim());
           if (emptyName) {
             toast.error("All frontmatter fields must have a name");
             return false;
           }
-          // Duplicate field names would cause YAML key collisions.
           const names = state.frontmatterFields.map((f) => f.name.trim());
           const hasDuplicates = new Set(names).size !== names.length;
           if (hasDuplicates) {
@@ -140,10 +143,8 @@ export default function NewProjectPage() {
     [state],
   );
 
-  // Advance to the next step after validating the current one.
   const handleNext = useCallback(() => {
     if (!validateStep(state.step)) return;
-
     if (state.step < 3) {
       const nextStep = (state.step + 1) as 2 | 3;
       setState((prev) => ({ ...prev, step: nextStep }));
@@ -157,19 +158,11 @@ export default function NewProjectPage() {
     }
   }, [state.step]);
 
-  /**
-   * Final submission handler.
-   *
-   * Validates step 3, serialises the frontmatter schema to JSON, builds
-   * the mutation args (attaching GitHub repo details only if a repo was
-   * selected), creates the project in Convex, and navigates to it.
-   */
   const handleCreate = useCallback(async () => {
     if (!validateStep(3)) return;
 
     setIsSubmitting(true);
     try {
-      // Serialize frontmatter fields for storage as a JSON string in Convex.
       const schemaFields = state.frontmatterFields.map((f) => ({
         name: f.name.trim(),
         type: f.type,
@@ -196,7 +189,6 @@ export default function NewProjectPage() {
         frontmatterSchema: JSON.stringify(schemaFields),
       };
 
-      // Only attach GitHub fields when the user picked a repo (not manual setup).
       if (state.selectedRepo) {
         args.githubRepo = state.selectedRepo.fullName;
         args.githubBranch = state.selectedRepo.defaultBranch;
@@ -213,87 +205,94 @@ export default function NewProjectPage() {
     }
   }, [state, createProject, router, validateStep]);
 
+  const stepInfo = STEP_TITLES[state.step];
+
   return (
-    <div className="min-h-screen p-4 sm:p-6 lg:p-8">
-      <div className="mx-auto max-w-2xl">
-        {/* Header */}
-        <div className="mb-8">
-          <Link
-            href="/projects"
-            className={cn(
-              buttonVariants({ variant: "ghost", size: "sm" }),
-              "mb-4 text-muted-foreground hover:text-foreground",
-            )}
+    <div className="mx-auto max-w-2xl px-6 py-8 lg:px-8">
+      {/* Top bar: back + stepper */}
+      <div className="mb-8 flex items-center justify-between">
+        <Link
+          href="/projects"
+          className={cn(
+            buttonVariants({ variant: "ghost", size: "sm" }),
+            "gap-1.5 text-muted-foreground hover:text-foreground",
+          )}
+        >
+          <ArrowLeft className="size-3.5" />
+          Projects
+        </Link>
+        <WizardStepper currentStep={state.step} />
+      </div>
+
+      {/* Step header */}
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={state.step}
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -4 }}
+          transition={smoothTransition}
+          className="mb-6"
+        >
+          <h1 className="text-xl font-semibold tracking-tight">
+            {stepInfo.title}
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground/70">
+            {stepInfo.description}
+          </p>
+        </motion.div>
+      </AnimatePresence>
+
+      {/* Step content */}
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={state.step}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -6 }}
+          transition={{ ...smoothTransition, delay: 0.03 }}
+        >
+          {state.step === 1 && (
+            <StepSelectRepo state={state} onChange={handleChange} />
+          )}
+          {state.step === 2 && (
+            <StepConfigurePaths state={state} onChange={handleChange} />
+          )}
+          {state.step === 3 && (
+            <StepFrontmatterSchema state={state} onChange={handleChange} />
+          )}
+        </motion.div>
+      </AnimatePresence>
+
+      {/* Navigation */}
+      <div className="mt-8 flex items-center justify-between">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleBack}
+          disabled={state.step === 1}
+          className="gap-1.5"
+        >
+          <ArrowLeft className="size-3.5" />
+          Back
+        </Button>
+
+        {state.step < 3 ? (
+          <Button size="sm" onClick={handleNext} className="gap-1.5">
+            Continue
+            <ArrowRight className="size-3.5" />
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            onClick={() => void handleCreate()}
+            disabled={isSubmitting}
+            className="gap-1.5"
           >
-            <ArrowLeft className="size-4" />
-            Back to Projects
-          </Link>
-
-          <div className="flex items-center gap-3">
-            <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10">
-              <Plus className="size-5 text-primary" />
-            </div>
-            <div>
-              <h1 className="text-xl font-semibold tracking-tight">
-                Create New Project
-              </h1>
-              <p className="text-sm text-muted-foreground">
-                Set up your content project in a few steps
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Stepper */}
-        <div className="mb-8">
-          <WizardStepper currentStep={state.step} />
-        </div>
-
-        {/* Step content */}
-        <div className="rounded-xl border bg-card/50 shadow-sm">
-          <div className="p-5 sm:p-6">
-            {state.step === 1 && (
-              <StepSelectRepo state={state} onChange={handleChange} />
-            )}
-            {state.step === 2 && (
-              <StepConfigurePaths state={state} onChange={handleChange} />
-            )}
-            {state.step === 3 && (
-              <StepFrontmatterSchema state={state} onChange={handleChange} />
-            )}
-          </div>
-
-          {/* Navigation footer */}
-          <div className="flex items-center justify-between border-t bg-muted/30 px-5 py-3 sm:px-6">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleBack}
-              disabled={state.step === 1}
-              className="gap-1.5"
-            >
-              <ArrowLeft className="size-3.5" />
-              Back
-            </Button>
-
-            {state.step < 3 ? (
-              <Button size="sm" onClick={handleNext} className="gap-1.5">
-                Continue
-                <ArrowRight className="size-3.5" />
-              </Button>
-            ) : (
-              <Button
-                size="sm"
-                onClick={() => void handleCreate()}
-                disabled={isSubmitting}
-                className="gap-1.5"
-              >
-                {isSubmitting && <Loader2 className="size-3.5 animate-spin" />}
-                Create Project
-              </Button>
-            )}
-          </div>
-        </div>
+            {isSubmitting && <Loader2 className="size-3.5 animate-spin" />}
+            Create Project
+          </Button>
+        )}
       </div>
     </div>
   );

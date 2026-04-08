@@ -1,9 +1,6 @@
 "use client";
 
 import {
-  FolderOpen,
-  HardDrive,
-  Image,
   Loader2,
   ScanSearch,
   Sparkles,
@@ -105,21 +102,10 @@ export function StepConfigurePaths({
 
   return (
     <div className="space-y-5">
-      <div>
-        <div className="flex items-center gap-2">
-          <FolderOpen className="size-[18px] text-primary" />
-          <h2 className="text-base font-semibold">Configure Content Structure</h2>
-        </div>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Tell us where your content and media files live in the repository.
-        </p>
-      </div>
-
       <div className="space-y-4">
         {/* Content Directory */}
         <div className="space-y-1.5">
-          <Label htmlFor="content-path" className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-            <FolderOpen className="size-3" />
+          <Label htmlFor="content-path" className="text-xs font-medium text-muted-foreground">
             Content Directory
           </Label>
           <Input
@@ -138,8 +124,7 @@ export function StepConfigurePaths({
 
         {/* Media Directory */}
         <div className="space-y-1.5">
-          <Label htmlFor="media-path" className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-            <Image className="size-3" />
+          <Label htmlFor="media-path" className="text-xs font-medium text-muted-foreground">
             Media Directory
           </Label>
           <Input
@@ -157,9 +142,8 @@ export function StepConfigurePaths({
 
         {/* Media Storage Mode */}
         <div className="space-y-1.5">
-          <Label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-            <HardDrive className="size-3" />
-            Media Storage Mode
+          <Label className="text-xs font-medium text-muted-foreground">
+            Media Storage
           </Label>
           <Select
             value={state.mediaStorageMode}

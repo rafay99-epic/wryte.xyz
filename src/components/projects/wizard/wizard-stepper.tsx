@@ -1,6 +1,7 @@
 "use client";
 
 import { Check, FileCode, FolderTree, GitBranch } from "lucide-react";
+import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 interface WizardStepperProps {
@@ -15,51 +16,43 @@ const steps = [
 
 export function WizardStepper({ currentStep }: WizardStepperProps) {
   return (
-    <div className="flex items-center justify-center">
+    <div className="flex items-center gap-1">
       {steps.map((step, index) => {
         const isCompleted = currentStep > step.number;
         const isCurrent = currentStep === step.number;
         const Icon = step.icon;
 
         return (
-          <div key={step.number} className="flex items-center">
-            <div className="flex flex-col items-center gap-1.5">
-              <div
-                className={cn(
-                  "relative flex size-10 items-center justify-center rounded-full transition-all duration-300",
-                  isCompleted &&
-                    "bg-primary text-primary-foreground shadow-md shadow-primary/25",
-                  isCurrent &&
-                    "bg-primary/15 text-primary ring-2 ring-primary/50",
-                  !isCompleted &&
-                    !isCurrent &&
-                    "bg-muted text-muted-foreground/40",
-                )}
-              >
-                {isCompleted ? (
-                  <Check className="size-5" strokeWidth={2.5} />
-                ) : (
-                  <Icon className="size-[18px]" />
-                )}
-              </div>
-              <span
-                className={cn(
-                  "text-xs font-medium transition-colors duration-300",
-                  isCurrent && "text-foreground",
-                  isCompleted && "text-foreground",
-                  !isCompleted && !isCurrent && "text-muted-foreground/40",
-                )}
-              >
-                {step.label}
-              </span>
+          <div key={step.number} className="flex items-center gap-1">
+            <div
+              className={cn(
+                "relative flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium transition-all duration-300",
+                isCompleted && "bg-primary/10 text-primary",
+                isCurrent && "bg-foreground text-background",
+                !isCompleted && !isCurrent && "text-muted-foreground/40",
+              )}
+            >
+              {isCompleted ? (
+                <Check className="size-3" strokeWidth={2.5} />
+              ) : (
+                <Icon className="size-3" />
+              )}
+              <span className="hidden sm:inline">{step.label}</span>
+              <span className="sm:hidden">{step.number}</span>
+              {isCurrent && (
+                <motion.div
+                  layoutId="wizard-step-bg"
+                  className="absolute inset-0 rounded-full bg-foreground"
+                  style={{ zIndex: -1 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                />
+              )}
             </div>
             {index < steps.length - 1 && (
               <div
                 className={cn(
-                  "mx-4 mb-5 h-[2px] w-12 rounded-full transition-colors duration-300 sm:w-20",
-                  currentStep > step.number
-                    ? "bg-primary"
-                    : "bg-muted",
+                  "h-px w-6 transition-colors duration-300",
+                  currentStep > step.number ? "bg-primary/40" : "bg-border/50",
                 )}
               />
             )}
