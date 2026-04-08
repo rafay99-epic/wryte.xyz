@@ -7,8 +7,8 @@
  * sorted by most recently updated.
  */
 
-import { NextResponse } from "next/server";
 import { Octokit } from "@octokit/rest";
+import { NextResponse } from "next/server";
 import { getGithubToken } from "@/lib/github-helpers";
 
 /**
@@ -48,7 +48,7 @@ export async function GET() {
     return NextResponse.json({ repos });
   } catch (err: unknown) {
     // GitHub returns 401 when the OAuth token is revoked or expired
-    if (err instanceof Error && "status" in err && err["status"] === 401) {
+    if (err instanceof Error && "status" in err && err.status === 401) {
       return NextResponse.json(
         { error: "GitHub account not connected", connected: false },
         { status: 401 },

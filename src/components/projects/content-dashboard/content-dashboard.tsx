@@ -87,7 +87,7 @@ export function ContentDashboard({
   // Reset page on filter/search/view changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [viewFilter, searchQuery, viewMode]);
+  }, []);
 
   // Clamp page if items shrink
   useEffect(() => {

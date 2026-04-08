@@ -5,7 +5,8 @@
  * When no custom columns exist, the client falls back to DEFAULT_BOARD_COLUMNS.
  */
 import { v } from "convex/values";
-import { query, mutation } from "./_generated/server";
+import { mutation, query } from "./_generated/server";
+import { getCurrentUser } from "./auth_helpers";
 
 /** Shape of a single board column definition. */
 interface BoardColumnDef {
@@ -33,32 +34,6 @@ const DEFAULT_BOARD_COLUMNS: BoardColumnDef[] = [
     position: 2,
   },
 ];
-
-/**
- * Authenticates the caller and retrieves their user record.
- */
-async function getCurrentUser(ctx: {
-  auth: { getUserIdentity: () => Promise<{ tokenIdentifier: string } | null> };
-  db: any;
-}) {
-  const identity = await ctx.auth.getUserIdentity();
-  if (!identity) {
-    throw new Error("Not authenticated");
-  }
-
-  const user = await ctx.db
-    .query("users")
-    .withIndex("by_tokenIdentifier", (q: any) =>
-      q.eq("tokenIdentifier", identity.tokenIdentifier),
-    )
-    .unique();
-
-  if (!user) {
-    throw new Error("User not found. Please sign in first.");
-  }
-
-  return user;
-}
 
 /**
  * Returns the board columns for a project.
@@ -140,9 +115,7 @@ export const updateColumns = mutation({
     }
 
     // Check behavior constraints
-    const publishCount = columns.filter(
-      (c) => c.behavior === "publish",
-    ).length;
+    const publishCount = columns.filter((c) => c.behavior === "publish").length;
     const scheduleCount = columns.filter(
       (c) => c.behavior === "schedule",
     ).length;
@@ -260,7 +233,11 @@ export const removeColumn = mutation({
     columns.splice(colIndex, 1);
 
     // Move all documents in the removed column to the first column
-    const fallbackStatus = columns[0]!.id;
+    const firstColumn = columns[0];
+    if (!firstColumn) {
+      throw new Error("Unexpected empty column list");
+    }
+    const fallbackStatus = firstColumn.id;
     const documents = await ctx.db
       .query("documents")
       .withIndex("by_projectId_and_status", (q) =>

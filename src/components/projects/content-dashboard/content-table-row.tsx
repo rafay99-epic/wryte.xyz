@@ -1,5 +1,7 @@
 "use client";
 
+import { useMutation } from "convex/react";
+import { motion } from "framer-motion";
 import {
   ArrowRight,
   Check,
@@ -11,9 +13,7 @@ import {
   Pencil,
   Trash2,
 } from "lucide-react";
-import { motion } from "framer-motion";
 import { useCallback } from "react";
-import { useMutation } from "convex/react";
 import { toast } from "sonner";
 import { DocumentStatusBadge } from "@/components/documents/document-status-badge";
 import { Button } from "@/components/ui/button";
@@ -29,9 +29,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { smoothTransition, staggerItem } from "@/lib/motion";
 import type { BoardColumnDef } from "@/types/board";
-import { TagBadges } from "./tag-badges";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
+import { TagBadges } from "./tag-badges";
 
 /** Unified content row type shared between table and board views. */
 export interface ContentItem {

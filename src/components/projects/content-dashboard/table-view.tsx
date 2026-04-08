@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import { staggerContainer } from "@/lib/motion";
 import type { ParsedFrontmatter } from "@/lib/parse-frontmatter";
 import type { BoardColumnDef } from "@/types/board";
-import { ContentTableRow, type ContentItem } from "./content-table-row";
+import { type ContentItem, ContentTableRow } from "./content-table-row";
 
 interface TableViewProps {
   items: ContentItem[];

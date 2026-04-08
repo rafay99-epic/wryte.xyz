@@ -1,33 +1,16 @@
 "use client";
 
 import { useAction, useMutation, useQuery } from "convex/react";
+import { motion } from "framer-motion";
 import { Cloud, Plus, Settings } from "lucide-react";
 import Link from "next/link";
-import { motion } from "framer-motion";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  useGithubContentList,
-  useGithubInvalidation,
-  type ContentFile,
-} from "@/hooks/use-github";
 import { toast } from "sonner";
-import { CreateDocumentDialog } from "@/components/projects/create-document-dialog";
 import { ScheduleDialog } from "@/components/editor/schedule-dialog";
-import { Button, buttonVariants } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
-import { Skeleton } from "@/components/ui/skeleton";
-import { useEditorStore } from "@/stores/editor-store";
-import { useBoardStore } from "@/stores/board-store";
-import { fadeSlideUp, smoothTransition } from "@/lib/motion";
-import {
-  parseFrontmatterJson,
-  getTagFieldName,
-  type ParsedFrontmatter,
-} from "@/lib/parse-frontmatter";
-import { DEFAULT_BOARD_COLUMNS, type BoardColumnDef } from "@/types/board";
 import { BoardSettingsDialog } from "@/components/projects/content-dashboard/board-settings-dialog";
 import { ContentDashboard } from "@/components/projects/content-dashboard/content-dashboard";
+import type { ViewFilter } from "@/components/projects/content-dashboard/content-empty-state";
 import type { ContentItem } from "@/components/projects/content-dashboard/content-table-row";
 import {
   DeleteDocumentDialog,
@@ -37,7 +20,24 @@ import {
   DeleteRemoteFileDialog,
   type RemoteDeleteTarget,
 } from "@/components/projects/content-dashboard/delete-remote-file-dialog";
-import type { ViewFilter } from "@/components/projects/content-dashboard/content-empty-state";
+import { CreateDocumentDialog } from "@/components/projects/create-document-dialog";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  type ContentFile,
+  useGithubContentList,
+  useGithubInvalidation,
+} from "@/hooks/use-github";
+import { fadeSlideUp, smoothTransition } from "@/lib/motion";
+import {
+  getTagFieldName,
+  type ParsedFrontmatter,
+  parseFrontmatterJson,
+} from "@/lib/parse-frontmatter";
+import { cn } from "@/lib/utils";
+import { useBoardStore } from "@/stores/board-store";
+import { useEditorStore } from "@/stores/editor-store";
+import { type BoardColumnDef, DEFAULT_BOARD_COLUMNS } from "@/types/board";
 import { api } from "../../../../../convex/_generated/api";
 import type { Id } from "../../../../../convex/_generated/dataModel";
 
@@ -288,9 +288,12 @@ export default function ProjectDetailPage() {
   );
 
   const handleDeleteRemote = useCallback((item: ContentItem) => {
+    if (!item.sha) {
+      return;
+    }
     setRemoteDeleteTarget({
       path: item.path,
-      sha: item.sha!,
+      sha: item.sha,
       title: item.title,
     });
   }, []);
@@ -410,18 +413,14 @@ export default function ProjectDetailPage() {
  */
 function BoardScheduleDialog() {
   const pendingDocId = useBoardStore((s) => s.pendingScheduleDocId);
-  const pendingPrevStatus = useBoardStore(
-    (s) => s.pendingSchedulePrevStatus,
-  );
+  const pendingPrevStatus = useBoardStore((s) => s.pendingSchedulePrevStatus);
   const clearPendingSchedule = useBoardStore((s) => s.clearPendingSchedule);
   const moveCard = useMutation(api.documents.moveCard);
 
   // Query the document to check its status on close
   const document = useQuery(
     api.documents.get,
-    pendingDocId
-      ? { documentId: pendingDocId as Id<"documents"> }
-      : "skip",
+    pendingDocId ? { documentId: pendingDocId as Id<"documents"> } : "skip",
   );
 
   const handleOpenChange = useCallback(

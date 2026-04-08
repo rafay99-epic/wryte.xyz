@@ -1,9 +1,9 @@
 "use client";
 
+import type { Hotkey } from "@tanstack/hotkeys";
+import { type UseHotkeyDefinition, useHotkeys } from "@tanstack/react-hotkeys";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo } from "react";
-import { useHotkeys, type UseHotkeyDefinition } from "@tanstack/react-hotkeys";
-import type { Hotkey } from "@tanstack/hotkeys";
 import { useEditorStore } from "@/stores/editor-store";
 import { useShortcutsStore } from "@/stores/shortcuts-store";
 import { useThemeStore } from "@/stores/theme-store";
@@ -38,10 +38,7 @@ export function useAppHotkeys(handlers: AppHotkeyHandlers) {
   }, []);
 
   /** Helper to cast string keys from the store to the branded Hotkey type. */
-  const k = useCallback(
-    (id: string) => getKeys(id) as Hotkey,
-    [getKeys],
-  );
+  const k = useCallback((id: string) => getKeys(id) as Hotkey, [getKeys]);
 
   const hotkeys = useMemo(
     (): UseHotkeyDefinition[] => [

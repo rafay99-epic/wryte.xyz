@@ -1,33 +1,6 @@
 import { v } from "convex/values";
-import { query, mutation, internalQuery } from "./_generated/server";
-
-/**
- * Helper to authenticate and retrieve the current user from the database.
- * Throws if the request is unauthenticated or the user record doesn't exist yet.
- * Used by mutations that require a confirmed user identity.
- */
-async function getCurrentUser(ctx: {
-  auth: { getUserIdentity: () => Promise<{ tokenIdentifier: string } | null> };
-  db: any;
-}) {
-  const identity = await ctx.auth.getUserIdentity();
-  if (!identity) {
-    throw new Error("Not authenticated");
-  }
-
-  const user = await ctx.db
-    .query("users")
-    .withIndex("by_tokenIdentifier", (q: any) =>
-      q.eq("tokenIdentifier", identity.tokenIdentifier),
-    )
-    .unique();
-
-  if (!user) {
-    throw new Error("User not found. Please sign in first.");
-  }
-
-  return user;
-}
+import { internalQuery, mutation, query } from "./_generated/server";
+import { getCurrentUser } from "./auth_helpers";
 
 /**
  * Lists all projects owned by the current user, sorted by most recently updated.
@@ -202,8 +175,7 @@ export const create = mutation({
       insertData.frontmatterFormat = args.frontmatterFormat;
     if (args.defaultAuthor !== undefined)
       insertData.defaultAuthor = args.defaultAuthor;
-    if (args.aiProvider !== undefined)
-      insertData.aiProvider = args.aiProvider;
+    if (args.aiProvider !== undefined) insertData.aiProvider = args.aiProvider;
     if (args.aiModel !== undefined) insertData.aiModel = args.aiModel;
 
     const projectId = await ctx.db.insert("projects", insertData);

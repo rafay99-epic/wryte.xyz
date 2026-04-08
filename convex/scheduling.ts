@@ -5,11 +5,12 @@
  * The workflow waits until the scheduled time, then publishes to GitHub
  * with automatic retry on failure. No cron polling needed.
  */
-import { WorkflowManager } from "@convex-dev/workflow";
+import { type WorkflowId, WorkflowManager } from "@convex-dev/workflow";
 import { v } from "convex/values";
-import { mutation, internalMutation } from "./_generated/server";
 import { components, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
+import { internalMutation, mutation } from "./_generated/server";
+import { getCurrentUser } from "./auth_helpers";
 
 /* ------------------------------------------------------------------ */
 /*  Workflow manager                                                    */
@@ -66,44 +67,12 @@ export const scheduledPublishWorkflow = publishWorkflowManager.define({
     );
 
     // Step 3: Mark as completed
-    await step.runMutation(
-      internal.scheduling.updatePublishStatus,
-      { publishId: args.publishId, status: "completed" },
-    );
+    await step.runMutation(internal.scheduling.updatePublishStatus, {
+      publishId: args.publishId,
+      status: "completed",
+    });
   },
 });
-
-/* ------------------------------------------------------------------ */
-/*  Auth helper                                                         */
-/* ------------------------------------------------------------------ */
-
-/**
- * Authenticates the caller and retrieves their user record.
- * Shared helper used by the public-facing mutations in this file.
- */
-async function getCurrentUser(ctx: {
-  auth: { getUserIdentity: () => Promise<{ tokenIdentifier: string } | null> };
-  // biome-ignore lint/suspicious/noExplicitAny: Convex db type
-  db: any;
-}) {
-  const identity = await ctx.auth.getUserIdentity();
-  if (!identity) {
-    throw new Error("Not authenticated");
-  }
-
-  const user = await ctx.db
-    .query("users")
-    .withIndex("by_tokenIdentifier", (q: any) =>
-      q.eq("tokenIdentifier", identity.tokenIdentifier),
-    )
-    .unique();
-
-  if (!user) {
-    throw new Error("User not found. Please sign in first.");
-  }
-
-  return user;
-}
 
 /* ------------------------------------------------------------------ */
 /*  Public mutations                                                    */
@@ -152,7 +121,10 @@ export const schedule = mutation({
         // Cancel the workflow if it exists
         if (sp.workflowId) {
           try {
-            await publishWorkflowManager.cancel(ctx, sp.workflowId as any);
+            await publishWorkflowManager.cancel(
+              ctx,
+              sp.workflowId as WorkflowId,
+            );
           } catch {
             // Workflow may already be completed/canceled — safe to ignore
           }
@@ -233,7 +205,10 @@ export const cancel = mutation({
         // Cancel the workflow if it exists
         if (sp.workflowId) {
           try {
-            await publishWorkflowManager.cancel(ctx, sp.workflowId as any);
+            await publishWorkflowManager.cancel(
+              ctx,
+              sp.workflowId as WorkflowId,
+            );
           } catch {
             // Workflow may already be completed/canceled — safe to ignore
           }
@@ -308,9 +283,7 @@ export const onPublishComplete = internalMutation({
 
     if (result.kind === "failed") {
       // Mark as failed with the error message
-      const record = await ctx.db.get(
-        publishId as Id<"scheduled_publishes">,
-      );
+      const record = await ctx.db.get(publishId as Id<"scheduled_publishes">);
       if (record) {
         await ctx.db.patch(record._id, {
           status: "failed" as const,
@@ -321,9 +294,7 @@ export const onPublishComplete = internalMutation({
       // Only revert to draft if this specific publish record still exists
       // (if user rescheduled, the old record was already deleted and a new
       // one was created — we should NOT revert the document to draft)
-      const record = await ctx.db.get(
-        publishId as Id<"scheduled_publishes">,
-      );
+      const record = await ctx.db.get(publishId as Id<"scheduled_publishes">);
       if (record) {
         await ctx.db.delete(record._id);
         // Only revert doc status if no other pending/processing schedules exist

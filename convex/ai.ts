@@ -4,12 +4,15 @@
  * This file runs in the default Convex runtime (NOT Node.js) so it can
  * export mutations and queries. The streaming HTTP action lives in ai_actions.ts.
  */
-import { PersistentTextStreaming } from "@convex-dev/persistent-text-streaming";
-import { StreamIdValidator } from "@convex-dev/persistent-text-streaming";
+
 import type { StreamId } from "@convex-dev/persistent-text-streaming";
+import {
+  PersistentTextStreaming,
+  StreamIdValidator,
+} from "@convex-dev/persistent-text-streaming";
 import { v } from "convex/values";
 import { components, internal } from "./_generated/api";
-import { mutation, query, internalQuery } from "./_generated/server";
+import { internalQuery, mutation, query } from "./_generated/server";
 
 /* ------------------------------------------------------------------ */
 /*  Streaming instance                                                 */
@@ -85,16 +88,12 @@ export const createEnhanceStream = mutation({
     const streamId = await streaming.createStream(ctx);
 
     // Schedule the AI enhancement action to run immediately
-    await ctx.scheduler.runAfter(
-      0,
-      internal.ai_actions.runEnhancement,
-      {
-        streamId,
-        provider: project.aiProvider,
-        model: project.aiModel,
-        content: args.content,
-      },
-    );
+    await ctx.scheduler.runAfter(0, internal.ai_actions.runEnhancement, {
+      streamId,
+      provider: project.aiProvider,
+      model: project.aiModel,
+      content: args.content,
+    });
 
     return {
       streamId,
@@ -155,17 +154,13 @@ export const createInlineEnhanceStream = mutation({
 
     const streamId = await streaming.createStream(ctx);
 
-    await ctx.scheduler.runAfter(
-      0,
-      internal.ai_actions.runInlineEnhancement,
-      {
-        streamId,
-        provider: project.aiProvider,
-        model: project.aiModel,
-        selectedText: args.selectedText,
-        instruction: args.instruction,
-      },
-    );
+    await ctx.scheduler.runAfter(0, internal.ai_actions.runInlineEnhancement, {
+      streamId,
+      provider: project.aiProvider,
+      model: project.aiModel,
+      selectedText: args.selectedText,
+      instruction: args.instruction,
+    });
 
     return {
       streamId,

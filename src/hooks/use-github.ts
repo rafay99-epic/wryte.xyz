@@ -15,10 +15,10 @@
  */
 
 import {
-  useQuery,
-  useMutation,
-  useQueryClient,
   type UseQueryOptions,
+  useMutation,
+  useQuery,
+  useQueryClient,
 } from "@tanstack/react-query";
 import { githubKeys } from "@/lib/query-keys";
 

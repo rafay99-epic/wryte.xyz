@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { useShallow } from "zustand/react/shallow";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,7 +28,6 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { useEditorStore } from "@/stores/editor-store";
-import { useShallow } from "zustand/react/shallow";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 
@@ -117,13 +117,17 @@ export function AiEnhanceButton({
     if (streamStatus === "streaming" && enhancedRef.current) {
       enhancedRef.current.scrollTop = enhancedRef.current.scrollHeight;
     }
-  }, [streamText, streamStatus]);
+  }, [streamStatus]);
 
   // Determine if panel has active content that would be lost on close
-  const hasActiveContent = !!(streamId && (streamText || streamStatus === "streaming" || streamStatus === "pending"));
+  const hasActiveContent = !!(
+    streamId &&
+    (streamText || streamStatus === "streaming" || streamStatus === "pending")
+  );
   const isDone = streamStatus === "done";
   const isError = streamStatus === "error";
-  const isStreaming = streamStatus === "streaming" || streamStatus === "pending";
+  const isStreaming =
+    streamStatus === "streaming" || streamStatus === "pending";
 
   // Guard against accidental close when streaming or results are ready
   const handleOpenChange = useCallback(
@@ -209,10 +213,10 @@ export function AiEnhanceButton({
   const isConfigured = !!(project?.aiProvider && project?.aiModel);
 
   const providerName = project?.aiProvider
-    ? PROVIDER_DISPLAY_NAMES[project.aiProvider] ?? project.aiProvider
+    ? (PROVIDER_DISPLAY_NAMES[project.aiProvider] ?? project.aiProvider)
     : "";
   const modelName = project?.aiModel
-    ? MODEL_DISPLAY_NAMES[project.aiModel] ?? project.aiModel
+    ? (MODEL_DISPLAY_NAMES[project.aiModel] ?? project.aiModel)
     : "";
 
   return (

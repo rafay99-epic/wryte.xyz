@@ -7,9 +7,9 @@
  * It exports an internalAction that writes chunks to a PersistentTextStreaming stream.
  */
 import Anthropic from "@anthropic-ai/sdk";
-import OpenAI from "openai";
 import { StreamIdValidator } from "@convex-dev/persistent-text-streaming";
 import { v } from "convex/values";
+import OpenAI from "openai";
 import { components } from "./_generated/api";
 import { internalAction } from "./_generated/server";
 
@@ -92,16 +92,17 @@ async function streamWithOpenAI(
   const client = new OpenAI({
     apiKey,
     ...(options?.baseURL ? { baseURL: options.baseURL } : {}),
-    ...(options?.extraHeaders
-      ? { defaultHeaders: options.extraHeaders }
-      : {}),
+    ...(options?.extraHeaders ? { defaultHeaders: options.extraHeaders } : {}),
   });
 
   const stream = await client.chat.completions.create({
     model,
     stream: true,
     messages: [
-      { role: "system", content: options?.systemPrompt ?? ENHANCE_SYSTEM_PROMPT },
+      {
+        role: "system",
+        content: options?.systemPrompt ?? ENHANCE_SYSTEM_PROMPT,
+      },
       { role: "user", content },
     ],
   });
@@ -183,10 +184,11 @@ export const runEnhancement = internalAction({
       }
 
       // Flush remaining text and mark stream as complete
-      await ctx.runMutation(
-        components.persistentTextStreaming.lib.addChunk,
-        { streamId, text: pending, final: true },
-      );
+      await ctx.runMutation(components.persistentTextStreaming.lib.addChunk, {
+        streamId,
+        text: pending,
+        final: true,
+      });
     } catch (error: unknown) {
       const err = error as { status?: number; message?: string };
       let message = err.message ?? "Unknown error";
@@ -266,35 +268,28 @@ export const runInlineEnhancement = internalAction({
           );
           break;
         case "openai":
-          await streamWithOpenAI(
-            args.model,
-            userMessage,
-            writer,
-            { systemPrompt: INLINE_SYSTEM_PROMPT },
-          );
+          await streamWithOpenAI(args.model, userMessage, writer, {
+            systemPrompt: INLINE_SYSTEM_PROMPT,
+          });
           break;
         case "openrouter":
-          await streamWithOpenAI(
-            args.model,
-            userMessage,
-            writer,
-            {
-              baseURL: "https://openrouter.ai/api/v1",
-              apiKeyEnvVar: "OPENROUTER_API_KEY",
-              extraHeaders: {
-                "HTTP-Referer": "https://wryte.xyz",
-                "X-Title": "Wryte",
-              },
-              systemPrompt: INLINE_SYSTEM_PROMPT,
+          await streamWithOpenAI(args.model, userMessage, writer, {
+            baseURL: "https://openrouter.ai/api/v1",
+            apiKeyEnvVar: "OPENROUTER_API_KEY",
+            extraHeaders: {
+              "HTTP-Referer": "https://wryte.xyz",
+              "X-Title": "Wryte",
             },
-          );
+            systemPrompt: INLINE_SYSTEM_PROMPT,
+          });
           break;
       }
 
-      await ctx.runMutation(
-        components.persistentTextStreaming.lib.addChunk,
-        { streamId, text: pending, final: true },
-      );
+      await ctx.runMutation(components.persistentTextStreaming.lib.addChunk, {
+        streamId,
+        text: pending,
+        final: true,
+      });
     } catch (error: unknown) {
       const err = error as { status?: number; message?: string };
       let message = err.message ?? "Unknown error";

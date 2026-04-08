@@ -17,13 +17,7 @@ import {
   Sun,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { KbdGroup } from "@/components/ui/kbd";
 import { splitShortcutKeys } from "@/lib/shortcuts";
 import { cn } from "@/lib/utils";
@@ -342,7 +336,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   // Reset selected index when search results change
   useEffect(() => {
     setSelectedIndex(0);
-  }, [query]);
+  }, []);
 
   // Scroll selected item into view
   useEffect(() => {
@@ -352,21 +346,24 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     if (selected) {
       selected.scrollIntoView({ block: "nearest" });
     }
-  }, [selectedIndex]);
+  }, []);
 
   // ---------------------------------------------------------------------------
   // Group filtered items by category for display
   // ---------------------------------------------------------------------------
 
   const grouped = useMemo(() => {
-    const groups = new Map<string, { items: CommandItem[]; startIndex: number }>();
+    const groups = new Map<
+      string,
+      { items: CommandItem[]; startIndex: number }
+    >();
     let idx = 0;
     for (const item of filteredItems) {
       const cat = item.category;
       if (!groups.has(cat)) {
         groups.set(cat, { items: [], startIndex: idx });
       }
-      groups.get(cat)!.items.push(item);
+      groups.get(cat)?.items.push(item);
       idx++;
     }
     return groups;

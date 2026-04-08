@@ -63,24 +63,20 @@ const INITIAL_STATE: WizardState = {
   detectedFromFile: null,
 };
 
-const STEP_TITLES: Record<1 | 2 | 3, { title: string; description: string }> =
-  {
-    1: {
-      title: "Connect your repository",
-      description:
-        "Link a GitHub repo or set up manually to get started.",
-    },
-    2: {
-      title: "Configure paths",
-      description:
-        "Tell us where your content and media files live.",
-    },
-    3: {
-      title: "Define your schema",
-      description:
-        "Set up the frontmatter fields for your markdown files.",
-    },
-  };
+const STEP_TITLES: Record<1 | 2 | 3, { title: string; description: string }> = {
+  1: {
+    title: "Connect your repository",
+    description: "Link a GitHub repo or set up manually to get started.",
+  },
+  2: {
+    title: "Configure paths",
+    description: "Tell us where your content and media files live.",
+  },
+  3: {
+    title: "Define your schema",
+    description: "Set up the frontmatter fields for your markdown files.",
+  },
+};
 
 export default function NewProjectPage() {
   const router = useRouter();

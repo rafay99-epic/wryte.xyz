@@ -23,8 +23,7 @@ interface AutosaveOptions {
   title: string;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- api types are generated at build time via `npx convex dev`
-const updateMutation = (api as any).documents.update;
+const updateMutation = api.documents.update;
 
 /**
  * Debounced autosave hook for the markdown editor.
@@ -147,7 +146,7 @@ export function useAutosave({ documentId, content, title }: AutosaveOptions) {
         timerRef.current = null;
       }
     };
-  }, [content, title, isDirty, save]);
+  }, [isDirty, save]);
 
   return { isSaving, lastSavedAt };
 }

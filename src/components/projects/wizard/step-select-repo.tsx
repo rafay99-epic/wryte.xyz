@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useGithubRepos, type RepoItem } from "@/hooks/use-github";
+import { type RepoItem, useGithubRepos } from "@/hooks/use-github";
 import { generateSlug } from "@/lib/markdown";
 import { cn } from "@/lib/utils";
 
@@ -37,7 +37,8 @@ function formatDate(dateStr: string): string {
   if (diffDays === 0) return "Updated today";
   if (diffDays === 1) return "Updated yesterday";
   if (diffDays < 30) return `Updated ${String(diffDays)}d ago`;
-  if (diffDays < 365) return `Updated ${String(Math.floor(diffDays / 30))}mo ago`;
+  if (diffDays < 365)
+    return `Updated ${String(Math.floor(diffDays / 30))}mo ago`;
   return `Updated ${String(Math.floor(diffDays / 365))}y ago`;
 }
 
@@ -116,7 +117,10 @@ export function StepSelectRepo({ state, onChange }: StepSelectRepoProps) {
       <div className="space-y-5">
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor="manual-name" className="text-xs font-medium text-muted-foreground">
+            <Label
+              htmlFor="manual-name"
+              className="text-xs font-medium text-muted-foreground"
+            >
               Project Name
             </Label>
             <Input
@@ -131,7 +135,10 @@ export function StepSelectRepo({ state, onChange }: StepSelectRepoProps) {
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="manual-slug" className="text-xs font-medium text-muted-foreground">
+            <Label
+              htmlFor="manual-slug"
+              className="text-xs font-medium text-muted-foreground"
+            >
               Slug
             </Label>
             <Input
@@ -150,7 +157,10 @@ export function StepSelectRepo({ state, onChange }: StepSelectRepoProps) {
           <div className="my-4 h-px bg-border" />
 
           <div className="space-y-1.5">
-            <Label htmlFor="manual-repo" className="text-xs font-medium text-muted-foreground">
+            <Label
+              htmlFor="manual-repo"
+              className="text-xs font-medium text-muted-foreground"
+            >
               GitHub Repository{" "}
               <span className="text-muted-foreground/50">(optional)</span>
             </Label>
@@ -178,7 +188,10 @@ export function StepSelectRepo({ state, onChange }: StepSelectRepoProps) {
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="manual-branch" className="text-xs font-medium text-muted-foreground">
+            <Label
+              htmlFor="manual-branch"
+              className="text-xs font-medium text-muted-foreground"
+            >
               Branch
             </Label>
             <Input
@@ -334,7 +347,10 @@ export function StepSelectRepo({ state, onChange }: StepSelectRepoProps) {
       {state.selectedRepo && !state.useManualSetup && (
         <div className="space-y-4 border-t pt-5">
           <div className="space-y-1.5">
-            <Label htmlFor="project-name" className="text-xs font-medium text-muted-foreground">
+            <Label
+              htmlFor="project-name"
+              className="text-xs font-medium text-muted-foreground"
+            >
               Project Name
             </Label>
             <Input
@@ -347,7 +363,10 @@ export function StepSelectRepo({ state, onChange }: StepSelectRepoProps) {
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="project-slug" className="text-xs font-medium text-muted-foreground">
+            <Label
+              htmlFor="project-slug"
+              className="text-xs font-medium text-muted-foreground"
+            >
               Slug
             </Label>
             <Input

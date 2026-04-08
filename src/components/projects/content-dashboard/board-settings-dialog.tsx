@@ -1,18 +1,9 @@
 "use client";
 
-import * as React from "react";
 import { useMutation } from "convex/react";
+import { Clock, Loader2, Plus, Trash2, Upload } from "lucide-react";
+import * as React from "react";
 import { toast } from "sonner";
-import { Plus, Trash2, Loader2, Clock, Upload } from "lucide-react";
-
-import { cn } from "@/lib/utils";
-import { api } from "../../../../convex/_generated/api";
-import type { Id } from "../../../../convex/_generated/dataModel";
-import { useBoardStore } from "@/stores/board-store";
-import { COLOR_MAP } from "@/lib/board-colors";
-import type { BoardColor } from "@/lib/board-colors";
-import type { BoardColumnDef } from "@/types/board";
-
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -29,6 +20,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import type { BoardColor } from "@/lib/board-colors";
+import { COLOR_MAP } from "@/lib/board-colors";
+import { cn } from "@/lib/utils";
+import { useBoardStore } from "@/stores/board-store";
+import type { BoardColumnDef } from "@/types/board";
+import { api } from "../../../../convex/_generated/api";
+import type { Id } from "../../../../convex/_generated/dataModel";
 import { ColorPicker } from "./color-picker";
 
 // ---------------------------------------------------------------------------
@@ -72,7 +70,9 @@ function validate(cols: BoardColumnDef[]): ValidationErrors {
 }
 
 function hasErrors(errors: ValidationErrors): boolean {
-  return errors.duplicateIds || errors.multiplePublish || errors.multipleSchedule;
+  return (
+    errors.duplicateIds || errors.multiplePublish || errors.multipleSchedule
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -132,7 +132,9 @@ function ColumnRow({
           type="button"
           aria-label={`Pick color for ${column.label}`}
           aria-expanded={isColorPickerOpen}
-          onClick={() => onColorPickerToggle(isColorPickerOpen ? null : column.id)}
+          onClick={() =>
+            onColorPickerToggle(isColorPickerOpen ? null : column.id)
+          }
           className={cn(
             "h-7 w-7 shrink-0 rounded-full border-2 border-transparent transition-all",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
@@ -343,10 +345,7 @@ export function BoardSettingsDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent
-        className="sm:max-w-lg"
-        showCloseButton={!isSaving}
-      >
+      <DialogContent className="sm:max-w-lg" showCloseButton={!isSaving}>
         <DialogHeader>
           <DialogTitle>Board Settings</DialogTitle>
           <DialogDescription>
@@ -388,7 +387,9 @@ export function BoardSettingsDialog({
         {hasErrors(errors) && (
           <div className="flex flex-col gap-1 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
             {errors.duplicateIds && (
-              <p>Two or more columns share the same ID. Each ID must be unique.</p>
+              <p>
+                Two or more columns share the same ID. Each ID must be unique.
+              </p>
             )}
             {errors.multiplePublish && (
               <p>Only one column may have the "Auto-publish" behavior.</p>

@@ -1,10 +1,6 @@
 "use client";
 
-import {
-  Loader2,
-  ScanSearch,
-  Sparkles,
-} from "lucide-react";
+import { Loader2, ScanSearch, Sparkles } from "lucide-react";
 import { useCallback } from "react";
 import { toast } from "sonner";
 import type { WizardState } from "@/app/(app)/projects/new/page";
@@ -105,7 +101,10 @@ export function StepConfigurePaths({
       <div className="space-y-4">
         {/* Content Directory */}
         <div className="space-y-1.5">
-          <Label htmlFor="content-path" className="text-xs font-medium text-muted-foreground">
+          <Label
+            htmlFor="content-path"
+            className="text-xs font-medium text-muted-foreground"
+          >
             Content Directory
           </Label>
           <Input
@@ -124,7 +123,10 @@ export function StepConfigurePaths({
 
         {/* Media Directory */}
         <div className="space-y-1.5">
-          <Label htmlFor="media-path" className="text-xs font-medium text-muted-foreground">
+          <Label
+            htmlFor="media-path"
+            className="text-xs font-medium text-muted-foreground"
+          >
             Media Directory
           </Label>
           <Input

@@ -1,21 +1,21 @@
 "use client";
 
+import { useUser } from "@clerk/nextjs";
+import { motion, useInView, useScroll, useTransform } from "framer-motion";
 import {
   ArrowRight,
   ArrowUpRight,
-  GitBranch,
-  Sparkles,
-  Command,
   Clock,
-  Save,
+  Command,
   Eye,
+  GitBranch,
   Keyboard,
+  Save,
+  Sparkles,
 } from "lucide-react";
-import { useUser } from "@clerk/nextjs";
-import Link from "next/link";
 import Image from "next/image";
-import { motion, useScroll, useTransform, useInView } from "framer-motion";
-import { useRef, useState, useEffect, useMemo } from "react";
+import Link from "next/link";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 /* ── Star field ──────────────────────────────────────────────────────── */
 

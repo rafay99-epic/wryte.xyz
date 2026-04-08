@@ -15,8 +15,8 @@ import {
   Globe,
   GripVertical,
   Loader2,
-  Plus,
   Orbit,
+  Plus,
   Rocket,
   Settings2,
   Sparkles,
@@ -27,22 +27,14 @@ import {
 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import {
+  type ComponentType,
   useCallback,
   useEffect,
   useMemo,
   useState,
-  type ComponentType,
 } from "react";
 import { toast } from "sonner";
-import { useEditorStore } from "@/stores/editor-store";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
-import {
-  fadeSlideUp,
-  smoothTransition,
-  staggerContainer,
-  staggerItem,
-} from "@/lib/motion";
 import {
   Dialog,
   DialogContent,
@@ -62,6 +54,14 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import {
+  fadeSlideUp,
+  smoothTransition,
+  staggerContainer,
+  staggerItem,
+} from "@/lib/motion";
+import { cn } from "@/lib/utils";
+import { useEditorStore } from "@/stores/editor-store";
 import { api } from "../../../../../../convex/_generated/api";
 import type { Doc, Id } from "../../../../../../convex/_generated/dataModel";
 
@@ -541,7 +541,7 @@ function GitHubSection({
 }) {
   const updateProject = useMutation(api.projects.update);
   const updateGithubToken = useMutation(api.users.updateGithubToken);
-  const verifyRepoAccess = useAction(api["github"]["verifyRepoAccess"]);
+  const verifyRepoAccess = useAction(api.github.verifyRepoAccess);
 
   const [oauthConnected, setOauthConnected] = useState<boolean | null>(null);
   const [oauthToken, setOauthToken] = useState<string | null>(null);
@@ -1283,7 +1283,7 @@ function FrontmatterSection({
       setCodeValue(JSON.stringify(fields, null, 2));
       setCodeError(null);
     }
-  }, [editorMode]); // intentionally only on mode switch
+  }, [editorMode, fields]); // intentionally only on mode switch
 
   // Parse code editor changes
   const handleCodeChange = useCallback((value: string) => {
@@ -1957,21 +1957,60 @@ const AI_PROVIDERS: {
   { id: "openrouter", title: "OpenRouter", Mark: OpenRouterMark },
 ];
 
-const AI_MODEL_OPTIONS: Record<string, { value: string; label: string; description: string }[]> = {
+const AI_MODEL_OPTIONS: Record<
+  string,
+  { value: string; label: string; description: string }[]
+> = {
   anthropic: [
-    { value: "claude-sonnet-4-20250514", label: "Claude Sonnet 4", description: "Best balance of intelligence and speed" },
-    { value: "claude-haiku-4-20250414", label: "Claude Haiku 4", description: "Fastest, most cost-effective" },
+    {
+      value: "claude-sonnet-4-20250514",
+      label: "Claude Sonnet 4",
+      description: "Best balance of intelligence and speed",
+    },
+    {
+      value: "claude-haiku-4-20250414",
+      label: "Claude Haiku 4",
+      description: "Fastest, most cost-effective",
+    },
   ],
   openai: [
-    { value: "gpt-4.1", label: "GPT-4.1", description: "Most capable GPT model" },
-    { value: "gpt-4.1-mini", label: "GPT-4.1 Mini", description: "Fast and affordable" },
-    { value: "gpt-4.1-nano", label: "GPT-4.1 Nano", description: "Fastest, lowest cost" },
+    {
+      value: "gpt-4.1",
+      label: "GPT-4.1",
+      description: "Most capable GPT model",
+    },
+    {
+      value: "gpt-4.1-mini",
+      label: "GPT-4.1 Mini",
+      description: "Fast and affordable",
+    },
+    {
+      value: "gpt-4.1-nano",
+      label: "GPT-4.1 Nano",
+      description: "Fastest, lowest cost",
+    },
   ],
   openrouter: [
-    { value: "google/gemma-4-26b-a4b-it:free", label: "Gemma 4 26B", description: "Google's efficient open model (free)" },
-    { value: "google/gemma-4-31b-it:free", label: "Gemma 4 31B", description: "Google's larger open model (free)" },
-    { value: "minimax/minimax-m2.5:free", label: "MiniMax M2.5", description: "MiniMax multimodal model (free)" },
-    { value: "openai/gpt-oss-120b:free", label: "GPT-OSS 120B", description: "OpenAI open-source 120B (free)" },
+    {
+      value: "google/gemma-4-26b-a4b-it:free",
+      label: "Gemma 4 26B",
+      description: "Google's efficient open model (free)",
+    },
+    {
+      value: "google/gemma-4-31b-it:free",
+      label: "Gemma 4 31B",
+      description: "Google's larger open model (free)",
+    },
+    {
+      value: "minimax/minimax-m2.5:free",
+      label: "MiniMax M2.5",
+      description: "MiniMax multimodal model (free)",
+    },
+    {
+      value: "openai/gpt-oss-120b:free",
+      label: "GPT-OSS 120B",
+      description: "OpenAI open-source 120B (free)",
+    },
   ],
 };
 
@@ -2080,7 +2119,11 @@ function AiSection({
           }
         >
           {provider ? (
-            <div className="space-y-1.5" role="radiogroup" aria-label="AI model">
+            <div
+              className="space-y-1.5"
+              role="radiogroup"
+              aria-label="AI model"
+            >
               {models.map((m) => {
                 const selected = model === m.value;
                 return (
@@ -2111,10 +2154,19 @@ function AiSection({
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className={cn("text-sm font-medium", selected ? "text-foreground" : "text-muted-foreground")}>
+                      <p
+                        className={cn(
+                          "text-sm font-medium",
+                          selected
+                            ? "text-foreground"
+                            : "text-muted-foreground",
+                        )}
+                      >
                         {m.label}
                       </p>
-                      <p className="text-[11px] text-muted-foreground/60">{m.description}</p>
+                      <p className="text-[11px] text-muted-foreground/60">
+                        {m.description}
+                      </p>
                     </div>
                   </button>
                 );
@@ -2134,13 +2186,26 @@ function AiSection({
         <div className="rounded-lg border border-border/40 bg-muted/20 px-3.5 py-3">
           <p className="text-[11px] leading-relaxed text-muted-foreground/70">
             API keys are configured as environment variables in the{" "}
-            <span className="font-medium text-muted-foreground">Convex dashboard</span>.
-            Set{" "}
-            {provider === "anthropic" && <code className="text-[10px] bg-muted px-1 py-0.5 rounded font-mono">ANTHROPIC_API_KEY</code>}
-            {provider === "openai" && <code className="text-[10px] bg-muted px-1 py-0.5 rounded font-mono">OPENAI_API_KEY</code>}
-            {provider === "openrouter" && <code className="text-[10px] bg-muted px-1 py-0.5 rounded font-mono">OPENROUTER_API_KEY</code>}
-            {!provider && "the relevant API key"}{" "}
-            for your chosen provider.
+            <span className="font-medium text-muted-foreground">
+              Convex dashboard
+            </span>
+            . Set{" "}
+            {provider === "anthropic" && (
+              <code className="text-[10px] bg-muted px-1 py-0.5 rounded font-mono">
+                ANTHROPIC_API_KEY
+              </code>
+            )}
+            {provider === "openai" && (
+              <code className="text-[10px] bg-muted px-1 py-0.5 rounded font-mono">
+                OPENAI_API_KEY
+              </code>
+            )}
+            {provider === "openrouter" && (
+              <code className="text-[10px] bg-muted px-1 py-0.5 rounded font-mono">
+                OPENROUTER_API_KEY
+              </code>
+            )}
+            {!provider && "the relevant API key"} for your chosen provider.
           </p>
         </div>
 

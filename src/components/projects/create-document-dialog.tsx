@@ -106,7 +106,15 @@ export function CreateDocumentDialog({
         setIsSubmitting(false);
       }
     },
-    [title, slug, projectId, createDocument, onOpenChange, router],
+    [
+      title,
+      slug,
+      projectId,
+      createDocument,
+      onOpenChange,
+      router,
+      initialStatus,
+    ],
   );
 
   return (

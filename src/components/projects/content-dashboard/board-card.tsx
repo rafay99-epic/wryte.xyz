@@ -2,6 +2,8 @@
 
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { useMutation } from "convex/react";
+import { motion } from "framer-motion";
 import {
   ArrowRight,
   Check,
@@ -15,9 +17,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { motion } from "framer-motion";
 import { useCallback, useRef, useState } from "react";
-import { useMutation } from "convex/react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,13 +30,13 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { staggerItem, smoothTransition } from "@/lib/motion";
+import { smoothTransition, staggerItem } from "@/lib/motion";
 import { useBoardStore } from "@/stores/board-store";
 import type { BoardColumnDef } from "@/types/board";
-import type { ContentItem } from "./content-table-row";
-import { TagBadges } from "./tag-badges";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
+import type { ContentItem } from "./content-table-row";
+import { TagBadges } from "./tag-badges";
 
 interface BoardCardProps {
   item: ContentItem;
@@ -117,6 +117,11 @@ function DraggableBoardCard({
   onDeleteRemote?: (() => void) | undefined;
   onDuplicated?: (() => void) | undefined;
 }) {
+  const sortableId = item.id;
+  if (!sortableId) {
+    throw new Error("DraggableBoardCard requires item.id");
+  }
+
   const {
     attributes,
     listeners,
@@ -125,7 +130,7 @@ function DraggableBoardCard({
     transition,
     isDragging,
   } = useSortable({
-    id: item.id!,
+    id: sortableId,
     data: { item, columnId },
   });
 
@@ -186,7 +191,8 @@ function DraggableBoardCard({
           boardPosition: Date.now(), // place at end
         });
         const targetLabel =
-          columns?.find((c) => c.id === targetColumnId)?.label ?? targetColumnId;
+          columns?.find((c) => c.id === targetColumnId)?.label ??
+          targetColumnId;
         toast.success(`Moved to "${targetLabel}"`);
       } catch {
         toast.error("Failed to move card");
@@ -252,8 +258,15 @@ function DraggableBoardCard({
       if (e.key === "Enter" || e.key === ",") {
         e.preventDefault();
         handleAddTag(tagInput);
-      } else if (e.key === "Backspace" && tagInput === "" && editTags.length > 0) {
-        handleRemoveTag(editTags[editTags.length - 1]!);
+      } else if (
+        e.key === "Backspace" &&
+        tagInput === "" &&
+        editTags.length > 0
+      ) {
+        const lastTag = editTags[editTags.length - 1];
+        if (lastTag !== undefined) {
+          handleRemoveTag(lastTag);
+        }
       } else if (e.key === "Escape") {
         setIsEditingTags(false);
       }
@@ -350,9 +363,7 @@ function DraggableBoardCard({
                           void handleMoveToColumn(col.id);
                         }}
                       >
-                        {col.id === columnId && (
-                          <Check className="size-3.5" />
-                        )}
+                        {col.id === columnId && <Check className="size-3.5" />}
                         {col.label}
                       </DropdownMenuItem>
                     ))}
@@ -428,11 +439,7 @@ function DraggableBoardCard({
             >
               <Check className="size-3" />
             </Button>
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              onClick={handleCancelRename}
-            >
+            <Button variant="ghost" size="icon-xs" onClick={handleCancelRename}>
               <X className="size-3" />
             </Button>
           </div>

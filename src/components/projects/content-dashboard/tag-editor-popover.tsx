@@ -1,9 +1,9 @@
 "use client";
 
-import * as React from "react";
 import { useMutation } from "convex/react";
+import { Plus, Tag, X } from "lucide-react";
+import * as React from "react";
 import { toast } from "sonner";
-import { Tag, X, Plus } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { api } from "../../../../convex/_generated/api";
@@ -34,7 +34,8 @@ function hashTag(tag: string): number {
 }
 
 function tagColorClass(tag: string): string {
-  return TAG_COLORS[hashTag(tag) % TAG_COLORS.length]!;
+  const idx = hashTag(tag) % TAG_COLORS.length;
+  return TAG_COLORS[idx] ?? TAG_COLORS[0] ?? "";
 }
 
 // ---------------------------------------------------------------------------
@@ -151,7 +152,10 @@ export function TagEditorPopover({
       e.preventDefault();
       addTag(inputValue);
     } else if (e.key === "Backspace" && inputValue === "" && tags.length > 0) {
-      removeTag(tags[tags.length - 1]!);
+      const last = tags[tags.length - 1];
+      if (last !== undefined) {
+        removeTag(last);
+      }
     } else if (e.key === "Escape") {
       setOpen(false);
     }

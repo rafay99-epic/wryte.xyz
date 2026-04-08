@@ -319,7 +319,11 @@ export function EditorToolbar({ projectId }: EditorToolbarProps) {
         projectId={projectId}
       />
 
-      <AiEnhanceButton open={aiDialogOpen} onOpenChange={setAiDialogOpen} projectId={projectId} />
+      <AiEnhanceButton
+        open={aiDialogOpen}
+        onOpenChange={setAiDialogOpen}
+        projectId={projectId}
+      />
     </>
   );
 }

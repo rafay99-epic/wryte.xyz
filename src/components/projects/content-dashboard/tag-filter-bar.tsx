@@ -66,7 +66,8 @@ interface TagFilterBarProps {
 }
 
 export function TagFilterBar({ allTags }: TagFilterBarProps) {
-  const { activeTagFilters, toggleTagFilter, clearTagFilters } = useBoardStore();
+  const { activeTagFilters, toggleTagFilter, clearTagFilters } =
+    useBoardStore();
 
   if (allTags.length === 0) return null;
 
@@ -79,7 +80,10 @@ export function TagFilterBar({ allTags }: TagFilterBarProps) {
       <div className="flex items-center gap-1.5">
         {allTags.map((tag) => {
           const isActive = activeTagFilters.has(tag);
-          const palette = TAG_COLORS[hashTag(tag) % TAG_COLORS.length]!;
+          const palette = TAG_COLORS.at(hashTag(tag) % TAG_COLORS.length);
+          if (!palette) {
+            return null;
+          }
 
           return (
             <button

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery } from "convex/react";
+import { motion } from "framer-motion";
 import {
   ArrowRight,
   FileText,
@@ -12,7 +13,6 @@ import {
 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -172,7 +172,6 @@ export default function NewDocumentPage() {
                 onChange={(e) => handleTitleChange(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Article title..."
-                autoFocus
                 className="w-full rounded-xl border border-border/60 bg-card px-4 py-4 pl-12 text-lg font-medium tracking-tight text-foreground outline-none transition-all placeholder:text-muted-foreground/40 focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
               />
             </div>

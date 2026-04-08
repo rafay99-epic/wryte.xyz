@@ -10,12 +10,7 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useEditorStore } from "@/stores/editor-store";
@@ -91,7 +86,7 @@ export function InlineAiPopover({
     if (isStreaming && resultRef.current) {
       resultRef.current.scrollTop = resultRef.current.scrollHeight;
     }
-  }, [streamText, isStreaming]);
+  }, [isStreaming]);
 
   // Reset on close
   useEffect(() => {

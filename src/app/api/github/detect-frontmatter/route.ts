@@ -10,9 +10,9 @@
  * 5. Returns a FrontmatterField[] array the client can use as a schema template.
  */
 
-import { NextResponse } from "next/server";
 import { Octokit } from "@octokit/rest";
 import matter from "gray-matter";
+import { NextResponse } from "next/server";
 import {
   getGithubToken,
   inferFieldType,
@@ -69,19 +69,19 @@ async function findMarkdownFile(
   // First, look for markdown files at this level
   const mdFile = items.find(
     (file) =>
-      file["type"] === "file" &&
-      (file["name"].endsWith(".md") || file["name"].endsWith(".mdx")),
+      file.type === "file" &&
+      (file.name.endsWith(".md") || file.name.endsWith(".mdx")),
   );
   if (mdFile) return mdFile;
 
   // If no markdown files found, recurse into subdirectories
-  const subdirs = items.filter((item) => item["type"] === "dir");
+  const subdirs = items.filter((item) => item.type === "dir");
   for (const subdir of subdirs) {
     const found = await findMarkdownFile(
       octokit,
       owner,
       repo,
-      subdir["path"],
+      subdir.path,
       branch,
       depth + 1,
     );
@@ -158,20 +158,27 @@ export async function POST(request: Request) {
     // GitHub returns an object (not array) when the path points to a single file
     if (!Array.isArray(dirContents)) {
       // If it's a single markdown file, use it directly
-      const singleFile = dirContents as { name: string; path: string; type: string; content?: string };
+      const singleFile = dirContents as {
+        name: string;
+        path: string;
+        type: string;
+        content?: string;
+      };
       if (
-        singleFile["type"] === "file" &&
-        (singleFile["name"].endsWith(".md") || singleFile["name"].endsWith(".mdx"))
+        singleFile.type === "file" &&
+        (singleFile.name.endsWith(".md") || singleFile.name.endsWith(".mdx"))
       ) {
         // Use this file directly
         const fileData = dirContents as { content?: string; path: string };
-        if (!fileData["content"]) {
+        if (!fileData.content) {
           return NextResponse.json(
             { fields: null, error: "Unable to read file content." },
             { status: 500 },
           );
         }
-        const fileContent = Buffer.from(fileData["content"], "base64").toString("utf-8");
+        const fileContent = Buffer.from(fileData.content, "base64").toString(
+          "utf-8",
+        );
         const { data: frontmatter } = matter(fileContent);
 
         const fields: FrontmatterField[] = Object.entries(
@@ -186,7 +193,7 @@ export async function POST(request: Request) {
 
         return NextResponse.json({
           fields,
-          sourceFile: fileData["path"],
+          sourceFile: fileData.path,
         });
       }
 
@@ -202,19 +209,19 @@ export async function POST(request: Request) {
     // First check top level
     let markdownFile = items.find(
       (file) =>
-        file["type"] === "file" &&
-        (file["name"].endsWith(".md") || file["name"].endsWith(".mdx")),
+        file.type === "file" &&
+        (file.name.endsWith(".md") || file.name.endsWith(".mdx")),
     );
 
     // If not found at top level, recurse into subdirectories
     if (!markdownFile) {
-      const subdirs = items.filter((item) => item["type"] === "dir");
+      const subdirs = items.filter((item) => item.type === "dir");
       for (const subdir of subdirs) {
         const found = await findMarkdownFile(
           octokit,
           parsed.owner,
           parsed.repo,
-          subdir["path"],
+          subdir.path,
           branch,
           1,
         );
@@ -239,7 +246,7 @@ export async function POST(request: Request) {
     const fileResponse = await octokit.repos.getContent({
       owner: parsed.owner,
       repo: parsed.repo,
-      path: markdownFile["path"],
+      path: markdownFile.path,
       ref: branch,
     });
 
@@ -253,7 +260,7 @@ export async function POST(request: Request) {
     }
 
     // Step 4: Decode from base64 and parse YAML frontmatter
-    const fileContent = Buffer.from(fileData["content"], "base64").toString(
+    const fileContent = Buffer.from(fileData.content, "base64").toString(
       "utf-8",
     );
     const { data: frontmatter } = matter(fileContent);
@@ -262,7 +269,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           fields: null,
-          error: `Found "${markdownFile["path"]}" but it has no frontmatter. Add YAML frontmatter between --- delimiters.`,
+          error: `Found "${markdownFile.path}" but it has no frontmatter. Add YAML frontmatter between --- delimiters.`,
         },
         { status: 404 },
       );
@@ -282,7 +289,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       fields,
-      sourceFile: markdownFile["path"],
+      sourceFile: markdownFile.path,
     });
   } catch (_err: unknown) {
     return NextResponse.json(

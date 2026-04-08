@@ -1,21 +1,21 @@
 "use client";
 
 import { useQuery } from "convex/react";
-import { api } from "../../../convex/_generated/api";
-import { useEditorStore } from "@/stores/editor-store";
+import { motion } from "framer-motion";
+import { ChevronDown, FolderOpen, PenLine, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuTrigger,
   DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Button } from "@/components/ui/button";
-import { ChevronDown, FolderOpen, Plus, PenLine } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { motion } from "framer-motion";
 import { staggerContainer, staggerItem } from "@/lib/motion";
+import { cn } from "@/lib/utils";
+import { useEditorStore } from "@/stores/editor-store";
+import { api } from "../../../convex/_generated/api";
 
 export function ProjectSelector() {
   const router = useRouter();

@@ -1,16 +1,16 @@
 "use client";
 
 import {
-  DndContext,
-  DragOverlay,
-  PointerSensor,
-  KeyboardSensor,
   closestCenter,
-  useSensor,
-  useSensors,
+  DndContext,
   type DragEndEvent,
   type DragOverEvent,
+  DragOverlay,
   type DragStartEvent,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
 } from "@dnd-kit/core";
 import { useAction, useMutation } from "convex/react";
 import { Plus } from "lucide-react";
@@ -20,11 +20,11 @@ import { Button } from "@/components/ui/button";
 import type { ParsedFrontmatter } from "@/lib/parse-frontmatter";
 import { useBoardStore } from "@/stores/board-store";
 import type { BoardColumnDef } from "@/types/board";
+import { api } from "../../../../convex/_generated/api";
+import type { Id } from "../../../../convex/_generated/dataModel";
 import { BoardCard } from "./board-card";
 import { BoardColumn } from "./board-column";
 import type { ContentItem } from "./content-table-row";
-import { api } from "../../../../convex/_generated/api";
-import type { Id } from "../../../../convex/_generated/dataModel";
 
 /** Pseudo-column for remote GitHub files. */
 const REMOTE_COLUMN: BoardColumnDef = {
@@ -95,14 +95,12 @@ export function BoardView({
 
     for (const item of items) {
       // Check for optimistic move
-      const optimistic = item.id
-        ? optimisticMoves.get(item.id)
-        : undefined;
+      const optimistic = item.id ? optimisticMoves.get(item.id) : undefined;
       const effectiveStatus = optimistic?.status ?? item.status;
       const effectivePosition = optimistic?.boardPosition ?? item.boardPosition;
 
       if (item.kind === "remote") {
-        groups["remote"]!.push(item);
+        groups["remote"]?.push(item);
       } else if (effectiveStatus && groups[effectiveStatus]) {
         const updated: ContentItem = {
           ...item,
@@ -111,18 +109,18 @@ export function BoardView({
         if (effectivePosition !== undefined) {
           updated.boardPosition = effectivePosition;
         }
-        groups[effectiveStatus]!.push(updated);
+        groups[effectiveStatus]?.push(updated);
       } else {
         // Fallback: items without status go to first column
         const firstCol = columns[0]?.id ?? "draft";
         if (!groups[firstCol]) groups[firstCol] = [];
-        groups[firstCol]!.push(item);
+        groups[firstCol]?.push(item);
       }
     }
 
     // Sort each group by boardPosition
     for (const key of Object.keys(groups)) {
-      groups[key]!.sort(
+      groups[key]?.sort(
         (a, b) => (a.boardPosition ?? 0) - (b.boardPosition ?? 0),
       );
     }
@@ -192,7 +190,7 @@ export function BoardView({
         // Moving to different column or empty column — place at end
         const lastPos =
           targetItems.length > 0
-            ? (targetItems[targetItems.length - 1]!.boardPosition ?? 0)
+            ? (targetItems[targetItems.length - 1]?.boardPosition ?? 0)
             : 0;
         newPosition = lastPos + 1000;
       } else {
@@ -241,7 +239,8 @@ export function BoardView({
               documentId: Id<"documents">;
               githubAccessToken?: string;
             } = { documentId: draggedItem.id as Id<"documents"> };
-            if (githubAccessToken) pubArgs.githubAccessToken = githubAccessToken;
+            if (githubAccessToken)
+              pubArgs.githubAccessToken = githubAccessToken;
 
             await publishAction(pubArgs);
             toast.success(`Published "${draggedItem.title}" to GitHub`);
@@ -253,7 +252,7 @@ export function BoardView({
         } else if (result.behavior === "schedule") {
           setPendingSchedule(draggedItem.id, sourceColumnId);
         }
-      } catch (err) {
+      } catch (_err) {
         // Revert optimistic move
         clearOptimisticMove(draggedItem.id);
         toast.error("Failed to move card");

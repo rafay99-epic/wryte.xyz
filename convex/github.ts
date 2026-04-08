@@ -185,7 +185,9 @@ export const publishToGithub = internalAction({
       ? `Update ${document.title}`
       : `Add ${document.title}`;
 
-    let response;
+    let response: Awaited<
+      ReturnType<typeof octokit.repos.createOrUpdateFileContents>
+    >;
     try {
       response = await octokit.repos.createOrUpdateFileContents({
         owner,

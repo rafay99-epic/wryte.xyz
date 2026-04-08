@@ -35,10 +35,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // Command palette state
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
 
-  const openCommandPalette = useCallback(
-    () => setCommandPaletteOpen(true),
-    [],
-  );
+  const openCommandPalette = useCallback(() => setCommandPaletteOpen(true), []);
   const closeCommandPalette = useCallback(
     () => setCommandPaletteOpen(false),
     [],

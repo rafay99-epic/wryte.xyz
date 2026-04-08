@@ -10,6 +10,7 @@
 
 import type * as ai from "../ai.js";
 import type * as ai_actions from "../ai_actions.js";
+import type * as auth_helpers from "../auth_helpers.js";
 import type * as boardColumns from "../boardColumns.js";
 import type * as crons from "../crons.js";
 import type * as documents from "../documents.js";
@@ -28,6 +29,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   ai: typeof ai;
   ai_actions: typeof ai_actions;
+  auth_helpers: typeof auth_helpers;
   boardColumns: typeof boardColumns;
   crons: typeof crons;
   documents: typeof documents;

@@ -1,39 +1,13 @@
 import { v } from "convex/values";
+import type { Doc, Id } from "./_generated/dataModel";
+import type { DatabaseReader } from "./_generated/server";
 import {
-  query,
-  mutation,
-  internalQuery,
   internalMutation,
+  internalQuery,
+  mutation,
+  query,
 } from "./_generated/server";
-import type { Id } from "./_generated/dataModel";
-
-/**
- * Authenticates the caller and retrieves their user record from the database.
- * Throws on missing auth or missing user, ensuring downstream code always
- * has a valid user object to work with.
- */
-async function getCurrentUser(ctx: {
-  auth: { getUserIdentity: () => Promise<{ tokenIdentifier: string } | null> };
-  db: any;
-}) {
-  const identity = await ctx.auth.getUserIdentity();
-  if (!identity) {
-    throw new Error("Not authenticated");
-  }
-
-  const user = await ctx.db
-    .query("users")
-    .withIndex("by_tokenIdentifier", (q: any) =>
-      q.eq("tokenIdentifier", identity.tokenIdentifier),
-    )
-    .unique();
-
-  if (!user) {
-    throw new Error("User not found. Please sign in first.");
-  }
-
-  return user;
-}
+import { getCurrentUser } from "./auth_helpers";
 
 /**
  * Verifies that a document exists and that the given user owns the parent project.
@@ -41,10 +15,10 @@ async function getCurrentUser(ctx: {
  * Returns the document if ownership is confirmed; throws otherwise.
  */
 async function verifyDocumentOwnership(
-  ctx: { db: any },
-  documentId: any,
-  userId: any,
-) {
+  ctx: { db: DatabaseReader },
+  documentId: Id<"documents">,
+  userId: Id<"users">,
+): Promise<Doc<"documents">> {
   const document = await ctx.db.get(documentId);
   if (!document) {
     throw new Error("Document not found");
@@ -99,12 +73,13 @@ export const list = query({
       return [];
     }
 
-    let documents;
+    let documents: Doc<"documents">[];
     if (args.status) {
+      const status = args.status;
       documents = await ctx.db
         .query("documents")
         .withIndex("by_projectId_and_status", (q) =>
-          q.eq("projectId", args.projectId).eq("status", args.status!),
+          q.eq("projectId", args.projectId).eq("status", status),
         )
         .collect();
     } else {
@@ -257,7 +232,7 @@ export const create = mutation({
 
     const now = Date.now();
 
-    const insertData: Record<string, unknown> = {
+    const documentId = await ctx.db.insert("documents", {
       projectId: args.projectId,
       userId: user._id,
       title: args.title,
@@ -266,13 +241,8 @@ export const create = mutation({
       status: args.status ?? "draft",
       createdAt: now,
       updatedAt: now,
-    };
-
-    if (args.tags !== undefined) {
-      insertData["tags"] = args.tags;
-    }
-
-    const documentId = await ctx.db.insert("documents", insertData as any);
+      ...(args.tags !== undefined ? { tags: args.tags } : {}),
+    });
 
     return documentId;
   },
@@ -491,7 +461,7 @@ export const importFromGithub = mutation({
     };
 
     if (args.frontmatter !== undefined) {
-      insertData.frontmatter = args.frontmatter;
+      insertData["frontmatter"] = args.frontmatter;
     }
 
     const documentId = await ctx.db.insert("documents", insertData);

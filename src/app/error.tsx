@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect } from "react";
 import { motion } from "framer-motion";
 import { AlertTriangle, Home, RefreshCw } from "lucide-react";
 import Link from "next/link";
+import { useEffect } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import { fadeSlideUp, smoothTransition } from "@/lib/motion";
+import { cn } from "@/lib/utils";
 
 /**
  * Root error boundary — catches unhandled errors across the entire app.

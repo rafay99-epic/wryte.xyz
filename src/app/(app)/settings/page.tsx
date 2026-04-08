@@ -1,16 +1,16 @@
 "use client";
 
 import { useUser } from "@clerk/nextjs";
-import { useMutation, useQuery } from "convex/react";
 import { useHotkeyRecorder } from "@tanstack/react-hotkeys";
+import { useMutation, useQuery } from "convex/react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   AlertCircle,
   CheckCircle2,
   Command,
+  ExternalLink,
   Eye,
   EyeOff,
-  ExternalLink,
   GitFork,
   Keyboard,
   Loader2,
@@ -33,20 +33,20 @@ import { KbdGroup } from "@/components/ui/kbd";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useGithubToken } from "@/hooks/use-github";
-import { splitShortcutKeys } from "@/lib/shortcuts";
 import {
   fadeSlideUp,
   smoothTransition,
   staggerContainer,
   staggerItem,
 } from "@/lib/motion";
+import { splitShortcutKeys } from "@/lib/shortcuts";
 import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/stores/editor-store";
 import {
   DEFAULT_SHORTCUTS,
   findConflict,
-  useShortcutsStore,
   type ShortcutCategory,
+  useShortcutsStore,
 } from "@/stores/shortcuts-store";
 import { useThemeStore } from "@/stores/theme-store";
 import { api } from "../../../../convex/_generated/api";
@@ -443,7 +443,9 @@ function GitHubTokenInput({ existingToken }: { existingToken: string }) {
         </div>
 
         <p className="text-[11px] leading-relaxed text-muted-foreground/60">
-          Requires <code className="rounded bg-muted px-1 py-px text-[10px]">repo</code> scope.{" "}
+          Requires{" "}
+          <code className="rounded bg-muted px-1 py-px text-[10px]">repo</code>{" "}
+          scope.{" "}
           <a
             href="https://github.com/settings/tokens"
             target="_blank"
@@ -488,8 +490,7 @@ function AppearanceTab() {
       value: "system" as const,
       label: "System",
       icon: Monitor,
-      preview:
-        "bg-gradient-to-br from-white to-zinc-900 border-zinc-400",
+      preview: "bg-gradient-to-br from-white to-zinc-900 border-zinc-400",
       previewAccent: "bg-zinc-500/30",
       previewText: "bg-zinc-500/50",
     },
@@ -531,7 +532,10 @@ function AppearanceTab() {
                   )}
                 >
                   <div
-                    className={cn("h-1.5 w-8 rounded-full", theme.previewAccent)}
+                    className={cn(
+                      "h-1.5 w-8 rounded-full",
+                      theme.previewAccent,
+                    )}
                   />
                   <div
                     className={cn(
@@ -540,7 +544,10 @@ function AppearanceTab() {
                     )}
                   />
                   <div
-                    className={cn("h-1.5 w-3/4 rounded-full", theme.previewText)}
+                    className={cn(
+                      "h-1.5 w-3/4 rounded-full",
+                      theme.previewText,
+                    )}
                   />
                 </div>
 

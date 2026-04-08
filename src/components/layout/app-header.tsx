@@ -291,14 +291,12 @@ export function AppHeader() {
             /* Non-editor breadcrumbs */
             <nav className="flex items-center gap-1 text-sm">
               {activeProjectId && project ? (
-                <>
-                  <Link
-                    href={`/projects/${activeProjectId}`}
-                    className="text-muted-foreground transition-colors hover:text-foreground"
-                  >
-                    {project.name}
-                  </Link>
-                </>
+                <Link
+                  href={`/projects/${activeProjectId}`}
+                  className="text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  {project.name}
+                </Link>
               ) : (
                 <span className="font-medium text-foreground">
                   {pathname.startsWith("/dashboard")

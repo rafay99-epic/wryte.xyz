@@ -1,17 +1,17 @@
 "use client";
 
+import { useDroppable } from "@dnd-kit/core";
 import {
   SortableContext,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { useDroppable } from "@dnd-kit/core";
 import { motion } from "framer-motion";
 import { ChevronDown, ChevronUp, Clock, Plus, Upload } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { staggerContainer } from "@/lib/motion";
 import { getColorClasses } from "@/lib/board-colors";
+import { staggerContainer } from "@/lib/motion";
 import type { ParsedFrontmatter } from "@/lib/parse-frontmatter";
 import { cn } from "@/lib/utils";
 import { useBoardStore } from "@/stores/board-store";
@@ -75,7 +75,10 @@ export function BoardColumn({
   });
 
   const itemIds = useMemo(
-    () => paginatedItems.filter((i) => i.id).map((i) => i.id!),
+    () =>
+      paginatedItems
+        .map((i) => i.id)
+        .filter((id): id is NonNullable<typeof id> => id != null),
     [paginatedItems],
   );
 
@@ -115,10 +118,7 @@ export function BoardColumn({
 
       {/* Cards */}
       <div className="flex-1 overflow-y-auto px-2 pb-2 slim-scrollbar">
-        <SortableContext
-          items={itemIds}
-          strategy={verticalListSortingStrategy}
-        >
+        <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
           <motion.div
             variants={staggerContainer}
             initial="initial"
@@ -131,9 +131,7 @@ export function BoardColumn({
               </p>
             ) : (
               paginatedItems.map((item) => {
-                const fm = item.id
-                  ? frontmatterMap.get(item.id)
-                  : undefined;
+                const fm = item.id ? frontmatterMap.get(item.id) : undefined;
                 return (
                   <BoardCard
                     key={item.kind === "local" ? item.id : item.path}
@@ -184,9 +182,7 @@ export function BoardColumn({
               variant="ghost"
               size="icon-xs"
               disabled={effectivePage >= totalPages}
-              onClick={() =>
-                setCurrentPage((p) => Math.min(totalPages, p + 1))
-              }
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
               aria-label="Next page"
             >
               <ChevronDown className="size-3.5" />

@@ -79,10 +79,14 @@ function generateYamlPreview(fields: FrontmatterField[]): string {
         value = "{}";
         break;
       case "url":
-        value = field.defaultValue ? `"${field.defaultValue}"` : '"https://example.com"';
+        value = field.defaultValue
+          ? `"${field.defaultValue}"`
+          : '"https://example.com"';
         break;
       case "image":
-        value = field.defaultValue ? `"${field.defaultValue}"` : '"/images/cover.jpg"';
+        value = field.defaultValue
+          ? `"${field.defaultValue}"`
+          : '"/images/cover.jpg"';
         break;
       case "slug":
         value = field.defaultValue ? `"${field.defaultValue}"` : '"my-post"';
@@ -230,7 +234,9 @@ export function StepFrontmatterSchema({
             </div>
 
             {/* Expandable details row */}
-            {(field.defaultValue || field.type === "select" || field.type === "multiselect") && (
+            {(field.defaultValue ||
+              field.type === "select" ||
+              field.type === "multiselect") && (
               <div className="border-t border-border/40 px-3 py-2">
                 <div className="flex items-center gap-2 pl-5">
                   {field.defaultValue !== undefined && (
@@ -247,7 +253,8 @@ export function StepFrontmatterSchema({
                       />
                     </div>
                   )}
-                  {(field.type === "select" || field.type === "multiselect") && (
+                  {(field.type === "select" ||
+                    field.type === "multiselect") && (
                     <div className="flex-1">
                       <Input
                         placeholder="Options: option1, option2, option3"

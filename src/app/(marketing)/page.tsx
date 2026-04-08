@@ -1,29 +1,29 @@
 "use client";
 
+import { useUser } from "@clerk/nextjs";
+import {
+  motion,
+  useInView,
+  useMotionValue,
+  useScroll,
+  useSpring,
+  useTransform,
+} from "framer-motion";
 import {
   ArrowRight,
   ArrowUpRight,
-  GitBranch,
-  Sparkles,
-  Command,
   Clock,
-  Layers,
+  Command,
   Eye,
+  GitBranch,
   Keyboard,
+  Layers,
   Save,
+  Sparkles,
 } from "lucide-react";
-import { useUser } from "@clerk/nextjs";
-import Link from "next/link";
 import Image from "next/image";
-import {
-  motion,
-  useScroll,
-  useTransform,
-  useMotionValue,
-  useSpring,
-  useInView,
-} from "framer-motion";
-import { useRef, useState, useEffect, useCallback } from "react";
+import Link from "next/link";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 /* ------------------------------------------------------------------ */
 /*  Typewriter hook — types out content character by character          */

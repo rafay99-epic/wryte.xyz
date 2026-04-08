@@ -4,6 +4,7 @@ import { useAction, useQuery } from "convex/react";
 import { Loader2, Send } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { useShallow } from "zustand/react/shallow";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -17,7 +18,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { buildFrontmatter } from "@/lib/markdown";
 import { useEditorStore } from "@/stores/editor-store";
-import { useShallow } from "zustand/react/shallow";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 

@@ -8,8 +8,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
 import type { DashboardViewMode } from "@/hooks/use-view-preferences";
+import { cn } from "@/lib/utils";
 
 interface ViewModeSwitcherProps {
   viewMode: DashboardViewMode;

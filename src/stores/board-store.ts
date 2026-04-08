@@ -70,10 +70,7 @@ interface BoardState {
 const initialState = {
   activeItem: null as ContentItem | null,
   overColumnId: null as string | null,
-  optimisticMoves: new Map<
-    string,
-    { status: string; boardPosition: number }
-  >(),
+  optimisticMoves: new Map<string, { status: string; boardPosition: number }>(),
   activeTagFilters: new Set<string>(),
   editingColumnId: null as string | null,
   settingsDialogOpen: false,
@@ -101,8 +98,7 @@ export const useBoardStore = create<BoardState>()((set) => ({
       return { optimisticMoves: next };
     }),
 
-  clearAllOptimisticMoves: () =>
-    set({ optimisticMoves: new Map() }),
+  clearAllOptimisticMoves: () => set({ optimisticMoves: new Map() }),
 
   toggleTagFilter: (tag) =>
     set((state) => {

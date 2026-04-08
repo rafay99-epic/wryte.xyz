@@ -8,8 +8,8 @@
  * Query params: repo (owner/repo), branch (defaults to "main"), path (media directory path).
  */
 
-import { NextResponse } from "next/server";
 import { Octokit } from "@octokit/rest";
+import { NextResponse } from "next/server";
 import { getGithubToken, parseRepoString } from "@/lib/github-helpers";
 
 /** File extensions recognized as media. */

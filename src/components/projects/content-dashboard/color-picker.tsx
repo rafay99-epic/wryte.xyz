@@ -1,8 +1,8 @@
 "use client";
 
 import { Check } from "lucide-react";
-import { BOARD_COLORS, COLOR_MAP } from "@/lib/board-colors";
 import type { BoardColor } from "@/lib/board-colors";
+import { BOARD_COLORS, COLOR_MAP } from "@/lib/board-colors";
 import { cn } from "@/lib/utils";
 
 interface ColorPickerProps {

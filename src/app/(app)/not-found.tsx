@@ -1,12 +1,12 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { FileQuestion, LayoutDashboard, ArrowLeft } from "lucide-react";
+import { ArrowLeft, FileQuestion, LayoutDashboard } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import { fadeSlideUp, smoothTransition } from "@/lib/motion";
+import { cn } from "@/lib/utils";
 
 /**
  * 404 page for the authenticated (app) route group.

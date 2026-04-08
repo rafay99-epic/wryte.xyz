@@ -4,7 +4,7 @@
  * Every animated component imports from here so timing, easing,
  * and stagger values stay consistent across the app.
  */
-import type { Variants, Transition } from "framer-motion";
+import type { Transition, Variants } from "framer-motion";
 
 /* ------------------------------------------------------------------ */
 /*  Transitions                                                        */

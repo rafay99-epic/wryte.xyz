@@ -43,7 +43,7 @@ function NavLink({
     active ??
     (exact
       ? pathname === href
-      : pathname === href || pathname.startsWith(href + "/"));
+      : pathname === href || pathname.startsWith(`${href}/`));
 
   return (
     <Link
@@ -148,11 +148,7 @@ export function AppSidebar() {
                   icon={LayoutDashboard}
                   label="Home"
                 />
-                <NavLink
-                  href="/settings"
-                  icon={Settings}
-                  label="Settings"
-                />
+                <NavLink href="/settings" icon={Settings} label="Settings" />
               </div>
 
               <div className="my-3 h-px bg-sidebar-border" />

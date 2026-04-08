@@ -18,10 +18,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useEditorStore } from "@/stores/editor-store";
 import { toast } from "sonner";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -34,10 +32,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  useGithubMedia,
-  useGithubInvalidation,
   type MediaFile,
+  useGithubInvalidation,
+  useGithubMedia,
 } from "@/hooks/use-github";
+import { cn } from "@/lib/utils";
+import { useEditorStore } from "@/stores/editor-store";
 import { api } from "../../../../../../convex/_generated/api";
 import type { Id } from "../../../../../../convex/_generated/dataModel";
 
@@ -336,7 +336,7 @@ function UploadMediaDialog({
   onOpenChange: (open: boolean) => void;
   onUploaded: () => void;
 }) {
-  const uploadMedia = useAction(api["github"]["uploadMediaToGithub"]);
+  const uploadMedia = useAction(api.github.uploadMediaToGithub);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [destination, setDestination] = useState<UploadDestination>(

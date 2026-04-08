@@ -190,12 +190,8 @@ function InlineCalendar({
               className={cn(
                 "flex h-8 items-center justify-center rounded-md text-[13px] transition-all",
                 disabled && "pointer-events-none text-muted-foreground/25",
-                !disabled &&
-                  !isSelected &&
-                  "text-foreground hover:bg-muted",
-                isToday &&
-                  !isSelected &&
-                  "font-semibold text-primary",
+                !disabled && !isSelected && "text-foreground hover:bg-muted",
+                isToday && !isSelected && "font-semibold text-primary",
                 isSelected &&
                   "bg-primary text-primary-foreground font-medium shadow-sm",
               )}
@@ -394,7 +390,8 @@ export function ScheduleDialog({
     return d.getTime();
   }, [selectedDate, hour, minute]);
 
-  const isInPast = scheduledTimestamp != null && scheduledTimestamp <= Date.now();
+  const isInPast =
+    scheduledTimestamp != null && scheduledTimestamp <= Date.now();
 
   const formattedDateTime = useMemo(() => {
     if (!scheduledTimestamp) return null;
@@ -424,8 +421,7 @@ export function ScheduleDialog({
       onOpenChange(false);
     } catch {
       toast.error("Couldn't schedule this article", {
-        description:
-          "Something went wrong. Please try again in a moment.",
+        description: "Something went wrong. Please try again in a moment.",
       });
     } finally {
       setIsScheduling(false);
@@ -444,8 +440,7 @@ export function ScheduleDialog({
       onOpenChange(false);
     } catch {
       toast.error("Couldn't cancel the schedule", {
-        description:
-          "Something went wrong. Please try again in a moment.",
+        description: "Something went wrong. Please try again in a moment.",
       });
     } finally {
       setIsCancelling(false);
@@ -549,9 +544,7 @@ export function ScheduleDialog({
                 <p
                   className={cn(
                     "text-[11px] font-medium uppercase tracking-wider",
-                    isInPast
-                      ? "text-destructive"
-                      : "text-primary",
+                    isInPast ? "text-destructive" : "text-primary",
                   )}
                 >
                   {isInPast

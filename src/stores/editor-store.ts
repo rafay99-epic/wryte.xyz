@@ -119,7 +119,7 @@ export const useEditorStore = create<EditorState>()((set) => ({
     set((state) => ({
       focusMode: !state.focusMode,
       // Close sidebar when entering focus mode
-      sidebarOpen: state.focusMode ? true : false,
+      sidebarOpen: !!state.focusMode,
     })),
 
   // Wipe everything — prevents stale data when switching documents

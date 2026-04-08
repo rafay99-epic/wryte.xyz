@@ -18,6 +18,7 @@ import {
   SlidersHorizontal,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -28,7 +29,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
 import { generateSlug } from "@/lib/markdown";
 import { getTagFieldName } from "@/lib/parse-frontmatter";
 import type { FrontmatterFieldType } from "@/types/frontmatter";
@@ -116,7 +116,9 @@ function valuesToYaml(
     // Convert comma-separated strings to arrays for tags/list/multiselect
     if (
       field &&
-      (field.type === "tags" || field.type === "list" || field.type === "multiselect") &&
+      (field.type === "tags" ||
+        field.type === "list" ||
+        field.type === "multiselect") &&
       typeof val === "string"
     ) {
       obj[key] = val
@@ -139,7 +141,9 @@ function valuesToYaml(
     }
   }
   try {
-    return yaml.dump(obj, { lineWidth: -1, noRefs: true, sortKeys: false }).trim();
+    return yaml
+      .dump(obj, { lineWidth: -1, noRefs: true, sortKeys: false })
+      .trim();
   } catch {
     return "";
   }
@@ -149,19 +153,26 @@ function valuesToYaml(
  * Parses YAML string back to the flat values object used by the visual editor.
  * Returns { values, error } — error is set if YAML is invalid.
  */
-function yamlToValues(
-  yamlStr: string,
-): { values: Record<string, string | boolean>; error: string | null } {
+function yamlToValues(yamlStr: string): {
+  values: Record<string, string | boolean>;
+  error: string | null;
+} {
   if (!yamlStr.trim()) {
     return { values: {}, error: null };
   }
   try {
     const parsed = yaml.load(yamlStr);
-    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    if (
+      typeof parsed !== "object" ||
+      parsed === null ||
+      Array.isArray(parsed)
+    ) {
       return { values: {}, error: "YAML must be a key-value mapping" };
     }
     const result: Record<string, string | boolean> = {};
-    for (const [key, val] of Object.entries(parsed as Record<string, unknown>)) {
+    for (const [key, val] of Object.entries(
+      parsed as Record<string, unknown>,
+    )) {
       if (typeof val === "boolean") {
         result[key] = val;
       } else if (Array.isArray(val)) {
@@ -228,7 +239,7 @@ export function FrontmatterEditor({
     for (const field of fields) {
       const group = field.group || "";
       if (!groups.has(group)) groups.set(group, []);
-      groups.get(group)!.push(field);
+      groups.get(group)?.push(field);
     }
     return groups;
   }, [fields]);
@@ -405,8 +416,12 @@ export function FrontmatterEditor({
                     onClick={() => handleModeSwitch("visual")}
                     className="relative z-10 flex items-center gap-1 rounded px-2 py-1 text-[10px] font-medium transition-colors"
                   >
-                    <SlidersHorizontal className={`size-3 transition-colors duration-200 ${editorMode === "visual" ? "text-foreground" : "text-muted-foreground"}`} />
-                    <span className={`transition-colors duration-200 ${editorMode === "visual" ? "text-foreground" : "text-muted-foreground"}`}>
+                    <SlidersHorizontal
+                      className={`size-3 transition-colors duration-200 ${editorMode === "visual" ? "text-foreground" : "text-muted-foreground"}`}
+                    />
+                    <span
+                      className={`transition-colors duration-200 ${editorMode === "visual" ? "text-foreground" : "text-muted-foreground"}`}
+                    >
                       Visual
                     </span>
                   </button>
@@ -415,8 +430,12 @@ export function FrontmatterEditor({
                     onClick={() => handleModeSwitch("code")}
                     className="relative z-10 flex items-center gap-1 rounded px-2 py-1 text-[10px] font-medium transition-colors"
                   >
-                    <Braces className={`size-3 transition-colors duration-200 ${editorMode === "code" ? "text-foreground" : "text-muted-foreground"}`} />
-                    <span className={`transition-colors duration-200 ${editorMode === "code" ? "text-foreground" : "text-muted-foreground"}`}>
+                    <Braces
+                      className={`size-3 transition-colors duration-200 ${editorMode === "code" ? "text-foreground" : "text-muted-foreground"}`}
+                    />
+                    <span
+                      className={`transition-colors duration-200 ${editorMode === "code" ? "text-foreground" : "text-muted-foreground"}`}
+                    >
                       YAML
                     </span>
                   </button>
@@ -430,7 +449,9 @@ export function FrontmatterEditor({
                       className="flex items-center gap-1 text-[10px] text-destructive"
                     >
                       <AlertCircle className="size-3" />
-                      <span className="max-w-[200px] truncate">{codeError}</span>
+                      <span className="max-w-[200px] truncate">
+                        {codeError}
+                      </span>
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -550,8 +571,9 @@ export function FrontmatterEditor({
                         </div>
                       </div>
                       <p className="mt-1.5 text-[10px] text-muted-foreground/50">
-                        Edit your frontmatter as YAML. Changes auto-save after you stop typing.
-                        Switch back to Visual to see the form view.
+                        Edit your frontmatter as YAML. Changes auto-save after
+                        you stop typing. Switch back to Visual to see the form
+                        view.
                       </p>
                     </div>
                   </motion.div>
@@ -584,7 +606,12 @@ function FrontmatterFieldControl({
   switch (field.type) {
     case "string":
       return (
-        <FieldWrapper id={id} label={label} icon={icon} description={field.description}>
+        <FieldWrapper
+          id={id}
+          label={label}
+          icon={icon}
+          description={field.description}
+        >
           <Input
             id={id}
             value={typeof value === "string" ? value : ""}
@@ -598,7 +625,12 @@ function FrontmatterFieldControl({
 
     case "text":
       return (
-        <FieldWrapper id={id} label={label} icon={icon} description={field.description}>
+        <FieldWrapper
+          id={id}
+          label={label}
+          icon={icon}
+          description={field.description}
+        >
           <textarea
             id={id}
             value={typeof value === "string" ? value : ""}
@@ -622,7 +654,9 @@ function FrontmatterFieldControl({
               {label}
             </Label>
             {field.description && (
-              <p className="text-[10px] text-muted-foreground/50">{field.description}</p>
+              <p className="text-[10px] text-muted-foreground/50">
+                {field.description}
+              </p>
             )}
           </div>
           <Switch
@@ -635,7 +669,12 @@ function FrontmatterFieldControl({
 
     case "tags":
       return (
-        <FieldWrapper id={id} label={label} icon={icon} description={field.description}>
+        <FieldWrapper
+          id={id}
+          label={label}
+          icon={icon}
+          description={field.description}
+        >
           <Input
             id={id}
             value={typeof value === "string" ? value : ""}
@@ -648,7 +687,12 @@ function FrontmatterFieldControl({
 
     case "date":
       return (
-        <FieldWrapper id={id} label={label} icon={icon} description={field.description}>
+        <FieldWrapper
+          id={id}
+          label={label}
+          icon={icon}
+          description={field.description}
+        >
           <Input
             id={id}
             type="date"
@@ -661,7 +705,12 @@ function FrontmatterFieldControl({
 
     case "datetime":
       return (
-        <FieldWrapper id={id} label={label} icon={icon} description={field.description}>
+        <FieldWrapper
+          id={id}
+          label={label}
+          icon={icon}
+          description={field.description}
+        >
           <Input
             id={id}
             type="datetime-local"
@@ -674,7 +723,12 @@ function FrontmatterFieldControl({
 
     case "number":
       return (
-        <FieldWrapper id={id} label={label} icon={icon} description={field.description}>
+        <FieldWrapper
+          id={id}
+          label={label}
+          icon={icon}
+          description={field.description}
+        >
           <Input
             id={id}
             type="number"
@@ -691,7 +745,12 @@ function FrontmatterFieldControl({
 
     case "url":
       return (
-        <FieldWrapper id={id} label={label} icon={icon} description={field.description}>
+        <FieldWrapper
+          id={id}
+          label={label}
+          icon={icon}
+          description={field.description}
+        >
           <div className="relative">
             <Input
               id={id}
@@ -718,7 +777,12 @@ function FrontmatterFieldControl({
 
     case "image":
       return (
-        <FieldWrapper id={id} label={label} icon={icon} description={field.description}>
+        <FieldWrapper
+          id={id}
+          label={label}
+          icon={icon}
+          description={field.description}
+        >
           <Input
             id={id}
             value={typeof value === "string" ? value : ""}
@@ -731,7 +795,12 @@ function FrontmatterFieldControl({
 
     case "slug":
       return (
-        <FieldWrapper id={id} label={label} icon={icon} description={field.description}>
+        <FieldWrapper
+          id={id}
+          label={label}
+          icon={icon}
+          description={field.description}
+        >
           <Input
             id={id}
             value={typeof value === "string" ? value : ""}
@@ -744,7 +813,12 @@ function FrontmatterFieldControl({
 
     case "color":
       return (
-        <FieldWrapper id={id} label={label} icon={icon} description={field.description}>
+        <FieldWrapper
+          id={id}
+          label={label}
+          icon={icon}
+          description={field.description}
+        >
           <div className="flex items-center gap-2">
             <input
               type="color"
@@ -765,7 +839,12 @@ function FrontmatterFieldControl({
 
     case "select":
       return (
-        <FieldWrapper id={id} label={label} icon={icon} description={field.description}>
+        <FieldWrapper
+          id={id}
+          label={label}
+          icon={icon}
+          description={field.description}
+        >
           <Select
             value={typeof value === "string" ? value : ""}
             onValueChange={(val) => {
@@ -795,13 +874,19 @@ function FrontmatterFieldControl({
         typeof value === "string" && value
           ? value.split(",").map((v) => v.trim())
           : [];
-      const allOptions = field.options
-        ?.split(",")
-        .map((o) => o.trim())
-        .filter(Boolean) ?? [];
+      const allOptions =
+        field.options
+          ?.split(",")
+          .map((o) => o.trim())
+          .filter(Boolean) ?? [];
 
       return (
-        <FieldWrapper id={id} label={label} icon={icon} description={field.description}>
+        <FieldWrapper
+          id={id}
+          label={label}
+          icon={icon}
+          description={field.description}
+        >
           <div className="space-y-1.5">
             {selectedValues.length > 0 && (
               <div className="flex flex-wrap gap-1">
@@ -853,7 +938,12 @@ function FrontmatterFieldControl({
           : [];
 
       return (
-        <FieldWrapper id={id} label={label} icon={icon} description={field.description}>
+        <FieldWrapper
+          id={id}
+          label={label}
+          icon={icon}
+          description={field.description}
+        >
           <Input
             id={id}
             value={typeof value === "string" ? value : ""}
@@ -864,7 +954,11 @@ function FrontmatterFieldControl({
           {listValues.length > 0 && (
             <div className="mt-1 flex flex-wrap gap-1">
               {listValues.filter(Boolean).map((v, i) => (
-                <Badge key={`${v}-${i}`} variant="outline" className="text-[10px]">
+                <Badge
+                  key={`${v}-${i}`}
+                  variant="outline"
+                  className="text-[10px]"
+                >
                   {v}
                 </Badge>
               ))}
@@ -876,7 +970,12 @@ function FrontmatterFieldControl({
 
     case "json":
       return (
-        <FieldWrapper id={id} label={label} icon={icon} description={field.description}>
+        <FieldWrapper
+          id={id}
+          label={label}
+          icon={icon}
+          description={field.description}
+        >
           <textarea
             id={id}
             value={typeof value === "string" ? value : ""}

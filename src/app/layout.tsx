@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Poppins, JetBrains_Mono } from "next/font/google";
+import { JetBrains_Mono, Poppins } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers/convex-provider";
 import { QueryProvider } from "@/components/providers/query-provider";

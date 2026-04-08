@@ -1,7 +1,7 @@
 "use client";
 
-import { Check, FileCode, FolderTree, GitBranch } from "lucide-react";
 import { motion } from "framer-motion";
+import { Check, FileCode, FolderTree, GitBranch } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface WizardStepperProps {

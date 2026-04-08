@@ -19,13 +19,13 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { KbdGroup } from "@/components/ui/kbd";
 import { Skeleton } from "@/components/ui/skeleton";
-import { splitShortcutKeys } from "@/lib/shortcuts";
 import {
   fadeSlideUp,
   smoothTransition,
   staggerContainer,
   staggerItem,
 } from "@/lib/motion";
+import { splitShortcutKeys } from "@/lib/shortcuts";
 import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/stores/editor-store";
 import { useShortcutsStore } from "@/stores/shortcuts-store";
@@ -57,11 +57,11 @@ function relativeTime(timestamp: number): string {
   });
 }
 
-const STATUS_STYLES: Record<string, { dot: string; label: string }> = {
+const STATUS_STYLES = {
   published: { dot: "bg-emerald-500", label: "Published" },
   scheduled: { dot: "bg-blue-500", label: "Scheduled" },
   draft: { dot: "bg-zinc-400 dark:bg-zinc-600", label: "Draft" },
-};
+} as const;
 
 /* ------------------------------------------------------------------ */
 /*  Main page                                                          */
@@ -222,7 +222,10 @@ export default function DashboardPage() {
               ))}
             </div>
           ) : recentDocs.length === 0 ? (
-            <EmptyState hasProjects={!!hasProjects} firstProjectId={firstProjectId} />
+            <EmptyState
+              hasProjects={!!hasProjects}
+              firstProjectId={firstProjectId}
+            />
           ) : (
             <motion.div
               variants={staggerContainer}
@@ -241,7 +244,9 @@ export default function DashboardPage() {
                   },
                   i: number,
                 ) => {
-                  const status = STATUS_STYLES[doc.status] ?? STATUS_STYLES["draft"]!;
+                  const status =
+                    STATUS_STYLES[doc.status as keyof typeof STATUS_STYLES] ??
+                    STATUS_STYLES.draft;
                   const project = projects?.find(
                     (p) => p._id === doc.projectId,
                   );

@@ -7,9 +7,9 @@
  *         the structured frontmatter + body separately for the editor UI.
  */
 
-import { NextResponse } from "next/server";
 import { Octokit } from "@octokit/rest";
 import matter from "gray-matter";
+import { NextResponse } from "next/server";
 import { getGithubToken, parseRepoString } from "@/lib/github-helpers";
 
 /**
@@ -71,7 +71,7 @@ export async function GET(request: Request) {
         typeof err === "object" &&
         err !== null &&
         "status" in err &&
-        (err as { status: number })["status"] === 404
+        (err as { status: number }).status === 404
       ) {
         return NextResponse.json({ files: [] });
       }
@@ -98,14 +98,14 @@ export async function GET(request: Request) {
     )
       .filter(
         (file) =>
-          file["type"] === "file" &&
-          (file["name"].endsWith(".md") || file["name"].endsWith(".mdx")),
+          file.type === "file" &&
+          (file.name.endsWith(".md") || file.name.endsWith(".mdx")),
       )
       .map((file) => ({
-        name: file["name"],
-        path: file["path"],
-        sha: file["sha"],
-        size: file["size"],
+        name: file.name,
+        path: file.path,
+        sha: file.sha,
+        size: file.size,
       }));
 
     return NextResponse.json({ files });
@@ -191,7 +191,7 @@ export async function POST(request: Request) {
         typeof err === "object" &&
         err !== null &&
         "status" in err &&
-        (err as { status: number })["status"] === 404
+        (err as { status: number }).status === 404
       ) {
         return NextResponse.json(
           {
@@ -226,7 +226,7 @@ export async function POST(request: Request) {
 
     const typedFileData = fileData as { content: string; sha: string };
     // GitHub API returns file content as base64 — decode it before parsing
-    const rawContent = Buffer.from(typedFileData["content"], "base64").toString(
+    const rawContent = Buffer.from(typedFileData.content, "base64").toString(
       "utf-8",
     );
     // gray-matter splits the YAML frontmatter block from the markdown body
@@ -236,7 +236,7 @@ export async function POST(request: Request) {
       frontmatter: frontmatter as Record<string, unknown>,
       content,
       // sha is required by the GitHub API when updating file contents (optimistic concurrency)
-      sha: typedFileData["sha"],
+      sha: typedFileData.sha,
     });
   } catch (_err: unknown) {
     return NextResponse.json(
