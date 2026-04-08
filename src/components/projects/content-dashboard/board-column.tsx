@@ -175,7 +175,7 @@ export function BoardColumn({
             >
               <ChevronUp className="size-3.5" />
             </Button>
-            <span className="min-w-[2rem] text-center text-[10px] tabular-nums text-muted-foreground">
+            <span className="min-w-8 text-center text-[10px] tabular-nums text-muted-foreground">
               {effectivePage}/{totalPages}
             </span>
             <Button
