@@ -470,6 +470,7 @@ export const importFromGithub = mutation({
       status: string;
       githubPath: string;
       githubSha: string;
+      githubSyncedAt: number;
       publishedAt: number;
       createdAt: number;
       updatedAt: number;
@@ -483,6 +484,7 @@ export const importFromGithub = mutation({
       status: "published" as const,
       githubPath: args.githubPath,
       githubSha: args.githubSha,
+      githubSyncedAt: now,
       publishedAt: now,
       createdAt: now,
       updatedAt: now,
@@ -696,6 +698,7 @@ export const internalUpdateAfterPublish = internalMutation({
     await ctx.db.patch(args.documentId, {
       githubPath: args.githubPath,
       githubSha: args.githubSha,
+      githubSyncedAt: Date.now(),
       status: args.status,
       publishedAt: args.publishedAt,
       updatedAt: Date.now(),

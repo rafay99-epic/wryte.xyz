@@ -3,38 +3,43 @@
 import { useUser } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
 import { useHotkeyRecorder } from "@tanstack/react-hotkeys";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   AlertCircle,
   CheckCircle2,
+  Command,
   Eye,
   EyeOff,
+  ExternalLink,
   GitFork,
   Keyboard,
   Loader2,
   Monitor,
   Moon,
+  Palette,
   RotateCcw,
+  Shield,
   Sun,
+  User,
   XCircle,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { KbdGroup } from "@/components/ui/kbd";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useGithubToken } from "@/hooks/use-github";
 import { splitShortcutKeys } from "@/lib/shortcuts";
+import {
+  fadeSlideUp,
+  smoothTransition,
+  staggerContainer,
+  staggerItem,
+} from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/stores/editor-store";
 import {
@@ -46,9 +51,34 @@ import {
 import { useThemeStore } from "@/stores/theme-store";
 import { api } from "../../../../convex/_generated/api";
 
+/* ------------------------------------------------------------------ */
+/*  Tab definitions                                                    */
+/* ------------------------------------------------------------------ */
+
+type SettingsTab = "account" | "appearance" | "shortcuts";
+
+const TABS: { id: SettingsTab; label: string; icon: React.ElementType }[] = [
+  { id: "account", label: "Account", icon: User },
+  { id: "appearance", label: "Appearance", icon: Palette },
+  { id: "shortcuts", label: "Shortcuts", icon: Command },
+];
+
+/* ------------------------------------------------------------------ */
+/*  Main page                                                          */
+/* ------------------------------------------------------------------ */
+
 export default function SettingsPage() {
   const { user: clerkUser, isLoaded: clerkLoaded } = useUser();
   const convexUser = useQuery(api.users.get);
+  const [activeTab, setActiveTab] = useState<SettingsTab>("account");
+
+  // Handle hash navigation (e.g. /settings#shortcuts)
+  useEffect(() => {
+    const hash = window.location.hash.replace("#", "") as SettingsTab;
+    if (hash && TABS.some((t) => t.id === hash)) {
+      setActiveTab(hash);
+    }
+  }, []);
 
   // Clear active project so sidebar shows default view
   useEffect(() => {
@@ -60,43 +90,156 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Manage your account and application preferences.
+    <motion.div
+      variants={fadeSlideUp}
+      initial="initial"
+      animate="animate"
+      transition={smoothTransition}
+      className="flex h-full"
+    >
+      {/* Sidebar tabs */}
+      <div className="w-56 shrink-0 border-r border-border/40 bg-muted/20 p-4 pt-6">
+        <h1 className="mb-1 px-3 text-lg font-semibold tracking-tight">
+          Settings
+        </h1>
+        <p className="mb-5 px-3 text-[11px] text-muted-foreground/60">
+          Preferences & configuration
         </p>
+
+        <nav className="space-y-0.5">
+          {TABS.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={cn(
+                  "relative flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium transition-all duration-150",
+                  isActive
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:bg-background/50 hover:text-foreground",
+                )}
+              >
+                <Icon className="size-4 shrink-0" />
+                {tab.label}
+                {isActive && (
+                  <motion.div
+                    layoutId="settingsTabIndicator"
+                    className="absolute inset-0 rounded-lg bg-background shadow-sm -z-10"
+                    transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                  />
+                )}
+              </button>
+            );
+          })}
+        </nav>
       </div>
 
-      <div className="mx-auto max-w-2xl space-y-6">
-        <AccountSection
-          name={clerkUser?.fullName ?? convexUser?.name ?? "User"}
-          email={
-            clerkUser?.primaryEmailAddress?.emailAddress ??
-            convexUser?.email ??
-            ""
-          }
-          imageUrl={clerkUser?.imageUrl ?? convexUser?.imageUrl}
-        />
-        <GitHubConnectionSection githubUsername={convexUser?.githubUsername} />
-        <GitHubTokenSection
-          existingToken={convexUser?.githubAccessToken ?? ""}
-        />
-        <ThemeSection />
-        <KeyboardShortcutsSection />
+      {/* Content area */}
+      <div className="flex-1 overflow-y-auto slim-scrollbar">
+        <div className="mx-auto max-w-xl px-8 py-8">
+          <AnimatePresence mode="wait" initial={false}>
+            {activeTab === "account" && (
+              <motion.div
+                key="account"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.15 }}
+              >
+                <AccountTab
+                  name={clerkUser?.fullName ?? convexUser?.name ?? "User"}
+                  email={
+                    clerkUser?.primaryEmailAddress?.emailAddress ??
+                    convexUser?.email ??
+                    ""
+                  }
+                  imageUrl={clerkUser?.imageUrl ?? convexUser?.imageUrl}
+                  githubUsername={convexUser?.githubUsername}
+                  existingToken={convexUser?.githubAccessToken ?? ""}
+                />
+              </motion.div>
+            )}
+            {activeTab === "appearance" && (
+              <motion.div
+                key="appearance"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.15 }}
+              >
+                <AppearanceTab />
+              </motion.div>
+            )}
+            {activeTab === "shortcuts" && (
+              <motion.div
+                key="shortcuts"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.15 }}
+              >
+                <ShortcutsTab />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Section header helper                                              */
+/* ------------------------------------------------------------------ */
+
+function SectionHeader({
+  icon: Icon,
+  title,
+  description,
+}: {
+  icon: React.ElementType;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="mb-6">
+      <div className="flex items-center gap-2.5">
+        <div className="flex size-8 items-center justify-center rounded-lg bg-primary/10">
+          <Icon className="size-4 text-primary" />
+        </div>
+        <div>
+          <h2 className="text-base font-semibold tracking-tight">{title}</h2>
+          <p className="text-xs text-muted-foreground">{description}</p>
+        </div>
       </div>
     </div>
   );
 }
 
-function AccountSection({
+/** Thin separator between content blocks */
+function Divider() {
+  return <div className="my-6 h-px bg-border/40" />;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Account Tab                                                        */
+/* ------------------------------------------------------------------ */
+
+function AccountTab({
   name,
   email,
   imageUrl,
+  githubUsername,
+  existingToken,
 }: {
   name: string;
   email: string;
   imageUrl: string | undefined;
+  githubUsername: string | undefined;
+  existingToken: string;
 }) {
   const initials = name
     .split(" ")
@@ -106,33 +249,54 @@ function AccountSection({
     .slice(0, 2);
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Account</CardTitle>
-        <CardDescription>
-          Your account information from your authentication provider.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="flex items-center gap-4">
-          <Avatar className="size-14">
+    <motion.div variants={staggerContainer} initial="initial" animate="animate">
+      <SectionHeader
+        icon={User}
+        title="Account"
+        description="Your profile and connected services"
+      />
+
+      {/* Profile card */}
+      <motion.div variants={staggerItem} transition={smoothTransition}>
+        <div className="flex items-center gap-4 rounded-xl border border-border/40 bg-card p-5">
+          <Avatar className="size-14 ring-2 ring-border/30 ring-offset-2 ring-offset-background">
             <AvatarImage src={imageUrl} alt={name} />
-            <AvatarFallback>{initials}</AvatarFallback>
+            <AvatarFallback className="bg-primary/10 text-sm font-semibold text-primary">
+              {initials}
+            </AvatarFallback>
           </Avatar>
-          <div>
-            <p className="font-medium">{name}</p>
+          <div className="min-w-0 flex-1">
+            <p className="text-base font-semibold">{name}</p>
             <p className="text-sm text-muted-foreground">{email}</p>
           </div>
+          <Badge variant="outline" className="shrink-0 text-[10px]">
+            <Shield className="mr-1 size-3" />
+            Managed
+          </Badge>
         </div>
-        <p className="mt-3 text-xs text-muted-foreground">
-          Account details are managed through your authentication provider.
+        <p className="mt-2 text-[11px] text-muted-foreground/50">
+          Profile details are managed by your authentication provider.
         </p>
-      </CardContent>
-    </Card>
+      </motion.div>
+
+      <Divider />
+
+      {/* GitHub connection */}
+      <motion.div variants={staggerItem} transition={smoothTransition}>
+        <GitHubConnection githubUsername={githubUsername} />
+      </motion.div>
+
+      <Divider />
+
+      {/* GitHub token fallback */}
+      <motion.div variants={staggerItem} transition={smoothTransition}>
+        <GitHubTokenInput existingToken={existingToken} />
+      </motion.div>
+    </motion.div>
   );
 }
 
-function GitHubConnectionSection({
+function GitHubConnection({
   githubUsername,
 }: {
   githubUsername: string | undefined;
@@ -140,57 +304,65 @@ function GitHubConnectionSection({
   const { isLoading: isChecking, isSuccess: oauthConnected } = useGithubToken();
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <GitFork className="size-5" />
-          GitHub Connection
-        </CardTitle>
-        <CardDescription>
-          Connect your GitHub account via OAuth to auto-import repositories and
-          publish content. This is the recommended method.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="flex items-center gap-3 rounded-lg border p-3">
-          {isChecking ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="size-4 animate-spin" />
-              Checking connection...
+    <div>
+      <div className="mb-3 flex items-center gap-2">
+        <GitFork className="size-4 text-muted-foreground" />
+        <span className="text-sm font-medium">GitHub Connection</span>
+      </div>
+
+      <div
+        className={cn(
+          "rounded-xl border p-4 transition-colors",
+          oauthConnected
+            ? "border-emerald-500/20 bg-emerald-500/5"
+            : "border-border/40 bg-card",
+        )}
+      >
+        {isChecking ? (
+          <div className="flex items-center gap-3">
+            <div className="flex size-9 items-center justify-center rounded-lg bg-muted">
+              <Loader2 className="size-4 animate-spin text-muted-foreground" />
             </div>
-          ) : oauthConnected ? (
-            <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
-              <CheckCircle2 className="size-4" />
-              GitHub connected via OAuth
+            <span className="text-sm text-muted-foreground">
+              Checking connection...
+            </span>
+          </div>
+        ) : oauthConnected ? (
+          <div className="flex items-center gap-3">
+            <div className="flex size-9 items-center justify-center rounded-lg bg-emerald-500/10">
+              <CheckCircle2 className="size-4 text-emerald-500" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">
+                Connected via OAuth
+              </p>
               {githubUsername && (
-                <span className="text-muted-foreground">
-                  ({githubUsername})
-                </span>
+                <p className="text-xs text-muted-foreground">
+                  @{githubUsername}
+                </p>
               )}
             </div>
-          ) : (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <XCircle className="size-4" />
-              GitHub not connected via OAuth
+          </div>
+        ) : (
+          <div className="flex items-center gap-3">
+            <div className="flex size-9 items-center justify-center rounded-lg bg-muted">
+              <XCircle className="size-4 text-muted-foreground/50" />
             </div>
-          )}
-        </div>
-        {!oauthConnected && !isChecking && (
-          <p className="text-xs text-muted-foreground">
-            To connect GitHub via OAuth, sign in with GitHub through Clerk or
-            link your GitHub account in your Clerk profile. Once connected,
-            Wryte will automatically access your repositories without needing a
-            Personal Access Token.
-          </p>
+            <div>
+              <p className="text-sm font-medium">Not connected</p>
+              <p className="text-xs text-muted-foreground">
+                Sign in with GitHub through Clerk to auto-import repos.
+              </p>
+            </div>
+          </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
-function GitHubTokenSection({ existingToken }: { existingToken: string }) {
+function GitHubTokenInput({ existingToken }: { existingToken: string }) {
   const updateGithubToken = useMutation(api.users.updateGithubToken);
-
   const [token, setToken] = useState(existingToken);
   const [showToken, setShowToken] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -216,107 +388,199 @@ function GitHubTokenSection({ existingToken }: { existingToken: string }) {
   }, [token, updateGithubToken]);
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>GitHub Token (Fallback)</CardTitle>
-        <CardDescription>
-          If you haven&apos;t connected GitHub via OAuth above, you can use a
-          Personal Access Token as a fallback for publishing content.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="space-y-2">
-          <Label htmlFor="global-gh-token">Personal Access Token</Label>
+    <div>
+      <div className="mb-3 flex items-center gap-2">
+        <Shield className="size-4 text-muted-foreground" />
+        <span className="text-sm font-medium">Personal Access Token</span>
+        <Badge variant="outline" className="text-[9px]">
+          Fallback
+        </Badge>
+      </div>
+
+      <div className="space-y-3 rounded-xl border border-border/40 bg-card p-4">
+        <div>
+          <Label
+            htmlFor="gh-token"
+            className="mb-1.5 text-xs text-muted-foreground"
+          >
+            Token
+          </Label>
           <div className="flex gap-2">
             <div className="relative flex-1">
               <Input
-                id="global-gh-token"
+                id="gh-token"
                 type={showToken ? "text" : "password"}
                 value={token}
                 onChange={(e) => setToken(e.target.value)}
-                placeholder="ghp_..."
-                className="pr-10"
+                placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                className="pr-10 font-mono text-xs"
               />
               <button
                 type="button"
                 onClick={() => setShowToken(!showToken)}
-                className="absolute top-1/2 right-2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/50 transition-colors hover:text-foreground"
               >
                 {showToken ? (
-                  <EyeOff className="size-4" />
+                  <EyeOff className="size-3.5" />
                 ) : (
-                  <Eye className="size-4" />
+                  <Eye className="size-3.5" />
                 )}
               </button>
             </div>
-            <Button size="sm" onClick={handleSave} disabled={isSaving}>
-              {isSaving && <Loader2 className="size-4 animate-spin" />}
-              Save Token
+            <Button
+              size="sm"
+              onClick={handleSave}
+              disabled={isSaving}
+              className="shrink-0"
+            >
+              {isSaving ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                "Save"
+              )}
             </Button>
           </div>
-          <p className="text-xs text-muted-foreground">
-            Requires the <code className="rounded bg-muted px-1">repo</code>{" "}
-            scope. Create one at{" "}
-            <a
-              href="https://github.com/settings/tokens"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline underline-offset-2 hover:text-foreground"
-            >
-              github.com/settings/tokens
-            </a>
-            .
-          </p>
         </div>
-      </CardContent>
-    </Card>
+
+        <p className="text-[11px] leading-relaxed text-muted-foreground/60">
+          Requires <code className="rounded bg-muted px-1 py-px text-[10px]">repo</code> scope.{" "}
+          <a
+            href="https://github.com/settings/tokens"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-0.5 underline underline-offset-2 transition-colors hover:text-foreground"
+          >
+            Create token
+            <ExternalLink className="size-2.5" />
+          </a>
+        </p>
+      </div>
+    </div>
   );
 }
 
-function ThemeSection() {
+/* ------------------------------------------------------------------ */
+/*  Appearance Tab                                                     */
+/* ------------------------------------------------------------------ */
+
+function AppearanceTab() {
   const mode = useThemeStore((s) => s.mode);
   const setMode = useThemeStore((s) => s.setMode);
 
   const themes = [
-    { value: "light" as const, label: "Light", icon: Sun },
-    { value: "dark" as const, label: "Dark", icon: Moon },
-    { value: "system" as const, label: "System", icon: Monitor },
+    {
+      value: "light" as const,
+      label: "Light",
+      icon: Sun,
+      preview: "bg-white border-zinc-200",
+      previewAccent: "bg-zinc-100",
+      previewText: "bg-zinc-300",
+    },
+    {
+      value: "dark" as const,
+      label: "Dark",
+      icon: Moon,
+      preview: "bg-zinc-900 border-zinc-700",
+      previewAccent: "bg-zinc-800",
+      previewText: "bg-zinc-700",
+    },
+    {
+      value: "system" as const,
+      label: "System",
+      icon: Monitor,
+      preview:
+        "bg-gradient-to-br from-white to-zinc-900 border-zinc-400",
+      previewAccent: "bg-zinc-500/30",
+      previewText: "bg-zinc-500/50",
+    },
   ];
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Appearance</CardTitle>
-        <CardDescription>
-          Choose how the application looks for you.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="flex gap-2">
+    <motion.div variants={staggerContainer} initial="initial" animate="animate">
+      <SectionHeader
+        icon={Palette}
+        title="Appearance"
+        description="Customize the look and feel of the application"
+      />
+
+      <motion.div variants={staggerItem} transition={smoothTransition}>
+        <div className="mb-3 text-xs font-medium text-muted-foreground">
+          Theme
+        </div>
+        <div className="grid grid-cols-3 gap-3">
           {themes.map((theme) => {
             const Icon = theme.icon;
             const isActive = mode === theme.value;
             return (
-              <Button
+              <button
                 key={theme.value}
-                variant={isActive ? "secondary" : "outline"}
-                size="sm"
+                type="button"
                 onClick={() => setMode(theme.value)}
+                className={cn(
+                  "group relative flex flex-col items-center gap-2.5 rounded-xl border-2 p-4 transition-all duration-200",
+                  isActive
+                    ? "border-primary bg-primary/5 shadow-sm"
+                    : "border-border/40 bg-card hover:border-border hover:bg-muted/30",
+                )}
               >
-                <Icon className="size-4" />
-                {theme.label}
-              </Button>
+                {/* Mini preview */}
+                <div
+                  className={cn(
+                    "flex h-16 w-full flex-col gap-1.5 rounded-lg border p-2 transition-transform duration-200 group-hover:scale-[1.02]",
+                    theme.preview,
+                  )}
+                >
+                  <div
+                    className={cn("h-1.5 w-8 rounded-full", theme.previewAccent)}
+                  />
+                  <div
+                    className={cn(
+                      "h-1.5 w-full rounded-full",
+                      theme.previewText,
+                    )}
+                  />
+                  <div
+                    className={cn("h-1.5 w-3/4 rounded-full", theme.previewText)}
+                  />
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <Icon
+                    className={cn(
+                      "size-3.5 transition-colors",
+                      isActive ? "text-primary" : "text-muted-foreground",
+                    )}
+                  />
+                  <span
+                    className={cn(
+                      "text-xs font-medium transition-colors",
+                      isActive ? "text-foreground" : "text-muted-foreground",
+                    )}
+                  >
+                    {theme.label}
+                  </span>
+                </div>
+
+                {/* Active indicator dot */}
+                {isActive && (
+                  <motion.div
+                    layoutId="themeIndicator"
+                    className="absolute -top-1 -right-1 size-3 rounded-full bg-primary ring-2 ring-background"
+                    transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                  />
+                )}
+              </button>
             );
           })}
         </div>
-      </CardContent>
-    </Card>
+      </motion.div>
+    </motion.div>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Keyboard Shortcuts Section
-// ---------------------------------------------------------------------------
+/* ------------------------------------------------------------------ */
+/*  Shortcuts Tab                                                      */
+/* ------------------------------------------------------------------ */
 
 const CATEGORY_LABELS: Record<ShortcutCategory, string> = {
   general: "General",
@@ -326,20 +590,20 @@ const CATEGORY_LABELS: Record<ShortcutCategory, string> = {
 
 const CATEGORY_ORDER: ShortcutCategory[] = ["general", "navigation", "editor"];
 
-function KeyboardShortcutsSection() {
+function ShortcutsTab() {
   const { bindings, getKeys, setBinding, resetBinding, resetAll } =
     useShortcutsStore();
   const [recordingId, setRecordingId] = useState<string | null>(null);
   const [conflict, setConflict] = useState<string | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const recorder = useHotkeyRecorder({
     onRecord: (hotkey) => {
       if (!recordingId) return;
-      // Check for conflicts
       const conflicting = findConflict(hotkey, recordingId);
       if (conflicting) {
         setConflict(
-          `"${hotkey}" is already used by "${conflicting.label}". Press another key or click Cancel.`,
+          `"${hotkey}" conflicts with "${conflicting.label}". Try a different combination.`,
         );
         return;
       }
@@ -382,7 +646,6 @@ function KeyboardShortcutsSection() {
     toast.success("All shortcuts reset to defaults");
   }, [resetAll]);
 
-  // Group shortcuts by category
   const grouped = useMemo(() => {
     const groups = new Map<ShortcutCategory, typeof DEFAULT_SHORTCUTS>();
     for (const cat of CATEGORY_ORDER) {
@@ -394,107 +657,129 @@ function KeyboardShortcutsSection() {
     return groups;
   }, []);
 
-  // Check if any bindings have been customized
   const hasCustomBindings = Object.keys(bindings).length > 0;
 
   return (
-    <Card id="shortcuts">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Keyboard className="size-5" />
-          Keyboard Shortcuts
-        </CardTitle>
-        <CardDescription>
-          Customize keyboard shortcuts. Click a shortcut to change its binding.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
+    <motion.div
+      ref={scrollRef}
+      variants={staggerContainer}
+      initial="initial"
+      animate="animate"
+    >
+      <SectionHeader
+        icon={Keyboard}
+        title="Keyboard Shortcuts"
+        description="Customize bindings to match your workflow"
+      />
+
+      {/* Conflict warning */}
+      <AnimatePresence>
+        {conflict && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="mb-4 overflow-hidden"
+          >
+            <div className="flex items-center gap-2.5 rounded-lg border border-destructive/20 bg-destructive/5 px-3.5 py-2.5 text-[13px] text-destructive">
+              <AlertCircle className="size-4 shrink-0" />
+              <span>{conflict}</span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className="space-y-5">
         {CATEGORY_ORDER.map((category) => {
           const shortcuts = grouped.get(category);
           if (!shortcuts || shortcuts.length === 0) return null;
 
           return (
-            <div key={category}>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground/60">
+            <motion.div
+              key={category}
+              variants={staggerItem}
+              transition={smoothTransition}
+            >
+              <p className="mb-1.5 px-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/50">
                 {CATEGORY_LABELS[category]}
               </p>
-              <div className="space-y-1">
-                {shortcuts.map((shortcut) => {
+              <div className="overflow-hidden rounded-xl border border-border/40 bg-card">
+                {shortcuts.map((shortcut, idx) => {
                   const currentKeys = getKeys(shortcut.id);
                   const isRecording = recordingId === shortcut.id;
-                  const isCustomized =
-                    bindings[shortcut.id] !== undefined;
+                  const isCustomized = bindings[shortcut.id] !== undefined;
                   const keys = splitShortcutKeys(currentKeys);
+                  const isLast = idx === shortcuts.length - 1;
 
                   return (
                     <div
                       key={shortcut.id}
                       className={cn(
-                        "flex items-center justify-between rounded-lg px-3 py-2 transition-colors",
-                        isRecording
-                          ? "bg-primary/5 ring-1 ring-primary/30"
-                          : "hover:bg-muted/40",
+                        "group flex items-center justify-between px-4 py-3 transition-colors",
+                        isRecording && "bg-primary/5",
+                        !isRecording && "hover:bg-muted/30",
+                        !isLast && "border-b border-border/20",
                       )}
                     >
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium">
+                          <span className="text-[13px] font-medium">
                             {shortcut.label}
                           </span>
-                          {isCustomized && (
-                            <Badge
-                              variant="outline"
-                              className="px-1 py-0 text-[9px]"
-                            >
-                              custom
-                            </Badge>
+                          {isCustomized && !isRecording && (
+                            <span className="rounded-full bg-primary/10 px-1.5 py-px text-[9px] font-medium text-primary">
+                              modified
+                            </span>
                           )}
                         </div>
-                        <p className="text-xs text-muted-foreground/60">
+                        <p className="mt-0.5 text-[11px] text-muted-foreground/50">
                           {shortcut.description}
                         </p>
                       </div>
 
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5">
                         {isRecording ? (
                           <div className="flex items-center gap-2">
-                            {recorder.recordedHotkey ? (
-                              <KbdGroup
-                                keys={splitShortcutKeys(recorder.recordedHotkey)}
-                              />
-                            ) : (
-                              <span className="animate-pulse text-xs text-primary">
-                                Press keys...
-                              </span>
-                            )}
-                            <Button
-                              variant="ghost"
-                              size="icon-xs"
+                            <div className="flex min-w-[80px] items-center justify-center rounded-lg border border-primary/30 bg-primary/5 px-3 py-1.5">
+                              {recorder.recordedHotkey ? (
+                                <KbdGroup
+                                  keys={splitShortcutKeys(
+                                    recorder.recordedHotkey,
+                                  )}
+                                />
+                              ) : (
+                                <span className="animate-pulse text-[11px] font-medium text-primary">
+                                  Press keys...
+                                </span>
+                              )}
+                            </div>
+                            <button
+                              type="button"
                               onClick={handleCancelRecording}
-                              className="text-muted-foreground"
+                              className="rounded-md p-1 text-muted-foreground/50 transition-colors hover:bg-muted hover:text-foreground"
                             >
                               <XCircle className="size-3.5" />
-                            </Button>
+                            </button>
                           </div>
                         ) : (
                           <>
                             <button
                               type="button"
                               onClick={() => handleStartRecording(shortcut.id)}
-                              className="rounded-md px-1.5 py-1 transition-colors hover:bg-muted"
+                              className="rounded-lg border border-transparent px-2 py-1.5 transition-all hover:border-border/60 hover:bg-muted/50"
+                              title="Click to rebind"
                             >
                               <KbdGroup keys={keys} />
                             </button>
                             {isCustomized && (
-                              <Button
-                                variant="ghost"
-                                size="icon-xs"
+                              <button
+                                type="button"
                                 onClick={() => handleReset(shortcut.id)}
                                 title="Reset to default"
-                                className="text-muted-foreground/50 opacity-0 transition-opacity group-hover:opacity-100 hover:text-foreground [div:hover>&]:opacity-100"
+                                className="rounded-md p-1 text-muted-foreground/30 opacity-0 transition-all hover:bg-muted hover:text-foreground group-hover:opacity-100"
                               >
                                 <RotateCcw className="size-3" />
-                              </Button>
+                              </button>
                             )}
                           </>
                         )}
@@ -503,56 +788,58 @@ function KeyboardShortcutsSection() {
                   );
                 })}
               </div>
-            </div>
+            </motion.div>
           );
         })}
+      </div>
 
-        {/* Conflict warning */}
-        {conflict && (
-          <div className="flex items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-            <AlertCircle className="size-4 shrink-0" />
-            <span>{conflict}</span>
-          </div>
-        )}
-
-        {/* Reset all */}
-        {hasCustomBindings && (
+      {/* Reset all */}
+      {hasCustomBindings && (
+        <motion.div
+          variants={staggerItem}
+          transition={smoothTransition}
+          className="mt-6 flex justify-end"
+        >
           <Button
             variant="outline"
             size="sm"
             onClick={handleResetAll}
-            className="gap-1.5"
+            className="gap-1.5 text-xs"
           >
-            <RotateCcw className="size-3.5" />
+            <RotateCcw className="size-3" />
             Reset all to defaults
           </Button>
-        )}
-      </CardContent>
-    </Card>
+        </motion.div>
+      )}
+    </motion.div>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Settings Skeleton
-// ---------------------------------------------------------------------------
+/* ------------------------------------------------------------------ */
+/*  Skeleton                                                           */
+/* ------------------------------------------------------------------ */
 
 function SettingsSkeleton() {
   return (
-    <div className="p-6">
-      <Skeleton className="mb-2 h-8 w-32" />
-      <Skeleton className="mb-6 h-4 w-48" />
-      <div className="mx-auto max-w-2xl space-y-6">
-        {Array.from({ length: 3 }).map((_, i) => (
-          <Card key={i}>
-            <CardHeader>
-              <Skeleton className="h-5 w-32" />
-              <Skeleton className="h-4 w-48" />
-            </CardHeader>
-            <CardContent>
-              <Skeleton className="h-8 w-full" />
-            </CardContent>
-          </Card>
-        ))}
+    <div className="flex h-full">
+      <div className="w-56 shrink-0 border-r border-border/40 bg-muted/20 p-4 pt-6">
+        <Skeleton className="mb-1 ml-3 h-6 w-20" />
+        <Skeleton className="mb-5 ml-3 h-3 w-28" />
+        <div className="space-y-1">
+          <Skeleton className="h-9 w-full rounded-lg" />
+          <Skeleton className="h-9 w-full rounded-lg" />
+          <Skeleton className="h-9 w-full rounded-lg" />
+        </div>
+      </div>
+      <div className="flex-1 p-8">
+        <div className="mx-auto max-w-xl space-y-6">
+          <Skeleton className="h-6 w-32" />
+          <Skeleton className="h-24 w-full rounded-xl" />
+          <Skeleton className="h-px w-full" />
+          <Skeleton className="h-20 w-full rounded-xl" />
+          <Skeleton className="h-px w-full" />
+          <Skeleton className="h-32 w-full rounded-xl" />
+        </div>
       </div>
     </div>
   );

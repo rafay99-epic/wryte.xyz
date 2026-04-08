@@ -572,6 +572,11 @@ function CardInner({ item, tags }: { item: ContentItem; tags: string[] }) {
       <div className="flex items-start gap-2">
         {item.kind === "remote" ? (
           <Cloud className="mt-0.5 size-3.5 shrink-0 text-blue-500" />
+        ) : item.needsSync ? (
+          <span className="relative mt-0.5 flex size-3.5 shrink-0">
+            <FileText className="size-3.5 text-foreground" />
+            <Cloud className="absolute -right-1 -bottom-0.5 size-2 text-amber-500" />
+          </span>
         ) : item.synced ? (
           <span className="relative mt-0.5 flex size-3.5 shrink-0">
             <FileText className="size-3.5 text-foreground" />

@@ -1,20 +1,29 @@
 "use client";
 
 import { useMutation, useQuery } from "convex/react";
-import { Calendar, Loader2, X } from "lucide-react";
-import { useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import {
+  Calendar as CalendarIcon,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  Loader2,
+  X,
+} from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+  Sheet,
+  SheetBody,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { smoothTransition } from "@/lib/motion";
+import { cn } from "@/lib/utils";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 
@@ -31,20 +40,282 @@ interface ScheduleDialogProps {
   documentId: string;
 }
 
-/** Convert a UTC timestamp to a `datetime-local` input value in the user's timezone. */
-function toDatetimeLocalString(timestamp: number): string {
-  const date = new Date(timestamp);
-  const offset = date.getTimezoneOffset();
-  const local = new Date(date.getTime() - offset * 60 * 1000);
-  return local.toISOString().slice(0, 16);
+/* ------------------------------------------------------------------ */
+/*  Calendar helpers                                                    */
+/* ------------------------------------------------------------------ */
+
+const DAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+const MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
+function getDaysInMonth(year: number, month: number) {
+  return new Date(year, month + 1, 0).getDate();
 }
 
-/**
- * Dialog for scheduling (or rescheduling/cancelling) a document's future publication.
- * If the document is already scheduled, it shows the existing date and allows
- * the user to reschedule or cancel. Validates that the chosen date is in the future
- * before submitting to the Convex `scheduling.schedule` mutation.
- */
+function getFirstDayOfMonth(year: number, month: number) {
+  return new Date(year, month, 1).getDay();
+}
+
+function isSameDay(a: Date, b: Date) {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
+function isBeforeToday(date: Date) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d < today;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Inline calendar                                                     */
+/* ------------------------------------------------------------------ */
+
+function InlineCalendar({
+  selected,
+  onSelect,
+}: {
+  selected: Date | null;
+  onSelect: (date: Date) => void;
+}) {
+  const today = new Date();
+  const [viewYear, setViewYear] = useState(
+    selected?.getFullYear() ?? today.getFullYear(),
+  );
+  const [viewMonth, setViewMonth] = useState(
+    selected?.getMonth() ?? today.getMonth(),
+  );
+
+  const daysInMonth = getDaysInMonth(viewYear, viewMonth);
+  const firstDay = getFirstDayOfMonth(viewYear, viewMonth);
+
+  const prevMonth = useCallback(() => {
+    if (viewMonth === 0) {
+      setViewMonth(11);
+      setViewYear((y) => y - 1);
+    } else {
+      setViewMonth((m) => m - 1);
+    }
+  }, [viewMonth]);
+
+  const nextMonth = useCallback(() => {
+    if (viewMonth === 11) {
+      setViewMonth(0);
+      setViewYear((y) => y + 1);
+    } else {
+      setViewMonth((m) => m + 1);
+    }
+  }, [viewMonth]);
+
+  // Can't go to previous month if it's before the current month
+  const canGoPrev =
+    viewYear > today.getFullYear() ||
+    (viewYear === today.getFullYear() && viewMonth > today.getMonth());
+
+  const cells: (number | null)[] = [];
+  for (let i = 0; i < firstDay; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+
+  return (
+    <div>
+      {/* Month/year header */}
+      <div className="mb-3 flex items-center justify-between">
+        <button
+          type="button"
+          onClick={prevMonth}
+          disabled={!canGoPrev}
+          className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
+        >
+          <ChevronLeft className="size-4" />
+        </button>
+        <span className="text-sm font-medium">
+          {MONTHS[viewMonth]} {viewYear}
+        </span>
+        <button
+          type="button"
+          onClick={nextMonth}
+          className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <ChevronRight className="size-4" />
+        </button>
+      </div>
+
+      {/* Day labels */}
+      <div className="mb-1 grid grid-cols-7 gap-0.5">
+        {DAYS.map((d) => (
+          <div
+            key={d}
+            className="flex h-8 items-center justify-center text-[11px] font-medium text-muted-foreground/60"
+          >
+            {d}
+          </div>
+        ))}
+      </div>
+
+      {/* Day grid */}
+      <div className="grid grid-cols-7 gap-0.5">
+        {cells.map((day, i) => {
+          if (day === null) {
+            return <div key={`empty-${String(i)}`} className="h-8" />;
+          }
+
+          const date = new Date(viewYear, viewMonth, day);
+          const disabled = isBeforeToday(date);
+          const isSelected = selected && isSameDay(date, selected);
+          const isToday = isSameDay(date, today);
+
+          return (
+            <button
+              key={day}
+              type="button"
+              disabled={disabled}
+              onClick={() => onSelect(date)}
+              className={cn(
+                "flex h-8 items-center justify-center rounded-md text-[13px] transition-all",
+                disabled && "pointer-events-none text-muted-foreground/25",
+                !disabled &&
+                  !isSelected &&
+                  "text-foreground hover:bg-muted",
+                isToday &&
+                  !isSelected &&
+                  "font-semibold text-primary",
+                isSelected &&
+                  "bg-primary text-primary-foreground font-medium shadow-sm",
+              )}
+            >
+              {day}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Time picker                                                         */
+/* ------------------------------------------------------------------ */
+
+function TimePicker({
+  hour,
+  minute,
+  onHourChange,
+  onMinuteChange,
+}: {
+  hour: number;
+  minute: number;
+  onHourChange: (h: number) => void;
+  onMinuteChange: (m: number) => void;
+}) {
+  const is12h = true; // Use 12-hour format
+  const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+  const isPM = hour >= 12;
+
+  const toggleAmPm = () => {
+    if (isPM) {
+      onHourChange(hour - 12);
+    } else {
+      onHourChange(hour + 12);
+    }
+  };
+
+  const incrementHour = () => {
+    onHourChange((hour + 1) % 24);
+  };
+
+  const decrementHour = () => {
+    onHourChange((hour - 1 + 24) % 24);
+  };
+
+  const incrementMinute = () => {
+    onMinuteChange((minute + 5) % 60);
+  };
+
+  const decrementMinute = () => {
+    onMinuteChange((minute - 5 + 60) % 60);
+  };
+
+  return (
+    <div className="flex items-center gap-2">
+      {/* Hour */}
+      <div className="flex flex-col items-center gap-0.5">
+        <button
+          type="button"
+          onClick={incrementHour}
+          className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <ChevronLeft className="size-3.5 rotate-90" />
+        </button>
+        <div className="flex h-10 w-12 items-center justify-center rounded-lg bg-muted/60 text-lg font-semibold tabular-nums">
+          {String(displayHour).padStart(2, "0")}
+        </div>
+        <button
+          type="button"
+          onClick={decrementHour}
+          className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <ChevronRight className="size-3.5 rotate-90" />
+        </button>
+      </div>
+
+      <span className="text-lg font-semibold text-muted-foreground/50">:</span>
+
+      {/* Minute */}
+      <div className="flex flex-col items-center gap-0.5">
+        <button
+          type="button"
+          onClick={incrementMinute}
+          className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <ChevronLeft className="size-3.5 rotate-90" />
+        </button>
+        <div className="flex h-10 w-12 items-center justify-center rounded-lg bg-muted/60 text-lg font-semibold tabular-nums">
+          {String(minute).padStart(2, "0")}
+        </div>
+        <button
+          type="button"
+          onClick={decrementMinute}
+          className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <ChevronRight className="size-3.5 rotate-90" />
+        </button>
+      </div>
+
+      {/* AM/PM */}
+      {is12h && (
+        <button
+          type="button"
+          onClick={toggleAmPm}
+          className="ml-1 flex h-10 w-12 items-center justify-center rounded-lg bg-muted/60 text-sm font-semibold transition-colors hover:bg-muted"
+        >
+          {isPM ? "PM" : "AM"}
+        </button>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Schedule Panel                                                      */
+/* ------------------------------------------------------------------ */
+
 export function ScheduleDialog({
   open,
   onOpenChange,
@@ -52,7 +323,6 @@ export function ScheduleDialog({
 }: ScheduleDialogProps) {
   const [isScheduling, setIsScheduling] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
-  const [scheduledDate, setScheduledDate] = useState("");
 
   const document = useQuery(documentsGet, {
     documentId: documentId as Id<"documents">,
@@ -64,40 +334,104 @@ export function ScheduleDialog({
   const isAlreadyScheduled = document?.status === "scheduled";
   const existingScheduledAt = document?.scheduledAt;
 
-  /** Validate the chosen date and submit the schedule mutation. */
-  async function handleSchedule() {
-    if (!scheduledDate) return;
+  // Initialize date/time from existing schedule or default to tomorrow
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [hour, setHour] = useState(9);
+  const [minute, setMinute] = useState(0);
 
-    const timestamp = new Date(scheduledDate).getTime();
-    // Prevent scheduling in the past
-    if (timestamp <= Date.now()) {
-      toast.error("Invalid date", {
-        description: "Scheduled time must be in the future.",
-      });
-      return;
+  // Reset state when panel opens
+  useEffect(() => {
+    if (open) {
+      if (existingScheduledAt) {
+        const d = new Date(existingScheduledAt);
+        setSelectedDate(d);
+        setHour(d.getHours());
+        setMinute(d.getMinutes());
+      } else {
+        // Default: tomorrow at 9:00 AM
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        tomorrow.setHours(9, 0, 0, 0);
+        setSelectedDate(tomorrow);
+        setHour(9);
+        setMinute(0);
+      }
     }
+  }, [open, existingScheduledAt]);
+
+  // When user picks a date, auto-adjust time if it would be in the past
+  const handleDateSelect = useCallback(
+    (date: Date) => {
+      setSelectedDate(date);
+      const now = new Date();
+      if (isSameDay(date, now)) {
+        // If selecting today and current hour/minute is in the past,
+        // bump to next rounded 30-min slot
+        const candidate = new Date(date);
+        candidate.setHours(hour, minute, 0, 0);
+        if (candidate.getTime() <= now.getTime()) {
+          const bumped = new Date(now.getTime() + 30 * 60 * 1000);
+          // Round up to nearest 5 minutes
+          bumped.setMinutes(Math.ceil(bumped.getMinutes() / 5) * 5, 0, 0);
+          setHour(bumped.getHours());
+          setMinute(bumped.getMinutes());
+        }
+      }
+    },
+    [hour, minute],
+  );
+
+  const timezone = useMemo(
+    () => Intl.DateTimeFormat().resolvedOptions().timeZone,
+    [],
+  );
+
+  // Construct the final timestamp from selectedDate + hour + minute
+  const scheduledTimestamp = useMemo(() => {
+    if (!selectedDate) return null;
+    const d = new Date(selectedDate);
+    d.setHours(hour, minute, 0, 0);
+    return d.getTime();
+  }, [selectedDate, hour, minute]);
+
+  const isInPast = scheduledTimestamp != null && scheduledTimestamp <= Date.now();
+
+  const formattedDateTime = useMemo(() => {
+    if (!scheduledTimestamp) return null;
+    return new Date(scheduledTimestamp).toLocaleString(undefined, {
+      weekday: "short",
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      timeZoneName: "short",
+    });
+  }, [scheduledTimestamp]);
+
+  async function handleSchedule() {
+    if (!scheduledTimestamp || isInPast) return;
 
     setIsScheduling(true);
     try {
       await schedulePublish({
         documentId: documentId as Id<"documents">,
-        scheduledAt: timestamp,
+        scheduledAt: scheduledTimestamp,
       });
       toast.success("Scheduled!", {
-        description: `Will be published on ${new Date(timestamp).toLocaleString()}.`,
+        description: `Will be published on ${formattedDateTime}.`,
       });
       onOpenChange(false);
-    } catch (err) {
-      toast.error("Scheduling failed", {
+    } catch {
+      toast.error("Couldn't schedule this article", {
         description:
-          err instanceof Error ? err.message : "An unknown error occurred.",
+          "Something went wrong. Please try again in a moment.",
       });
     } finally {
       setIsScheduling(false);
     }
   }
 
-  /** Cancel an existing schedule and revert the document back to draft status. */
   async function handleCancel() {
     setIsCancelling(true);
     try {
@@ -108,10 +442,10 @@ export function ScheduleDialog({
         description: "The document has been moved back to draft.",
       });
       onOpenChange(false);
-    } catch (err) {
-      toast.error("Failed to cancel", {
+    } catch {
+      toast.error("Couldn't cancel the schedule", {
         description:
-          err instanceof Error ? err.message : "An unknown error occurred.",
+          "Something went wrong. Please try again in a moment.",
       });
     } finally {
       setIsCancelling(false);
@@ -119,53 +453,124 @@ export function ScheduleDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-sm">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Calendar className="size-4" />
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="right">
+        <SheetHeader>
+          <SheetTitle className="flex items-center gap-2">
+            <CalendarIcon className="size-4 text-primary" />
             Schedule Publication
-          </DialogTitle>
-          <DialogDescription>
+          </SheetTitle>
+          <SheetDescription>
             {isAlreadyScheduled
-              ? "This document is currently scheduled for publication."
-              : "Choose when to automatically publish this document."}
-          </DialogDescription>
-        </DialogHeader>
+              ? "This document is currently scheduled. Reschedule or cancel below."
+              : "Choose when to automatically publish this document to GitHub."}
+          </SheetDescription>
+        </SheetHeader>
 
-        <div className="space-y-4">
-          {isAlreadyScheduled && existingScheduledAt && (
-            <div className="rounded-md bg-muted px-3 py-2 text-sm">
-              Currently scheduled for{" "}
-              <span className="font-medium">
-                {new Date(existingScheduledAt).toLocaleString()}
-              </span>
+        <SheetBody>
+          <div className="space-y-6">
+            {/* Current schedule banner */}
+            <AnimatePresence>
+              {isAlreadyScheduled && existingScheduledAt && (
+                <motion.div
+                  initial={{ opacity: 0, y: -8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={smoothTransition}
+                  className="flex items-start gap-3 rounded-xl border border-blue-500/20 bg-blue-500/5 px-4 py-3"
+                >
+                  <Clock className="mt-0.5 size-4 shrink-0 text-blue-500" />
+                  <div>
+                    <p className="text-sm font-medium text-blue-500">
+                      Currently scheduled
+                    </p>
+                    <p className="mt-0.5 text-[13px] text-foreground/70">
+                      {new Date(existingScheduledAt).toLocaleString(undefined, {
+                        weekday: "short",
+                        year: "numeric",
+                        month: "short",
+                        day: "numeric",
+                        hour: "numeric",
+                        minute: "2-digit",
+                        timeZoneName: "short",
+                      })}
+                    </p>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Calendar section */}
+            <div>
+              <h3 className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+                <CalendarIcon className="size-3" />
+                {isAlreadyScheduled ? "Reschedule to" : "Select date"}
+              </h3>
+              <div className="rounded-xl border border-border/40 bg-card/50 p-4">
+                <InlineCalendar
+                  selected={selectedDate}
+                  onSelect={handleDateSelect}
+                />
+              </div>
             </div>
-          )}
 
-          <div className="space-y-1.5">
-            <Label htmlFor="schedule-date">
-              {isAlreadyScheduled ? "Reschedule to" : "Publish at"}
-            </Label>
-            <Input
-              id="schedule-date"
-              type="datetime-local"
-              value={
-                scheduledDate ||
-                (existingScheduledAt
-                  ? toDatetimeLocalString(existingScheduledAt)
-                  : "")
-              }
-              onChange={(e) => setScheduledDate(e.target.value)}
-              min={toDatetimeLocalString(Date.now())}
-            />
+            {/* Time section */}
+            <div>
+              <h3 className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+                <Clock className="size-3" />
+                Select time
+              </h3>
+              <div className="flex items-center justify-between rounded-xl border border-border/40 bg-card/50 p-4">
+                <TimePicker
+                  hour={hour}
+                  minute={minute}
+                  onHourChange={setHour}
+                  onMinuteChange={setMinute}
+                />
+              </div>
+              <p className="mt-2 text-[11px] text-muted-foreground/50">
+                Timezone: {timezone}
+              </p>
+            </div>
+
+            {/* Preview */}
+            {formattedDateTime && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={smoothTransition}
+                className={cn(
+                  "rounded-xl border px-4 py-3",
+                  isInPast
+                    ? "border-destructive/20 bg-destructive/5"
+                    : "border-primary/20 bg-primary/5",
+                )}
+              >
+                <p
+                  className={cn(
+                    "text-[11px] font-medium uppercase tracking-wider",
+                    isInPast
+                      ? "text-destructive"
+                      : "text-primary",
+                  )}
+                >
+                  {isInPast
+                    ? "Pick a later time or future date"
+                    : "Will publish on"}
+                </p>
+                <p className="mt-1 text-sm font-medium text-foreground">
+                  {formattedDateTime}
+                </p>
+              </motion.div>
+            )}
           </div>
-        </div>
+        </SheetBody>
 
-        <DialogFooter>
+        <SheetFooter>
           {isAlreadyScheduled && (
             <Button
               variant="destructive"
+              size="sm"
               onClick={() => void handleCancel()}
               disabled={isCancelling}
             >
@@ -182,9 +587,11 @@ export function ScheduleDialog({
               )}
             </Button>
           )}
+          <div className="flex-1" />
           <Button
+            size="sm"
             onClick={() => void handleSchedule()}
-            disabled={isScheduling || !scheduledDate}
+            disabled={isScheduling || !scheduledTimestamp || isInPast}
           >
             {isScheduling ? (
               <>
@@ -193,13 +600,13 @@ export function ScheduleDialog({
               </>
             ) : (
               <>
-                <Calendar className="size-3.5" />
+                <CalendarIcon className="size-3.5" />
                 {isAlreadyScheduled ? "Reschedule" : "Schedule"}
               </>
             )}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
 }

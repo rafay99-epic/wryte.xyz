@@ -92,6 +92,7 @@ export default defineSchema({
     bookmarked: v.optional(v.boolean()),
     githubPath: v.optional(v.string()),
     githubSha: v.optional(v.string()),
+    githubSyncedAt: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -116,6 +117,7 @@ export default defineSchema({
       v.literal("failed"),
     ),
     error: v.optional(v.string()),
+    workflowId: v.optional(v.string()),
     createdAt: v.number(),
   })
     .index("by_documentId", ["documentId"])

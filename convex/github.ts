@@ -185,15 +185,26 @@ export const publishToGithub = internalAction({
       ? `Update ${document.title}`
       : `Add ${document.title}`;
 
-    const response = await octokit.repos.createOrUpdateFileContents({
-      owner,
-      repo,
-      path: filePath,
-      message: commitMessage,
-      content: base64Content,
-      branch,
-      ...(existingSha ? { sha: existingSha } : {}),
-    });
+    let response;
+    try {
+      response = await octokit.repos.createOrUpdateFileContents({
+        owner,
+        repo,
+        path: filePath,
+        message: commitMessage,
+        content: base64Content,
+        branch,
+        ...(existingSha ? { sha: existingSha } : {}),
+      });
+    } catch (error: unknown) {
+      const err = error as { status?: number; message?: string };
+      if (err.status === 401) {
+        throw new Error(
+          "GitHub token expired or revoked. Please reconnect GitHub in settings.",
+        );
+      }
+      throw error;
+    }
 
     const newSha = response.data.content?.sha;
     if (!newSha) {

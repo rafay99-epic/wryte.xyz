@@ -131,6 +131,15 @@ export default function ProjectDetailPage() {
         doc.content.length > 120
           ? `${doc.content.slice(0, 120)}...`
           : doc.content;
+      const hasGithubPath = Boolean(doc.githubPath);
+      const isSynced =
+        hasGithubPath &&
+        doc.githubSyncedAt != null &&
+        doc.githubSyncedAt >= doc.updatedAt;
+      const needsSync =
+        hasGithubPath &&
+        (doc.githubSyncedAt == null || doc.githubSyncedAt < doc.updatedAt);
+
       const item: ContentItem = {
         kind: "local",
         id: doc._id,
@@ -138,7 +147,8 @@ export default function ProjectDetailPage() {
         slug: doc.slug,
         path: doc.githubPath ?? "",
         status: doc.status,
-        synced: Boolean(doc.githubPath),
+        synced: isSynced,
+        needsSync,
         excerpt,
         updatedAt: doc.updatedAt,
         tags: doc.tags ?? [],
