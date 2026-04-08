@@ -1,36 +1,72 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Wryte
 
-## Getting Started
+A writing workspace built with **Next.js** (App Router), **Convex**, and **Clerk**. Projects, markdown documents, optional GitHub publishing, scheduling workflows, and AI-assisted editing run on this stack.
 
-First, run the development server:
+## Prerequisites
+
+- [Bun](https://bun.sh) (package manager and runtime for scripts)
+- [Convex](https://convex.dev) account and CLI (`npx convex dev` is started by the dev script)
+- [Clerk](https://clerk.com) application for authentication
+
+## Quick start
+
+Install dependencies:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+bun install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Configure environment variables (see below), then start Next.js and the Convex dev deployment together:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+bun run dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- App: [http://localhost:3000](http://localhost:3000)
+- Convex dashboard will prompt for login / project linking on first run.
 
-## Learn More
+## Environment variables
 
-To learn more about Next.js, take a look at the following resources:
+### Next.js (`.env.local`)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| Variable                            | Description                                                                 |
+| ----------------------------------- | --------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_CONVEX_URL`            | Convex deployment URL (required at build and runtime for the React client). |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk publishable key.                                                      |
+| `CLERK_SECRET_KEY`                  | Clerk secret key (server-side).                                             |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Convex (Convex dashboard → your deployment → Settings → Environment variables)
 
-## Deploy on Vercel
+| Variable                  | Description                                                                     |
+| ------------------------- | ------------------------------------------------------------------------------- |
+| `CLERK_JWT_ISSUER_DOMAIN` | Clerk JWT issuer domain used in `convex/auth.config.ts` for token verification. |
+| `ANTHROPIC_API_KEY`       | Optional; used for Anthropic-backed AI flows.                                   |
+| `OPENAI_API_KEY`          | Optional; used for OpenAI / compatible providers.                               |
+| `OPENROUTER_API_KEY`      | Optional; used when models are routed through OpenRouter.                       |
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Set AI keys only for the providers you enable in project settings.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Scripts
+
+| Command          | Description                                                             |
+| ---------------- | ----------------------------------------------------------------------- |
+| `bun run dev`    | Runs **Next.js** and **`convex dev`** in parallel (via `concurrently`). |
+| `bun run build`  | Production Next.js build.                                               |
+| `bun run start`  | Start the production Next.js server (after `build`).                    |
+| `bun run lint`   | Biome check (lint + format consistency).                                |
+| `bun run format` | Biome format with write.                                                |
+| `bun run type`   | TypeScript check (`tsc --noEmit`).                                      |
+
+## CI
+
+GitHub Actions (`.github/workflows/ci.yml`) runs install, **Biome**, **TypeScript**, **`bun audit`**, and **`bun run build`** on pushes and pull requests to `main` / `master`. Build uses placeholder env vars so it does not require real secrets.
+
+## Tooling
+
+- **Lint / format:** [Biome](https://biomejs.dev)
+- **UI:** React 19, Tailwind CSS v4, [Base UI](https://base-ui.com) / shadcn-style components
+- **Repo conventions:** See `AGENTS.md` and `CLAUDE.md` for agent and Convex-oriented guidelines.
+
+## License
+
+Private project (see `package.json`).
