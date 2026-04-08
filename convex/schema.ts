@@ -62,6 +62,16 @@ export default defineSchema({
     defaultAuthor: v.optional(v.string()),
     /** JSON-serialized BoardColumnDef[] for custom kanban columns */
     boardColumns: v.optional(v.string()),
+    /** AI provider for content enhancement: "anthropic" | "openai" | "openrouter" */
+    aiProvider: v.optional(
+      v.union(
+        v.literal("anthropic"),
+        v.literal("openai"),
+        v.literal("openrouter"),
+      ),
+    ),
+    /** AI model identifier, e.g. "claude-sonnet-4-20250514" */
+    aiModel: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
   }).index("by_userId", ["userId"]),

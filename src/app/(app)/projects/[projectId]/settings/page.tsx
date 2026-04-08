@@ -16,15 +16,23 @@ import {
   GripVertical,
   Loader2,
   Plus,
+  Orbit,
   Rocket,
   Settings2,
+  Sparkles,
   Trash2,
   User,
   Webhook,
   XCircle,
 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ComponentType,
+} from "react";
 import { toast } from "sonner";
 import { useEditorStore } from "@/stores/editor-store";
 import { Button } from "@/components/ui/button";
@@ -55,7 +63,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { api } from "../../../../../../convex/_generated/api";
-import type { Id } from "../../../../../../convex/_generated/dataModel";
+import type { Doc, Id } from "../../../../../../convex/_generated/dataModel";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -93,6 +101,8 @@ interface ProjectData {
   deployHookUrl?: string;
   frontmatterFormat?: "yaml" | "toml";
   defaultAuthor?: string;
+  aiProvider?: "anthropic" | "openai" | "openrouter";
+  aiModel?: string;
 }
 
 const DEFAULT_FIELDS: FrontmatterField[] = [
@@ -131,7 +141,13 @@ const DEFAULT_FIELDS: FrontmatterField[] = [
 /*  Tab definitions                                                    */
 /* ------------------------------------------------------------------ */
 
-type SettingsTab = "general" | "github" | "content" | "publishing" | "frontmatter";
+type SettingsTab =
+  | "general"
+  | "github"
+  | "content"
+  | "publishing"
+  | "frontmatter"
+  | "ai";
 
 const TABS: { id: SettingsTab; label: string; icon: React.ElementType }[] = [
   { id: "general", label: "General", icon: Settings2 },
@@ -139,6 +155,7 @@ const TABS: { id: SettingsTab; label: string; icon: React.ElementType }[] = [
   { id: "content", label: "Content", icon: FolderTree },
   { id: "publishing", label: "Publishing", icon: Rocket },
   { id: "frontmatter", label: "Frontmatter", icon: Code2 },
+  { id: "ai", label: "AI", icon: Sparkles },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -282,6 +299,17 @@ export default function ProjectSettingsPage() {
                 <FrontmatterSection projectId={projectId} project={project} />
               </motion.div>
             )}
+            {activeTab === "ai" && (
+              <motion.div
+                key="ai"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.15 }}
+              >
+                <AiSection projectId={projectId} project={project} />
+              </motion.div>
+            )}
           </AnimatePresence>
         </div>
       </div>
@@ -334,7 +362,10 @@ function FieldGroup({
 }) {
   return (
     <div className="space-y-1.5">
-      <Label htmlFor={htmlFor} className="text-xs font-medium text-muted-foreground">
+      <Label
+        htmlFor={htmlFor}
+        className="text-xs font-medium text-muted-foreground"
+      >
         {label}
       </Label>
       {children}
@@ -423,7 +454,11 @@ function GeneralSection({
         description="Basic project information and identity"
       />
 
-      <motion.div variants={staggerItem} transition={smoothTransition} className="space-y-4">
+      <motion.div
+        variants={staggerItem}
+        transition={smoothTransition}
+        className="space-y-4"
+      >
         <FieldGroup label="Project Name" htmlFor="s-name">
           <Input
             id="s-name"
@@ -734,8 +769,11 @@ function GitHubSection({
               </div>
             </FieldGroup>
             <p className="text-[11px] leading-relaxed text-muted-foreground/60">
-              Requires <code className="rounded bg-muted px-1 py-px text-[10px]">repo</code> scope.
-              Stored securely and used as a fallback only.
+              Requires{" "}
+              <code className="rounded bg-muted px-1 py-px text-[10px]">
+                repo
+              </code>{" "}
+              scope. Stored securely and used as a fallback only.
             </p>
           </div>
         )}
@@ -915,7 +953,11 @@ function ContentSection({
         description="Where your content and media files live"
       />
 
-      <motion.div variants={staggerItem} transition={smoothTransition} className="space-y-4">
+      <motion.div
+        variants={staggerItem}
+        transition={smoothTransition}
+        className="space-y-4"
+      >
         <div className="grid gap-4 sm:grid-cols-2">
           <FieldGroup
             label="Content Directory"
@@ -1112,7 +1154,11 @@ function PublishingSection({
         description="Control how content is committed and deployed"
       />
 
-      <motion.div variants={staggerItem} transition={smoothTransition} className="space-y-4">
+      <motion.div
+        variants={staggerItem}
+        transition={smoothTransition}
+        className="space-y-4"
+      >
         <FieldGroup
           label="Commit Message Template"
           htmlFor="s-commit"
@@ -1257,9 +1303,7 @@ function FrontmatterSection({
       setCodeError(null);
       setFields(parsed as FrontmatterField[]);
     } catch (err) {
-      setCodeError(
-        err instanceof SyntaxError ? err.message : "Invalid JSON",
-      );
+      setCodeError(err instanceof SyntaxError ? err.message : "Invalid JSON");
     }
   }, []);
 
@@ -1348,7 +1392,11 @@ function FrontmatterSection({
       />
 
       {/* Visual / Code toggle */}
-      <motion.div variants={staggerItem} transition={smoothTransition} className="mb-5">
+      <motion.div
+        variants={staggerItem}
+        transition={smoothTransition}
+        className="mb-5"
+      >
         <div className="flex items-center gap-2">
           <div className="inline-flex rounded-lg border bg-muted/30 p-0.5">
             <button
@@ -1441,7 +1489,8 @@ function FrontmatterSection({
                 "focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30",
                 "placeholder:text-green-800",
                 "min-h-[300px] resize-y",
-                codeError && "border-destructive focus-visible:ring-destructive/30",
+                codeError &&
+                  "border-destructive focus-visible:ring-destructive/30",
               )}
               placeholder={`[\n  {\n    "name": "title",\n    "type": "string",\n    "required": true\n  }\n]`}
             />
@@ -1515,8 +1564,13 @@ function FrontmatterFieldRow({
 }) {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const hasAdvancedSettings =
-    field.label || field.description || field.placeholder || field.group ||
-    field.min !== undefined || field.max !== undefined || field.step !== undefined ||
+    field.label ||
+    field.description ||
+    field.placeholder ||
+    field.group ||
+    field.min !== undefined ||
+    field.max !== undefined ||
+    field.step !== undefined ||
     field.hidden;
 
   return (
@@ -1701,7 +1755,9 @@ function FrontmatterFieldRow({
                     value={field.min ?? ""}
                     onChange={(e) =>
                       onUpdate({
-                        min: e.target.value ? Number(e.target.value) : undefined,
+                        min: e.target.value
+                          ? Number(e.target.value)
+                          : undefined,
                       })
                     }
                     className="text-sm"
@@ -1717,7 +1773,9 @@ function FrontmatterFieldRow({
                     value={field.max ?? ""}
                     onChange={(e) =>
                       onUpdate({
-                        max: e.target.value ? Number(e.target.value) : undefined,
+                        max: e.target.value
+                          ? Number(e.target.value)
+                          : undefined,
                       })
                     }
                     className="text-sm"
@@ -1733,7 +1791,9 @@ function FrontmatterFieldRow({
                     value={field.step ?? ""}
                     onChange={(e) =>
                       onUpdate({
-                        step: e.target.value ? Number(e.target.value) : undefined,
+                        step: e.target.value
+                          ? Number(e.target.value)
+                          : undefined,
                       })
                     }
                     className="text-sm"
@@ -1755,7 +1815,9 @@ function FrontmatterFieldRow({
                     value={field.max ?? ""}
                     onChange={(e) =>
                       onUpdate({
-                        max: e.target.value ? Number(e.target.value) : undefined,
+                        max: e.target.value
+                          ? Number(e.target.value)
+                          : undefined,
                       })
                     }
                     className="text-sm"
@@ -1832,6 +1894,269 @@ function getPlaceholderForType(type: FrontmatterField["type"]): string {
 }
 
 /* ------------------------------------------------------------------ */
+/*  AI Tab                                                             */
+/* ------------------------------------------------------------------ */
+
+function AnthropicMark({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 256 257"
+      preserveAspectRatio="xMidYMid meet"
+      className={cn("shrink-0", className)}
+      aria-hidden
+    >
+      <title>Anthropic</title>
+      <path
+        fill="#D97757"
+        d="m50.228 170.321 50.357-28.257.843-2.463-.843-1.361h-2.462l-8.426-.518-28.775-.778-24.952-1.037-24.175-1.296-6.092-1.297L0 125.796l.583-3.759 5.12-3.434 7.324.648 16.202 1.101 24.304 1.685 17.629 1.037 26.118 2.722h4.148l.583-1.685-1.426-1.037-1.101-1.037-25.147-17.045-27.22-18.017-14.258-10.37-7.713-5.25-3.888-4.925-1.685-10.758 7-7.713 9.397.649 2.398.648 9.527 7.323 20.35 15.75L94.817 91.9l3.889 3.24 1.555-1.102.195-.777-1.75-2.917-14.453-26.118-15.425-26.572-6.87-11.018-1.814-6.61c-.648-2.723-1.102-4.991-1.102-7.778l7.972-10.823L71.42 0 82.05 1.426l4.472 3.888 6.61 15.101 10.694 23.786 16.591 32.34 4.861 9.592 2.592 8.879.973 2.722h1.685v-1.556l1.36-18.211 2.528-22.36 2.463-28.776.843-8.1 4.018-9.722 7.971-5.25 6.222 2.981 5.12 7.324-.713 4.73-3.046 19.768-5.962 30.98-3.889 20.739h2.268l2.593-2.593 10.499-13.934 17.628-22.036 7.778-8.749 9.073-9.657 5.833-4.601h11.018l8.1 12.055-3.628 12.443-11.342 14.388-9.398 12.184-13.48 18.147-8.426 14.518.778 1.166 2.01-.194 30.46-6.481 16.462-2.982 19.637-3.37 8.88 4.148.971 4.213-3.5 8.62-20.998 5.184-24.628 4.926-36.682 8.685-.454.324.519.648 16.526 1.555 7.065.389h17.304l32.21 2.398 8.426 5.574 5.055 6.805-.843 5.184-12.962 6.611-17.498-4.148-40.83-9.721-14-3.5h-1.944v1.167l11.666 11.406 21.387 19.314 26.767 24.887 1.36 6.157-3.434 4.86-3.63-.518-23.526-17.693-9.073-7.972-20.545-17.304h-1.36v1.814l4.73 6.935 25.017 37.59 1.296 11.536-1.814 3.76-6.481 2.268-7.13-1.297-14.647-20.544-15.1-23.138-12.185-20.739-1.49.843-7.194 77.448-3.37 3.953-7.778 2.981-6.48-4.925-3.436-7.972 3.435-15.749 4.148-20.544 3.37-16.333 3.046-20.285 1.815-6.74-.13-.454-1.49.194-15.295 20.999-23.267 31.433-18.406 19.702-4.407 1.75-7.648-3.954.713-7.064 4.277-6.286 25.47-32.405 15.36-20.092 9.917-11.6-.065-1.686h-.583L44.07 198.125l-12.055 1.555-5.185-4.86.648-7.972 2.463-2.593 20.35-13.999-.064.065Z"
+      />
+    </svg>
+  );
+}
+
+function OpenAIMark({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 256 260"
+      preserveAspectRatio="xMidYMid meet"
+      className={cn("shrink-0 fill-foreground", className)}
+      aria-hidden
+    >
+      <title>OpenAI</title>
+      <path d="M239.184 106.203a64.716 64.716 0 0 0-5.576-53.103C219.452 28.459 191 15.784 163.213 21.74A65.586 65.586 0 0 0 52.096 45.22a64.716 64.716 0 0 0-43.23 31.36c-14.31 24.602-11.061 55.634 8.033 76.74a64.665 64.665 0 0 0 5.525 53.102c14.174 24.65 42.644 37.324 70.446 31.36a64.72 64.72 0 0 0 48.754 21.744c28.481.025 53.714-18.361 62.414-45.481a64.767 64.767 0 0 0 43.229-31.36c14.137-24.558 10.875-55.423-8.083-76.483Zm-97.56 136.338a48.397 48.397 0 0 1-31.105-11.255l1.535-.87 51.67-29.825a8.595 8.595 0 0 0 4.247-7.367v-72.85l21.845 12.636c.218.111.37.32.409.563v60.367c-.056 26.818-21.783 48.545-48.601 48.601Zm-104.466-44.61a48.345 48.345 0 0 1-5.781-32.589l1.534.921 51.722 29.826a8.339 8.339 0 0 0 8.441 0l63.181-36.425v25.221a.87.87 0 0 1-.358.665l-52.335 30.184c-23.257 13.398-52.97 5.431-66.404-17.803ZM23.549 85.38a48.499 48.499 0 0 1 25.58-21.333v61.39a8.288 8.288 0 0 0 4.195 7.316l62.874 36.272-21.845 12.636a.819.819 0 0 1-.767 0L41.353 151.53c-23.211-13.454-31.171-43.144-17.804-66.405v.256Zm179.466 41.695-63.08-36.63L161.73 77.86a.819.819 0 0 1 .768 0l52.233 30.184a48.6 48.6 0 0 1-7.316 87.635v-61.391a8.544 8.544 0 0 0-4.4-7.213Zm21.742-32.69-1.535-.922-51.619-30.081a8.39 8.39 0 0 0-8.492 0L99.98 99.808V74.587a.716.716 0 0 1 .307-.665l52.233-30.133a48.652 48.652 0 0 1 72.236 50.391v.205ZM88.061 139.097l-21.845-12.585a.87.87 0 0 1-.41-.614V65.685a48.652 48.652 0 0 1 79.757-37.346l-1.535.87-51.67 29.825a8.595 8.595 0 0 0-4.246 7.367l-.051 72.697Zm11.868-25.58 28.138-16.217 28.188 16.218v32.434l-28.086 16.218-28.188-16.218-.052-32.434Z" />
+    </svg>
+  );
+}
+
+function OpenRouterMark({ className }: { className?: string }) {
+  return (
+    <div
+      className={cn(
+        "flex size-6 shrink-0 items-center justify-center rounded-md border border-border/60 bg-muted/40",
+        className,
+      )}
+      aria-hidden
+    >
+      <Orbit className="size-3.5 text-muted-foreground" strokeWidth={1.75} />
+    </div>
+  );
+}
+
+type AiProviderId = NonNullable<Doc<"projects">["aiProvider"]>;
+type AiSettingsPatch = Pick<Doc<"projects">, "aiProvider" | "aiModel">;
+
+const AI_PROVIDERS: {
+  id: AiProviderId;
+  title: string;
+  Mark: ComponentType<{ className?: string }>;
+}[] = [
+  { id: "anthropic", title: "Anthropic", Mark: AnthropicMark },
+  { id: "openai", title: "OpenAI", Mark: OpenAIMark },
+  { id: "openrouter", title: "OpenRouter", Mark: OpenRouterMark },
+];
+
+const AI_MODEL_OPTIONS: Record<string, { value: string; label: string; description: string }[]> = {
+  anthropic: [
+    { value: "claude-sonnet-4-20250514", label: "Claude Sonnet 4", description: "Best balance of intelligence and speed" },
+    { value: "claude-haiku-4-20250414", label: "Claude Haiku 4", description: "Fastest, most cost-effective" },
+  ],
+  openai: [
+    { value: "gpt-4.1", label: "GPT-4.1", description: "Most capable GPT model" },
+    { value: "gpt-4.1-mini", label: "GPT-4.1 Mini", description: "Fast and affordable" },
+    { value: "gpt-4.1-nano", label: "GPT-4.1 Nano", description: "Fastest, lowest cost" },
+  ],
+  openrouter: [
+    { value: "google/gemma-4-26b-a4b-it:free", label: "Gemma 4 26B", description: "Google's efficient open model (free)" },
+    { value: "google/gemma-4-31b-it:free", label: "Gemma 4 31B", description: "Google's larger open model (free)" },
+    { value: "minimax/minimax-m2.5:free", label: "MiniMax M2.5", description: "MiniMax multimodal model (free)" },
+    { value: "openai/gpt-oss-120b:free", label: "GPT-OSS 120B", description: "OpenAI open-source 120B (free)" },
+  ],
+};
+
+function AiSection({
+  projectId,
+  project,
+}: {
+  projectId: Id<"projects">;
+  project: ProjectData;
+}) {
+  const updateProject = useMutation(api.projects.update);
+  const [provider, setProvider] = useState(project.aiProvider ?? "");
+  const [model, setModel] = useState(project.aiModel ?? "");
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    setProvider(project.aiProvider ?? "");
+    setModel(project.aiModel ?? "");
+  }, [project.aiProvider, project.aiModel]);
+
+  const models = provider ? (AI_MODEL_OPTIONS[provider] ?? []) : [];
+
+  const handleProviderChange = useCallback((id: AiProviderId) => {
+    setProvider(id);
+    const providerModels = AI_MODEL_OPTIONS[id] ?? [];
+    setModel(providerModels[0]?.value ?? "");
+  }, []);
+
+  const hasChanges =
+    provider !== (project.aiProvider ?? "") ||
+    model !== (project.aiModel ?? "");
+
+  const handleSave = useCallback(async () => {
+    setIsSaving(true);
+    try {
+      const patch: AiSettingsPatch = {
+        aiProvider: provider as AiProviderId,
+        aiModel: model,
+      };
+      await updateProject({ projectId, ...patch });
+      toast.success("AI settings saved");
+    } catch {
+      toast.error("Failed to save AI settings");
+    } finally {
+      setIsSaving(false);
+    }
+  }, [updateProject, projectId, provider, model]);
+
+  return (
+    <motion.div variants={staggerContainer} initial="initial" animate="animate">
+      <motion.div variants={staggerItem}>
+        <SectionHeader
+          icon={Sparkles}
+          title="AI Enhancement"
+          description="Configure the AI provider and model for content enhancement."
+        />
+      </motion.div>
+
+      <motion.div variants={staggerItem} className="space-y-5">
+        <FieldGroup
+          label="Provider"
+          hint="Service used when you run enhancements in the editor."
+        >
+          <div
+            className="flex flex-wrap gap-2"
+            role="radiogroup"
+            aria-label="AI provider"
+          >
+            {AI_PROVIDERS.map((p) => {
+              const selected = provider === p.id;
+              const Mark = p.Mark;
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  onClick={() => handleProviderChange(p.id)}
+                  className={cn(
+                    "inline-flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm transition-colors",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                    selected
+                      ? "bg-primary/15 text-foreground ring-1 ring-primary/40"
+                      : "bg-muted/40 text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+                  )}
+                >
+                  <Mark
+                    className={cn(
+                      p.id === "anthropic" && "size-6",
+                      p.id === "openai" && "size-6",
+                    )}
+                  />
+                  {p.title}
+                </button>
+              );
+            })}
+          </div>
+        </FieldGroup>
+
+        <FieldGroup
+          label="Model"
+          hint={
+            provider
+              ? "Model used for rewrites and enhancements."
+              : "Select a provider first to see available models."
+          }
+        >
+          {provider ? (
+            <div className="space-y-1.5" role="radiogroup" aria-label="AI model">
+              {models.map((m) => {
+                const selected = model === m.value;
+                return (
+                  <button
+                    key={m.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    onClick={() => setModel(m.value)}
+                    className={cn(
+                      "flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-all",
+                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                      selected
+                        ? "border-primary/40 bg-primary/5 shadow-sm"
+                        : "border-border/40 bg-transparent hover:border-border hover:bg-muted/30",
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        "flex size-4 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
+                        selected
+                          ? "border-primary bg-primary"
+                          : "border-muted-foreground/30",
+                      )}
+                    >
+                      {selected && (
+                        <div className="size-1.5 rounded-full bg-white" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className={cn("text-sm font-medium", selected ? "text-foreground" : "text-muted-foreground")}>
+                        {m.label}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground/60">{m.description}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="rounded-lg border border-dashed border-border/60 bg-muted/10 px-4 py-6 text-center">
+              <p className="text-xs text-muted-foreground/50">
+                Select a provider above to see available models
+              </p>
+            </div>
+          )}
+        </FieldGroup>
+
+        <Divider />
+
+        <div className="rounded-lg border border-border/40 bg-muted/20 px-3.5 py-3">
+          <p className="text-[11px] leading-relaxed text-muted-foreground/70">
+            API keys are configured as environment variables in the{" "}
+            <span className="font-medium text-muted-foreground">Convex dashboard</span>.
+            Set{" "}
+            {provider === "anthropic" && <code className="text-[10px] bg-muted px-1 py-0.5 rounded font-mono">ANTHROPIC_API_KEY</code>}
+            {provider === "openai" && <code className="text-[10px] bg-muted px-1 py-0.5 rounded font-mono">OPENAI_API_KEY</code>}
+            {provider === "openrouter" && <code className="text-[10px] bg-muted px-1 py-0.5 rounded font-mono">OPENROUTER_API_KEY</code>}
+            {!provider && "the relevant API key"}{" "}
+            for your chosen provider.
+          </p>
+        </div>
+
+        <div className="flex justify-end pt-1">
+          <SaveButton
+            isSaving={isSaving}
+            disabled={!hasChanges || !provider || !model}
+            onClick={() => void handleSave()}
+          />
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Danger Zone                                                        */
 /* ------------------------------------------------------------------ */
 
@@ -1861,8 +2186,12 @@ function DangerZoneSection({ projectId }: { projectId: Id<"projects"> }) {
           <AlertTriangle className="size-4 text-destructive" />
         </div>
         <div>
-          <h2 className="text-base font-semibold tracking-tight text-destructive">Danger Zone</h2>
-          <p className="text-xs text-muted-foreground">Irreversible and destructive actions</p>
+          <h2 className="text-base font-semibold tracking-tight text-destructive">
+            Danger Zone
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            Irreversible and destructive actions
+          </p>
         </div>
       </div>
 
@@ -1931,7 +2260,7 @@ function SettingsSkeleton() {
         <Skeleton className="mb-1 ml-3 h-6 w-20" />
         <Skeleton className="mb-5 ml-3 h-3 w-28" />
         <div className="space-y-1">
-          {Array.from({ length: 5 }).map((_, i) => (
+          {Array.from({ length: 6 }).map((_, i) => (
             <Skeleton key={i} className="h-9 w-full rounded-lg" />
           ))}
         </div>

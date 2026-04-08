@@ -62,6 +62,8 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
 
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
+  // Track whether navigation is via keyboard — suppresses mouse hover interference
+  const isKeyboardNav = useRef(false);
 
   const getKeys = useShortcutsStore((s) => s.getKeys);
   const activeProjectId = useEditorStore((s) => s.activeProjectId);
@@ -248,6 +250,12 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   // Keyboard navigation
   // ---------------------------------------------------------------------------
 
+  // Refs for native keydown handler (can't close over React state)
+  const filteredItemsRef = useRef(filteredItems);
+  useEffect(() => {
+    filteredItemsRef.current = filteredItems;
+  }, [filteredItems]);
+
   const handleSelect = useCallback(
     (index: number) => {
       const item = filteredItems[index];
@@ -258,33 +266,66 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     [filteredItems],
   );
 
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
+  // Stable ref for handleSelect so the native listener always calls the latest
+  const selectedIndexRef = useRef(selectedIndex);
+  useEffect(() => {
+    selectedIndexRef.current = selectedIndex;
+  }, [selectedIndex]);
+
+  const handleSelectRef = useRef(() => handleSelect(selectedIndexRef.current));
+  useEffect(() => {
+    handleSelectRef.current = () => handleSelect(selectedIndexRef.current);
+  }, [handleSelect]);
+
+  // Attach a native keydown listener on the wrapper div so we can call
+  // stopImmediatePropagation — this prevents TanStack hotkeys (which
+  // listens on document) from also receiving arrow/enter/escape events.
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const wrapper = wrapperRef.current;
+    if (!wrapper) return;
+
+    function handleKeyDown(e: KeyboardEvent) {
       switch (e.key) {
         case "ArrowDown":
           e.preventDefault();
-          setSelectedIndex((prev) =>
-            prev < filteredItems.length - 1 ? prev + 1 : 0,
-          );
+          e.stopImmediatePropagation();
+          isKeyboardNav.current = true;
+          setSelectedIndex((prev) => {
+            const len = filteredItemsRef.current.length;
+            return prev < len - 1 ? prev + 1 : 0;
+          });
           break;
         case "ArrowUp":
           e.preventDefault();
-          setSelectedIndex((prev) =>
-            prev > 0 ? prev - 1 : filteredItems.length - 1,
-          );
+          e.stopImmediatePropagation();
+          isKeyboardNav.current = true;
+          setSelectedIndex((prev) => {
+            const len = filteredItemsRef.current.length;
+            return prev > 0 ? prev - 1 : len - 1;
+          });
           break;
         case "Enter":
           e.preventDefault();
-          handleSelect(selectedIndex);
+          e.stopImmediatePropagation();
+          handleSelectRef.current();
           break;
         case "Escape":
           e.preventDefault();
+          e.stopImmediatePropagation();
           onOpenChange(false);
           break;
       }
-    },
-    [filteredItems.length, selectedIndex, handleSelect, onOpenChange],
-  );
+    }
+
+    // Use capture phase to intercept before anything else
+    wrapper.addEventListener("keydown", handleKeyDown, true);
+    return () => {
+      wrapper.removeEventListener("keydown", handleKeyDown, true);
+    };
+  }, [open, onOpenChange]);
 
   // Reset state when opening/closing
   useEffect(() => {
@@ -362,9 +403,12 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: -10 }}
             transition={{ duration: 0.15, ease: [0.25, 0.1, 0.25, 1] }}
-            className="fixed left-1/2 top-[15%] z-50 w-full max-w-lg -translate-x-1/2"
+            className="fixed left-1/2 top-[15%] z-50 w-full max-w-2xl -translate-x-1/2"
           >
-            <div className="overflow-hidden rounded-xl border border-border/60 bg-background shadow-2xl">
+            <div
+              ref={wrapperRef}
+              className="overflow-hidden rounded-xl border border-border/60 bg-background shadow-2xl"
+            >
               {/* Search input */}
               <div className="flex items-center gap-3 border-b border-border/40 px-4 py-3">
                 <Search className="size-4 shrink-0 text-muted-foreground" />
@@ -373,7 +417,6 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                   type="text"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  onKeyDown={handleKeyDown}
                   placeholder="Type a command or search..."
                   className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/50"
                   autoComplete="off"
@@ -387,7 +430,10 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
               {/* Results list */}
               <div
                 ref={listRef}
-                className="max-h-[360px] overflow-y-auto overscroll-contain p-1.5"
+                className="max-h-[400px] overflow-y-auto overscroll-contain p-1.5"
+                onMouseMove={() => {
+                  isKeyboardNav.current = false;
+                }}
               >
                 {filteredItems.length === 0 ? (
                   <div className="px-4 py-8 text-center text-sm text-muted-foreground">
@@ -420,7 +466,11 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                                   : "text-foreground/80 hover:bg-muted/50",
                               )}
                               onClick={() => handleSelect(globalIndex)}
-                              onMouseEnter={() => setSelectedIndex(globalIndex)}
+                              onMouseEnter={() => {
+                                if (!isKeyboardNav.current) {
+                                  setSelectedIndex(globalIndex);
+                                }
+                              }}
                             >
                               <Icon
                                 className={cn(

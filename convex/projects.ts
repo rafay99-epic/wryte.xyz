@@ -137,6 +137,14 @@ export const create = mutation({
       v.union(v.literal("yaml"), v.literal("toml")),
     ),
     defaultAuthor: v.optional(v.string()),
+    aiProvider: v.optional(
+      v.union(
+        v.literal("anthropic"),
+        v.literal("openai"),
+        v.literal("openrouter"),
+      ),
+    ),
+    aiModel: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const user = await getCurrentUser(ctx);
@@ -159,6 +167,8 @@ export const create = mutation({
       deployHookUrl?: string;
       frontmatterFormat?: "yaml" | "toml";
       defaultAuthor?: string;
+      aiProvider?: "anthropic" | "openai" | "openrouter";
+      aiModel?: string;
       createdAt: number;
       updatedAt: number;
     } = {
@@ -192,6 +202,9 @@ export const create = mutation({
       insertData.frontmatterFormat = args.frontmatterFormat;
     if (args.defaultAuthor !== undefined)
       insertData.defaultAuthor = args.defaultAuthor;
+    if (args.aiProvider !== undefined)
+      insertData.aiProvider = args.aiProvider;
+    if (args.aiModel !== undefined) insertData.aiModel = args.aiModel;
 
     const projectId = await ctx.db.insert("projects", insertData);
 
@@ -228,6 +241,14 @@ export const update = mutation({
     ),
     defaultAuthor: v.optional(v.string()),
     boardColumns: v.optional(v.string()),
+    aiProvider: v.optional(
+      v.union(
+        v.literal("anthropic"),
+        v.literal("openai"),
+        v.literal("openrouter"),
+      ),
+    ),
+    aiModel: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const user = await getCurrentUser(ctx);

@@ -142,6 +142,13 @@ export const DEFAULT_SHORTCUTS: ShortcutDef[] = [
     defaultKeys: "Mod+Shift+p",
     description: "Publish the current article to GitHub",
   },
+  {
+    id: "inlineAI",
+    label: "Inline AI",
+    category: "editor",
+    defaultKeys: "Mod+j",
+    description: "Transform selected text with a custom AI prompt",
+  },
 ];
 
 /** Lookup map for quick access by ID */

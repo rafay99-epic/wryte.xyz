@@ -1,4 +1,5 @@
 import { type RefObject, useEffect, useRef } from "react";
+import { useShortcutsStore } from "@/stores/shortcuts-store";
 
 /** Callback map for notifying the parent component when a shortcut fires. */
 interface KeyboardShortcutCallbacks {
@@ -6,6 +7,7 @@ interface KeyboardShortcutCallbacks {
   onItalic: () => void;
   onLink: () => void;
   onCodeBlock: () => void;
+  onInlineAI?: () => void;
 }
 
 /**
@@ -41,6 +43,30 @@ function insertAtCursor(textarea: HTMLTextAreaElement, text: string) {
 }
 
 /**
+ * Parse a TanStack-style binding string (e.g. "Mod+j", "Mod+Shift+k")
+ * and check if a KeyboardEvent matches it.
+ */
+function matchesBinding(event: KeyboardEvent, binding: string): boolean {
+  if (!binding) return false;
+
+  const parts = binding.toLowerCase().split("+");
+  const key = parts[parts.length - 1] ?? "";
+  const needsMod = parts.includes("mod");
+  const needsShift = parts.includes("shift");
+  const needsAlt = parts.includes("alt");
+
+  const hasMod = event.ctrlKey || event.metaKey;
+
+  if (needsMod && !hasMod) return false;
+  if (!needsMod && hasMod) return false;
+  if (needsShift && !event.shiftKey) return false;
+  if (!needsShift && event.shiftKey) return false;
+  if (needsAlt && !event.altKey) return false;
+
+  return event.key.toLowerCase() === key;
+}
+
+/**
  * Registers markdown-oriented keyboard shortcuts on a textarea element.
  *
  * Supported shortcuts (Ctrl/Cmd modifier):
@@ -48,6 +74,7 @@ function insertAtCursor(textarea: HTMLTextAreaElement, text: string) {
  * - **Ctrl+I** — Italic: wraps selection in `*...*`
  * - **Ctrl+K** — Link: wraps selection in `[text](url)` (defaults to "link" if nothing selected)
  * - **Ctrl+Shift+K** — Code block: wraps selection in fenced triple-backtick block
+ * - **Configurable** — Inline AI: transform selected text with custom prompt (default Mod+J)
  * - **Tab** — Inserts two spaces (soft indent) instead of moving focus
  *
  * Each shortcut also fires the corresponding callback so the parent can
@@ -69,6 +96,15 @@ export function useKeyboardShortcuts(
   useEffect(() => {
     callbacksRef.current = callbacks;
   });
+
+  // Read the inline AI binding from the shortcuts store (reactive)
+  const inlineAiKeys = useShortcutsStore((s) => s.getKeys("inlineAI"));
+
+  // Store the binding in a ref so the keydown handler always reads the latest
+  const inlineAiKeysRef = useRef(inlineAiKeys);
+  useEffect(() => {
+    inlineAiKeysRef.current = inlineAiKeys;
+  }, [inlineAiKeys]);
 
   useEffect(() => {
     const textarea = textareaRef.current;
@@ -133,6 +169,13 @@ export function useKeyboardShortcuts(
         );
         target.dispatchEvent(new Event("input", { bubbles: true }));
         cb.onCodeBlock();
+        return;
+      }
+
+      // --- Inline AI (configurable shortcut, default Mod+J) ---
+      if (cb.onInlineAI && matchesBinding(event, inlineAiKeysRef.current)) {
+        event.preventDefault();
+        cb.onInlineAI();
         return;
       }
 

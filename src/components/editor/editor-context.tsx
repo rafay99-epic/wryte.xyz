@@ -13,12 +13,22 @@ import {
  * Shape of the editor context value shared across all editor sub-components.
  * Provides a shared textarea ref and helper functions for programmatic text manipulation.
  */
+interface SelectionSnapshot {
+  text: string;
+  start: number;
+  end: number;
+}
+
 interface EditorContextValue {
   /** Ref to the underlying <textarea> so toolbar/shortcuts can manipulate it directly */
   textareaRef: RefObject<HTMLTextAreaElement | null>;
   insertAtCursor: (text: string) => void;
   wrapSelection: (before: string, after: string) => void;
   replaceContent: (content: string) => void;
+  /** Returns the currently selected text and its start/end indices, or null if nothing is selected */
+  getSelection: () => SelectionSnapshot | null;
+  /** Replaces a specific character range in the textarea with new text */
+  replaceRange: (start: number, end: number, replacement: string) => void;
 }
 
 const EditorContext = createContext<EditorContextValue | null>(null);
@@ -79,9 +89,47 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     textarea.dispatchEvent(new Event("input", { bubbles: true }));
   }, []);
 
+  /**
+   * Snapshot the current text selection. Returns null if nothing is selected.
+   * Must be called BEFORE focus moves away from the textarea (e.g. before opening a popover).
+   */
+  const getSelection = useCallback((): SelectionSnapshot | null => {
+    const textarea = textareaRef.current;
+    if (!textarea) return null;
+    const { selectionStart, selectionEnd, value } = textarea;
+    if (selectionStart === selectionEnd) return null;
+    return {
+      text: value.slice(selectionStart, selectionEnd),
+      start: selectionStart,
+      end: selectionEnd,
+    };
+  }, []);
+
+  /**
+   * Replace a specific character range with new text.
+   * Used by inline AI to swap only the selected portion.
+   */
+  const replaceRange = useCallback(
+    (start: number, end: number, replacement: string) => {
+      const textarea = textareaRef.current;
+      if (!textarea) return;
+      textarea.focus();
+      textarea.setRangeText(replacement, start, end, "end");
+      textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    },
+    [],
+  );
+
   return (
     <EditorContext.Provider
-      value={{ textareaRef, insertAtCursor, wrapSelection, replaceContent }}
+      value={{
+        textareaRef,
+        insertAtCursor,
+        wrapSelection,
+        replaceContent,
+        getSelection,
+        replaceRange,
+      }}
     >
       {children}
     </EditorContext.Provider>

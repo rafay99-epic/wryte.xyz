@@ -1,16 +1,21 @@
 "use client";
 
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
+import { toast } from "sonner";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { useEditorStore } from "@/stores/editor-store";
+import { useShortcutsStore } from "@/stores/shortcuts-store";
+import { splitShortcutKeys } from "@/lib/shortcuts";
 import { useEditorContext } from "./editor-context";
+import { InlineAiPopover } from "./inline-ai-popover";
 
 /**
  * Raw markdown textarea editor matching the Seospace reference feel:
  * - Clean, spacious writing area with comfortable line length
  * - Generous padding for a focused writing experience
  * - Slightly larger text for readability
+ * - Cmd+J inline AI enhancement for selected text
  */
 export function MarkdownEditor() {
   const { content, setContent } = useEditorStore(
@@ -19,18 +24,43 @@ export function MarkdownEditor() {
       setContent: state.setContent,
     })),
   );
-  const { textareaRef } = useEditorContext();
+  const { textareaRef, getSelection, replaceRange } = useEditorContext();
+
+  // Inline AI popover state
+  const [inlineAiOpen, setInlineAiOpen] = useState(false);
+  const [inlineAiSelection, setInlineAiSelection] = useState<{
+    text: string;
+    start: number;
+    end: number;
+  } | null>(null);
 
   const onBold = useCallback(() => {}, []);
   const onItalic = useCallback(() => {}, []);
   const onLink = useCallback(() => {}, []);
   const onCodeBlock = useCallback(() => {}, []);
 
+  const inlineAiKeys = useShortcutsStore((s) => s.getKeys("inlineAI"));
+  const inlineAiLabel = splitShortcutKeys(inlineAiKeys).join("+");
+
+  const onInlineAI = useCallback(() => {
+    const sel = getSelection();
+    if (!sel) {
+      toast("Select some text first", {
+        description: `Highlight the text you want to transform, then press ${inlineAiLabel}`,
+        duration: 2500,
+      });
+      return;
+    }
+    setInlineAiSelection(sel);
+    setInlineAiOpen(true);
+  }, [getSelection, inlineAiLabel]);
+
   useKeyboardShortcuts(textareaRef, {
     onBold,
     onItalic,
     onLink,
     onCodeBlock,
+    onInlineAI,
   });
 
   // Listen for native `input` events and push into Zustand store
@@ -57,8 +87,23 @@ export function MarkdownEditor() {
     }
   }, [content, textareaRef]);
 
+  const handleAcceptInline = useCallback(
+    (start: number, end: number, replacement: string) => {
+      replaceRange(start, end, replacement);
+    },
+    [replaceRange],
+  );
+
   return (
-    <div className="mx-auto w-full max-w-[860px]">
+    <div className="relative mx-auto w-full max-w-[860px]">
+      {/* Inline AI popover — floats above the editor */}
+      <InlineAiPopover
+        open={inlineAiOpen}
+        onOpenChange={setInlineAiOpen}
+        selection={inlineAiSelection}
+        onAccept={handleAcceptInline}
+      />
+
       <textarea
         ref={textareaRef}
         defaultValue={content}
