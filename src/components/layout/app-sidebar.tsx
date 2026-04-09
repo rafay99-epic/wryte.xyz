@@ -8,6 +8,7 @@ import {
   FileText,
   FolderOpen,
   ImageIcon,
+  Layers,
   LayoutDashboard,
   Plus,
   Settings,
@@ -148,6 +149,7 @@ export function AppSidebar() {
                   icon={LayoutDashboard}
                   label="Home"
                 />
+                <NavLink href="/projects" icon={Layers} label="Projects" />
                 <NavLink href="/settings" icon={Settings} label="Settings" />
               </div>
 

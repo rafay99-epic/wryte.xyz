@@ -2,15 +2,15 @@
 
 import {
   ArrowLeftRight,
+  Check,
   GitBranch,
   Globe,
   Lock,
   Search,
   Settings2,
 } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { WizardState } from "@/app/(app)/projects/new/page";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,12 +34,11 @@ function formatDate(dateStr: string): string {
   const diffMs = now.getTime() - date.getTime();
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
-  if (diffDays === 0) return "Updated today";
-  if (diffDays === 1) return "Updated yesterday";
-  if (diffDays < 30) return `Updated ${String(diffDays)}d ago`;
-  if (diffDays < 365)
-    return `Updated ${String(Math.floor(diffDays / 30))}mo ago`;
-  return `Updated ${String(Math.floor(diffDays / 365))}y ago`;
+  if (diffDays === 0) return "today";
+  if (diffDays === 1) return "yesterday";
+  if (diffDays < 30) return `${String(diffDays)}d ago`;
+  if (diffDays < 365) return `${String(Math.floor(diffDays / 30))}mo ago`;
+  return `${String(Math.floor(diffDays / 365))}y ago`;
 }
 
 export function StepSelectRepo({ state, onChange }: StepSelectRepoProps) {
@@ -108,10 +107,18 @@ export function StepSelectRepo({ state, onChange }: StepSelectRepoProps) {
     setSlugManuallyEdited(false);
   }, [onChange, state.useManualSetup]);
 
-  const filteredRepos = repos.filter((repo) =>
-    repo.fullName.toLowerCase().includes(searchQuery.toLowerCase()),
-  );
+  const filteredRepos = useMemo(() => {
+    const q = searchQuery.toLowerCase();
+    return repos.filter(
+      (repo) =>
+        repo.fullName.toLowerCase().includes(q) ||
+        (repo.description ?? "").toLowerCase().includes(q),
+    );
+  }, [repos, searchQuery]);
 
+  /* ---------------------------------------------------------------- */
+  /*  Manual setup mode                                                */
+  /* ---------------------------------------------------------------- */
   if (state.useManualSetup) {
     return (
       <div className="space-y-5">
@@ -226,55 +233,63 @@ export function StepSelectRepo({ state, onChange }: StepSelectRepoProps) {
     );
   }
 
+  /* ---------------------------------------------------------------- */
+  /*  Repository selection mode                                        */
+  /* ---------------------------------------------------------------- */
   return (
     <div className="space-y-5">
       {isLoading ? (
         <div className="space-y-2">
-          {Array.from({ length: 4 }, (_, i) => (
+          {Array.from({ length: 5 }, (_, i) => (
             <div
               key={`skeleton-${String(i)}`}
-              className="flex items-center gap-3 rounded-lg border border-border/50 p-3"
+              className="flex items-center gap-3 rounded-lg border border-border/40 p-3.5"
             >
-              <Skeleton className="size-8 rounded-lg" />
+              <Skeleton className="size-9 rounded-lg" />
               <div className="flex-1 space-y-2">
-                <Skeleton className="h-3.5 w-1/3" />
-                <Skeleton className="h-3 w-2/3" />
+                <Skeleton className="h-3.5 w-2/5" />
+                <Skeleton className="h-3 w-3/5" />
               </div>
             </div>
           ))}
         </div>
       ) : !isConnected ? (
-        <div className="flex flex-col items-center rounded-xl border border-dashed border-border/60 bg-muted/30 px-6 py-8 text-center">
-          <div className="mb-3 flex size-12 items-center justify-center rounded-full bg-muted">
+        <div className="flex flex-col items-center rounded-xl border border-dashed border-border/60 bg-muted/30 px-6 py-10 text-center">
+          <div className="mb-4 flex size-12 items-center justify-center rounded-full bg-muted">
             <GitBranch className="size-5 text-muted-foreground" />
           </div>
           <h3 className="mb-1 text-sm font-medium">GitHub Not Connected</h3>
-          <p className="max-w-sm text-xs text-muted-foreground">
+          <p className="max-w-sm text-xs leading-relaxed text-muted-foreground">
             Connect your GitHub account from your account settings to import
             repositories automatically, or use manual setup below.
           </p>
         </div>
       ) : (
         <>
+          {/* Search */}
           <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground/50" />
             <Input
               placeholder="Search repositories..."
               value={searchQuery}
               onChange={(e) =>
                 setSearchQuery((e.target as HTMLInputElement).value)
               }
-              className="pl-8"
+              className="pl-9"
             />
           </div>
 
-          <div className="max-h-[280px] space-y-1.5 overflow-y-auto">
+          {/* Repository list */}
+          <div className="space-y-1">
             {filteredRepos.length === 0 ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">
-                {searchQuery
-                  ? "No repositories match your search."
-                  : "No repositories found."}
-              </p>
+              <div className="flex flex-col items-center py-10 text-center">
+                <Search className="mb-3 size-5 text-muted-foreground/30" />
+                <p className="text-sm text-muted-foreground">
+                  {searchQuery
+                    ? "No repositories match your search."
+                    : "No repositories found."}
+                </p>
+              </div>
             ) : (
               filteredRepos.map((repo) => {
                 const isSelected =
@@ -285,54 +300,68 @@ export function StepSelectRepo({ state, onChange }: StepSelectRepoProps) {
                     type="button"
                     onClick={() => handleSelectRepo(repo)}
                     className={cn(
-                      "flex w-full items-start gap-3 rounded-lg border border-transparent px-3 py-2.5 text-left transition-all",
-                      "hover:bg-muted/60",
-                      isSelected &&
-                        "border-primary/40 bg-primary/5 ring-1 ring-primary/20",
+                      "group flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left transition-all duration-150",
+                      "hover:bg-accent/50",
+                      isSelected
+                        ? "bg-primary/[0.08] ring-1 ring-primary/25"
+                        : "hover:ring-1 hover:ring-border/60",
                     )}
                   >
+                    {/* Icon / check */}
                     <div
                       className={cn(
-                        "mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg transition-colors",
+                        "flex size-9 shrink-0 items-center justify-center rounded-lg transition-colors",
                         isSelected
-                          ? "bg-primary/10 text-primary"
-                          : "bg-muted text-muted-foreground",
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted text-muted-foreground group-hover:bg-accent",
                       )}
                     >
-                      <GitBranch className="size-3.5" />
+                      {isSelected ? (
+                        <Check className="size-4" strokeWidth={2.5} />
+                      ) : (
+                        <GitBranch className="size-4" />
+                      )}
                     </div>
+
+                    {/* Repo info */}
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="truncate text-sm font-medium">
+                        <span
+                          className={cn(
+                            "truncate text-sm font-medium",
+                            isSelected && "text-primary",
+                          )}
+                        >
                           {repo.fullName}
                         </span>
-                        <Badge
-                          variant="outline"
+                        <span
                           className={cn(
-                            "shrink-0 text-[10px] px-1.5 py-0",
+                            "inline-flex shrink-0 items-center gap-0.5 rounded-full px-1.5 py-px text-[10px] font-medium",
                             repo.private
-                              ? "border-amber-500/30 text-amber-500"
-                              : "border-emerald-500/30 text-emerald-500",
+                              ? "bg-amber-500/10 text-amber-500"
+                              : "bg-emerald-500/10 text-emerald-500",
                           )}
                         >
                           {repo.private ? (
-                            <>
-                              <Lock className="mr-0.5 size-2.5" /> Private
-                            </>
+                            <Lock className="size-2.5" />
                           ) : (
-                            <>
-                              <Globe className="mr-0.5 size-2.5" /> Public
-                            </>
+                            <Globe className="size-2.5" />
                           )}
-                        </Badge>
+                          {repo.private ? "Private" : "Public"}
+                        </span>
                       </div>
-                      {repo.description && (
-                        <p className="mt-0.5 truncate text-xs text-muted-foreground/80">
-                          {repo.description}
-                        </p>
-                      )}
-                      <p className="mt-0.5 text-[11px] text-muted-foreground/50">
-                        {formatDate(repo.updatedAt)}
+                      <p className="mt-0.5 flex items-center gap-1.5 truncate text-xs text-muted-foreground">
+                        {repo.description && (
+                          <>
+                            <span className="truncate">
+                              {repo.description}
+                            </span>
+                            <span className="shrink-0 text-border">·</span>
+                          </>
+                        )}
+                        <span className="shrink-0 tabular-nums">
+                          {formatDate(repo.updatedAt)}
+                        </span>
                       </p>
                     </div>
                   </button>
@@ -343,56 +372,58 @@ export function StepSelectRepo({ state, onChange }: StepSelectRepoProps) {
         </>
       )}
 
-      {/* Project name/slug when a repo is selected */}
+      {/* Project identity — inline when a repo is selected */}
       {state.selectedRepo && !state.useManualSetup && (
-        <div className="space-y-4 border-t pt-5">
-          <div className="space-y-1.5">
-            <Label
-              htmlFor="project-name"
-              className="text-xs font-medium text-muted-foreground"
-            >
-              Project Name
-            </Label>
-            <Input
-              id="project-name"
-              placeholder="My Blog"
-              value={state.projectName}
-              onChange={(e) =>
-                handleNameChange((e.target as HTMLInputElement).value)
-              }
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label
-              htmlFor="project-slug"
-              className="text-xs font-medium text-muted-foreground"
-            >
-              Slug
-            </Label>
-            <Input
-              id="project-slug"
-              placeholder="my-blog"
-              value={state.projectSlug}
-              onChange={(e) =>
-                handleSlugChange((e.target as HTMLInputElement).value)
-              }
-            />
-            <p className="text-xs text-muted-foreground/70">
-              URL-friendly identifier. Auto-generated from the name.
-            </p>
+        <div className="space-y-3 rounded-lg border border-border/60 bg-muted/30 p-4">
+          <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/60">
+            Project details
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1">
+              <Label
+                htmlFor="project-name"
+                className="text-xs font-medium text-muted-foreground"
+              >
+                Name
+              </Label>
+              <Input
+                id="project-name"
+                placeholder="My Blog"
+                value={state.projectName}
+                onChange={(e) =>
+                  handleNameChange((e.target as HTMLInputElement).value)
+                }
+              />
+            </div>
+            <div className="space-y-1">
+              <Label
+                htmlFor="project-slug"
+                className="text-xs font-medium text-muted-foreground"
+              >
+                Slug
+              </Label>
+              <Input
+                id="project-slug"
+                placeholder="my-blog"
+                value={state.projectSlug}
+                onChange={(e) =>
+                  handleSlugChange((e.target as HTMLInputElement).value)
+                }
+              />
+            </div>
           </div>
         </div>
       )}
 
-      <Button
-        variant="ghost"
-        size="sm"
+      {/* Manual setup link */}
+      <button
+        type="button"
         onClick={handleManualToggle}
-        className="gap-1.5 text-muted-foreground"
+        className="flex items-center gap-1.5 text-xs text-muted-foreground/60 transition-colors hover:text-muted-foreground"
       >
-        <Settings2 className="size-3.5" />
+        <Settings2 className="size-3" />
         Set up manually without GitHub
-      </Button>
+      </button>
     </div>
   );
 }
