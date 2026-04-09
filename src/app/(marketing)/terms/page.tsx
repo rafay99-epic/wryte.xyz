@@ -160,8 +160,8 @@ export default function TermsPage() {
                 <li className="flex gap-3">
                   <span className="mt-2 size-1.5 shrink-0 rounded-full bg-amber-400/40" />
                   <span>
-                    You must authenticate via a supported provider (e.g., GitHub,
-                    Google) to access protected features.
+                    You must authenticate via a supported provider (e.g.,
+                    GitHub, Google) to access protected features.
                   </span>
                 </li>
                 <li className="flex gap-3">
@@ -269,8 +269,8 @@ export default function TermsPage() {
                 <li className="flex gap-3">
                   <span className="mt-2 size-1.5 shrink-0 rounded-full bg-red-400/40" />
                   <span>
-                    Interfere with or disrupt the integrity or performance of the
-                    Service.
+                    Interfere with or disrupt the integrity or performance of
+                    the Service.
                   </span>
                 </li>
                 <li className="flex gap-3">
@@ -316,8 +316,8 @@ export default function TermsPage() {
                 <li className="flex gap-3">
                   <span className="mt-2 size-1.5 shrink-0 rounded-full bg-amber-400/40" />
                   <span>
-                    We may update these Terms from time to time. Continued use of
-                    the Service after changes constitutes acceptance of the
+                    We may update these Terms from time to time. Continued use
+                    of the Service after changes constitutes acceptance of the
                     revised Terms.
                   </span>
                 </li>
@@ -347,8 +347,9 @@ export default function TermsPage() {
                 Governing Law
               </h2>
               <p className="text-[15px] leading-relaxed text-white/35">
-                These Terms shall be governed by and construed in accordance with
-                applicable laws, without regard to conflict of law principles.
+                These Terms shall be governed by and construed in accordance
+                with applicable laws, without regard to conflict of law
+                principles.
               </p>
             </Section>
 
@@ -360,8 +361,8 @@ export default function TermsPage() {
                 Contact
               </h2>
               <p className="text-[15px] leading-relaxed text-white/35">
-                If you have questions about these Terms, please reach out via the
-                project&apos;s{" "}
+                If you have questions about these Terms, please reach out via
+                the project&apos;s{" "}
                 <Link
                   href="https://github.com/rafay99-epic/wryte.xyz"
                   className="text-amber-400/70 underline decoration-amber-400/20 underline-offset-4 transition-colors hover:text-amber-400"
@@ -399,10 +400,7 @@ export default function TermsPage() {
               >
                 Privacy Policy
               </Link>
-              <Link
-                href="/"
-                className="transition-colors hover:text-white/40"
-              >
+              <Link href="/" className="transition-colors hover:text-white/40">
                 Home
               </Link>
             </div>

@@ -358,9 +358,9 @@ export default function PrivacyPage() {
               </h2>
               <p className="text-[15px] leading-relaxed text-white/35">
                 The Service is not directed to children under 13. We do not
-                knowingly collect personal information from children under 13. If
-                you believe a child has provided us with personal data, please
-                contact us so we can delete it.
+                knowingly collect personal information from children under 13.
+                If you believe a child has provided us with personal data,
+                please contact us so we can delete it.
               </p>
             </Section>
 
@@ -426,10 +426,7 @@ export default function PrivacyPage() {
               >
                 Terms &amp; Conditions
               </Link>
-              <Link
-                href="/"
-                className="transition-colors hover:text-white/40"
-              >
+              <Link href="/" className="transition-colors hover:text-white/40">
                 Home
               </Link>
             </div>
