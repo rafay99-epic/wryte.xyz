@@ -5,6 +5,7 @@ import { useQuery } from "convex/react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowLeft,
+  CalendarDays,
   FileText,
   FolderOpen,
   ImageIcon,
@@ -140,7 +141,7 @@ export function AppSidebar() {
           width={24}
           height={24}
           className="rounded-md"
-          style={{ width: 24, height: "auto" }}
+          style={{ width: "auto", height: "auto" }}
         />
         <span className="text-sm font-semibold tracking-tight text-sidebar-foreground">
           wryte
@@ -250,6 +251,11 @@ export function AppSidebar() {
                   href={`/projects/${activeProjectId}/media`}
                   icon={ImageIcon}
                   label="Media"
+                />
+                <NavLink
+                  href={`/projects/${activeProjectId}/calendar`}
+                  icon={CalendarDays}
+                  label="Calendar"
                 />
                 <NavLink
                   href={`/projects/${activeProjectId}/settings`}

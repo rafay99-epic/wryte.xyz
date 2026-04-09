@@ -147,6 +147,35 @@ export default defineSchema({
     .index("by_bulkBatchId", ["bulkBatchId"]),
 
   /**
+   * Media table — temporary staging for uploaded images.
+   *
+   * Images are stored in Convex file storage while documents are in draft/review/ready.
+   * At publish time, images are uploaded to GitHub and deleted from Convex storage.
+   * This prevents polluting the GitHub repo with images from unfinished drafts.
+   */
+  media: defineTable({
+    projectId: v.id("projects"),
+    /** Document this image is associated with (optional — can be project-level). */
+    documentId: v.optional(v.id("documents")),
+    /** Convex storage ID for the uploaded file. */
+    storageId: v.id("_storage"),
+    /** Original filename (e.g., "hero-image.png"). */
+    fileName: v.string(),
+    /** MIME type (e.g., "image/png"). */
+    contentType: v.string(),
+    /** File size in bytes. */
+    size: v.number(),
+    /** Whether this image has been synced to GitHub. */
+    syncedToGithub: v.boolean(),
+    /** The GitHub repo path after syncing (e.g., "public/images/hero.png"). */
+    githubPath: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_projectId", ["projectId"])
+    .index("by_documentId", ["documentId"])
+    .index("by_storageId", ["storageId"]),
+
+  /**
    * Scheduled publishes table — acts as a lightweight job queue for deferred publishing.
    * Each record tracks a single publish intent with a status lifecycle:
    * pending -> processing -> completed | failed.

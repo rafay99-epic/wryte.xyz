@@ -16,6 +16,7 @@ import type * as crons from "../crons.js";
 import type * as documents from "../documents.js";
 import type * as github from "../github.js";
 import type * as http from "../http.js";
+import type * as media from "../media.js";
 import type * as projects from "../projects.js";
 import type * as scheduling from "../scheduling.js";
 import type * as users from "../users.js";
@@ -35,6 +36,7 @@ declare const fullApi: ApiFromModules<{
   documents: typeof documents;
   github: typeof github;
   http: typeof http;
+  media: typeof media;
   projects: typeof projects;
   scheduling: typeof scheduling;
   users: typeof users;

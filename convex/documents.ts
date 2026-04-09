@@ -554,6 +554,23 @@ export const internalGet = internalQuery({
 });
 
 /**
+ * Internal mutation to update document content.
+ * Used by the publish action to rewrite Convex media URLs to GitHub paths.
+ */
+export const internalUpdate = internalMutation({
+  args: {
+    documentId: v.id("documents"),
+    content: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.documentId, {
+      content: args.content,
+      updatedAt: Date.now(),
+    });
+  },
+});
+
+/**
  * Internal mutation called after a successful GitHub publish to record
  * the resulting file path, SHA, and publication timestamp on the document.
  * Keeping this separate from the GitHub action allows the action to remain
@@ -778,5 +795,46 @@ export const rollbackToVersion = mutation({
       title: historyEntry.titleSnapshot,
       restoredFrom: historyEntry.createdAt,
     };
+  },
+});
+
+/**
+ * Lightweight query for the content calendar view.
+ *
+ * Returns all documents for a project with only the fields needed for
+ * calendar rendering (no content/frontmatter), keeping the payload small.
+ */
+export const listForCalendar = query({
+  args: { projectId: v.id("projects") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_tokenIdentifier", (q) =>
+        q.eq("tokenIdentifier", identity.tokenIdentifier),
+      )
+      .unique();
+    if (!user) return [];
+
+    const project = await ctx.db.get(args.projectId);
+    if (!project || project.userId !== user._id) return [];
+
+    const documents = await ctx.db
+      .query("documents")
+      .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
+      .collect();
+
+    return documents.map((d) => ({
+      _id: d._id,
+      title: d.title,
+      slug: d.slug,
+      status: d.status,
+      scheduledAt: d.scheduledAt,
+      publishedAt: d.publishedAt,
+      updatedAt: d.updatedAt,
+      createdAt: d.createdAt,
+    }));
   },
 });

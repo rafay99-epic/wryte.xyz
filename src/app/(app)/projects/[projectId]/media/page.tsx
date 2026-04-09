@@ -1,8 +1,9 @@
 "use client";
 
-import { useAction, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import {
   ArrowLeft,
+  Clock,
   Copy,
   ExternalLink,
   GitBranch,
@@ -70,6 +71,12 @@ export default function MediaPage() {
   const files = mediaData?.files ?? [];
 
   const { invalidateMedia } = useGithubInvalidation();
+
+  // --- Staged media (Convex storage — pending publish) ---
+  // biome-ignore lint/suspicious/noExplicitAny: api types are generated at build time
+  const stagedMedia = useQuery((api as any).media.listStaged, { projectId }) ?? [];
+  // biome-ignore lint/suspicious/noExplicitAny: api types are generated at build time
+  const deleteStagedMutation = useMutation((api as any).media.deleteStaged);
 
   /** Refresh media files — invalidates cache and refetches. */
   const fetchRemoteMedia = useCallback(async () => {
@@ -173,7 +180,83 @@ export default function MediaPage() {
         </div>
       )}
 
-      {/* Content */}
+      {/* Staged Media (pending publish) */}
+      {stagedMedia.length > 0 && (
+        <div className="mb-6">
+          <div className="mb-3 flex items-center gap-2">
+            <Clock className="size-3.5 text-amber-500" />
+            <h2 className="text-sm font-semibold text-muted-foreground">
+              Staged ({stagedMedia.length}) — will be pushed to GitHub on publish
+            </h2>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+            {stagedMedia.map((item: { _id: string; fileName: string; contentType: string; size: number; url: string; createdAt: number }) => {
+              const isImage = /\.(png|jpe?g|gif|webp|svg|avif|bmp|ico)$/i.test(item.fileName);
+              const sizeKB = (item.size / 1024).toFixed(1);
+              return (
+                <div
+                  key={item._id}
+                  className="group overflow-hidden rounded-lg border border-amber-500/20 bg-card transition-colors hover:bg-muted/30"
+                >
+                  <div className="relative flex h-36 items-center justify-center bg-amber-500/5">
+                    {isImage ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={item.url}
+                        alt={item.fileName}
+                        className="size-full object-contain p-2"
+                      />
+                    ) : (
+                      <ImageIcon className="size-10 text-muted-foreground/30" />
+                    )}
+                    <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
+                      <Button
+                        size="xs"
+                        variant="secondary"
+                        onClick={() => {
+                          navigator.clipboard.writeText(item.url).then(
+                            () => toast.success("URL copied"),
+                            () => toast.error("Failed to copy"),
+                          );
+                        }}
+                      >
+                        <Copy className="size-3" />
+                        URL
+                      </Button>
+                      <Button
+                        size="xs"
+                        variant="destructive"
+                        onClick={() => {
+                          void deleteStagedMutation({ mediaId: item._id as Id<"media"> }).then(
+                            () => toast.success("Deleted"),
+                            () => toast.error("Failed to delete"),
+                          );
+                        }}
+                      >
+                        <Trash2 className="size-3" />
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="border-t px-3 py-2">
+                    <div className="flex items-center gap-1.5">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-medium text-amber-600 dark:text-amber-400">
+                        <Clock className="size-2.5" />
+                        Staged
+                      </span>
+                    </div>
+                    <p className="mt-1 truncate text-sm font-medium">
+                      {item.fileName}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{sizeKB} KB</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* GitHub Content */}
       {filteredFiles.length > 0 ? (
         <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
           {filteredFiles.map((file) => (
@@ -336,7 +419,10 @@ function UploadMediaDialog({
   onOpenChange: (open: boolean) => void;
   onUploaded: () => void;
 }) {
-  const uploadMedia = useAction(api.github.uploadMediaToGithub);
+  // biome-ignore lint/suspicious/noExplicitAny: api types are generated at build time
+  const generateUploadUrl = useMutation((api as any).media.generateUploadUrl);
+  // biome-ignore lint/suspicious/noExplicitAny: api types are generated at build time
+  const saveMedia = useMutation((api as any).media.saveMedia);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [destination, setDestination] = useState<UploadDestination>(
@@ -393,25 +479,26 @@ function UploadMediaDialog({
 
     setIsUploading(true);
     try {
-      const reader = new FileReader();
-      const base64 = await new Promise<string>((resolve, reject) => {
-        reader.onload = () => {
-          const result = reader.result as string;
-          const base64Data = result.split(",")[1] ?? "";
-          resolve(base64Data);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(selectedFile);
+      // Upload to Convex storage (staging area)
+      const uploadUrl = await generateUploadUrl();
+      const uploadResponse = await fetch(uploadUrl, {
+        method: "POST",
+        headers: { "Content-Type": selectedFile.type },
+        body: selectedFile,
       });
+      if (!uploadResponse.ok) throw new Error("Upload failed");
 
-      await uploadMedia({
+      const { storageId } = (await uploadResponse.json()) as { storageId: string };
+
+      await saveMedia({
         projectId,
+        storageId: storageId as Id<"_storage">,
         fileName: selectedFile.name,
-        base64Content: base64,
         contentType: selectedFile.type,
+        size: selectedFile.size,
       });
 
-      toast.success(`Uploaded ${selectedFile.name} to GitHub`);
+      toast.success(`Staged ${selectedFile.name} — will sync to GitHub on publish`);
       onUploaded();
       onOpenChange(false);
     } catch {
@@ -419,7 +506,7 @@ function UploadMediaDialog({
     } finally {
       setIsUploading(false);
     }
-  }, [selectedFile, projectId, uploadMedia, onUploaded, onOpenChange]);
+  }, [selectedFile, projectId, generateUploadUrl, saveMedia, onUploaded, onOpenChange]);
 
   const handleAddExternal = useCallback(() => {
     const trimmedName = extName.trim();
