@@ -8,6 +8,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { EditorLayout } from "@/components/editor/editor-layout";
+import { PublishHistoryPanel } from "@/components/editor/publish-history-panel";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAutosave } from "@/hooks/use-autosave";
@@ -91,6 +92,9 @@ export default function EditorPage() {
   // Wire up autosave
   useAutosave({ documentId, content, title });
 
+  const historyPanelOpen = useEditorStore((s) => s.historyPanelOpen);
+  const toggleHistoryPanel = useEditorStore((s) => s.toggleHistoryPanel);
+
   if (document === undefined || project === undefined) {
     return (
       <div className="flex h-full flex-col gap-4 p-6">
@@ -112,10 +116,15 @@ export default function EditorPage() {
   }
 
   return (
-    <div className="h-full overflow-hidden">
+    <div className="relative h-full overflow-hidden">
       <EditorLayout
         documentId={documentId}
         projectId={document.projectId as string}
+      />
+      <PublishHistoryPanel
+        documentId={documentId}
+        open={historyPanelOpen}
+        onClose={toggleHistoryPanel}
       />
     </div>
   );

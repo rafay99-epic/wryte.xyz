@@ -14,8 +14,11 @@ interface TableViewProps {
   /** Whether to show the selection checkbox column. */
   showSelection: boolean;
   selectedPaths: Set<string>;
+  selectedDocIds?: Set<string> | undefined;
   onToggleSelect: (path: string, checked: boolean) => void;
   onToggleSelectAll: (checked: boolean) => void;
+  onToggleDocSelect?: ((docId: string, checked: boolean) => void) | undefined;
+  onToggleSelectAllLocal?: ((checked: boolean) => void) | undefined;
   onOpenItem: (item: ContentItem) => void;
   onDeleteLocal: (item: ContentItem) => void;
   onDeleteRemote: (item: ContentItem) => void;
@@ -28,31 +31,50 @@ export function TableView({
   importingPath,
   showSelection,
   selectedPaths,
+  selectedDocIds,
   onToggleSelect,
   onToggleSelectAll,
+  onToggleDocSelect,
+  onToggleSelectAllLocal,
   onOpenItem,
   onDeleteLocal,
   onDeleteRemote,
 }: TableViewProps) {
   const remoteItems = items.filter((i) => i.kind === "remote");
+  const localItems = items.filter((i) => i.kind === "local" && i.id);
   const hasRemoteItems = remoteItems.length > 0;
+  const hasLocalItems = localItems.length > 0;
   const allRemoteSelected =
     hasRemoteItems && remoteItems.every((i) => selectedPaths.has(i.path));
+  const allLocalSelected =
+    hasLocalItems &&
+    selectedDocIds !== undefined &&
+    localItems.every((i) => i.id && selectedDocIds.has(i.id));
+  const showCheckbox = showSelection || (onToggleDocSelect !== undefined);
 
   return (
     <div className="overflow-hidden rounded-lg border">
       <table className="w-full">
         <thead>
           <tr className="border-b bg-muted/40 text-left text-xs text-muted-foreground">
-            {showSelection && (
+            {showCheckbox && (
               <th className="w-10 pl-4 py-2.5">
-                {hasRemoteItems && (
+                {hasRemoteItems && showSelection && (
                   <input
                     type="checkbox"
                     checked={allRemoteSelected}
                     onChange={(e) => onToggleSelectAll(e.target.checked)}
                     className="size-4 rounded border-muted-foreground/30 accent-primary cursor-pointer"
                     title="Select all remote files"
+                  />
+                )}
+                {!hasRemoteItems && hasLocalItems && onToggleSelectAllLocal && (
+                  <input
+                    type="checkbox"
+                    checked={allLocalSelected === true}
+                    onChange={(e) => onToggleSelectAllLocal(e.target.checked)}
+                    className="size-4 rounded border-muted-foreground/30 accent-primary cursor-pointer"
+                    title="Select all articles"
                   />
                 )}
               </th>
@@ -89,12 +111,22 @@ export function TableView({
                 tags={fm?.tags ?? []}
                 author={fm?.author ?? null}
                 columns={columns}
-                showSelectionCell={showSelection}
-                selected={isRemote ? selectedPaths.has(item.path) : undefined}
+                showSelectionCell={showCheckbox}
+                selected={
+                  isRemote
+                    ? selectedPaths.has(item.path)
+                    : item.id && selectedDocIds?.has(item.id)
+                      ? true
+                      : onToggleDocSelect
+                        ? false
+                        : undefined
+                }
                 onSelect={
                   isRemote
                     ? (checked) => onToggleSelect(item.path, checked)
-                    : undefined
+                    : item.id && onToggleDocSelect
+                      ? (checked) => onToggleDocSelect(item.id!, checked)
+                      : undefined
                 }
                 onOpen={() => onOpenItem(item)}
                 onDelete={

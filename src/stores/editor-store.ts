@@ -29,6 +29,8 @@ interface EditorState {
   activeProjectId: string | null;
   /** When true, hides sidebar, header, and toolbar for distraction-free writing. */
   focusMode: boolean;
+  /** When true, shows the publish history side panel in the editor. */
+  historyPanelOpen: boolean;
 
   /** Update markdown content and mark the document as dirty (unsaved changes). */
   setContent: (content: string) => void;
@@ -52,6 +54,8 @@ interface EditorState {
   setActiveProjectId: (id: string | null) => void;
   /** Toggle focus (distraction-free) mode on/off. */
   toggleFocusMode: () => void;
+  /** Toggle the publish history side panel. */
+  toggleHistoryPanel: () => void;
   /** Reset all editor state back to defaults (e.g. when navigating away from a document). */
   reset: () => void;
 }
@@ -67,6 +71,7 @@ const initialState = {
   sidebarOpen: true,
   activeProjectId: null as string | null,
   focusMode: false,
+  historyPanelOpen: false,
 };
 
 /**
@@ -121,6 +126,10 @@ export const useEditorStore = create<EditorState>()((set) => ({
       // Close sidebar when entering focus mode
       sidebarOpen: !!state.focusMode,
     })),
+
+  // Toggle publish history panel
+  toggleHistoryPanel: () =>
+    set((state) => ({ historyPanelOpen: !state.historyPanelOpen })),
 
   // Wipe everything — prevents stale data when switching documents
   reset: () => set(initialState),

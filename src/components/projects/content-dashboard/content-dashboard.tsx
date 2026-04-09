@@ -8,9 +8,11 @@ import {
   CalendarArrowUp,
   Cloud,
   Download,
+  FileText,
   Loader2,
   RefreshCw,
   Search,
+  Send,
   Settings,
   Sparkles,
   Tag,
@@ -106,6 +108,9 @@ interface ContentDashboardProps {
   onBatchImport: (paths: string[]) => Promise<void>;
   isBatchImporting: boolean;
   batchImportProgress: { done: number; total: number } | null;
+  onBulkPublish?: ((docIds: string[]) => Promise<void>) | undefined;
+  isBulkPublishing?: boolean | undefined;
+  bulkPublishProgress?: { done: number; total: number } | null | undefined;
   projectId: string;
   frontmatterMap: Map<string, ParsedFrontmatter>;
 }
@@ -131,6 +136,9 @@ export function ContentDashboard({
   onBatchImport,
   isBatchImporting,
   batchImportProgress,
+  onBulkPublish,
+  isBulkPublishing,
+  bulkPublishProgress,
   projectId,
   frontmatterMap,
 }: ContentDashboardProps) {
@@ -146,11 +154,14 @@ export function ContentDashboard({
   const clearTagFilters = useSearchStore((s) => s.clearTagFilters);
   // --- Multi-select state for remote items ---
   const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
+  // --- Multi-select state for local items (bulk publish) ---
+  const [selectedDocIds, setSelectedDocIds] = useState<Set<string>>(new Set());
 
   // Clear selection when filter/search changes
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentionally clear selection when filter/search props change
   useEffect(() => {
     setSelectedPaths(new Set());
+    setSelectedDocIds(new Set());
   }, [viewFilter, searchQuery]);
 
   const handleToggleSelect = useCallback((path: string, checked: boolean) => {
@@ -182,12 +193,48 @@ export function ContentDashboard({
     [items],
   );
 
+  const handleToggleDocSelect = useCallback((docId: string, checked: boolean) => {
+    setSelectedDocIds((prev) => {
+      const next = new Set(prev);
+      if (checked) {
+        next.add(docId);
+      } else {
+        next.delete(docId);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleToggleSelectAllLocal = useCallback(
+    (checked: boolean) => {
+      if (checked) {
+        const localIds = new Set<string>();
+        for (const item of items) {
+          if (item.kind === "local" && item.id) {
+            localIds.add(item.id);
+          }
+        }
+        setSelectedDocIds(localIds);
+      } else {
+        setSelectedDocIds(new Set());
+      }
+    },
+    [items],
+  );
+
   const handleBatchImport = useCallback(async () => {
     const paths = Array.from(selectedPaths);
     if (paths.length === 0) return;
     await onBatchImport(paths);
     setSelectedPaths(new Set());
   }, [selectedPaths, onBatchImport]);
+
+  const handleBulkPublish = useCallback(async () => {
+    const ids = Array.from(selectedDocIds);
+    if (ids.length === 0 || !onBulkPublish) return;
+    await onBulkPublish(ids);
+    setSelectedDocIds(new Set());
+  }, [selectedDocIds, onBulkPublish]);
 
   // Listen for keyboard shortcut layout switch event
   useEffect(() => {
@@ -512,8 +559,11 @@ export function ContentDashboard({
                     importingPath={importingPath}
                     showSelection={hasGithub}
                     selectedPaths={selectedPaths}
+                    selectedDocIds={selectedDocIds}
                     onToggleSelect={handleToggleSelect}
                     onToggleSelectAll={handleToggleSelectAll}
+                    onToggleDocSelect={onBulkPublish ? handleToggleDocSelect : undefined}
+                    onToggleSelectAllLocal={onBulkPublish ? handleToggleSelectAllLocal : undefined}
                     onOpenItem={onOpenItem}
                     onDeleteLocal={onDeleteLocal}
                     onDeleteRemote={onDeleteRemote}
@@ -569,7 +619,7 @@ export function ContentDashboard({
 
       {/* Floating multi-select action bar */}
       <AnimatePresence>
-        {selectedPaths.size > 0 && (
+        {(selectedPaths.size > 0 || selectedDocIds.size > 0) && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -578,41 +628,90 @@ export function ContentDashboard({
             className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2"
           >
             <div className="flex items-center gap-3 rounded-xl border bg-background/95 px-4 py-2.5 shadow-lg backdrop-blur-sm">
-              <div className="flex items-center gap-2 text-sm font-medium">
-                <Cloud className="size-4 text-blue-500" />
-                <span>
-                  {selectedPaths.size}{" "}
-                  {selectedPaths.size === 1 ? "file" : "files"} selected
-                </span>
-              </div>
+              {/* Remote files selected — Import action */}
+              {selectedPaths.size > 0 && (
+                <>
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <Cloud className="size-4 text-blue-500" />
+                    <span>
+                      {selectedPaths.size}{" "}
+                      {selectedPaths.size === 1 ? "file" : "files"} selected
+                    </span>
+                  </div>
 
-              <div className="h-5 w-px bg-border" />
+                  <div className="h-5 w-px bg-border" />
 
-              <Button
-                size="sm"
-                onClick={() => void handleBatchImport()}
-                disabled={isBatchImporting}
-              >
-                {isBatchImporting ? (
-                  <>
-                    <Loader2 className="size-3.5 animate-spin" />
-                    {batchImportProgress
-                      ? `Importing ${batchImportProgress.done}/${batchImportProgress.total}...`
-                      : "Importing..."}
-                  </>
-                ) : (
-                  <>
-                    <Download className="size-3.5" />
-                    Import to Convex
-                  </>
-                )}
-              </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => void handleBatchImport()}
+                    disabled={isBatchImporting}
+                  >
+                    {isBatchImporting ? (
+                      <>
+                        <Loader2 className="size-3.5 animate-spin" />
+                        {batchImportProgress
+                          ? `Importing ${batchImportProgress.done}/${batchImportProgress.total}...`
+                          : "Importing..."}
+                      </>
+                    ) : (
+                      <>
+                        <Download className="size-3.5" />
+                        Import to Convex
+                      </>
+                    )}
+                  </Button>
+                </>
+              )}
+
+              {/* Local docs selected — Bulk publish action */}
+              {selectedDocIds.size > 0 && (
+                <>
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <FileText className="size-4 text-emerald-500" />
+                    <span>
+                      {selectedDocIds.size}{" "}
+                      {selectedDocIds.size === 1 ? "article" : "articles"}{" "}
+                      selected
+                    </span>
+                  </div>
+
+                  {onBulkPublish && (
+                    <>
+                      <div className="h-5 w-px bg-border" />
+
+                      <Button
+                        size="sm"
+                        onClick={() => void handleBulkPublish()}
+                        disabled={isBulkPublishing}
+                        className="gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700"
+                      >
+                        {isBulkPublishing ? (
+                          <>
+                            <Loader2 className="size-3.5 animate-spin" />
+                            {bulkPublishProgress
+                              ? `Publishing ${bulkPublishProgress.done}/${bulkPublishProgress.total}...`
+                              : "Publishing..."}
+                          </>
+                        ) : (
+                          <>
+                            <Send className="size-3.5" />
+                            Publish All
+                          </>
+                        )}
+                      </Button>
+                    </>
+                  )}
+                </>
+              )}
 
               <Button
                 variant="ghost"
                 size="icon-xs"
-                onClick={() => setSelectedPaths(new Set())}
-                disabled={isBatchImporting}
+                onClick={() => {
+                  setSelectedPaths(new Set());
+                  setSelectedDocIds(new Set());
+                }}
+                disabled={isBatchImporting || isBulkPublishing}
               >
                 <X className="size-3.5" />
               </Button>

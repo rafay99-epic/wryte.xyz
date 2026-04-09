@@ -675,3 +675,108 @@ export const internalUpdateAfterPublish = internalMutation({
     });
   },
 });
+
+/* ------------------------------------------------------------------ */
+/*  Publish history                                                    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Records a publish event in the history table.
+ * Called internally after every successful GitHub publish.
+ */
+export const internalRecordPublishHistory = internalMutation({
+  args: {
+    documentId: v.id("documents"),
+    projectId: v.id("projects"),
+    userId: v.id("users"),
+    commitSha: v.string(),
+    commitUrl: v.optional(v.string()),
+    githubPath: v.string(),
+    commitMessage: v.string(),
+    contentSnapshot: v.string(),
+    frontmatterSnapshot: v.optional(v.string()),
+    titleSnapshot: v.string(),
+    isUpdate: v.boolean(),
+    isBulk: v.optional(v.boolean()),
+    bulkBatchId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.insert("publish_history", {
+      ...args,
+      createdAt: Date.now(),
+    });
+  },
+});
+
+/**
+ * Returns the publish history for a document, newest first.
+ */
+export const getPublishHistory = query({
+  args: {
+    documentId: v.id("documents"),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_tokenIdentifier", (q) =>
+        q.eq("tokenIdentifier", identity.tokenIdentifier),
+      )
+      .unique();
+    if (!user) return [];
+
+    // Verify ownership
+    const document = await ctx.db.get(args.documentId);
+    if (!document) return [];
+    const project = await ctx.db.get(document.projectId);
+    if (!project || project.userId !== user._id) return [];
+
+    const history = await ctx.db
+      .query("publish_history")
+      .withIndex("by_documentId", (q) => q.eq("documentId", args.documentId))
+      .order("desc")
+      .collect();
+
+    return history;
+  },
+});
+
+/**
+ * Rolls back a document to a previous published version.
+ * Restores title, content, and frontmatter from the history snapshot.
+ */
+export const rollbackToVersion = mutation({
+  args: {
+    documentId: v.id("documents"),
+    historyId: v.id("publish_history"),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+
+    const document = await ctx.db.get(args.documentId);
+    if (!document) throw new Error("Document not found");
+    const project = await ctx.db.get(document.projectId);
+    if (!project || project.userId !== user._id) {
+      throw new Error("Unauthorized");
+    }
+
+    const historyEntry = await ctx.db.get(args.historyId);
+    if (!historyEntry || historyEntry.documentId !== args.documentId) {
+      throw new Error("History entry not found or does not belong to this document");
+    }
+
+    await ctx.db.patch(args.documentId, {
+      title: historyEntry.titleSnapshot,
+      content: historyEntry.contentSnapshot,
+      frontmatter: historyEntry.frontmatterSnapshot,
+      updatedAt: Date.now(),
+    });
+
+    return {
+      title: historyEntry.titleSnapshot,
+      restoredFrom: historyEntry.createdAt,
+    };
+  },
+});

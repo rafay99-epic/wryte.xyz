@@ -327,6 +327,15 @@ export default function ProjectDetailPage() {
     total: number;
   } | null>(null);
 
+  // --- Bulk publish ---
+  // biome-ignore lint/suspicious/noExplicitAny: Convex api types are generated at build time
+  const bulkPublishAction = useAction((api as any).github.bulkPublish);
+  const [isBulkPublishing, setIsBulkPublishing] = useState(false);
+  const [bulkPublishProgress, setBulkPublishProgress] = useState<{
+    done: number;
+    total: number;
+  } | null>(null);
+
   const handleOpenItem = useCallback(
     async (item: ContentItem) => {
       if (item.kind === "local" && item.id) {
@@ -424,6 +433,78 @@ export default function ProjectDetailPage() {
     [projectId, importFile],
   );
 
+  // --- Bulk publish handler ---
+  const handleBulkPublish = useCallback(
+    async (docIds: string[]) => {
+      if (!hasGithub) {
+        toast.error("GitHub not configured for this project");
+        return;
+      }
+      setIsBulkPublishing(true);
+      setBulkPublishProgress({ done: 0, total: docIds.length });
+
+      try {
+        let githubAccessToken: string | undefined;
+        try {
+          const res = await fetch("/api/github/token");
+          if (res.ok) {
+            const data = (await res.json()) as { token?: string };
+            if (data.token) githubAccessToken = data.token;
+          }
+        } catch {
+          // Fall back to stored PAT
+        }
+
+        const args: {
+          projectId: Id<"projects">;
+          documentIds: Id<"documents">[];
+          githubAccessToken?: string;
+        } = {
+          projectId,
+          documentIds: docIds as Id<"documents">[],
+        };
+        if (githubAccessToken) args.githubAccessToken = githubAccessToken;
+
+        const result = (await bulkPublishAction(args)) as {
+          success: number;
+          failed: number;
+          commitUrl?: string;
+        };
+
+        setBulkPublishProgress({ done: result.success, total: docIds.length });
+
+        if (result.success > 0 && result.failed === 0) {
+          toast.success(
+            `Published ${result.success} ${result.success === 1 ? "article" : "articles"} in a single commit`,
+            {
+              description: result.commitUrl ? "View on GitHub" : undefined,
+              action: result.commitUrl
+                ? {
+                    label: "Open commit",
+                    onClick: () => window.open(result.commitUrl, "_blank"),
+                  }
+                : undefined,
+            },
+          );
+        } else if (result.success > 0 && result.failed > 0) {
+          toast.warning(
+            `Published ${result.success}, ${result.failed} failed`,
+          );
+        } else {
+          toast.error("Failed to publish articles");
+        }
+      } catch (err) {
+        toast.error(
+          err instanceof Error ? err.message : "Bulk publish failed",
+        );
+      } finally {
+        setIsBulkPublishing(false);
+        setBulkPublishProgress(null);
+      }
+    },
+    [projectId, hasGithub, bulkPublishAction],
+  );
+
   // --- Delete handlers ---
   const handleDeleteLocal = useCallback(
     (item: ContentItem) => {
@@ -516,6 +597,9 @@ export default function ProjectDetailPage() {
         onBatchImport={handleBatchImport}
         isBatchImporting={isBatchImporting}
         batchImportProgress={batchImportProgress}
+        onBulkPublish={hasGithub ? handleBulkPublish : undefined}
+        isBulkPublishing={isBulkPublishing}
+        bulkPublishProgress={bulkPublishProgress}
         projectId={projectId}
         frontmatterMap={frontmatterMap}
       />

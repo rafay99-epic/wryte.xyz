@@ -112,6 +112,41 @@ export default defineSchema({
     .index("by_status_and_scheduledAt", ["status", "scheduledAt"]),
 
   /**
+   * Publish history table — tracks every publish to GitHub for a document.
+   * Enables "Published N times" display and one-click rollback to any version.
+   * Each record captures the full content snapshot so rollback doesn't require GitHub API.
+   */
+  publish_history: defineTable({
+    documentId: v.id("documents"),
+    projectId: v.id("projects"),
+    userId: v.id("users"),
+    /** Git commit SHA from the GitHub API response */
+    commitSha: v.string(),
+    /** Full GitHub commit URL for linking */
+    commitUrl: v.optional(v.string()),
+    /** The file path in the repo at publish time */
+    githubPath: v.string(),
+    /** Commit message used */
+    commitMessage: v.string(),
+    /** Snapshot of the document content at publish time (for rollback) */
+    contentSnapshot: v.string(),
+    /** Snapshot of frontmatter JSON at publish time */
+    frontmatterSnapshot: v.optional(v.string()),
+    /** Document title at publish time */
+    titleSnapshot: v.string(),
+    /** Whether this was a first publish or an update */
+    isUpdate: v.boolean(),
+    /** Whether this was part of a bulk publish */
+    isBulk: v.optional(v.boolean()),
+    /** Bulk publish batch ID (groups publishes from the same bulk operation) */
+    bulkBatchId: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_documentId", ["documentId"])
+    .index("by_projectId", ["projectId"])
+    .index("by_bulkBatchId", ["bulkBatchId"]),
+
+  /**
    * Scheduled publishes table — acts as a lightweight job queue for deferred publishing.
    * Each record tracks a single publish intent with a status lifecycle:
    * pending -> processing -> completed | failed.

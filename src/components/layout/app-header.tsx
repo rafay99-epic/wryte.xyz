@@ -9,6 +9,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Cloud,
+  History,
   Loader2,
   Maximize2,
   PanelLeftClose,
@@ -69,6 +70,8 @@ export function AppHeader() {
     sidebarOpen,
     toggleSidebar,
     toggleFocusMode,
+    historyPanelOpen,
+    toggleHistoryPanel,
   } = useEditorStore(
     useShallow((state) => ({
       title: state.title,
@@ -79,6 +82,8 @@ export function AppHeader() {
       sidebarOpen: state.sidebarOpen,
       toggleSidebar: state.toggleSidebar,
       toggleFocusMode: state.toggleFocusMode,
+      historyPanelOpen: state.historyPanelOpen,
+      toggleHistoryPanel: state.toggleHistoryPanel,
     })),
   );
 
@@ -103,6 +108,15 @@ export function AppHeader() {
       : "skip",
   ) as BoardColumnDef[] | undefined;
   const columns = boardColumns ?? DEFAULT_BOARD_COLUMNS;
+
+  // Publish history for count display
+  const publishHistory = useQuery(
+    api.documents.getPublishHistory,
+    isEditorPage && documentId
+      ? { documentId: documentId as Id<"documents"> }
+      : "skip",
+  );
+  const publishCount = publishHistory?.length ?? 0;
 
   // Toggle bookmark mutation
   const toggleBookmark = useMutation(api.documents.toggleBookmark);
@@ -416,6 +430,35 @@ export function AppHeader() {
               </TooltipTrigger>
               <TooltipContent side="bottom">
                 {isBookmarked ? "Remove bookmark" : "Bookmark this article"}
+              </TooltipContent>
+            </Tooltip>
+
+            {/* Publish History */}
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={toggleHistoryPanel}
+                    className={cn(
+                      "relative text-muted-foreground hover:text-foreground",
+                      historyPanelOpen && "bg-muted text-foreground",
+                    )}
+                  />
+                }
+              >
+                <History className="size-3.5" />
+                {publishCount > 0 && (
+                  <span className="absolute -right-0.5 -top-0.5 flex size-3.5 items-center justify-center rounded-full bg-primary text-[8px] font-bold text-primary-foreground">
+                    {publishCount > 9 ? "9+" : publishCount}
+                  </span>
+                )}
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                {publishCount > 0
+                  ? `Published ${publishCount} ${publishCount === 1 ? "time" : "times"}`
+                  : "Publish history"}
               </TooltipContent>
             </Tooltip>
 

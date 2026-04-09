@@ -181,7 +181,8 @@ export const publishToGithub = internalAction({
       }
     }
 
-    const commitMessage = existingSha
+    const isUpdate = Boolean(existingSha);
+    const commitMessage = isUpdate
       ? `Update ${document.title}`
       : `Add ${document.title}`;
 
@@ -213,6 +214,9 @@ export const publishToGithub = internalAction({
       throw new Error("GitHub API did not return a file SHA");
     }
 
+    const commitSha = response.data.commit?.sha;
+    const commitUrl = response.data.commit?.html_url ?? undefined;
+
     // Determine the publish column ID — use custom board columns if configured
     let publishStatus = "published";
     if (project.boardColumns) {
@@ -228,13 +232,47 @@ export const publishToGithub = internalAction({
       }
     }
 
+    const publishedAt = Date.now();
+
     await ctx.runMutation(internal.documents.internalUpdateAfterPublish, {
       documentId: args.documentId,
       githubPath: filePath,
       githubSha: newSha,
       status: publishStatus,
-      publishedAt: Date.now(),
+      publishedAt,
     });
+
+    // Record in publish history
+    const historyArgs: {
+      documentId: typeof args.documentId;
+      projectId: typeof document.projectId;
+      userId: typeof project.userId;
+      commitSha: string;
+      commitUrl?: string;
+      githubPath: string;
+      commitMessage: string;
+      contentSnapshot: string;
+      frontmatterSnapshot?: string;
+      titleSnapshot: string;
+      isUpdate: boolean;
+    } = {
+      documentId: args.documentId,
+      projectId: document.projectId,
+      userId: project.userId,
+      commitSha: commitSha ?? newSha,
+      githubPath: filePath,
+      commitMessage,
+      contentSnapshot: document.content,
+      titleSnapshot: document.title,
+      isUpdate,
+    };
+    if (commitUrl) historyArgs.commitUrl = commitUrl;
+    if (document.frontmatter) historyArgs.frontmatterSnapshot = document.frontmatter;
+
+    await ctx.runMutation(
+      internal.documents.internalRecordPublishHistory,
+      historyArgs,
+    );
   },
 });
 
@@ -290,6 +328,280 @@ export const publish = action({
       runArgs.githubAccessToken = args.githubAccessToken;
     }
     await ctx.runAction(internal.github.publishToGithub, runArgs);
+  },
+});
+
+/**
+ * Bulk publish multiple documents to GitHub in a single atomic commit.
+ * Uses the Git Tree API (createBlob → createTree → createCommit → updateRef)
+ * so all files appear in one commit rather than N separate commits.
+ *
+ * Returns a summary of successes and failures.
+ */
+export const bulkPublish = action({
+  args: {
+    projectId: v.id("projects"),
+    documentIds: v.array(v.id("documents")),
+    githubAccessToken: v.optional(v.string()),
+  },
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ success: number; failed: number; commitUrl?: string }> => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const project = await ctx.runQuery(internal.projects.internalGet, {
+      projectId: args.projectId,
+    });
+    if (!project) throw new Error("Project not found");
+
+    const user = await ctx.runQuery(internal.users.internalGet, {
+      userId: project.userId,
+    });
+    if (!user) throw new Error("User not found");
+    if (user.tokenIdentifier !== identity.tokenIdentifier) {
+      throw new Error("Unauthorized");
+    }
+
+    const token = args.githubAccessToken ?? user.githubAccessToken;
+    if (!token) throw new Error("No GitHub access token available");
+    if (!project.githubRepo) {
+      throw new Error("GitHub repository not configured for this project");
+    }
+
+    const { owner, repo } = parseRepoString(project.githubRepo);
+    const branch = project.githubBranch ?? "main";
+    const contentPath = project.contentPath ?? "content";
+
+    const octokit = new Octokit({ auth: token });
+
+    // Fetch all documents
+    const docs: Array<{
+      id: typeof args.documentIds[number];
+      title: string;
+      slug: string;
+      content: string;
+      frontmatter?: string;
+      githubSha?: string;
+    }> = [];
+
+    for (const docId of args.documentIds) {
+      const doc = await ctx.runQuery(internal.documents.internalGet, {
+        documentId: docId,
+      });
+      if (doc && doc.projectId === args.projectId) {
+        const docEntry: {
+          id: typeof docId;
+          title: string;
+          slug: string;
+          content: string;
+          frontmatter?: string;
+          githubSha?: string;
+        } = {
+          id: docId,
+          title: doc.title,
+          slug: doc.slug,
+          content: doc.content,
+        };
+        if (doc.frontmatter) docEntry.frontmatter = doc.frontmatter;
+        if (doc.githubSha) docEntry.githubSha = doc.githubSha;
+        docs.push(docEntry);
+      }
+    }
+
+    if (docs.length === 0) {
+      return { success: 0, failed: args.documentIds.length };
+    }
+
+    // Get the current commit SHA for the branch
+    const { data: refData } = await octokit.git.getRef({
+      owner,
+      repo,
+      ref: `heads/${branch}`,
+    });
+    const baseCommitSha = refData.object.sha;
+
+    // Get the base tree
+    const { data: commitData } = await octokit.git.getCommit({
+      owner,
+      repo,
+      commit_sha: baseCommitSha,
+    });
+    const baseTreeSha = commitData.tree.sha;
+
+    // Create blobs and tree entries for each document
+    const treeEntries: Array<{
+      path: string;
+      mode: "100644";
+      type: "blob";
+      sha: string;
+    }> = [];
+
+    const docFileMap: Array<{
+      doc: (typeof docs)[number];
+      filePath: string;
+      isUpdate: boolean;
+    }> = [];
+
+    let failed = 0;
+
+    for (const doc of docs) {
+      try {
+        const filePath = `${contentPath}/${doc.slug}.md`;
+        const isUpdate = Boolean(doc.githubSha);
+
+        let frontmatterData: Record<string, unknown> = {
+          title: doc.title,
+          date: new Date().toISOString(),
+          draft: false,
+        };
+        if (doc.frontmatter) {
+          try {
+            frontmatterData = {
+              ...frontmatterData,
+              ...JSON.parse(doc.frontmatter),
+            };
+          } catch {
+            // Use defaults
+          }
+        }
+
+        const fileContent = buildMarkdownFile(frontmatterData, doc.content);
+
+        // Create a blob for this file
+        const { data: blobData } = await octokit.git.createBlob({
+          owner,
+          repo,
+          content: Buffer.from(fileContent).toString("base64"),
+          encoding: "base64",
+        });
+
+        treeEntries.push({
+          path: filePath,
+          mode: "100644",
+          type: "blob",
+          sha: blobData.sha,
+        });
+
+        docFileMap.push({ doc, filePath, isUpdate });
+      } catch {
+        failed++;
+      }
+    }
+
+    if (treeEntries.length === 0) {
+      return { success: 0, failed: args.documentIds.length };
+    }
+
+    // Create a new tree with all the file changes
+    const { data: newTree } = await octokit.git.createTree({
+      owner,
+      repo,
+      base_tree: baseTreeSha,
+      tree: treeEntries,
+    });
+
+    // Create the commit
+    const titles = docFileMap.map((d) => d.doc.title);
+    const commitMessage =
+      titles.length === 1
+        ? `Publish ${titles[0]}`
+        : `Publish ${String(titles.length)} articles: ${titles.slice(0, 3).join(", ")}${titles.length > 3 ? "..." : ""}`;
+
+    const { data: newCommit } = await octokit.git.createCommit({
+      owner,
+      repo,
+      message: commitMessage,
+      tree: newTree.sha,
+      parents: [baseCommitSha],
+    });
+
+    // Update the branch reference
+    await octokit.git.updateRef({
+      owner,
+      repo,
+      ref: `heads/${branch}`,
+      sha: newCommit.sha,
+    });
+
+    const commitUrl = `https://github.com/${owner}/${repo}/commit/${newCommit.sha}`;
+
+    // Determine the publish column ID
+    let publishStatus = "published";
+    if (project.boardColumns) {
+      try {
+        const columns = JSON.parse(project.boardColumns) as Array<{
+          id: string;
+          behavior: string;
+        }>;
+        const publishCol = columns.find((c) => c.behavior === "publish");
+        if (publishCol) publishStatus = publishCol.id;
+      } catch {
+        // Fall back to "published"
+      }
+    }
+
+    const publishedAt = Date.now();
+    const bulkBatchId = `bulk-${publishedAt}-${Math.random().toString(36).slice(2, 8)}`;
+
+    // Update each document and record history
+    for (const entry of docFileMap) {
+      // For tree-based commits, each file's blob SHA is the new file SHA
+      const blobEntry = treeEntries.find((t) => t.path === entry.filePath);
+      const newFileSha = blobEntry?.sha ?? newCommit.sha;
+
+      await ctx.runMutation(internal.documents.internalUpdateAfterPublish, {
+        documentId: entry.doc.id,
+        githubPath: entry.filePath,
+        githubSha: newFileSha,
+        status: publishStatus,
+        publishedAt,
+      });
+
+      const bulkHistoryArgs: {
+        documentId: typeof entry.doc.id;
+        projectId: typeof args.projectId;
+        userId: typeof project.userId;
+        commitSha: string;
+        commitUrl?: string;
+        githubPath: string;
+        commitMessage: string;
+        contentSnapshot: string;
+        frontmatterSnapshot?: string;
+        titleSnapshot: string;
+        isUpdate: boolean;
+        isBulk?: boolean;
+        bulkBatchId?: string;
+      } = {
+        documentId: entry.doc.id,
+        projectId: args.projectId,
+        userId: project.userId,
+        commitSha: newCommit.sha,
+        commitUrl,
+        githubPath: entry.filePath,
+        commitMessage,
+        contentSnapshot: entry.doc.content,
+        titleSnapshot: entry.doc.title,
+        isUpdate: entry.isUpdate,
+        isBulk: true,
+        bulkBatchId,
+      };
+      if (entry.doc.frontmatter) {
+        bulkHistoryArgs.frontmatterSnapshot = entry.doc.frontmatter;
+      }
+
+      await ctx.runMutation(
+        internal.documents.internalRecordPublishHistory,
+        bulkHistoryArgs,
+      );
+    }
+
+    return {
+      success: docFileMap.length,
+      failed,
+      commitUrl,
+    };
   },
 });
 
