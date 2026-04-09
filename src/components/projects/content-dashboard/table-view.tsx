@@ -11,6 +11,11 @@ interface TableViewProps {
   columns: BoardColumnDef[];
   frontmatterMap: Map<string, ParsedFrontmatter>;
   importingPath: string | null;
+  /** Whether to show the selection checkbox column. */
+  showSelection: boolean;
+  selectedPaths: Set<string>;
+  onToggleSelect: (path: string, checked: boolean) => void;
+  onToggleSelectAll: (checked: boolean) => void;
   onOpenItem: (item: ContentItem) => void;
   onDeleteLocal: (item: ContentItem) => void;
   onDeleteRemote: (item: ContentItem) => void;
@@ -21,15 +26,37 @@ export function TableView({
   columns,
   frontmatterMap,
   importingPath,
+  showSelection,
+  selectedPaths,
+  onToggleSelect,
+  onToggleSelectAll,
   onOpenItem,
   onDeleteLocal,
   onDeleteRemote,
 }: TableViewProps) {
+  const remoteItems = items.filter((i) => i.kind === "remote");
+  const hasRemoteItems = remoteItems.length > 0;
+  const allRemoteSelected =
+    hasRemoteItems && remoteItems.every((i) => selectedPaths.has(i.path));
+
   return (
     <div className="overflow-hidden rounded-lg border">
       <table className="w-full">
         <thead>
           <tr className="border-b bg-muted/40 text-left text-xs text-muted-foreground">
+            {showSelection && (
+              <th className="w-10 pl-4 py-2.5">
+                {hasRemoteItems && (
+                  <input
+                    type="checkbox"
+                    checked={allRemoteSelected}
+                    onChange={(e) => onToggleSelectAll(e.target.checked)}
+                    className="size-4 rounded border-muted-foreground/30 accent-primary cursor-pointer"
+                    title="Select all remote files"
+                  />
+                )}
+              </th>
+            )}
             <th className="px-4 py-2.5 font-medium">Title</th>
             <th className="hidden px-4 py-2.5 font-medium lg:table-cell">
               Tags
@@ -53,14 +80,22 @@ export function TableView({
         >
           {items.map((item) => {
             const fm = item.id ? frontmatterMap.get(item.id) : undefined;
+            const isRemote = item.kind === "remote";
             return (
               <ContentTableRow
-                key={item.kind === "local" ? item.id : item.path}
+                key={isRemote ? item.path : (item.id ?? item.path)}
                 item={item}
                 isImporting={importingPath === item.path}
                 tags={fm?.tags ?? []}
                 author={fm?.author ?? null}
                 columns={columns}
+                showSelectionCell={showSelection}
+                selected={isRemote ? selectedPaths.has(item.path) : undefined}
+                onSelect={
+                  isRemote
+                    ? (checked) => onToggleSelect(item.path, checked)
+                    : undefined
+                }
                 onOpen={() => onOpenItem(item)}
                 onDelete={
                   item.kind === "local" && item.id
@@ -68,9 +103,7 @@ export function TableView({
                     : undefined
                 }
                 onDeleteRemote={
-                  item.kind === "remote" && item.sha
-                    ? () => onDeleteRemote(item)
-                    : undefined
+                  isRemote && item.sha ? () => onDeleteRemote(item) : undefined
                 }
               />
             );

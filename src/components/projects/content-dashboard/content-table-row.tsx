@@ -28,6 +28,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { smoothTransition, staggerItem } from "@/lib/motion";
+import { cn } from "@/lib/utils";
 import type { BoardColumnDef } from "@/types/board";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
@@ -57,6 +58,10 @@ interface ContentTableRowProps {
   tags: string[];
   author: string | null;
   columns?: BoardColumnDef[] | undefined;
+  /** Whether to render the selection cell (keeps columns aligned). */
+  showSelectionCell?: boolean | undefined;
+  selected?: boolean | undefined;
+  onSelect?: ((checked: boolean) => void) | undefined;
   onOpen: () => void;
   onDelete?: (() => void) | undefined;
   onDeleteRemote?: (() => void) | undefined;
@@ -68,6 +73,9 @@ export function ContentTableRow({
   tags,
   author,
   columns,
+  showSelectionCell,
+  selected,
+  onSelect,
   onOpen,
   onDelete,
   onDeleteRemote,
@@ -114,9 +122,30 @@ export function ContentTableRow({
     <motion.tr
       variants={staggerItem}
       transition={smoothTransition}
-      className="group cursor-pointer border-b last:border-b-0 transition-colors hover:bg-muted/30"
+      className={cn(
+        "group cursor-pointer border-b last:border-b-0 transition-colors hover:bg-muted/30",
+        selected && "bg-primary/5",
+      )}
       onClick={onOpen}
     >
+      {/* Selection checkbox cell — always rendered when column is visible to keep alignment */}
+      {showSelectionCell && (
+        <td className="w-10 pl-4 py-3">
+          {onSelect && (
+            <input
+              type="checkbox"
+              checked={selected ?? false}
+              onChange={(e) => {
+                e.stopPropagation();
+                onSelect(e.target.checked);
+              }}
+              onClick={(e) => e.stopPropagation()}
+              className="size-4 rounded border-muted-foreground/30 accent-primary cursor-pointer"
+            />
+          )}
+        </td>
+      )}
+
       {/* Title + meta */}
       <td className="px-4 py-3">
         <div className="flex items-center gap-2">

@@ -1,8 +1,16 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Loader2, RefreshCw, Search, Settings } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import {
+  Cloud,
+  Download,
+  Loader2,
+  RefreshCw,
+  Search,
+  Settings,
+  X,
+} from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Pagination, PaginationInfo } from "@/components/ui/pagination";
@@ -42,6 +50,9 @@ interface ContentDashboardProps {
   onDeleteRemote: (item: ContentItem) => void;
   importingPath: string | null;
   onCreateClick: (initialStatus?: string) => void;
+  onBatchImport: (paths: string[]) => Promise<void>;
+  isBatchImporting: boolean;
+  batchImportProgress: { done: number; total: number } | null;
   projectId: string;
   frontmatterMap: Map<string, ParsedFrontmatter>;
 }
@@ -63,12 +74,60 @@ export function ContentDashboard({
   onDeleteRemote,
   importingPath,
   onCreateClick,
+  onBatchImport,
+  isBatchImporting,
+  batchImportProgress,
   projectId,
   frontmatterMap,
 }: ContentDashboardProps) {
   const { viewMode, setViewMode } = useViewPreferences(projectId);
   const activeTagFilters = useBoardStore((s) => s.activeTagFilters);
   const setSettingsDialogOpen = useBoardStore((s) => s.setSettingsDialogOpen);
+
+  // --- Multi-select state for remote items ---
+  const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
+
+  // Clear selection when filter/search changes
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentionally clear selection when filter/search props change
+  useEffect(() => {
+    setSelectedPaths(new Set());
+  }, [viewFilter, searchQuery]);
+
+  const handleToggleSelect = useCallback((path: string, checked: boolean) => {
+    setSelectedPaths((prev) => {
+      const next = new Set(prev);
+      if (checked) {
+        next.add(path);
+      } else {
+        next.delete(path);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleToggleSelectAll = useCallback(
+    (checked: boolean) => {
+      if (checked) {
+        const remotePaths = new Set<string>();
+        for (const item of items) {
+          if (item.kind === "remote") {
+            remotePaths.add(item.path);
+          }
+        }
+        setSelectedPaths(remotePaths);
+      } else {
+        setSelectedPaths(new Set());
+      }
+    },
+    [items],
+  );
+
+  const handleBatchImport = useCallback(async () => {
+    const paths = Array.from(selectedPaths);
+    if (paths.length === 0) return;
+    await onBatchImport(paths);
+    setSelectedPaths(new Set());
+  }, [selectedPaths, onBatchImport]);
 
   // Listen for keyboard shortcut layout switch event
   useEffect(() => {
@@ -241,6 +300,10 @@ export function ContentDashboard({
                     columns={columns}
                     frontmatterMap={frontmatterMap}
                     importingPath={importingPath}
+                    showSelection={hasGithub}
+                    selectedPaths={selectedPaths}
+                    onToggleSelect={handleToggleSelect}
+                    onToggleSelectAll={handleToggleSelectAll}
                     onOpenItem={onOpenItem}
                     onDeleteLocal={onDeleteLocal}
                     onDeleteRemote={onDeleteRemote}
@@ -279,6 +342,8 @@ export function ContentDashboard({
                     frontmatterMap={frontmatterMap}
                     hasGithub={hasGithub}
                     projectId={projectId}
+                    selectedPaths={selectedPaths}
+                    onToggleSelect={handleToggleSelect}
                     onOpenItem={onOpenItem}
                     onDeleteLocal={onDeleteLocal}
                     onDeleteRemote={onDeleteRemote}
@@ -291,6 +356,60 @@ export function ContentDashboard({
           )}
         </div>
       </Tabs>
+
+      {/* Floating multi-select action bar */}
+      <AnimatePresence>
+        {selectedPaths.size > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            transition={{ duration: 0.2 }}
+            className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2"
+          >
+            <div className="flex items-center gap-3 rounded-xl border bg-background/95 px-4 py-2.5 shadow-lg backdrop-blur-sm">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <Cloud className="size-4 text-blue-500" />
+                <span>
+                  {selectedPaths.size}{" "}
+                  {selectedPaths.size === 1 ? "file" : "files"} selected
+                </span>
+              </div>
+
+              <div className="h-5 w-px bg-border" />
+
+              <Button
+                size="sm"
+                onClick={() => void handleBatchImport()}
+                disabled={isBatchImporting}
+              >
+                {isBatchImporting ? (
+                  <>
+                    <Loader2 className="size-3.5 animate-spin" />
+                    {batchImportProgress
+                      ? `Importing ${batchImportProgress.done}/${batchImportProgress.total}...`
+                      : "Importing..."}
+                  </>
+                ) : (
+                  <>
+                    <Download className="size-3.5" />
+                    Import to Convex
+                  </>
+                )}
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                onClick={() => setSelectedPaths(new Set())}
+                disabled={isBatchImporting}
+              >
+                <X className="size-3.5" />
+              </Button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -31,6 +31,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { smoothTransition, staggerItem } from "@/lib/motion";
+import { cn } from "@/lib/utils";
 import { useBoardStore } from "@/stores/board-store";
 import type { BoardColumnDef } from "@/types/board";
 import { api } from "../../../../convex/_generated/api";
@@ -44,6 +45,8 @@ interface BoardCardProps {
   columnId: string;
   columns?: BoardColumnDef[] | undefined;
   allProjectTags?: string[] | undefined;
+  selected?: boolean | undefined;
+  onSelect?: ((checked: boolean) => void) | undefined;
   onOpen: () => void;
   onDelete?: (() => void) | undefined;
   onDeleteRemote?: (() => void) | undefined;
@@ -59,6 +62,8 @@ export function BoardCard({
   columnId,
   columns,
   allProjectTags,
+  selected,
+  onSelect,
   onOpen,
   onDelete,
   onDeleteRemote,
@@ -70,6 +75,8 @@ export function BoardCard({
       <StaticBoardCard
         item={item}
         tags={tags}
+        selected={selected}
+        onSelect={onSelect}
         onOpen={onOpen}
         onDeleteRemote={onDeleteRemote}
       />
@@ -513,11 +520,15 @@ function DraggableBoardCard({
 function StaticBoardCard({
   item,
   tags,
+  selected,
+  onSelect,
   onOpen,
   onDeleteRemote,
 }: {
   item: ContentItem;
   tags: string[];
+  selected?: boolean | undefined;
+  onSelect?: ((checked: boolean) => void) | undefined;
   onOpen: () => void;
   onDeleteRemote?: (() => void) | undefined;
 }) {
@@ -525,10 +536,33 @@ function StaticBoardCard({
     <motion.div
       variants={staggerItem}
       transition={smoothTransition}
-      className="group relative cursor-pointer rounded-lg border border-border/60 bg-card p-3 transition-colors hover:bg-muted/40"
+      className={cn(
+        "group relative cursor-pointer rounded-lg border border-border/60 bg-card p-3 transition-colors hover:bg-muted/40",
+        selected && "border-primary/50 bg-primary/5 ring-1 ring-primary/20",
+      )}
       onClick={onOpen}
     >
-      {onDeleteRemote && (
+      {/* Selection checkbox */}
+      {onSelect && (
+        <div className="absolute left-2 top-2 z-10">
+          <input
+            type="checkbox"
+            checked={selected ?? false}
+            onChange={(e) => {
+              e.stopPropagation();
+              onSelect(e.target.checked);
+            }}
+            onClick={(e) => e.stopPropagation()}
+            className={cn(
+              "size-4 rounded border-muted-foreground/30 accent-primary cursor-pointer",
+              !selected &&
+                "opacity-0 group-hover:opacity-100 transition-opacity",
+            )}
+          />
+        </div>
+      )}
+
+      {(onDeleteRemote || onSelect) && (
         <div className="absolute right-2 top-2 opacity-0 transition-opacity group-hover:opacity-100">
           <DropdownMenu>
             <DropdownMenuTrigger
@@ -552,17 +586,21 @@ function StaticBoardCard({
                 <Pencil className="size-3.5" />
                 Open / Import
               </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                className="text-destructive"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDeleteRemote();
-                }}
-              >
-                <Trash2 className="size-3.5" />
-                Delete from GitHub
-              </DropdownMenuItem>
+              {onDeleteRemote && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="text-destructive"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDeleteRemote();
+                    }}
+                  >
+                    <Trash2 className="size-3.5" />
+                    Delete from GitHub
+                  </DropdownMenuItem>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

@@ -41,6 +41,8 @@ interface BoardViewProps {
   frontmatterMap: Map<string, ParsedFrontmatter>;
   hasGithub: boolean;
   projectId: string;
+  selectedPaths: Set<string>;
+  onToggleSelect: (path: string, checked: boolean) => void;
   onOpenItem: (item: ContentItem) => void;
   onDeleteLocal: (item: ContentItem) => void;
   onDeleteRemote: (item: ContentItem) => void;
@@ -54,6 +56,8 @@ export function BoardView({
   frontmatterMap,
   hasGithub,
   projectId: _projectId,
+  selectedPaths,
+  onToggleSelect,
   onOpenItem,
   onDeleteLocal,
   onDeleteRemote,
@@ -329,6 +333,8 @@ export function BoardView({
             columns={columns}
             frontmatterMap={frontmatterMap}
             allProjectTags={allProjectTags}
+            selectedPaths={selectedPaths}
+            onToggleSelect={onToggleSelect}
             onOpenItem={onOpenItem}
             onDeleteLocal={onDeleteLocal}
             onDeleteRemote={onDeleteRemote}

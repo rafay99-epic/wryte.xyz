@@ -230,6 +230,11 @@ export default function ProjectDetailPage() {
   // --- Auto-import + navigate for remote files ---
   const importFile = useAction(importAction);
   const [importingPath, setImportingPath] = useState<string | null>(null);
+  const [isBatchImporting, setIsBatchImporting] = useState(false);
+  const [batchImportProgress, setBatchImportProgress] = useState<{
+    done: number;
+    total: number;
+  } | null>(null);
 
   const handleOpenItem = useCallback(
     async (item: ContentItem) => {
@@ -270,6 +275,62 @@ export default function ProjectDetailPage() {
       }
     },
     [projectId, importFile, router],
+  );
+
+  // --- Batch import for multi-select ---
+  const handleBatchImport = useCallback(
+    async (paths: string[]) => {
+      setIsBatchImporting(true);
+      setBatchImportProgress({ done: 0, total: paths.length });
+
+      let githubAccessToken: string | undefined;
+      try {
+        const res = await fetch("/api/github/token");
+        if (res.ok) {
+          const data = (await res.json()) as { token?: string };
+          if (data.token) githubAccessToken = data.token;
+        }
+      } catch {
+        // Fall back to stored PAT
+      }
+
+      let successCount = 0;
+      let failCount = 0;
+
+      for (let i = 0; i < paths.length; i++) {
+        const filePath = paths[i] as string;
+        try {
+          const args: {
+            projectId: Id<"projects">;
+            filePath: string;
+            githubAccessToken?: string;
+          } = { projectId, filePath };
+          if (githubAccessToken) args.githubAccessToken = githubAccessToken;
+
+          await importFile(args);
+          successCount++;
+        } catch {
+          failCount++;
+        }
+        setBatchImportProgress({ done: i + 1, total: paths.length });
+      }
+
+      setIsBatchImporting(false);
+      setBatchImportProgress(null);
+
+      if (successCount > 0 && failCount === 0) {
+        toast.success(
+          `Imported ${successCount} ${successCount === 1 ? "file" : "files"} successfully`,
+        );
+      } else if (successCount > 0 && failCount > 0) {
+        toast.warning(
+          `Imported ${successCount} ${successCount === 1 ? "file" : "files"}, ${failCount} failed`,
+        );
+      } else {
+        toast.error("Failed to import files");
+      }
+    },
+    [projectId, importFile],
   );
 
   // --- Delete handlers ---
@@ -360,6 +421,9 @@ export default function ProjectDetailPage() {
           setCreateInitialStatus(initialStatus);
           setCreateDialogOpen(true);
         }}
+        onBatchImport={handleBatchImport}
+        isBatchImporting={isBatchImporting}
+        batchImportProgress={batchImportProgress}
         projectId={projectId}
         frontmatterMap={frontmatterMap}
       />

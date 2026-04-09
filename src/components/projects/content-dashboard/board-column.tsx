@@ -28,6 +28,8 @@ interface BoardColumnProps {
   columns: BoardColumnDef[];
   frontmatterMap: Map<string, ParsedFrontmatter>;
   allProjectTags: string[];
+  selectedPaths?: Set<string> | undefined;
+  onToggleSelect?: ((path: string, checked: boolean) => void) | undefined;
   onOpenItem: (item: ContentItem) => void;
   onDeleteLocal: (item: ContentItem) => void;
   onDeleteRemote: (item: ContentItem) => void;
@@ -42,6 +44,8 @@ export function BoardColumn({
   columns,
   frontmatterMap,
   allProjectTags,
+  selectedPaths,
+  onToggleSelect,
   onOpenItem,
   onDeleteLocal,
   onDeleteRemote,
@@ -140,6 +144,16 @@ export function BoardColumn({
                     columnId={column.id}
                     columns={columns}
                     allProjectTags={allProjectTags}
+                    selected={
+                      item.kind === "remote" && selectedPaths
+                        ? selectedPaths.has(item.path)
+                        : undefined
+                    }
+                    onSelect={
+                      item.kind === "remote" && onToggleSelect
+                        ? (checked) => onToggleSelect(item.path, checked)
+                        : undefined
+                    }
                     onOpen={() => onOpenItem(item)}
                     onDelete={
                       item.kind === "local" && item.id
