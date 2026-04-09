@@ -50,7 +50,7 @@ export function TableView({
     hasLocalItems &&
     selectedDocIds !== undefined &&
     localItems.every((i) => i.id && selectedDocIds.has(i.id));
-  const showCheckbox = showSelection || (onToggleDocSelect !== undefined);
+  const showCheckbox = showSelection || onToggleDocSelect !== undefined;
 
   return (
     <div className="overflow-hidden rounded-lg border">
@@ -125,7 +125,7 @@ export function TableView({
                   isRemote
                     ? (checked) => onToggleSelect(item.path, checked)
                     : item.id && onToggleDocSelect
-                      ? (checked) => onToggleDocSelect(item.id!, checked)
+                      ? (checked) => onToggleDocSelect(item.id ?? "", checked)
                       : undefined
                 }
                 onOpen={() => onOpenItem(item)}

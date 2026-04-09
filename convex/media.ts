@@ -11,6 +11,7 @@ import {
   mutation,
   query,
 } from "./_generated/server";
+import { getRateLimitKey, rateLimiter } from "./rateLimits";
 
 /**
  * Generate a short-lived upload URL for the client to POST a file to.
@@ -20,6 +21,12 @@ import {
 export const generateUploadUrl = mutation({
   args: {},
   handler: async (ctx) => {
+    const key = await getRateLimitKey(ctx);
+    await rateLimiter.limit(ctx, "media:generateUploadUrl", {
+      key,
+      throws: true,
+    });
+
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
     return await ctx.storage.generateUploadUrl();
@@ -40,6 +47,9 @@ export const saveMedia = mutation({
     size: v.number(),
   },
   handler: async (ctx, args) => {
+    const key = await getRateLimitKey(ctx);
+    await rateLimiter.limit(ctx, "media:saveMedia", { key, throws: true });
+
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
 
@@ -137,6 +147,9 @@ export const getUrl = query({
 export const deleteStaged = mutation({
   args: { mediaId: v.id("media") },
   handler: async (ctx, args) => {
+    const key = await getRateLimitKey(ctx);
+    await rateLimiter.limit(ctx, "media:deleteStaged", { key, throws: true });
+
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
 

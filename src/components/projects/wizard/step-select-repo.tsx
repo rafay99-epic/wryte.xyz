@@ -353,9 +353,7 @@ export function StepSelectRepo({ state, onChange }: StepSelectRepoProps) {
                       <p className="mt-0.5 flex items-center gap-1.5 truncate text-xs text-muted-foreground">
                         {repo.description && (
                           <>
-                            <span className="truncate">
-                              {repo.description}
-                            </span>
+                            <span className="truncate">{repo.description}</span>
                             <span className="shrink-0 text-border">·</span>
                           </>
                         )}

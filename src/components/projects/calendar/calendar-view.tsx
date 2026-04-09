@@ -1,13 +1,13 @@
 "use client";
 
 import {
+  closestCenter,
   DndContext,
   type DragEndEvent,
   DragOverlay,
   type DragStartEvent,
   KeyboardSensor,
   PointerSensor,
-  closestCenter,
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
@@ -174,7 +174,9 @@ export function CalendarView({
       </DndContext>
 
       {/* Time picker popover */}
-      <AnimatePresence>{pendingDrop && <ScheduleTimePopover />}</AnimatePresence>
+      <AnimatePresence>
+        {pendingDrop && <ScheduleTimePopover />}
+      </AnimatePresence>
     </div>
   );
 }

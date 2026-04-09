@@ -7,6 +7,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { getCurrentUser } from "./auth_helpers";
+import { getRateLimitKey, rateLimiter } from "./rateLimits";
 
 /** Shape of a single board column definition. */
 interface BoardColumnDef {
@@ -100,6 +101,12 @@ export const updateColumns = mutation({
     columns: v.string(),
   },
   handler: async (ctx, args) => {
+    const key = await getRateLimitKey(ctx);
+    await rateLimiter.limit(ctx, "boardColumns:updateColumns", {
+      key,
+      throws: true,
+    });
+
     const user = await getCurrentUser(ctx);
 
     const project = await ctx.db.get(args.projectId);
@@ -159,6 +166,12 @@ export const addColumn = mutation({
     color: v.string(),
   },
   handler: async (ctx, args) => {
+    const key = await getRateLimitKey(ctx);
+    await rateLimiter.limit(ctx, "boardColumns:addColumn", {
+      key,
+      throws: true,
+    });
+
     const user = await getCurrentUser(ctx);
 
     const project = await ctx.db.get(args.projectId);
@@ -218,6 +231,12 @@ export const removeColumn = mutation({
     columnId: v.string(),
   },
   handler: async (ctx, args) => {
+    const key = await getRateLimitKey(ctx);
+    await rateLimiter.limit(ctx, "boardColumns:removeColumn", {
+      key,
+      throws: true,
+    });
+
     const user = await getCurrentUser(ctx);
 
     const project = await ctx.db.get(args.projectId);
@@ -283,6 +302,12 @@ export const reorderColumns = mutation({
     orderedIds: v.array(v.string()),
   },
   handler: async (ctx, args) => {
+    const key = await getRateLimitKey(ctx);
+    await rateLimiter.limit(ctx, "boardColumns:reorderColumns", {
+      key,
+      throws: true,
+    });
+
     const user = await getCurrentUser(ctx);
 
     const project = await ctx.db.get(args.projectId);

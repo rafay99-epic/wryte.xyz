@@ -193,17 +193,20 @@ export function ContentDashboard({
     [items],
   );
 
-  const handleToggleDocSelect = useCallback((docId: string, checked: boolean) => {
-    setSelectedDocIds((prev) => {
-      const next = new Set(prev);
-      if (checked) {
-        next.add(docId);
-      } else {
-        next.delete(docId);
-      }
-      return next;
-    });
-  }, []);
+  const handleToggleDocSelect = useCallback(
+    (docId: string, checked: boolean) => {
+      setSelectedDocIds((prev) => {
+        const next = new Set(prev);
+        if (checked) {
+          next.add(docId);
+        } else {
+          next.delete(docId);
+        }
+        return next;
+      });
+    },
+    [],
+  );
 
   const handleToggleSelectAllLocal = useCallback(
     (checked: boolean) => {
@@ -562,8 +565,12 @@ export function ContentDashboard({
                     selectedDocIds={selectedDocIds}
                     onToggleSelect={handleToggleSelect}
                     onToggleSelectAll={handleToggleSelectAll}
-                    onToggleDocSelect={onBulkPublish ? handleToggleDocSelect : undefined}
-                    onToggleSelectAllLocal={onBulkPublish ? handleToggleSelectAllLocal : undefined}
+                    onToggleDocSelect={
+                      onBulkPublish ? handleToggleDocSelect : undefined
+                    }
+                    onToggleSelectAllLocal={
+                      onBulkPublish ? handleToggleSelectAllLocal : undefined
+                    }
                     onOpenItem={onOpenItem}
                     onDeleteLocal={onDeleteLocal}
                     onDeleteRemote={onDeleteRemote}

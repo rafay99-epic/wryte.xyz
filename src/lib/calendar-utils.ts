@@ -58,6 +58,9 @@ export function getDateKey(date: Date): string {
 
 /** Parses a `"YYYY-MM-DD"` key back into a Date (local midnight). */
 export function parseDateKey(key: string): Date {
-  const [y, m, d] = key.split("-").map(Number);
-  return new Date(y!, m! - 1, d!);
+  const parts = key.split("-").map(Number);
+  const y = parts[0] ?? 0;
+  const m = parts[1] ?? 1;
+  const d = parts[2] ?? 1;
+  return new Date(y, m - 1, d);
 }

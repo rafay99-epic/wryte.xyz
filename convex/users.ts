@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { internalQuery, mutation, query } from "./_generated/server";
+import { getRateLimitKey, rateLimiter } from "./rateLimits";
 
 /**
  * Finds the current user by their Clerk token, or creates a new user record
@@ -12,6 +13,9 @@ import { internalQuery, mutation, query } from "./_generated/server";
 export const getOrCreate = mutation({
   args: {},
   handler: async (ctx) => {
+    const key = await getRateLimitKey(ctx);
+    await rateLimiter.limit(ctx, "users:getOrCreate", { key, throws: true });
+
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       throw new Error("Not authenticated");
@@ -88,6 +92,12 @@ export const get = query({
 export const updateGithubToken = mutation({
   args: { token: v.string() },
   handler: async (ctx, args) => {
+    const key = await getRateLimitKey(ctx);
+    await rateLimiter.limit(ctx, "users:updateGithubToken", {
+      key,
+      throws: true,
+    });
+
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       throw new Error("Not authenticated");
@@ -119,6 +129,12 @@ export const updateGithubToken = mutation({
 export const updateGithubUsername = mutation({
   args: { username: v.string() },
   handler: async (ctx, args) => {
+    const key = await getRateLimitKey(ctx);
+    await rateLimiter.limit(ctx, "users:updateGithubUsername", {
+      key,
+      throws: true,
+    });
+
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       throw new Error("Not authenticated");

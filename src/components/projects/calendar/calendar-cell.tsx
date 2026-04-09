@@ -50,9 +50,7 @@ export function CalendarCell({
         !isCurrentMonth && "bg-muted/20 opacity-40",
         isCurrentMonth && "bg-background",
         isPast && isCurrentMonth && "opacity-50",
-        isOver &&
-          !isPast &&
-          "ring-2 ring-inset ring-primary/40 bg-primary/5",
+        isOver && !isPast && "ring-2 ring-inset ring-primary/40 bg-primary/5",
         isToday && "ring-2 ring-inset ring-primary/60",
       )}
     >

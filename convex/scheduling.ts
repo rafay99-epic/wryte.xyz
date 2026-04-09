@@ -11,6 +11,7 @@ import { components, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { internalMutation, mutation } from "./_generated/server";
 import { getCurrentUser } from "./auth_helpers";
+import { getRateLimitKey, rateLimiter } from "./rateLimits";
 
 /* ------------------------------------------------------------------ */
 /*  Workflow manager                                                    */
@@ -94,6 +95,9 @@ export const schedule = mutation({
     scheduledAt: v.number(),
   },
   handler: async (ctx, args) => {
+    const key = await getRateLimitKey(ctx);
+    await rateLimiter.limit(ctx, "scheduling:schedule", { key, throws: true });
+
     const user = await getCurrentUser(ctx);
 
     const document = await ctx.db.get(args.documentId);
@@ -183,6 +187,9 @@ export const schedule = mutation({
 export const cancel = mutation({
   args: { documentId: v.id("documents") },
   handler: async (ctx, args) => {
+    const key = await getRateLimitKey(ctx);
+    await rateLimiter.limit(ctx, "scheduling:cancel", { key, throws: true });
+
     const user = await getCurrentUser(ctx);
 
     const document = await ctx.db.get(args.documentId);

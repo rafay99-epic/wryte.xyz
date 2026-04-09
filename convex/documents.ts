@@ -8,6 +8,7 @@ import {
   query,
 } from "./_generated/server";
 import { getCurrentUser } from "./auth_helpers";
+import { getRateLimitKey, rateLimiter } from "./rateLimits";
 
 /**
  * Verifies that a document exists and that the given user owns the parent project.
@@ -219,6 +220,9 @@ export const create = mutation({
     tags: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
+    const key = await getRateLimitKey(ctx);
+    await rateLimiter.limit(ctx, "documents:create", { key, throws: true });
+
     const user = await getCurrentUser(ctx);
 
     const project = await ctx.db.get(args.projectId);
@@ -268,6 +272,9 @@ export const update = mutation({
     scheduledAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    const key = await getRateLimitKey(ctx);
+    await rateLimiter.limit(ctx, "documents:update", { key, throws: true });
+
     const user = await getCurrentUser(ctx);
     await verifyDocumentOwnership(ctx, args.documentId, user._id);
 
@@ -297,6 +304,9 @@ export const duplicate = mutation({
     documentId: v.id("documents"),
   },
   handler: async (ctx, args) => {
+    const key = await getRateLimitKey(ctx);
+    await rateLimiter.limit(ctx, "documents:duplicate", { key, throws: true });
+
     const user = await getCurrentUser(ctx);
     const doc = await verifyDocumentOwnership(ctx, args.documentId, user._id);
 
@@ -342,6 +352,12 @@ export const updateStatus = mutation({
     status: v.string(),
   },
   handler: async (ctx, args) => {
+    const key = await getRateLimitKey(ctx);
+    await rateLimiter.limit(ctx, "documents:updateStatus", {
+      key,
+      throws: true,
+    });
+
     const user = await getCurrentUser(ctx);
     await verifyDocumentOwnership(ctx, args.documentId, user._id);
 
@@ -369,6 +385,9 @@ export const updateStatus = mutation({
 export const remove = mutation({
   args: { documentId: v.id("documents") },
   handler: async (ctx, args) => {
+    const key = await getRateLimitKey(ctx);
+    await rateLimiter.limit(ctx, "documents:remove", { key, throws: true });
+
     const user = await getCurrentUser(ctx);
     await verifyDocumentOwnership(ctx, args.documentId, user._id);
 
@@ -408,6 +427,12 @@ export const importFromGithub = mutation({
     githubSha: v.string(),
   },
   handler: async (ctx, args) => {
+    const key = await getRateLimitKey(ctx);
+    await rateLimiter.limit(ctx, "documents:importFromGithub", {
+      key,
+      throws: true,
+    });
+
     const user = await getCurrentUser(ctx);
 
     const project = await ctx.db.get(args.projectId);
@@ -525,6 +550,12 @@ export const getBySlug = query({
 export const toggleBookmark = mutation({
   args: { documentId: v.id("documents") },
   handler: async (ctx, args) => {
+    const key = await getRateLimitKey(ctx);
+    await rateLimiter.limit(ctx, "documents:toggleBookmark", {
+      key,
+      throws: true,
+    });
+
     const user = await getCurrentUser(ctx);
     const document = await verifyDocumentOwnership(
       ctx,
@@ -591,6 +622,9 @@ export const moveCard = mutation({
     boardPosition: v.number(),
   },
   handler: async (ctx, args) => {
+    const key = await getRateLimitKey(ctx);
+    await rateLimiter.limit(ctx, "documents:moveCard", { key, throws: true });
+
     const user = await getCurrentUser(ctx);
     const document = await verifyDocumentOwnership(
       ctx,
@@ -649,6 +683,9 @@ export const updateTags = mutation({
     tags: v.array(v.string()),
   },
   handler: async (ctx, args) => {
+    const key = await getRateLimitKey(ctx);
+    await rateLimiter.limit(ctx, "documents:updateTags", { key, throws: true });
+
     const user = await getCurrentUser(ctx);
     await verifyDocumentOwnership(ctx, args.documentId, user._id);
 
@@ -770,6 +807,12 @@ export const rollbackToVersion = mutation({
     historyId: v.id("publish_history"),
   },
   handler: async (ctx, args) => {
+    const key = await getRateLimitKey(ctx);
+    await rateLimiter.limit(ctx, "documents:rollbackToVersion", {
+      key,
+      throws: true,
+    });
+
     const user = await getCurrentUser(ctx);
 
     const document = await ctx.db.get(args.documentId);
@@ -781,7 +824,9 @@ export const rollbackToVersion = mutation({
 
     const historyEntry = await ctx.db.get(args.historyId);
     if (!historyEntry || historyEntry.documentId !== args.documentId) {
-      throw new Error("History entry not found or does not belong to this document");
+      throw new Error(
+        "History entry not found or does not belong to this document",
+      );
     }
 
     await ctx.db.patch(args.documentId, {

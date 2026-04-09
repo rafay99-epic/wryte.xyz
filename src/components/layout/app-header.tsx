@@ -38,8 +38,8 @@ import {
 } from "@/components/ui/tooltip";
 import { getColorClasses } from "@/lib/board-colors";
 import { cn } from "@/lib/utils";
-import { type BoardColumnDef, DEFAULT_BOARD_COLUMNS } from "@/types/board";
 import { useEditorStore } from "@/stores/editor-store";
+import { type BoardColumnDef, DEFAULT_BOARD_COLUMNS } from "@/types/board";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 
@@ -103,9 +103,7 @@ export function AppHeader() {
   // Board columns for status selector
   const boardColumns = useQuery(
     api.boardColumns.getColumns,
-    activeProjectId
-      ? { projectId: activeProjectId as Id<"projects"> }
-      : "skip",
+    activeProjectId ? { projectId: activeProjectId as Id<"projects"> } : "skip",
   ) as BoardColumnDef[] | undefined;
   const columns = boardColumns ?? DEFAULT_BOARD_COLUMNS;
 
@@ -168,8 +166,7 @@ export function AppHeader() {
         documentId: documentId as Id<"documents">,
         status: newStatus,
       });
-      const label =
-        columns.find((c) => c.id === newStatus)?.label ?? newStatus;
+      const label = columns.find((c) => c.id === newStatus)?.label ?? newStatus;
       toast.success(`Status changed to "${label}"`);
     } catch {
       toast.error("Failed to update status");

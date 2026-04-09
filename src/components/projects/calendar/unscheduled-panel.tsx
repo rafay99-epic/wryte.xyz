@@ -1,7 +1,12 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { CalendarPlus, PanelRightClose, PanelRightOpen, Search } from "lucide-react";
+import {
+  CalendarPlus,
+  PanelRightClose,
+  PanelRightOpen,
+  Search,
+} from "lucide-react";
 import { useMemo } from "react";
 import { Input } from "@/components/ui/input";
 import { getColorClasses } from "@/lib/board-colors";
@@ -37,8 +42,7 @@ export function UnscheduledPanel({
   const filtered = useMemo(() => {
     let result = documents.filter(
       (d) =>
-        UNSCHEDULED_STATUSES.includes(d.status) &&
-        d.scheduledAt === undefined,
+        UNSCHEDULED_STATUSES.includes(d.status) && d.scheduledAt === undefined,
     );
 
     // Status filter
@@ -121,7 +125,9 @@ export function UnscheduledPanel({
       <div className="flex gap-1 border-b px-3 py-2">
         {UNSCHEDULED_STATUSES.map((status) => {
           const col = columns.find((c) => c.id === status);
-          const colors = col ? getColorClasses(col.color) : getColorClasses("gray");
+          const colors = col
+            ? getColorClasses(col.color)
+            : getColorClasses("gray");
           const isActive = unscheduledStatusFilter.has(status);
           return (
             <button

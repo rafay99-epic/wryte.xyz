@@ -487,16 +487,12 @@ export default function ProjectDetailPage() {
             },
           );
         } else if (result.success > 0 && result.failed > 0) {
-          toast.warning(
-            `Published ${result.success}, ${result.failed} failed`,
-          );
+          toast.warning(`Published ${result.success}, ${result.failed} failed`);
         } else {
           toast.error("Failed to publish articles");
         }
       } catch (err) {
-        toast.error(
-          err instanceof Error ? err.message : "Bulk publish failed",
-        );
+        toast.error(err instanceof Error ? err.message : "Bulk publish failed");
       } finally {
         setIsBulkPublishing(false);
         setBulkPublishProgress(null);

@@ -418,7 +418,10 @@ export default function NewProjectPage() {
                   <StepConfigurePaths state={state} onChange={handleChange} />
                 )}
                 {state.step === 3 && (
-                  <StepFrontmatterSchema state={state} onChange={handleChange} />
+                  <StepFrontmatterSchema
+                    state={state}
+                    onChange={handleChange}
+                  />
                 )}
               </motion.div>
             </AnimatePresence>

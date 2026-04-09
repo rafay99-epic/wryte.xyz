@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { internalQuery, mutation, query } from "./_generated/server";
 import { getCurrentUser } from "./auth_helpers";
+import { getRateLimitKey, rateLimiter } from "./rateLimits";
 
 /**
  * Lists all projects owned by the current user, sorted by most recently updated.
@@ -120,6 +121,9 @@ export const create = mutation({
     aiModel: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    const key = await getRateLimitKey(ctx);
+    await rateLimiter.limit(ctx, "projects:create", { key, throws: true });
+
     const user = await getCurrentUser(ctx);
     const now = Date.now();
 
@@ -223,6 +227,9 @@ export const update = mutation({
     aiModel: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    const key = await getRateLimitKey(ctx);
+    await rateLimiter.limit(ctx, "projects:update", { key, throws: true });
+
     const user = await getCurrentUser(ctx);
     const project = await ctx.db.get(args.projectId);
 
@@ -258,6 +265,9 @@ export const update = mutation({
 export const remove = mutation({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
+    const key = await getRateLimitKey(ctx);
+    await rateLimiter.limit(ctx, "projects:remove", { key, throws: true });
+
     const user = await getCurrentUser(ctx);
     const project = await ctx.db.get(args.projectId);
 

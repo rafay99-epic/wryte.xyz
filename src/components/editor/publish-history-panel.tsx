@@ -216,9 +216,7 @@ export function PublishHistoryPanel({
                           variant="ghost"
                           size="sm"
                           className="h-6 gap-1 px-2 text-[11px]"
-                          onClick={() =>
-                            window.open(entry.commitUrl, "_blank")
-                          }
+                          onClick={() => window.open(entry.commitUrl, "_blank")}
                         >
                           <ExternalLink className="size-3" />
                           View commit
@@ -242,9 +240,7 @@ export function PublishHistoryPanel({
               <p className="text-[11px] text-muted-foreground/60">
                 Published {history.length}{" "}
                 {history.length === 1 ? "time" : "times"}
-                {history[0] && (
-                  <>, last {relativeTime(history[0].createdAt)}</>
-                )}
+                {history[0] && <>, last {relativeTime(history[0].createdAt)}</>}
               </p>
             </div>
           )}

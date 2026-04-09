@@ -56,7 +56,8 @@ export function CalendarDocCard({
         isPublished && "cursor-default opacity-60",
         !isPublished && !isOverlay && "cursor-grab active:cursor-grabbing",
         isDragging && "opacity-30",
-        isOverlay && "rotate-2 scale-105 rounded-lg border bg-background/95 px-2 py-1.5 shadow-lg backdrop-blur-sm",
+        isOverlay &&
+          "rotate-2 scale-105 rounded-lg border bg-background/95 px-2 py-1.5 shadow-lg backdrop-blur-sm",
       )}
     >
       <span

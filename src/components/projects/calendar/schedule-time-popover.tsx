@@ -7,7 +7,7 @@ import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { TimePicker } from "@/components/ui/time-picker";
-import { MONTHS, isSameDay, parseDateKey } from "@/lib/calendar-utils";
+import { isSameDay, MONTHS, parseDateKey } from "@/lib/calendar-utils";
 import { smoothTransition } from "@/lib/motion";
 import { useCalendarStore } from "@/stores/calendar-store";
 import { api } from "../../../../convex/_generated/api";
@@ -23,7 +23,6 @@ export function ScheduleTimePopover() {
   const [hour, setHour] = useState(pendingDrop?.existingHour ?? 9);
   const [minute, setMinute] = useState(pendingDrop?.existingMinute ?? 0);
   const [isScheduling, setIsScheduling] = useState(false);
-
 
   const targetDate = useMemo(() => {
     if (!pendingDrop) return null;
@@ -82,7 +81,14 @@ export function ScheduleTimePopover() {
     } finally {
       setIsScheduling(false);
     }
-  }, [pendingDrop, timestamp, isInPast, schedulePublish, formattedDateTime, clearPendingDrop]);
+  }, [
+    pendingDrop,
+    timestamp,
+    isInPast,
+    schedulePublish,
+    formattedDateTime,
+    clearPendingDrop,
+  ]);
 
   if (!pendingDrop) return null;
 

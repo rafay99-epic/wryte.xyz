@@ -79,10 +79,15 @@ function NavLink({
 
 function StatusDot({ status }: { status: string }) {
   const col = DEFAULT_BOARD_COLUMNS.find((c) => c.id === status);
-  const dotColor = col ? getColorClasses(col.color).dot : "bg-muted-foreground/30";
+  const dotColor = col
+    ? getColorClasses(col.color).dot
+    : "bg-muted-foreground/30";
   return (
     <span
-      className={cn("size-1.5 rounded-full shrink-0 transition-colors", dotColor)}
+      className={cn(
+        "size-1.5 rounded-full shrink-0 transition-colors",
+        dotColor,
+      )}
     />
   );
 }
@@ -303,10 +308,7 @@ export function AppSidebar() {
                           className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground/70 transition-colors hover:bg-muted/60 hover:text-foreground"
                         >
                           <span
-                            className={cn(
-                              "size-1.5 rounded-full",
-                              colors.dot,
-                            )}
+                            className={cn("size-1.5 rounded-full", colors.dot)}
                           />
                           {count}
                         </button>

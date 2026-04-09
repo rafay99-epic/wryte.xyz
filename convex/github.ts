@@ -14,6 +14,7 @@ import { Octokit } from "@octokit/rest";
 import { v } from "convex/values";
 import { api, internal } from "./_generated/api";
 import { action, internalAction } from "./_generated/server";
+import { getRateLimitKey, rateLimiter } from "./rateLimits";
 
 /**
  * Assembles a complete markdown file with YAML frontmatter from structured data.
@@ -194,18 +195,28 @@ export const publishToGithub = internalAction({
     );
 
     // Build a map of Convex serving URL → media record for fast lookup
-    const mediaByUrl = new Map<string, { _id: string; storageId: string; fileName: string }>();
+    const mediaByUrl = new Map<
+      string,
+      { _id: string; storageId: string; fileName: string }
+    >();
     for (const m of unsyncedMedia) {
-      mediaByUrl.set(m.url, { _id: m._id, storageId: m.storageId, fileName: m.fileName });
+      mediaByUrl.set(m.url, {
+        _id: m._id,
+        storageId: m.storageId,
+        fileName: m.fileName,
+      });
     }
 
     // Find all Convex storage URLs in the markdown
-    const convexUrlMatches = [...processedContent.matchAll(CONVEX_STORAGE_URL_RE)];
+    const convexUrlMatches = [
+      ...processedContent.matchAll(CONVEX_STORAGE_URL_RE),
+    ];
 
     for (const match of convexUrlMatches) {
-      const fullMatch = match[0]!;
+      const fullMatch = match[0] ?? "";
       const alt = match[1] ?? "";
-      const convexUrl = match[2]!;
+      const convexUrl = match[2] ?? "";
+      if (!fullMatch || !convexUrl) continue;
 
       // Look up the media record for this URL
       const mediaRecord = mediaByUrl.get(convexUrl);
@@ -214,13 +225,19 @@ export const publishToGithub = internalAction({
       try {
         // Download from Convex and upload to GitHub
         const imageBase64 = await fetchAsBase64(convexUrl);
-        const { repoPath, urlPath } = computeMediaPaths(mediaPath, mediaRecord.fileName);
+        const { repoPath, urlPath } = computeMediaPaths(
+          mediaPath,
+          mediaRecord.fileName,
+        );
 
         // Check if file already exists on GitHub
         let existingImgSha: string | undefined;
         try {
           const { data } = await octokit.repos.getContent({
-            owner, repo, path: repoPath, ref: branch,
+            owner,
+            repo,
+            path: repoPath,
+            ref: branch,
           });
           if (!Array.isArray(data) && data.type === "file") {
             existingImgSha = data.sha;
@@ -230,7 +247,8 @@ export const publishToGithub = internalAction({
         }
 
         await octokit.repos.createOrUpdateFileContents({
-          owner, repo,
+          owner,
+          repo,
           path: repoPath,
           message: `Upload media: ${mediaRecord.fileName}`,
           content: imageBase64,
@@ -244,6 +262,7 @@ export const publishToGithub = internalAction({
 
         // Mark as synced and delete from Convex storage
         await ctx.runMutation(internal.media.internalMarkSyncedAndDelete, {
+          // biome-ignore lint/suspicious/noExplicitAny: mediaRecord._id is a valid Id<"media"> from internalGetUnsyncedMedia
           mediaId: mediaRecord._id as any,
           githubPath: repoPath,
         });
@@ -391,7 +410,8 @@ export const publishToGithub = internalAction({
       isUpdate,
     };
     if (commitUrl) historyArgs.commitUrl = commitUrl;
-    if (document.frontmatter) historyArgs.frontmatterSnapshot = document.frontmatter;
+    if (document.frontmatter)
+      historyArgs.frontmatterSnapshot = document.frontmatter;
 
     await ctx.runMutation(
       internal.documents.internalRecordPublishHistory,
@@ -415,6 +435,9 @@ export const publish = action({
     githubAccessToken: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<void> => {
+    const key = await getRateLimitKey(ctx);
+    await rateLimiter.limit(ctx, "github:publish", { key, throws: true });
+
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       throw new Error("Not authenticated");
@@ -477,6 +500,9 @@ export const bulkPublish = action({
     ctx,
     args,
   ): Promise<{ success: number; failed: number; commitUrl?: string }> => {
+    const key = await getRateLimitKey(ctx);
+    await rateLimiter.limit(ctx, "github:bulkPublish", { key, throws: true });
+
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
 
@@ -511,14 +537,21 @@ export const bulkPublish = action({
       internal.media.internalGetUnsyncedMedia,
       { projectId: args.projectId },
     );
-    const mediaByUrl = new Map<string, { _id: string; storageId: string; fileName: string }>();
+    const mediaByUrl = new Map<
+      string,
+      { _id: string; storageId: string; fileName: string }
+    >();
     for (const m of unsyncedMedia) {
-      mediaByUrl.set(m.url, { _id: m._id, storageId: m.storageId, fileName: m.fileName });
+      mediaByUrl.set(m.url, {
+        _id: m._id,
+        storageId: m.storageId,
+        fileName: m.fileName,
+      });
     }
 
     // Fetch all documents
     const docs: Array<{
-      id: typeof args.documentIds[number];
+      id: (typeof args.documentIds)[number];
       title: string;
       slug: string;
       content: string;
@@ -602,14 +635,18 @@ export const bulkPublish = action({
         const matches = [...processedContent.matchAll(CONVEX_STORAGE_URL_RE)];
 
         for (const match of matches) {
-          const fullMatch = match[0]!;
+          const fullMatch = match[0] ?? "";
           const alt = match[1] ?? "";
-          const convexUrl = match[2]!;
+          const convexUrl = match[2] ?? "";
+          if (!fullMatch || !convexUrl) continue;
           const mediaRecord = mediaByUrl.get(convexUrl);
           if (!mediaRecord) continue;
 
           try {
-            const { repoPath, urlPath } = computeMediaPaths(mediaPath, mediaRecord.fileName);
+            const { repoPath, urlPath } = computeMediaPaths(
+              mediaPath,
+              mediaRecord.fileName,
+            );
             processedContent = processedContent.replace(
               fullMatch,
               `![${alt}](${urlPath})`,
@@ -619,7 +656,8 @@ export const bulkPublish = action({
             if (!addedImagePaths.has(repoPath)) {
               const imageBase64 = await fetchAsBase64(convexUrl);
               const { data: imgBlob } = await octokit.git.createBlob({
-                owner, repo,
+                owner,
+                repo,
                 content: imageBase64,
                 encoding: "base64",
               });
@@ -632,7 +670,10 @@ export const bulkPublish = action({
               addedImagePaths.add(repoPath);
             }
 
-            mediaSynced.push({ mediaId: mediaRecord._id, githubPath: repoPath });
+            mediaSynced.push({
+              mediaId: mediaRecord._id,
+              githubPath: repoPath,
+            });
           } catch {
             // Individual image failure — leave Convex URL in place
           }
@@ -662,7 +703,10 @@ export const bulkPublish = action({
           }
         }
 
-        const fileContent = buildMarkdownFile(frontmatterData, processedContent);
+        const fileContent = buildMarkdownFile(
+          frontmatterData,
+          processedContent,
+        );
 
         // Create a blob for this file
         const { data: blobData } = await octokit.git.createBlob({
@@ -796,6 +840,7 @@ export const bulkPublish = action({
     for (const synced of mediaSynced) {
       try {
         await ctx.runMutation(internal.media.internalMarkSyncedAndDelete, {
+          // biome-ignore lint/suspicious/noExplicitAny: synced.mediaId is a valid Id<"media"> tracked during publish
           mediaId: synced.mediaId as any,
           githubPath: synced.githubPath,
         });
@@ -837,6 +882,9 @@ export const uploadMediaToGithub = action({
     githubAccessToken: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<string> => {
+    const key = await getRateLimitKey(ctx);
+    await rateLimiter.limit(ctx, "github:uploadMedia", { key, throws: true });
+
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       throw new Error("Not authenticated");
@@ -930,6 +978,9 @@ export const importFileFromGithub = action({
     ctx,
     args,
   ): Promise<{ documentId: string; title: string; slug: string }> => {
+    const key = await getRateLimitKey(ctx);
+    await rateLimiter.limit(ctx, "github:importFile", { key, throws: true });
+
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       throw new Error("Not authenticated");
@@ -1062,7 +1113,13 @@ export const verifyRepoAccess = action({
     token: v.string(),
     repo: v.string(),
   },
-  handler: async (_ctx, args): Promise<{ valid: boolean; error?: string }> => {
+  handler: async (ctx, args): Promise<{ valid: boolean; error?: string }> => {
+    const key = await getRateLimitKey(ctx);
+    await rateLimiter.limit(ctx, "github:verifyRepoAccess", {
+      key,
+      throws: true,
+    });
+
     const { owner, repo } = parseRepoString(args.repo);
 
     try {
@@ -1101,6 +1158,9 @@ export const deleteFileFromGithub = action({
     githubAccessToken: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<void> => {
+    const key = await getRateLimitKey(ctx);
+    await rateLimiter.limit(ctx, "github:deleteFile", { key, throws: true });
+
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       throw new Error("Not authenticated");

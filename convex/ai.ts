@@ -13,6 +13,7 @@ import {
 import { v } from "convex/values";
 import { components, internal } from "./_generated/api";
 import { internalQuery, mutation, query } from "./_generated/server";
+import { getRateLimitKey, rateLimiter } from "./rateLimits";
 
 /* ------------------------------------------------------------------ */
 /*  Streaming instance                                                 */
@@ -54,6 +55,12 @@ export const createEnhanceStream = mutation({
     content: v.string(),
   },
   handler: async (ctx, args) => {
+    const key = await getRateLimitKey(ctx);
+    await rateLimiter.limit(ctx, "ai:createEnhanceStream", {
+      key,
+      throws: true,
+    });
+
     // Auth check
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
@@ -125,6 +132,12 @@ export const createInlineEnhanceStream = mutation({
     instruction: v.string(),
   },
   handler: async (ctx, args) => {
+    const key = await getRateLimitKey(ctx);
+    await rateLimiter.limit(ctx, "ai:createInlineEnhanceStream", {
+      key,
+      throws: true,
+    });
+
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       throw new Error("Not authenticated");
