@@ -16,9 +16,12 @@ import {
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useMemo } from "react";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
+import { getColorClasses } from "@/lib/board-colors";
 import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/stores/editor-store";
+import { DEFAULT_BOARD_COLUMNS } from "@/types/board";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 
@@ -74,16 +77,11 @@ function NavLink({
 /* ------------------------------------------------------------------ */
 
 function StatusDot({ status }: { status: string }) {
+  const col = DEFAULT_BOARD_COLUMNS.find((c) => c.id === status);
+  const dotColor = col ? getColorClasses(col.color).dot : "bg-muted-foreground/30";
   return (
     <span
-      className={cn(
-        "size-1.5 rounded-full shrink-0 transition-colors",
-        status === "published" && "bg-emerald-500",
-        status === "scheduled" && "bg-amber-500",
-        status !== "published" &&
-          status !== "scheduled" &&
-          "bg-muted-foreground/30",
-      )}
+      className={cn("size-1.5 rounded-full shrink-0 transition-colors", dotColor)}
     />
   );
 }
@@ -113,6 +111,24 @@ export function AppSidebar() {
     setActiveProjectId(projectId);
     router.push(`/projects/${projectId}`);
   }
+
+  // Compute status counts for sidebar filter chips
+  const statusCounts = useMemo(() => {
+    if (!documents) return null;
+    const counts: Record<string, number> = {};
+    for (const col of DEFAULT_BOARD_COLUMNS) {
+      counts[col.id] = 0;
+    }
+    for (const doc of documents) {
+      const status = doc.status ?? "draft";
+      if (counts[status] !== undefined) {
+        counts[status]++;
+      } else {
+        counts[status] = 1;
+      }
+    }
+    return counts;
+  }, [documents]);
 
   return (
     <div className="flex h-full w-[260px] flex-col bg-sidebar">
@@ -261,6 +277,37 @@ export function AppSidebar() {
                     <Plus className="size-3" />
                   </button>
                 </div>
+
+                {/* Status filter chips */}
+                {statusCounts && documents && documents.length > 0 && (
+                  <div className="mb-2 flex flex-wrap gap-1 px-3">
+                    {DEFAULT_BOARD_COLUMNS.map((col) => {
+                      const count = statusCounts[col.id] ?? 0;
+                      if (count === 0) return null;
+                      const colors = getColorClasses(col.color);
+                      return (
+                        <button
+                          key={col.id}
+                          type="button"
+                          onClick={() =>
+                            router.push(
+                              `/projects/${activeProjectId}?status=${col.id}`,
+                            )
+                          }
+                          className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground/70 transition-colors hover:bg-muted/60 hover:text-foreground"
+                        >
+                          <span
+                            className={cn(
+                              "size-1.5 rounded-full",
+                              colors.dot,
+                            )}
+                          />
+                          {count}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
 
                 {documents === undefined ? (
                   <div className="space-y-1 px-3">

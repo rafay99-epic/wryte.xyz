@@ -7,12 +7,14 @@ import {
   ArrowRight,
   Clock,
   Command,
+  Eye,
   FileText,
   FolderOpen,
   Globe,
   Pen,
   Plus,
   Sparkles,
+  ThumbsUp,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -59,7 +61,9 @@ function relativeTime(timestamp: number): string {
 
 const STATUS_STYLES = {
   published: { dot: "bg-emerald-500", label: "Published" },
-  scheduled: { dot: "bg-blue-500", label: "Scheduled" },
+  scheduled: { dot: "bg-purple-500", label: "Scheduled" },
+  ready: { dot: "bg-blue-500", label: "Ready" },
+  review: { dot: "bg-amber-500", label: "Review" },
   draft: { dot: "bg-zinc-400 dark:bg-zinc-600", label: "Draft" },
 } as const;
 
@@ -94,6 +98,12 @@ export default function DashboardPage() {
   const published =
     allDocs?.filter((d: { status: string }) => d.status === "published")
       .length ?? 0;
+  const review =
+    allDocs?.filter((d: { status: string }) => d.status === "review").length ??
+    0;
+  const ready =
+    allDocs?.filter((d: { status: string }) => d.status === "ready").length ??
+    0;
   const scheduled =
     allDocs?.filter((d: { status: string }) => d.status === "scheduled")
       .length ?? 0;
@@ -164,7 +174,30 @@ export default function DashboardPage() {
             value={drafts}
             label="Drafts"
             icon={<Pen className="size-3.5" />}
+            loading={isLoading}
+          />
+          <div className="h-8 w-px bg-border/30" />
+          <StatPill
+            value={review}
+            label="Review"
+            icon={<Eye className="size-3.5" />}
             accent="text-amber-500"
+            loading={isLoading}
+          />
+          <div className="h-8 w-px bg-border/30" />
+          <StatPill
+            value={ready}
+            label="Ready"
+            icon={<ThumbsUp className="size-3.5" />}
+            accent="text-blue-500"
+            loading={isLoading}
+          />
+          <div className="h-8 w-px bg-border/30" />
+          <StatPill
+            value={scheduled}
+            label="Scheduled"
+            icon={<Clock className="size-3.5" />}
+            accent="text-purple-500"
             loading={isLoading}
           />
           <div className="h-8 w-px bg-border/30" />
@@ -173,14 +206,6 @@ export default function DashboardPage() {
             label="Published"
             icon={<Globe className="size-3.5" />}
             accent="text-emerald-500"
-            loading={isLoading}
-          />
-          <div className="h-8 w-px bg-border/30" />
-          <StatPill
-            value={scheduled}
-            label="Scheduled"
-            icon={<Clock className="size-3.5" />}
-            accent="text-blue-500"
             loading={isLoading}
           />
         </div>

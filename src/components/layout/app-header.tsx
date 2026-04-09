@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   Calendar,
   CheckCircle2,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Cloud,
@@ -23,12 +24,20 @@ import { PublishDialog } from "@/components/editor/publish-dialog";
 import { ScheduleDialog } from "@/components/editor/schedule-dialog";
 import { Button } from "@/components/ui/button";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { getColorClasses } from "@/lib/board-colors";
 import { cn } from "@/lib/utils";
+import { type BoardColumnDef, DEFAULT_BOARD_COLUMNS } from "@/types/board";
 import { useEditorStore } from "@/stores/editor-store";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
@@ -86,8 +95,20 @@ export function AppHeader() {
       : "skip",
   );
 
+  // Board columns for status selector
+  const boardColumns = useQuery(
+    api.boardColumns.getColumns,
+    activeProjectId
+      ? { projectId: activeProjectId as Id<"projects"> }
+      : "skip",
+  ) as BoardColumnDef[] | undefined;
+  const columns = boardColumns ?? DEFAULT_BOARD_COLUMNS;
+
   // Toggle bookmark mutation
   const toggleBookmark = useMutation(api.documents.toggleBookmark);
+
+  // Status mutation
+  const updateStatus = useMutation(api.documents.updateStatus);
 
   const handleToggleBookmark = async () => {
     if (!documentId) return;
@@ -124,6 +145,22 @@ export function AppHeader() {
           : null,
     };
   }, [documents, documentId]);
+
+  const handleStatusChange = async (newStatus: string) => {
+    if (!documentId || !document) return;
+    if (document.status === newStatus) return;
+    try {
+      await updateStatus({
+        documentId: documentId as Id<"documents">,
+        status: newStatus,
+      });
+      const label =
+        columns.find((c) => c.id === newStatus)?.label ?? newStatus;
+      toast.success(`Status changed to "${label}"`);
+    } catch {
+      toast.error("Failed to update status");
+    }
+  };
 
   const isBookmarked = document?.bookmarked === true;
 
@@ -381,6 +418,59 @@ export function AppHeader() {
                 {isBookmarked ? "Remove bookmark" : "Bookmark this article"}
               </TooltipContent>
             </Tooltip>
+
+            {/* Status selector */}
+            {document && (
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <button
+                      type="button"
+                      className="mr-1 flex items-center gap-1.5 rounded-lg border border-border/50 px-2.5 py-1 text-xs transition-colors hover:bg-muted/60"
+                    />
+                  }
+                >
+                  <span
+                    className={cn(
+                      "size-2 rounded-full",
+                      getColorClasses(
+                        columns.find((c) => c.id === document.status)?.color ??
+                          "gray",
+                      ).dot,
+                    )}
+                  />
+                  <span className="font-medium text-foreground/80">
+                    {columns.find((c) => c.id === document.status)?.label ??
+                      document.status}
+                  </span>
+                  <ChevronDown className="size-3 text-muted-foreground/60" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="min-w-[160px]">
+                  {columns.map((col) => {
+                    const isActive = document.status === col.id;
+                    const colors = getColorClasses(col.color);
+                    return (
+                      <DropdownMenuItem
+                        key={col.id}
+                        onClick={() => void handleStatusChange(col.id)}
+                        className={cn(
+                          "gap-2",
+                          isActive && "bg-accent font-medium",
+                        )}
+                      >
+                        <span
+                          className={cn("size-2 rounded-full", colors.dot)}
+                        />
+                        {col.label}
+                        {isActive && (
+                          <CheckCircle2 className="ml-auto size-3 text-primary" />
+                        )}
+                      </DropdownMenuItem>
+                    );
+                  })}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
 
             {/* Schedule */}
             <Tooltip>

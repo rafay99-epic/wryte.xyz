@@ -20,18 +20,32 @@ interface BoardColumnDef {
 const DEFAULT_BOARD_COLUMNS: BoardColumnDef[] = [
   { id: "draft", label: "Draft", color: "gray", behavior: "none", position: 0 },
   {
+    id: "review",
+    label: "Review",
+    color: "amber",
+    behavior: "none",
+    position: 1,
+  },
+  {
+    id: "ready",
+    label: "Ready",
+    color: "blue",
+    behavior: "none",
+    position: 2,
+  },
+  {
     id: "scheduled",
     label: "Scheduled",
-    color: "blue",
+    color: "purple",
     behavior: "schedule",
-    position: 1,
+    position: 3,
   },
   {
     id: "published",
     label: "Published",
     color: "emerald",
     behavior: "publish",
-    position: 2,
+    position: 4,
   },
 ];
 

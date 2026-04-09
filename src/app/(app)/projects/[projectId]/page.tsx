@@ -34,9 +34,11 @@ import {
   type ParsedFrontmatter,
   parseFrontmatterJson,
 } from "@/lib/parse-frontmatter";
+import { buildSearchIndex, searchItems } from "@/lib/search";
 import { cn } from "@/lib/utils";
 import { useBoardStore } from "@/stores/board-store";
 import { useEditorStore } from "@/stores/editor-store";
+import { useSearchStore } from "@/stores/search-store";
 import { type BoardColumnDef, DEFAULT_BOARD_COLUMNS } from "@/types/board";
 import { api } from "../../../../../convex/_generated/api";
 import type { Id } from "../../../../../convex/_generated/dataModel";
@@ -72,16 +74,24 @@ export default function ProjectDetailPage() {
     }
   }, [projectDeleted, router]);
 
-  // Set active project in sidebar on mount; reset board store on unmount
+  // Set active project in sidebar on mount; reset transient state on unmount
   useEffect(() => {
     useEditorStore.getState().setActiveProjectId(projectId);
     return () => {
       useBoardStore.getState().reset();
+      useSearchStore.getState().setQuery("");
     };
   }, [projectId]);
 
+  // --- Search store (persisted per-project) ---
+  const searchQuery = useSearchStore((s) => s.query);
+  const setSearchQuery = useSearchStore((s) => s.setQuery);
+  const sortOrder = useSearchStore((s) => s.getSortOrder(projectId));
+  const kindFilter = useSearchStore((s) => s.getKindFilter(projectId));
+  const tagFilters = useSearchStore((s) => s.getTagFilters(projectId));
+  const statusFilter = useSearchStore((s) => s.getStatusFilter(projectId));
+
   const [viewFilter, setViewFilter] = useState<ViewFilter>("all");
-  const [searchQuery, setSearchQuery] = useState("");
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [createInitialStatus, setCreateInitialStatus] = useState<
     string | undefined
@@ -178,41 +188,6 @@ export default function ProjectDetailPage() {
     return items;
   }, [documents, remoteFiles, importedPaths]);
 
-  // --- Filter & search ---
-  const filteredItems = useMemo(() => {
-    let items = contentItems;
-
-    // Special filters
-    if (viewFilter === "local") {
-      items = items.filter((i) => i.kind === "local");
-    } else if (viewFilter === "remote") {
-      items = items.filter((i) => i.kind === "remote");
-    } else if (viewFilter !== "all") {
-      // Dynamic column filter — match by column ID (status)
-      items = items.filter((i) => i.status === viewFilter);
-    }
-
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      items = items.filter(
-        (i) =>
-          i.title.toLowerCase().includes(q) ||
-          i.slug.toLowerCase().includes(q) ||
-          i.path.toLowerCase().includes(q),
-      );
-    }
-
-    items.sort((a, b) => {
-      if (a.kind !== b.kind) return a.kind === "local" ? -1 : 1;
-      if (a.kind === "local" && b.kind === "local") {
-        return (b.updatedAt ?? 0) - (a.updatedAt ?? 0);
-      }
-      return a.title.localeCompare(b.title);
-    });
-
-    return items;
-  }, [contentItems, viewFilter, searchQuery]);
-
   // --- Frontmatter map for tags/author ---
   const tagFieldName = useMemo(
     () => getTagFieldName(project?.frontmatterSchema),
@@ -226,6 +201,122 @@ export default function ProjectDetailPage() {
     }
     return map;
   }, [documents, tagFieldName]);
+
+  // --- All unique tags (for filter UI) ---
+  const allTags = useMemo(() => {
+    const tagSet = new Set<string>();
+    for (const item of contentItems) {
+      for (const tag of item.tags ?? []) {
+        tagSet.add(tag);
+      }
+      if (item.id) {
+        const fm = frontmatterMap.get(item.id);
+        if (fm?.tags) {
+          for (const tag of fm.tags) {
+            tagSet.add(tag);
+          }
+        }
+      }
+    }
+    return Array.from(tagSet).sort();
+  }, [contentItems, frontmatterMap]);
+
+  // --- Search index (pre-computed for performance) ---
+  const searchIndex = useMemo(
+    () => buildSearchIndex(contentItems, frontmatterMap),
+    [contentItems, frontmatterMap],
+  );
+
+  // --- Filter & search ---
+  const filteredItems = useMemo(() => {
+    // 1. Tab filter (view filter from tabs)
+    let items = contentItems;
+    if (viewFilter === "local") {
+      items = items.filter((i) => i.kind === "local");
+    } else if (viewFilter === "remote") {
+      items = items.filter((i) => i.kind === "remote");
+    } else if (viewFilter !== "all") {
+      items = items.filter((i) => i.status === viewFilter);
+    }
+
+    // 2. Kind filter from search store
+    if (kindFilter !== "all") {
+      items = items.filter((i) => i.kind === kindFilter);
+    }
+
+    // 3. Status filter from search store
+    if (statusFilter) {
+      items = items.filter((i) => i.status === statusFilter);
+    }
+
+    // 4. Tag filters from search store (OR logic — match any selected tag)
+    if (tagFilters.length > 0) {
+      const tagSet = new Set(tagFilters);
+      items = items.filter((i) => {
+        const itemTags = i.tags ?? [];
+        // Also check frontmatter tags
+        const fm = i.id ? frontmatterMap.get(i.id) : undefined;
+        const allTags = [...itemTags, ...(fm?.tags ?? [])];
+        return allTags.some((t) => tagSet.has(t));
+      });
+    }
+
+    // 5. Text search with relevance scoring
+    const query = searchQuery.trim();
+    if (query) {
+      // Build a filtered search index matching current item set
+      const itemIds = new Set(
+        items.map((i) => (i.kind === "local" ? i.id : i.path)),
+      );
+      const filteredIndex = searchIndex.filter((si) =>
+        itemIds.has(si.item.kind === "local" ? si.item.id : si.item.path),
+      );
+      const scored = searchItems(filteredIndex, query);
+
+      // Sort by relevance when searching
+      if (sortOrder === "relevance" || sortOrder === "newest") {
+        scored.sort((a, b) => b.score - a.score);
+      }
+
+      items = scored.map((s) => s.item);
+    }
+
+    // 6. Sort (when not in relevance-search mode)
+    if (!query || sortOrder !== "relevance") {
+      items = [...items].sort((a, b) => {
+        switch (sortOrder) {
+          case "newest":
+            return (b.updatedAt ?? 0) - (a.updatedAt ?? 0);
+          case "oldest":
+            return (a.updatedAt ?? 0) - (b.updatedAt ?? 0);
+          case "a-z":
+            return a.title.localeCompare(b.title);
+          case "z-a":
+            return b.title.localeCompare(a.title);
+          default: {
+            // Default: local first, then by date
+            if (a.kind !== b.kind) return a.kind === "local" ? -1 : 1;
+            if (a.kind === "local" && b.kind === "local") {
+              return (b.updatedAt ?? 0) - (a.updatedAt ?? 0);
+            }
+            return a.title.localeCompare(b.title);
+          }
+        }
+      });
+    }
+
+    return items;
+  }, [
+    contentItems,
+    viewFilter,
+    searchQuery,
+    kindFilter,
+    statusFilter,
+    tagFilters,
+    sortOrder,
+    searchIndex,
+    frontmatterMap,
+  ]);
 
   // --- Auto-import + navigate for remote files ---
   const importFile = useAction(importAction);
@@ -405,6 +496,7 @@ export default function ProjectDetailPage() {
         items={filteredItems}
         allItems={contentItems}
         columns={columns}
+        allTags={allTags}
         viewFilter={viewFilter}
         onViewFilterChange={setViewFilter}
         searchQuery={searchQuery}

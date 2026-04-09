@@ -2,24 +2,43 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import {
+  ArrowDownAZ,
+  ArrowUpAZ,
+  CalendarArrowDown,
+  CalendarArrowUp,
   Cloud,
   Download,
   Loader2,
   RefreshCw,
   Search,
   Settings,
+  Sparkles,
+  Tag,
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Pagination, PaginationInfo } from "@/components/ui/pagination";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useViewPreferences } from "@/hooks/use-view-preferences";
 import { fadeIn, smoothTransition } from "@/lib/motion";
 import type { ParsedFrontmatter } from "@/lib/parse-frontmatter";
 import { cn } from "@/lib/utils";
 import { useBoardStore } from "@/stores/board-store";
+import { type SortOrder, useSearchStore } from "@/stores/search-store";
 import type { BoardColumnDef } from "@/types/board";
 import { BoardView } from "./board-view";
 import { ContentEmptyState, type ViewFilter } from "./content-empty-state";
@@ -30,6 +49,38 @@ import { ViewModeSwitcher } from "./view-mode-switcher";
 
 const PAGE_SIZE = 10;
 
+const SORT_OPTIONS: {
+  value: SortOrder;
+  label: string;
+  icon: React.ReactNode;
+}[] = [
+  {
+    value: "newest",
+    label: "Newest first",
+    icon: <CalendarArrowDown className="size-3.5" />,
+  },
+  {
+    value: "oldest",
+    label: "Oldest first",
+    icon: <CalendarArrowUp className="size-3.5" />,
+  },
+  {
+    value: "a-z",
+    label: "A \u2192 Z",
+    icon: <ArrowDownAZ className="size-3.5" />,
+  },
+  {
+    value: "z-a",
+    label: "Z \u2192 A",
+    icon: <ArrowUpAZ className="size-3.5" />,
+  },
+  {
+    value: "relevance",
+    label: "Relevance",
+    icon: <Sparkles className="size-3.5" />,
+  },
+];
+
 interface ContentDashboardProps {
   /** All content items (already filtered by viewFilter + search). */
   items: ContentItem[];
@@ -37,6 +88,8 @@ interface ContentDashboardProps {
   allItems: ContentItem[];
   /** Dynamic board columns from project config. */
   columns: BoardColumnDef[];
+  /** All unique tags across all items (for filter UI). */
+  allTags: string[];
   viewFilter: ViewFilter;
   onViewFilterChange: (f: ViewFilter) => void;
   searchQuery: string;
@@ -61,6 +114,7 @@ export function ContentDashboard({
   items,
   allItems,
   columns,
+  allTags,
   viewFilter,
   onViewFilterChange,
   searchQuery,
@@ -84,6 +138,12 @@ export function ContentDashboard({
   const activeTagFilters = useBoardStore((s) => s.activeTagFilters);
   const setSettingsDialogOpen = useBoardStore((s) => s.setSettingsDialogOpen);
 
+  // --- Search store ---
+  const sortOrder = useSearchStore((s) => s.getSortOrder(projectId));
+  const setSortOrder = useSearchStore((s) => s.setSortOrder);
+  const searchTagFilters = useSearchStore((s) => s.getTagFilters(projectId));
+  const toggleTagFilter = useSearchStore((s) => s.toggleTagFilter);
+  const clearTagFilters = useSearchStore((s) => s.clearTagFilters);
   // --- Multi-select state for remote items ---
   const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
 
@@ -169,43 +229,139 @@ export function ContentDashboard({
     });
   }, [items, activeTagFilters]);
 
-  // Compute all unique tags across items (for tag filter bar)
-  const allTags = useMemo(() => {
-    const tagSet = new Set<string>();
-    for (const item of allItems) {
-      for (const tag of item.tags ?? []) {
-        tagSet.add(tag);
-      }
-      // Also check frontmatter map
-      if (item.id) {
-        const fm = frontmatterMap.get(item.id);
-        if (fm?.tags) {
-          for (const tag of fm.tags) {
-            tagSet.add(tag);
-          }
-        }
-      }
-    }
-    return Array.from(tagSet).sort();
-  }, [allItems, frontmatterMap]);
-
   // Tab counts
   const localCount = allItems.filter((i) => i.kind === "local").length;
   const remoteCount = allItems.filter((i) => i.kind === "remote").length;
 
+  // Current sort option
+  const currentSort =
+    SORT_OPTIONS.find((o) => o.value === sortOrder) ?? SORT_OPTIONS[0];
+
+  // Tag filter popover state
+  const [tagFilterQuery, setTagFilterQuery] = useState("");
+  const filteredTagOptions = useMemo(() => {
+    if (!tagFilterQuery.trim()) return allTags;
+    const q = tagFilterQuery.toLowerCase();
+    return allTags.filter((t) => t.toLowerCase().includes(q));
+  }, [allTags, tagFilterQuery]);
+
   return (
     <div>
-      {/* Search + Refresh + View Mode */}
-      <div className="mb-4 flex items-center gap-3">
+      {/* Search bar + controls */}
+      <div className="mb-3 flex items-center gap-3">
         <div className="relative flex-1">
           <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Search by title, slug, or path..."
+            placeholder="Search by title, tags, content, author, path..."
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            className="pl-9"
+            className="pl-9 pr-9"
           />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => onSearchChange("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <X className="size-3.5" />
+            </button>
+          )}
         </div>
+
+        {/* Tag filter popover */}
+        {allTags.length > 0 && (
+          <Popover>
+            <PopoverTrigger
+              render={
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={cn(
+                    searchTagFilters.length > 0 &&
+                      "border-primary/50 text-primary",
+                  )}
+                />
+              }
+            >
+              <Tag className="size-3.5" />
+              Tags
+              {searchTagFilters.length > 0 && (
+                <Badge
+                  variant="secondary"
+                  className="ml-1 px-1.5 py-0 text-[10px]"
+                >
+                  {searchTagFilters.length}
+                </Badge>
+              )}
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-64 p-3">
+              <div className="mb-2 text-xs font-medium text-muted-foreground">
+                Filter by tags
+              </div>
+              <Input
+                placeholder="Search tags..."
+                value={tagFilterQuery}
+                onChange={(e) => setTagFilterQuery(e.target.value)}
+                className="mb-2 h-8 text-xs"
+              />
+              <div className="max-h-48 overflow-y-auto slim-scrollbar">
+                {filteredTagOptions.length === 0 ? (
+                  <p className="py-2 text-center text-xs text-muted-foreground">
+                    No tags found
+                  </p>
+                ) : (
+                  filteredTagOptions.map((tag) => (
+                    <label
+                      key={tag}
+                      className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted/50"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={searchTagFilters.includes(tag)}
+                        onChange={() => toggleTagFilter(projectId, tag)}
+                        className="size-3.5 rounded accent-primary"
+                      />
+                      <span className="truncate">{tag}</span>
+                    </label>
+                  ))
+                )}
+              </div>
+              {searchTagFilters.length > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => clearTagFilters(projectId)}
+                  className="mt-2 w-full text-xs"
+                >
+                  Clear tag filters
+                </Button>
+              )}
+            </PopoverContent>
+          </Popover>
+        )}
+
+        {/* Sort dropdown */}
+        <DropdownMenu>
+          <DropdownMenuTrigger render={<Button variant="outline" size="sm" />}>
+            {currentSort?.icon}
+            <span className="hidden sm:inline">{currentSort?.label}</span>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {SORT_OPTIONS.map((opt) => (
+              <DropdownMenuItem
+                key={opt.value}
+                onClick={() => setSortOrder(projectId, opt.value)}
+                className={cn(
+                  sortOrder === opt.value && "bg-muted font-medium",
+                )}
+              >
+                {opt.icon}
+                {opt.label}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
         {hasGithub && (
           <Button
             variant="outline"
@@ -231,6 +387,60 @@ export function ContentDashboard({
         )}
         <ViewModeSwitcher viewMode={viewMode} onViewModeChange={setViewMode} />
       </div>
+
+      {/* Active filter chips */}
+      {(searchTagFilters.length > 0 || searchQuery.trim()) && (
+        <div className="mb-3 flex flex-wrap items-center gap-1.5">
+          {searchQuery.trim() && (
+            <Badge
+              variant="secondary"
+              className="gap-1 pl-2 pr-1 text-xs font-normal"
+            >
+              <Search className="size-3 text-muted-foreground" />
+              &ldquo;{searchQuery.trim()}&rdquo;
+              <button
+                type="button"
+                onClick={() => onSearchChange("")}
+                className="ml-0.5 rounded-full p-0.5 hover:bg-foreground/10"
+              >
+                <X className="size-3" />
+              </button>
+            </Badge>
+          )}
+          {searchTagFilters.map((tag) => (
+            <Badge
+              key={tag}
+              variant="secondary"
+              className="gap-1 pl-2 pr-1 text-xs font-normal"
+            >
+              <Tag className="size-3 text-muted-foreground" />
+              {tag}
+              <button
+                type="button"
+                onClick={() => toggleTagFilter(projectId, tag)}
+                className="ml-0.5 rounded-full p-0.5 hover:bg-foreground/10"
+              >
+                <X className="size-3" />
+              </button>
+            </Badge>
+          ))}
+          {(searchTagFilters.length > 0 || searchQuery.trim()) && (
+            <button
+              type="button"
+              onClick={() => {
+                onSearchChange("");
+                clearTagFilters(projectId);
+              }}
+              className="ml-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Clear all
+            </button>
+          )}
+          <span className="ml-auto text-xs text-muted-foreground">
+            {items.length} {items.length === 1 ? "result" : "results"}
+          </span>
+        </div>
+      )}
 
       {/* Filter tabs */}
       <Tabs
