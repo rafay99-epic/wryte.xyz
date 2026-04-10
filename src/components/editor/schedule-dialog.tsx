@@ -24,6 +24,10 @@ import {
 } from "@/components/ui/sheet";
 import { TimePicker } from "@/components/ui/time-picker";
 import {
+  findPubDateFieldName,
+  findPubDateFieldType,
+} from "@/lib/build-initial-frontmatter";
+import {
   DAYS,
   getDaysInMonth,
   getFirstDayOfMonth,
@@ -38,6 +42,10 @@ import type { Id } from "../../../convex/_generated/dataModel";
 
 // biome-ignore lint/suspicious/noExplicitAny: api types are generated at build time via `npx convex dev`
 const documentsGet = (api as any).documents.get;
+// biome-ignore lint/suspicious/noExplicitAny: api types are generated at build time via `npx convex dev`
+const projectsGet = (api as any).projects.get;
+// biome-ignore lint/suspicious/noExplicitAny: api types are generated at build time via `npx convex dev`
+const documentsUpdate = (api as any).documents.update;
 // biome-ignore lint/suspicious/noExplicitAny: api types are generated at build time via `npx convex dev`
 const schedulingSchedule = (api as any).scheduling.schedule;
 // biome-ignore lint/suspicious/noExplicitAny: api types are generated at build time via `npx convex dev`
@@ -185,9 +193,14 @@ export function ScheduleDialog({
   const document = useQuery(documentsGet, {
     documentId: documentId as Id<"documents">,
   });
+  const project = useQuery(
+    projectsGet,
+    document ? { projectId: document.projectId } : "skip",
+  );
 
   const schedulePublish = useMutation(schedulingSchedule);
   const cancelSchedule = useMutation(schedulingCancel);
+  const updateDocument = useMutation(documentsUpdate);
 
   const isAlreadyScheduled = document?.status === "scheduled";
   const existingScheduledAt = document?.scheduledAt;
@@ -277,6 +290,33 @@ export function ScheduleDialog({
         documentId: documentId as Id<"documents">,
         scheduledAt: scheduledTimestamp,
       });
+
+      // Sync the scheduled date into frontmatter's pubDate field
+      const pubDateField = findPubDateFieldName(project?.frontmatterSchema);
+      if (pubDateField) {
+        try {
+          const fm: Record<string, unknown> = document?.frontmatter
+            ? JSON.parse(document.frontmatter)
+            : {};
+          const fieldType = findPubDateFieldType(project?.frontmatterSchema);
+          if (fieldType === "datetime") {
+            fm[pubDateField] = new Date(scheduledTimestamp)
+              .toISOString()
+              .slice(0, 16);
+          } else {
+            fm[pubDateField] = new Date(scheduledTimestamp)
+              .toISOString()
+              .slice(0, 10);
+          }
+          await updateDocument({
+            documentId: documentId as Id<"documents">,
+            frontmatter: JSON.stringify(fm),
+          });
+        } catch {
+          // Non-critical — schedule succeeded, frontmatter sync is best-effort
+        }
+      }
+
       toast.success("Scheduled!", {
         description: `Will be published on ${formattedDateTime}.`,
       });

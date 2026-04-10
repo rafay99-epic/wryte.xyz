@@ -41,7 +41,7 @@ export const metadata: Metadata = {
   description: SITE_DESCRIPTION,
 
   applicationName: SITE_NAME,
-  authors: [{ name: "Abdul Rafay", url: "https://future-dev.xyz" }],
+  authors: [{ name: "Abdul Rafay", url: "https://rafay99.com" }],
   creator: "Abdul Rafay",
   publisher: SITE_NAME,
   generator: "Next.js",

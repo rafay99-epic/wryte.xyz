@@ -312,3 +312,121 @@ export const runInlineEnhancement = internalAction({
     }
   },
 });
+
+/* ------------------------------------------------------------------ */
+/*  Frontmatter suggestion: analyse content and suggest metadata       */
+/* ------------------------------------------------------------------ */
+
+const FRONTMATTER_SYSTEM_PROMPT = `You are an expert SEO and content strategist. Analyse the provided markdown article and suggest frontmatter metadata that maximises discoverability and reader engagement.
+
+Return ONLY valid JSON (no markdown fences, no explanation) with these keys:
+- "title": a compelling, SEO-friendly title (50-70 characters ideal)
+- "description": a meta-description optimised for search (120-160 characters)
+- "tags": an array of 3-6 relevant topic tags (lowercase, single words or short phrases)
+- "keywords": a comma-separated string of 5-10 SEO keywords/phrases
+- "excerpt": a 1-2 sentence teaser that hooks the reader (max 200 characters)
+
+Guidelines:
+- Base suggestions on the actual content, not guesses
+- Prefer specific, long-tail keywords over generic ones
+- Tags should reflect the article's main topics
+- The title should be click-worthy but not clickbait
+- The description should summarise the value proposition for searchers
+- If the content is short or empty, do your best with what's available
+- Only return keys listed above — no extra fields`;
+
+export const runFrontmatterSuggestion = internalAction({
+  args: {
+    streamId: StreamIdValidator,
+    provider: v.union(
+      v.literal("anthropic"),
+      v.literal("openai"),
+      v.literal("openrouter"),
+    ),
+    model: v.string(),
+    content: v.string(),
+    frontmatterSchema: v.string(),
+    currentFrontmatter: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const streamId = args.streamId;
+    let pending = "";
+
+    const schemaContext = args.frontmatterSchema
+      ? `\nProject schema fields: ${args.frontmatterSchema}`
+      : "";
+    const currentContext = args.currentFrontmatter
+      ? `\nCurrent frontmatter: ${args.currentFrontmatter}`
+      : "";
+
+    const userMessage = `Analyse this article and suggest frontmatter metadata.${schemaContext}${currentContext}\n\nArticle content:\n${args.content}`;
+
+    const writer = {
+      addChunk: async (text: string) => {
+        pending += text;
+        // For JSON output, flush on closing braces or commas
+        if (text.includes("}") || text.includes(",") || text.includes("]")) {
+          await ctx.runMutation(
+            components.persistentTextStreaming.lib.addChunk,
+            { streamId, text: pending, final: false },
+          );
+          pending = "";
+        }
+      },
+    };
+
+    try {
+      switch (args.provider) {
+        case "anthropic":
+          await streamWithAnthropic(
+            args.model,
+            userMessage,
+            writer,
+            FRONTMATTER_SYSTEM_PROMPT,
+          );
+          break;
+        case "openai":
+          await streamWithOpenAI(args.model, userMessage, writer, {
+            systemPrompt: FRONTMATTER_SYSTEM_PROMPT,
+          });
+          break;
+        case "openrouter":
+          await streamWithOpenAI(args.model, userMessage, writer, {
+            baseURL: "https://openrouter.ai/api/v1",
+            apiKeyEnvVar: "OPENROUTER_API_KEY",
+            extraHeaders: {
+              "HTTP-Referer": "https://wryte.xyz",
+              "X-Title": "Wryte",
+            },
+            systemPrompt: FRONTMATTER_SYSTEM_PROMPT,
+          });
+          break;
+      }
+
+      await ctx.runMutation(components.persistentTextStreaming.lib.addChunk, {
+        streamId,
+        text: pending,
+        final: true,
+      });
+    } catch (error: unknown) {
+      const err = error as { status?: number; message?: string };
+      let message = err.message ?? "Unknown error";
+
+      if (err.status === 401) {
+        message = `Invalid API key for ${args.provider}. Check your Convex environment variables.`;
+      } else if (err.status === 429) {
+        message = `Rate limited by ${args.provider}. Please try again in a moment.`;
+      }
+
+      try {
+        await ctx.runMutation(
+          components.persistentTextStreaming.lib.setStreamStatus,
+          { streamId, status: "error" },
+        );
+      } catch {
+        // May already be in terminal state
+      }
+      throw new Error(message);
+    }
+  },
+});

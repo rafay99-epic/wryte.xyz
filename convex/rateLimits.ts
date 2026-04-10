@@ -213,6 +213,11 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     rate: 20,
     period: MINUTE,
   },
+  "ai:createFrontmatterStream": {
+    kind: "fixed window",
+    rate: 10,
+    period: MINUTE,
+  },
 
   /* ------------------------------------------------------------------ */
   /*  GitHub actions                                                     */

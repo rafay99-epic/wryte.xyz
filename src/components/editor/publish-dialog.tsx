@@ -187,7 +187,9 @@ export function PublishDialog({
           {/* Frontmatter preview */}
           <div className="space-y-1.5">
             <Label className="text-xs text-muted-foreground">Frontmatter</Label>
-            <pre className="max-h-32 overflow-y-auto rounded-md bg-muted px-3 py-2 font-mono text-xs whitespace-pre-wrap">{frontmatterPreview}</pre>
+            <pre className="max-h-32 overflow-y-auto rounded-md bg-muted px-3 py-2 font-mono text-xs whitespace-pre-wrap">
+              {frontmatterPreview}
+            </pre>
           </div>
 
           {/* Content preview */}

@@ -16,6 +16,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { buildInitialFrontmatter } from "@/lib/build-initial-frontmatter";
 import { generateSlug } from "@/lib/markdown";
 import { useEditorStore } from "@/stores/editor-store";
 import { api } from "../../../../../../../convex/_generated/api";
@@ -85,10 +86,16 @@ export default function NewDocumentPage() {
 
     setIsSubmitting(true);
     try {
+      const frontmatter = buildInitialFrontmatter(
+        project?.frontmatterSchema,
+        trimmedTitle,
+        trimmedSlug,
+      );
       const documentId = await createDocument({
         projectId,
         title: trimmedTitle,
         slug: trimmedSlug,
+        frontmatter,
       });
       toast.success("Article created — opening editor");
       router.push(`/editor/${documentId}`);
@@ -97,7 +104,14 @@ export default function NewDocumentPage() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [title, slug, projectId, createDocument, router]);
+  }, [
+    title,
+    slug,
+    projectId,
+    project?.frontmatterSchema,
+    createDocument,
+    router,
+  ]);
 
   // Submit on Enter in the title field
   const handleKeyDown = useCallback(

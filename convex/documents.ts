@@ -218,6 +218,7 @@ export const create = mutation({
     slug: v.string(),
     status: v.optional(v.string()),
     tags: v.optional(v.array(v.string())),
+    frontmatter: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const key = await getRateLimitKey(ctx);
@@ -246,6 +247,9 @@ export const create = mutation({
       createdAt: now,
       updatedAt: now,
       ...(args.tags !== undefined ? { tags: args.tags } : {}),
+      ...(args.frontmatter !== undefined
+        ? { frontmatter: args.frontmatter }
+        : {}),
     });
 
     return documentId;

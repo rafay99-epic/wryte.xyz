@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
@@ -16,9 +16,13 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { buildInitialFrontmatter } from "@/lib/build-initial-frontmatter";
 import { generateSlug } from "@/lib/markdown";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
+
+// biome-ignore lint/suspicious/noExplicitAny: api types are generated at build time via `npx convex dev`
+const projectsGet = (api as any).projects.get;
 
 interface CreateDocumentDialogProps {
   projectId: Id<"projects">;
@@ -36,6 +40,7 @@ export function CreateDocumentDialog({
 }: CreateDocumentDialogProps) {
   const router = useRouter();
   const createDocument = useMutation(api.documents.create);
+  const project = useQuery(projectsGet, { projectId });
 
   const [title, setTitle] = useState("");
   const [slug, setSlug] = useState("");
@@ -80,15 +85,22 @@ export function CreateDocumentDialog({
 
       setIsSubmitting(true);
       try {
+        const frontmatter = buildInitialFrontmatter(
+          project?.frontmatterSchema,
+          trimmedTitle,
+          trimmedSlug,
+        );
         const args: {
           projectId: Id<"projects">;
           title: string;
           slug: string;
           status?: string;
+          frontmatter?: string;
         } = {
           projectId,
           title: trimmedTitle,
           slug: trimmedSlug,
+          frontmatter,
         };
         if (initialStatus) {
           args.status = initialStatus;
@@ -110,6 +122,7 @@ export function CreateDocumentDialog({
       title,
       slug,
       projectId,
+      project?.frontmatterSchema,
       createDocument,
       onOpenChange,
       router,

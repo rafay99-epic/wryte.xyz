@@ -16,6 +16,7 @@ import {
   Lock,
   Palette,
   SlidersHorizontal,
+  Sparkles,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -29,11 +30,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { findPubDateFieldName } from "@/lib/build-initial-frontmatter";
 import { generateSlug } from "@/lib/markdown";
 import { getTagFieldName } from "@/lib/parse-frontmatter";
 import type { FrontmatterFieldType } from "@/types/frontmatter";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
+import { FrontmatterAiDrawer } from "./frontmatter-ai-drawer";
+import { FrontmatterImageField } from "./frontmatter-image-field";
 
 // biome-ignore lint/suspicious/noExplicitAny: api types are generated at build time via `npx convex dev`
 const projectsGet = (api as any).projects.get;
@@ -175,6 +179,10 @@ function yamlToValues(yamlStr: string): {
     )) {
       if (typeof val === "boolean") {
         result[key] = val;
+      } else if (val instanceof Date) {
+        // js-yaml parses YAML dates into Date objects — convert to ISO string
+        // so date/datetime inputs can consume them (YYYY-MM-DD or YYYY-MM-DDTHH:MM).
+        result[key] = val.toISOString().slice(0, 10);
       } else if (Array.isArray(val)) {
         result[key] = val.map(String).join(", ");
       } else if (typeof val === "object" && val !== null) {
@@ -205,6 +213,7 @@ export function FrontmatterEditor({
   const [values, setValues] = useState<Record<string, string | boolean>>({});
   const [hasLoadedInitial, setHasLoadedInitial] = useState(false);
   const [codeValue, setCodeValue] = useState("");
+  const [aiDrawerOpen, setAiDrawerOpen] = useState(false);
   const [codeError, setCodeError] = useState<string | null>(null);
   const codeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -262,13 +271,37 @@ export function FrontmatterEditor({
             string,
             string | boolean
           >;
+          // Normalize date-typed fields: fix Date.toString() output,
+          // JSON object values, or other non-ISO formats back to YYYY-MM-DD.
+          for (const field of fields) {
+            if (
+              (field.type === "date" || field.type === "datetime") &&
+              typeof parsed[field.name] === "string"
+            ) {
+              const v = parsed[field.name] as string;
+              if (v.startsWith("{") || v.startsWith("[")) {
+                parsed[field.name] = "";
+              } else if (v && !/^\d{4}-\d{2}-\d{2}/.test(v)) {
+                // Attempt to parse non-ISO date strings (e.g. Date.toString() output)
+                const d = new Date(v);
+                if (!Number.isNaN(d.getTime())) {
+                  parsed[field.name] =
+                    field.type === "datetime"
+                      ? d.toISOString().slice(0, 16)
+                      : d.toISOString().slice(0, 10);
+                } else {
+                  parsed[field.name] = "";
+                }
+              }
+            }
+          }
           setValues(parsed);
         } catch {
           // Invalid JSON, start fresh
         }
       }
     }
-  }, [document, hasLoadedInitial]);
+  }, [document, hasLoadedInitial, fields]);
 
   const saveValues = useCallback(
     (newValues: Record<string, string | boolean>) => {
@@ -295,6 +328,11 @@ export function FrontmatterEditor({
     [documentId, updateDocument, tagFieldName],
   );
 
+  const pubDateFieldName = useMemo(
+    () => findPubDateFieldName(project?.frontmatterSchema),
+    [project?.frontmatterSchema],
+  );
+
   function handleFieldChange(name: string, value: string | boolean) {
     const newValues = { ...values, [name]: value };
 
@@ -302,9 +340,38 @@ export function FrontmatterEditor({
       newValues["slug"] = generateSlug(value);
     }
 
+    // Sync pubDate changes back to scheduledAt when the document is scheduled
+    if (
+      name === pubDateFieldName &&
+      typeof value === "string" &&
+      value &&
+      document?.status === "scheduled"
+    ) {
+      const ts = new Date(value).getTime();
+      if (!Number.isNaN(ts) && ts > Date.now()) {
+        void updateDocument({
+          documentId: documentId as Id<"documents">,
+          scheduledAt: ts,
+        });
+      }
+    }
+
     setValues(newValues);
     saveValues(newValues);
   }
+
+  /** Merge AI-suggested values into the current frontmatter. */
+  const handleAiAccept = useCallback(
+    (suggested: Record<string, string>) => {
+      const newValues = { ...values };
+      for (const [key, val] of Object.entries(suggested)) {
+        newValues[key] = val;
+      }
+      setValues(newValues);
+      saveValues(newValues);
+    },
+    [values, saveValues],
+  );
 
   // Switch between visual and code modes
   const handleModeSwitch = useCallback(
@@ -369,23 +436,36 @@ export function FrontmatterEditor({
 
   return (
     <div className="border-b border-border/40">
-      {/* Toggle button */}
-      <button
-        type="button"
-        className="flex w-full items-center gap-2 px-4 py-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/70 transition-colors hover:bg-muted/30 hover:text-muted-foreground"
-        onClick={() => setIsOpen(!isOpen)}
-      >
-        <motion.div
-          animate={{ rotate: isOpen ? 90 : 0 }}
-          transition={{ duration: 0.15 }}
+      {/* Toggle bar with AI button */}
+      <div className="flex items-center">
+        <button
+          type="button"
+          className="flex flex-1 items-center gap-2 px-4 py-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/70 transition-colors hover:bg-muted/30 hover:text-muted-foreground"
+          onClick={() => setIsOpen(!isOpen)}
         >
-          <ChevronRight className="size-3" />
-        </motion.div>
-        <span>Frontmatter</span>
-        <span className="rounded-full bg-muted/60 px-1.5 py-px text-[10px] font-semibold tabular-nums">
-          {filledCount}/{fields.length}
-        </span>
-      </button>
+          <motion.div
+            animate={{ rotate: isOpen ? 90 : 0 }}
+            transition={{ duration: 0.15 }}
+          >
+            <ChevronRight className="size-3" />
+          </motion.div>
+          <span>Frontmatter</span>
+          <span className="rounded-full bg-muted/60 px-1.5 py-px text-[10px] font-semibold tabular-nums">
+            {filledCount}/{fields.length}
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setAiDrawerOpen(true);
+          }}
+          title="AI suggestions"
+          className="mr-3 flex items-center gap-1 rounded-md px-1.5 py-1 text-muted-foreground/50 transition-colors hover:bg-primary/10 hover:text-primary"
+        >
+          <Sparkles className="size-3.5" />
+        </button>
+      </div>
 
       {/* Fields panel with animated height */}
       <AnimatePresence initial={false}>
@@ -488,6 +568,7 @@ export function FrontmatterEditor({
                                       onChange={(value) =>
                                         handleFieldChange(field.name, value)
                                       }
+                                      projectId={projectId}
                                     />
                                   ))}
                                 </div>
@@ -505,6 +586,7 @@ export function FrontmatterEditor({
                               onChange={(value) =>
                                 handleFieldChange(field.name, value)
                               }
+                              projectId={projectId}
                             />
                           ))}
                         </div>
@@ -583,6 +665,15 @@ export function FrontmatterEditor({
           </motion.div>
         )}
       </AnimatePresence>
+
+      <FrontmatterAiDrawer
+        open={aiDrawerOpen}
+        onOpenChange={setAiDrawerOpen}
+        projectId={projectId}
+        documentContent={document?.content ?? ""}
+        currentFrontmatter={JSON.stringify(values)}
+        onAccept={handleAiAccept}
+      />
     </div>
   );
 }
@@ -591,12 +682,14 @@ interface FrontmatterFieldControlProps {
   field: SchemaField;
   value: string | boolean | undefined;
   onChange: (value: string | boolean) => void;
+  projectId: string;
 }
 
 function FrontmatterFieldControl({
   field,
   value,
   onChange,
+  projectId,
 }: FrontmatterFieldControlProps) {
   const label = field.label ?? field.name;
   const id = `fm-${field.name}`;
@@ -777,20 +870,16 @@ function FrontmatterFieldControl({
 
     case "image":
       return (
-        <FieldWrapper
+        <FrontmatterImageField
           id={id}
           label={label}
           icon={icon}
           description={field.description}
-        >
-          <Input
-            id={id}
-            value={typeof value === "string" ? value : ""}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder={field.placeholder ?? "/images/hero.jpg"}
-            className="h-8"
-          />
-        </FieldWrapper>
+          placeholder={field.placeholder}
+          value={value}
+          onChange={(v) => onChange(v)}
+          projectId={projectId}
+        />
       );
 
     case "slug":
@@ -993,7 +1082,7 @@ function FrontmatterFieldControl({
 }
 
 /** Wrapper for consistent field layout with label, icon, and optional description. */
-function FieldWrapper({
+export function FieldWrapper({
   id,
   label,
   icon,

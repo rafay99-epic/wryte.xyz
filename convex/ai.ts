@@ -184,6 +184,70 @@ export const createInlineEnhanceStream = mutation({
 });
 
 /**
+ * Creates a streaming session for AI-powered frontmatter suggestions.
+ * Reads the document content + project schema, and asks the AI to suggest
+ * SEO-optimised title, description, tags, keywords, and excerpt.
+ */
+export const createFrontmatterStream = mutation({
+  args: {
+    projectId: v.id("projects"),
+    content: v.string(),
+    currentFrontmatter: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const key = await getRateLimitKey(ctx);
+    await rateLimiter.limit(ctx, "ai:createFrontmatterStream", {
+      key,
+      throws: true,
+    });
+
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const project = await ctx.db.get(args.projectId);
+    if (!project) throw new Error("Project not found");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_tokenIdentifier", (q) =>
+        q.eq("tokenIdentifier", identity.tokenIdentifier),
+      )
+      .unique();
+
+    if (!user || project.userId !== user._id) {
+      throw new Error("Unauthorized: you do not own this project");
+    }
+
+    if (!project.aiProvider || !project.aiModel) {
+      throw new Error(
+        "AI is not configured for this project. Go to Project Settings → AI to select a provider and model.",
+      );
+    }
+
+    const streamId = await streaming.createStream(ctx);
+
+    await ctx.scheduler.runAfter(
+      0,
+      internal.ai_actions.runFrontmatterSuggestion,
+      {
+        streamId,
+        provider: project.aiProvider,
+        model: project.aiModel,
+        content: args.content,
+        frontmatterSchema: project.frontmatterSchema ?? "",
+        currentFrontmatter: args.currentFrontmatter ?? "",
+      },
+    );
+
+    return {
+      streamId,
+      provider: project.aiProvider,
+      model: project.aiModel,
+    };
+  },
+});
+
+/**
  * Internal query to fetch a project's AI configuration.
  * Used by the HTTP streaming action in ai_actions.ts.
  */
