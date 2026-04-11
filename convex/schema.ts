@@ -72,6 +72,10 @@ export default defineSchema({
     ),
     /** AI model identifier, e.g. "claude-sonnet-4-20250514" */
     aiModel: v.optional(v.string()),
+    /** User-starred project for quick scanning */
+    isFavorite: v.optional(v.boolean()),
+    /** Manual display order; set by reorder mutation (0 = first) */
+    sortOrder: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   }).index("by_userId", ["userId"]),

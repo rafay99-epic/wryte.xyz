@@ -2,13 +2,15 @@
 
 import { useQuery } from "convex/react";
 import { motion } from "framer-motion";
-import { ChevronDown, FolderOpen, PenLine, Plus } from "lucide-react";
+import { ChevronDown, FolderOpen, PenLine, Plus, Star } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -24,6 +26,14 @@ export function ProjectSelector() {
   const setActiveProjectId = useEditorStore((s) => s.setActiveProjectId);
 
   const activeProject = projects?.find((p) => p._id === activeProjectId);
+
+  const { favorites, others } = useMemo(() => {
+    if (!projects) return { favorites: [], others: [] };
+    return {
+      favorites: projects.filter((p) => p.isFavorite),
+      others: projects.filter((p) => !p.isFavorite),
+    };
+  }, [projects]);
 
   return (
     <DropdownMenu>
@@ -44,6 +54,13 @@ export function ProjectSelector() {
           <span className="truncate font-semibold">
             {activeProject?.name ?? "Wryte"}
           </span>
+          {activeProject?.isFavorite ? (
+            <Star
+              className="size-3.5 shrink-0 text-amber-400"
+              fill="currentColor"
+              aria-hidden
+            />
+          ) : null}
         </div>
         <ChevronDown className="size-4 text-muted-foreground" />
       </DropdownMenuTrigger>
@@ -57,23 +74,65 @@ export function ProjectSelector() {
           initial="initial"
           animate="animate"
         >
-          {projects?.map((project) => (
-            <motion.div key={project._id} variants={staggerItem}>
-              <DropdownMenuItem
-                className={cn(
-                  "cursor-pointer gap-2",
-                  project._id === activeProjectId && "bg-accent",
-                )}
-                onSelect={() => {
-                  setActiveProjectId(project._id);
-                  router.push(`/projects/${project._id}`);
-                }}
-              >
-                <FolderOpen className="size-4 text-muted-foreground" />
-                <span className="truncate">{project.name}</span>
-              </DropdownMenuItem>
-            </motion.div>
-          ))}
+          {favorites.length > 0 && (
+            <>
+              <DropdownMenuLabel className="text-[10px] font-semibold uppercase tracking-wider text-amber-500/90">
+                Favorites
+              </DropdownMenuLabel>
+              {favorites.map((project) => (
+                <motion.div key={project._id} variants={staggerItem}>
+                  <DropdownMenuItem
+                    className={cn(
+                      "cursor-pointer gap-2",
+                      project._id === activeProjectId && "bg-accent",
+                    )}
+                    onSelect={() => {
+                      setActiveProjectId(project._id);
+                      router.push(`/projects/${project._id}`);
+                    }}
+                  >
+                    <FolderOpen className="size-4 text-muted-foreground" />
+                    <span className="min-w-0 flex-1 truncate">
+                      {project.name}
+                    </span>
+                    <Star
+                      className="size-3.5 shrink-0 text-amber-400"
+                      fill="currentColor"
+                      aria-hidden
+                    />
+                  </DropdownMenuItem>
+                </motion.div>
+              ))}
+            </>
+          )}
+          {others.length > 0 && (
+            <>
+              {favorites.length > 0 && (
+                <DropdownMenuLabel className="pt-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/80">
+                  All workspaces
+                </DropdownMenuLabel>
+              )}
+              {others.map((project) => (
+                <motion.div key={project._id} variants={staggerItem}>
+                  <DropdownMenuItem
+                    className={cn(
+                      "cursor-pointer gap-2",
+                      project._id === activeProjectId && "bg-accent",
+                    )}
+                    onSelect={() => {
+                      setActiveProjectId(project._id);
+                      router.push(`/projects/${project._id}`);
+                    }}
+                  >
+                    <FolderOpen className="size-4 text-muted-foreground" />
+                    <span className="min-w-0 flex-1 truncate">
+                      {project.name}
+                    </span>
+                  </DropdownMenuItem>
+                </motion.div>
+              ))}
+            </>
+          )}
 
           <DropdownMenuSeparator />
 

@@ -14,6 +14,7 @@ import {
   Plus,
   Search,
   Settings,
+  Star,
   Sun,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -35,6 +36,8 @@ interface CommandItem {
   label: string;
   description?: string | undefined;
   icon: React.ElementType;
+  /** When true, pass fill="currentColor" (e.g. favorite star). */
+  iconFilled?: boolean | undefined;
   shortcutId?: string | undefined;
   category: "action" | "project" | "article" | "navigation";
   onSelect: () => void;
@@ -195,7 +198,8 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
           id: `project-${project._id}`,
           label: project.name,
           description: project.githubRepo ?? "Local project",
-          icon: FolderOpen,
+          icon: project.isFavorite ? Star : FolderOpen,
+          iconFilled: project.isFavorite,
           category: "project",
           onSelect: () => {
             close();
@@ -474,8 +478,13 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                                   "size-4 shrink-0",
                                   isSelected
                                     ? "text-primary"
-                                    : "text-muted-foreground",
+                                    : item.iconFilled
+                                      ? "text-amber-400"
+                                      : "text-muted-foreground",
                                 )}
+                                fill={
+                                  item.iconFilled ? "currentColor" : undefined
+                                }
                               />
                               <div className="min-w-0 flex-1">
                                 <span className="block truncate font-medium">

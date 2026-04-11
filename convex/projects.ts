@@ -1,40 +1,86 @@
 import { v } from "convex/values";
+import type { Doc } from "./_generated/dataModel";
+import type { QueryCtx } from "./_generated/server";
 import { internalQuery, mutation, query } from "./_generated/server";
 import { getCurrentUser } from "./auth_helpers";
 import { getRateLimitKey, rateLimiter } from "./rateLimits";
 
+function sortProjectsForList(projects: Doc<"projects">[]): Doc<"projects">[] {
+  const hasAnySortOrder = projects.some((p) => p.sortOrder !== undefined);
+  if (!hasAnySortOrder) {
+    return [...projects].sort((a, b) => b.updatedAt - a.updatedAt);
+  }
+
+  const withOrder = projects
+    .filter((p) => p.sortOrder !== undefined)
+    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+  const withoutOrder = projects
+    .filter((p) => p.sortOrder === undefined)
+    .sort((a, b) => b.updatedAt - a.updatedAt);
+  return [...withOrder, ...withoutOrder];
+}
+
+/** Sorted projects for the signed-in user, or [] if unauthenticated / no user row. */
+async function projectsForCurrentUserOrEmpty(
+  ctx: QueryCtx,
+): Promise<Doc<"projects">[]> {
+  const identity = await ctx.auth.getUserIdentity();
+  if (!identity) {
+    return [];
+  }
+
+  const user = await ctx.db
+    .query("users")
+    .withIndex("by_tokenIdentifier", (q) =>
+      q.eq("tokenIdentifier", identity.tokenIdentifier),
+    )
+    .unique();
+
+  if (!user) {
+    return [];
+  }
+
+  const projects = await ctx.db
+    .query("projects")
+    .withIndex("by_userId", (q) => q.eq("userId", user._id))
+    .collect();
+
+  return sortProjectsForList(projects);
+}
+
 /**
- * Lists all projects owned by the current user, sorted by most recently updated.
- * Returns an empty array (instead of throwing) for unauthenticated users,
- * so the client can gracefully show an empty state.
+ * Lists all projects owned by the current user.
+ * If no project has `sortOrder`, sorts by most recently updated (legacy behavior).
+ * Once any project has `sortOrder`, ordered projects sort ascending by `sortOrder`,
+ * then projects without `sortOrder` follow, sorted by `updatedAt` descending.
  *
- * @returns Array of project documents, newest-updated first.
+ * @returns Array of project documents.
  */
 export const list = query({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      return [];
+    return await projectsForCurrentUserOrEmpty(ctx);
+  },
+});
+
+/**
+ * Same ordering as {@link list}, plus `documentCount` per project in one query.
+ * Prefer this on the projects dashboard so the client opens a single Convex
+ * subscription instead of one `documents.list` subscription per card.
+ */
+export const listWithDocumentCounts = query({
+  args: {},
+  handler: async (ctx) => {
+    const sorted = await projectsForCurrentUserOrEmpty(ctx);
+    const out: Array<Doc<"projects"> & { documentCount: number }> = [];
+    for (const p of sorted) {
+      const docs = await ctx.db
+        .query("documents")
+        .withIndex("by_projectId", (q) => q.eq("projectId", p._id))
+        .collect();
+      out.push({ ...p, documentCount: docs.length });
     }
-
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_tokenIdentifier", (q) =>
-        q.eq("tokenIdentifier", identity.tokenIdentifier),
-      )
-      .unique();
-
-    if (!user) {
-      return [];
-    }
-
-    const projects = await ctx.db
-      .query("projects")
-      .withIndex("by_userId", (q) => q.eq("userId", user._id))
-      .collect();
-
-    return projects.sort((a, b) => b.updatedAt - a.updatedAt);
+    return out;
   },
 });
 
@@ -127,6 +173,12 @@ export const create = mutation({
     const user = await getCurrentUser(ctx);
     const now = Date.now();
 
+    const existing = await ctx.db
+      .query("projects")
+      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .collect();
+    const anyOrdered = existing.some((p) => p.sortOrder !== undefined);
+
     const insertData: {
       userId: typeof user._id;
       name: string;
@@ -146,6 +198,7 @@ export const create = mutation({
       defaultAuthor?: string;
       aiProvider?: "anthropic" | "openai" | "openrouter";
       aiModel?: string;
+      sortOrder?: number;
       createdAt: number;
       updatedAt: number;
     } = {
@@ -155,6 +208,14 @@ export const create = mutation({
       createdAt: now,
       updatedAt: now,
     };
+
+    if (anyOrdered) {
+      const maxOrder = existing.reduce(
+        (m, p) => Math.max(m, p.sortOrder ?? -1),
+        -1,
+      );
+      insertData.sortOrder = maxOrder + 1;
+    }
 
     if (args.githubRepo !== undefined) insertData.githubRepo = args.githubRepo;
     if (args.githubBranch !== undefined)
@@ -225,6 +286,8 @@ export const update = mutation({
       ),
     ),
     aiModel: v.optional(v.string()),
+    isFavorite: v.optional(v.boolean()),
+    sortOrder: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const key = await getRateLimitKey(ctx);

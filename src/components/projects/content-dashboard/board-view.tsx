@@ -9,6 +9,7 @@ import {
   type DragStartEvent,
   KeyboardSensor,
   PointerSensor,
+  TouchSensor,
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
@@ -82,7 +83,10 @@ export function BoardView({
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      activationConstraint: { distance: 5 },
+      activationConstraint: { distance: 12 },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 220, tolerance: 8 },
     }),
     useSensor(KeyboardSensor),
   );

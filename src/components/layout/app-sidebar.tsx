@@ -13,6 +13,7 @@ import {
   LayoutDashboard,
   Plus,
   Settings,
+  Star,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -119,6 +120,26 @@ export function AppSidebar() {
   }
 
   // Compute status counts for sidebar filter chips
+  const { sidebarFavorites, sidebarOthers } = useMemo(() => {
+    if (!projects) {
+      return {
+        sidebarFavorites: [] as {
+          _id: string;
+          name: string;
+          isFavorite?: boolean;
+        }[],
+        sidebarOthers: [] as {
+          _id: string;
+          name: string;
+          isFavorite?: boolean;
+        }[],
+      };
+    }
+    const sidebarFavorites = projects.filter((p) => p.isFavorite);
+    const sidebarOthers = projects.filter((p) => !p.isFavorite);
+    return { sidebarFavorites, sidebarOthers };
+  }, [projects]);
+
   const statusCounts = useMemo(() => {
     if (!documents) return null;
     const counts: Record<string, number> = {};
@@ -207,21 +228,63 @@ export function AppSidebar() {
                     No projects yet
                   </p>
                 ) : (
-                  <div className="space-y-0.5">
-                    {projects.map((project, index) => (
-                      <motion.button
-                        key={project._id}
-                        type="button"
-                        initial={{ opacity: 0, y: 4 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: index * 0.03, duration: 0.2 }}
-                        onClick={() => handleSelectProject(project._id)}
-                        className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] text-left text-muted-foreground transition-all hover:bg-muted/60 hover:text-foreground"
-                      >
-                        <FolderOpen className="size-4 shrink-0 text-muted-foreground/60" />
-                        <span className="truncate">{project.name}</span>
-                      </motion.button>
-                    ))}
+                  <div className="space-y-3">
+                    {sidebarFavorites.length > 0 && (
+                      <div className="space-y-0.5">
+                        <p className="px-3 text-[10px] font-semibold uppercase tracking-wider text-amber-500/90">
+                          Favorites
+                        </p>
+                        {sidebarFavorites.map((project, index) => (
+                          <motion.button
+                            key={project._id}
+                            type="button"
+                            initial={{ opacity: 0, y: 4 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: index * 0.03, duration: 0.2 }}
+                            onClick={() => handleSelectProject(project._id)}
+                            className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] text-left text-muted-foreground transition-all hover:bg-muted/60 hover:text-foreground"
+                          >
+                            <FolderOpen className="size-4 shrink-0 text-muted-foreground/60" />
+                            <span className="min-w-0 flex-1 truncate">
+                              {project.name}
+                            </span>
+                            <Star
+                              className="size-3.5 shrink-0 text-amber-400"
+                              fill="currentColor"
+                              aria-hidden
+                            />
+                          </motion.button>
+                        ))}
+                      </div>
+                    )}
+                    {sidebarOthers.length > 0 && (
+                      <div className="space-y-0.5">
+                        {sidebarFavorites.length > 0 && (
+                          <p className="px-3 pt-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                            All workspaces
+                          </p>
+                        )}
+                        {sidebarOthers.map((project, index) => (
+                          <motion.button
+                            key={project._id}
+                            type="button"
+                            initial={{ opacity: 0, y: 4 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{
+                              delay: (sidebarFavorites.length + index) * 0.03,
+                              duration: 0.2,
+                            }}
+                            onClick={() => handleSelectProject(project._id)}
+                            className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] text-left text-muted-foreground transition-all hover:bg-muted/60 hover:text-foreground"
+                          >
+                            <FolderOpen className="size-4 shrink-0 text-muted-foreground/60" />
+                            <span className="min-w-0 flex-1 truncate">
+                              {project.name}
+                            </span>
+                          </motion.button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
