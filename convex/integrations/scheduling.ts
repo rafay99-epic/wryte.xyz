@@ -7,11 +7,11 @@
  */
 import { type WorkflowId, WorkflowManager } from "@convex-dev/workflow";
 import { v } from "convex/values";
-import { components, internal } from "./_generated/api";
-import type { Id } from "./_generated/dataModel";
-import { internalMutation, mutation, query } from "./_generated/server";
-import { getCurrentUser } from "./auth_helpers";
-import { getRateLimitKey, rateLimiter } from "./rateLimits";
+import { components, internal } from "../_generated/api";
+import type { Id } from "../_generated/dataModel";
+import { internalMutation, mutation, query } from "../_generated/server";
+import { getAuthedUserOrNull, getCurrentUser } from "../_lib/auth";
+import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
 
 /* ------------------------------------------------------------------ */
 /*  Workflow manager                                                    */
@@ -49,7 +49,7 @@ export const scheduledPublishWorkflow = publishWorkflowManager.define({
   handler: async (step, args) => {
     // Step 1: Wait until the scheduled time, then mark as "processing"
     await step.runMutation(
-      internal.scheduling.updatePublishStatus,
+      internal.integrations.scheduling.updatePublishStatus,
       { publishId: args.publishId, status: "processing" },
       { runAt: args.scheduledAt },
     );
@@ -59,7 +59,7 @@ export const scheduledPublishWorkflow = publishWorkflowManager.define({
     // so workflows fire correctly regardless of how long after scheduling
     // they wake up.
     await step.runAction(
-      internal.github.publishToGithub,
+      internal.integrations.github.publishToGithub,
       { documentId: args.documentId },
       {
         retry: {
@@ -71,10 +71,13 @@ export const scheduledPublishWorkflow = publishWorkflowManager.define({
     );
 
     // Step 3: Mark as completed
-    await step.runMutation(internal.scheduling.updatePublishStatus, {
-      publishId: args.publishId,
-      status: "completed",
-    });
+    await step.runMutation(
+      internal.integrations.scheduling.updatePublishStatus,
+      {
+        publishId: args.publishId,
+        status: "completed",
+      },
+    );
   },
 });
 
@@ -93,16 +96,7 @@ export const scheduledPublishWorkflow = publishWorkflowManager.define({
 export const getLatestForDocument = query({
   args: { documentId: v.id("documents") },
   handler: async (ctx, args) => {
-    // Inline auth — `getCurrentUser` is mutation-only because it types `db`
-    // as a writer. Queries need their own read-only lookup.
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return null;
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_tokenIdentifier", (q) =>
-        q.eq("tokenIdentifier", identity.tokenIdentifier),
-      )
-      .unique();
+    const user = await getAuthedUserOrNull(ctx);
     if (!user) return null;
 
     const document = await ctx.db.get(args.documentId);
@@ -202,14 +196,14 @@ export const schedule = mutation({
     // expired.
     const workflowId = await publishWorkflowManager.start(
       ctx,
-      internal.scheduling.scheduledPublishWorkflow,
+      internal.integrations.scheduling.scheduledPublishWorkflow,
       {
         publishId,
         documentId: args.documentId,
         scheduledAt: args.scheduledAt,
       },
       {
-        onComplete: internal.scheduling.onPublishComplete,
+        onComplete: internal.integrations.scheduling.onPublishComplete,
         context: { publishId, documentId: args.documentId },
       },
     );

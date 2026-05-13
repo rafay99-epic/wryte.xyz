@@ -155,10 +155,10 @@ function DraggableBoardCard({
   const [editTags, setEditTags] = useState<string[]>(tags);
   const tagInputRef = useRef<HTMLInputElement>(null);
 
-  const updateDocument = useMutation(api.documents.update);
-  const moveCard = useMutation(api.documents.moveCard);
-  const duplicateDoc = useMutation(api.documents.duplicate);
-  const updateTagsMutation = useMutation(api.documents.updateTags);
+  const updateDocument = useMutation(api.cms.documents.update);
+  const moveCard = useMutation(api.cms.documents.moveCard);
+  const duplicateDoc = useMutation(api.cms.documents.duplicate);
+  const updateTagsMutation = useMutation(api.cms.documents.updateTags);
 
   const handleStartRename = useCallback(() => {
     setRenameValue(item.title);

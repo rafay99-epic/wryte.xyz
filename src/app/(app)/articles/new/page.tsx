@@ -32,9 +32,6 @@ import { useEditorStore } from "@/stores/editor-store";
 import { api } from "../../../../../convex/_generated/api";
 import type { Id } from "../../../../../convex/_generated/dataModel";
 
-// biome-ignore lint/suspicious/noExplicitAny: api types are generated at build time via `npx convex dev`
-const projectsGet = (api as any).projects.get;
-
 /**
  * Full-page "New Article" flow launched from the dashboard. Lets the
  * author pick a destination project (searchable combobox so it scales to
@@ -45,8 +42,8 @@ const projectsGet = (api as any).projects.get;
  */
 export default function NewArticlePage() {
   const router = useRouter();
-  const projects = useQuery(api.projects.list);
-  const createDocument = useMutation(api.documents.create);
+  const projects = useQuery(api.cms.projects.list);
+  const createDocument = useMutation(api.cms.documents.create);
 
   const [selectedProjectId, setSelectedProjectId] = useState<
     Id<"projects"> | undefined
@@ -65,7 +62,7 @@ export default function NewArticlePage() {
 
   // Frontmatter schema + content path follow whichever project is picked.
   const selectedProject = useQuery(
-    projectsGet,
+    api.cms.projects.get,
     selectedProjectId ? { projectId: selectedProjectId } : "skip",
   );
 

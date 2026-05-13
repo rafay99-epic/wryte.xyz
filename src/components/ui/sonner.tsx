@@ -23,6 +23,9 @@ const Toaster = ({ ...props }: ToasterProps) => {
     <Sonner
       theme={sonnerTheme}
       className="toaster group"
+      // Adds a small × on every toast so the user can dismiss long-running
+      // info messages without waiting for the auto-dismiss timer.
+      closeButton
       icons={{
         success: <CircleCheckIcon className="size-4" />,
         info: <InfoIcon className="size-4" />,
@@ -60,6 +63,12 @@ const Toaster = ({ ...props }: ToasterProps) => {
           description: "!text-popover-foreground/80",
           actionButton: "!bg-primary !text-primary-foreground",
           cancelButton: "!bg-muted !text-muted-foreground",
+          // Style the dismiss button to match the popover palette and stay
+          // visible on hover. Sonner positions it top-left by default; the
+          // `!opacity-100` overrides Sonner's hover-only reveal so it's
+          // always reachable without aiming for an invisible target.
+          closeButton:
+            "!bg-popover !text-muted-foreground !border-border hover:!bg-muted hover:!text-foreground !opacity-100",
         },
       }}
       {...props}

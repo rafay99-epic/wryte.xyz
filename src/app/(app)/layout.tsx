@@ -24,7 +24,7 @@ import { api } from "../../../convex/_generated/api";
  */
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useConvexAuth();
-  const getOrCreate = useMutation(api.users.getOrCreate);
+  const getOrCreate = useMutation(api.account.users.getOrCreate);
   const sidebarOpen = useEditorStore((s) => s.sidebarOpen);
   const focusMode = useEditorStore((s) => s.focusMode);
   const toggleFocusMode = useEditorStore((s) => s.toggleFocusMode);

@@ -94,7 +94,7 @@ const TABS: { id: SettingsTab; label: string; icon: React.ElementType }[] = [
 
 export default function SettingsPage() {
   const { user: clerkUser, isLoaded: clerkLoaded } = useUser();
-  const convexUser = useQuery(api.users.get);
+  const convexUser = useQuery(api.account.users.get);
   const [activeTab, setActiveTab] = useState<SettingsTab>("account");
 
   // Handle hash navigation (e.g. /settings#shortcuts)
@@ -411,7 +411,7 @@ function GitHubConnection({
 }
 
 function GitHubTokenInput({ existingToken }: { existingToken: string }) {
-  const updateGithubToken = useAction(api.users.updateGithubToken);
+  const updateGithubToken = useAction(api.account.users.updateGithubToken);
   const [token, setToken] = useState(existingToken);
   const [showToken, setShowToken] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -644,7 +644,7 @@ function AppearanceTab() {
  * record and falls back to the library's built-in defaults.
  */
 function MediaTab({ current }: { current: CompressionSettings | null }) {
-  const save = useMutation(api.users.updateDefaultCompressionSettings);
+  const save = useMutation(api.account.users.updateDefaultCompressionSettings);
 
   const initial: CompressionSettings = useMemo(
     () => current ?? DEFAULT_COMPRESSION_SETTINGS,
@@ -972,12 +972,12 @@ function ShortcutsTab() {
  * The Clerk account itself is left untouched, as are files in the user's
  * external provider accounts (UploadThing / Cloudinary / GitHub).
  *
- * Backed by `api.users` (via `api.selfDestruct.*`) actions defined in
+ * Backed by `api.users` (via `api.account.selfDestruct.*`) actions defined in
  * `convex/selfDestruct.ts`.
  */
 function SelfDestructTab() {
-  const preview = useQuery(api.selfDestruct.selfDestructPreview);
-  const selfDestruct = useAction(api.selfDestruct.selfDestruct);
+  const preview = useQuery(api.account.selfDestruct.selfDestructPreview);
+  const selfDestruct = useAction(api.account.selfDestruct.selfDestruct);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [typed, setTyped] = useState("");

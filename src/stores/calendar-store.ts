@@ -6,15 +6,18 @@
  * resets on navigation away from the calendar page.
  */
 import { create } from "zustand";
+import type { Id } from "../../convex/_generated/dataModel";
 
-/** Lightweight document shape used by the calendar view. */
+/** Lightweight document shape used by the calendar view. Mirrors what
+ *  `api.cms.documents.listForCalendar` returns so the query result is
+ *  assignable without manual casts. */
 export interface CalendarDoc {
-  _id: string;
+  _id: Id<"documents">;
   title: string;
   slug: string;
   status: string;
-  scheduledAt?: number;
-  publishedAt?: number;
+  scheduledAt?: number | undefined;
+  publishedAt?: number | undefined;
   updatedAt: number;
   createdAt: number;
 }

@@ -42,7 +42,7 @@ interface AutosaveReturn {
   saveNow: () => Promise<void>;
 }
 
-const updateMutation = api.documents.update;
+const updateMutation = api.cms.documents.update;
 
 /**
  * Debounced autosave hook for the markdown editor.

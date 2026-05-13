@@ -52,10 +52,10 @@ export function ImageInsertDialog({
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const project = useQuery(api.projects.get, {
+  const project = useQuery(api.cms.projects.get, {
     projectId: projectId as Id<"projects">,
   });
-  const uploadMedia = useAction(api.media.upload);
+  const uploadMedia = useAction(api.media.uploads.upload);
   const { compress, isCompressing, resolvedSettings } = useImageCompression(
     projectId as Id<"projects">,
   );

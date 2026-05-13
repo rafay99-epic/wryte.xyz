@@ -12,8 +12,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import { StreamIdValidator } from "@convex-dev/persistent-text-streaming";
 import { v } from "convex/values";
 import OpenAI from "openai";
-import { components, internal } from "./_generated/api";
-import { internalAction } from "./_generated/server";
+import { components, internal } from "../_generated/api";
+import { internalAction } from "../_generated/server";
 
 /* ------------------------------------------------------------------ */
 /*  System prompts                                                     */
@@ -195,9 +195,12 @@ export const runEnhancement = internalAction({
     vaultSecretId: v.string(),
   },
   handler: async (ctx, args) => {
-    const apiKey: string = await ctx.runAction(internal.secretStore._read, {
-      id: args.vaultSecretId,
-    });
+    const apiKey: string = await ctx.runAction(
+      internal.integrations.secretStore._read,
+      {
+        id: args.vaultSecretId,
+      },
+    );
 
     const streamId = args.streamId;
     let pending = "";
@@ -258,9 +261,12 @@ export const runInlineEnhancement = internalAction({
     vaultSecretId: v.string(),
   },
   handler: async (ctx, args) => {
-    const apiKey: string = await ctx.runAction(internal.secretStore._read, {
-      id: args.vaultSecretId,
-    });
+    const apiKey: string = await ctx.runAction(
+      internal.integrations.secretStore._read,
+      {
+        id: args.vaultSecretId,
+      },
+    );
 
     const streamId = args.streamId;
     let pending = "";
@@ -324,9 +330,12 @@ export const runFrontmatterSuggestion = internalAction({
     vaultSecretId: v.string(),
   },
   handler: async (ctx, args) => {
-    const apiKey: string = await ctx.runAction(internal.secretStore._read, {
-      id: args.vaultSecretId,
-    });
+    const apiKey: string = await ctx.runAction(
+      internal.integrations.secretStore._read,
+      {
+        id: args.vaultSecretId,
+      },
+    );
 
     const streamId = args.streamId;
     let pending = "";

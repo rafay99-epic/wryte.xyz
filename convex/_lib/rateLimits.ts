@@ -12,8 +12,8 @@
  *                   (good for high-frequency ops like auto-save)
  */
 import { HOUR, MINUTE, RateLimiter } from "@convex-dev/rate-limiter";
-import { components } from "./_generated/api";
-import type { ActionCtx, MutationCtx } from "./_generated/server";
+import { components } from "../_generated/api";
+import type { ActionCtx, MutationCtx } from "../_generated/server";
 
 /**
  * Extracts a stable rate-limit key from the authenticated user's identity.
@@ -124,9 +124,40 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     rate: 20,
     period: MINUTE,
   },
+  /**
+   * Per-document import mutation. The real concurrency gate is the
+   * `githubImportPool` workpool (`convex/_pools/import.ts`) which caps how
+   * many imports run at once. This bucket is intentionally generous so
+   * a user with 200+ posts isn't blocked by the rate limiter — the
+   * workpool's `maxParallelism` is what actually shapes throughput. A
+   * 60-token burst lets the first batch hit the database in parallel,
+   * then the bucket refills at ~10/second sustained.
+   */
   "documents:importFromGithub": {
+    kind: "token bucket",
+    rate: 600,
+    period: MINUTE,
+    capacity: 60,
+  },
+  /**
+   * Per-batch enqueue. Each batch can contain up to 200 file paths so
+   * this is a "how many bulk imports per minute" cap, not a per-file
+   * cap. Tight on purpose — accidentally clicking "Import" repeatedly
+   * shouldn't spawn dozens of overlapping batches.
+   */
+  "documents:startBulkImport": {
     kind: "fixed window",
-    rate: 60,
+    rate: 10,
+    period: MINUTE,
+  },
+  /**
+   * Symmetric cap for bulk deletes. Tighter than bulk imports because
+   * deletes are destructive — accidental fat-finger of "Delete All"
+   * should not be amplifiable.
+   */
+  "documents:startBulkDelete": {
+    kind: "fixed window",
+    rate: 5,
     period: MINUTE,
   },
   "documents:toggleBookmark": {

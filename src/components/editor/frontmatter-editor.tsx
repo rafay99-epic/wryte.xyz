@@ -39,13 +39,6 @@ import type { Id } from "../../../convex/_generated/dataModel";
 import { FrontmatterAiDrawer } from "./frontmatter-ai-drawer";
 import { FrontmatterImageField } from "./frontmatter-image-field";
 
-// biome-ignore lint/suspicious/noExplicitAny: api types are generated at build time via `npx convex dev`
-const projectsGet = (api as any).projects.get;
-// biome-ignore lint/suspicious/noExplicitAny: api types are generated at build time via `npx convex dev`
-const documentsGet = (api as any).documents.get;
-// biome-ignore lint/suspicious/noExplicitAny: api types are generated at build time via `npx convex dev`
-const documentsUpdate = (api as any).documents.update;
-
 interface FrontmatterEditorProps {
   projectId: string;
   documentId: string;
@@ -218,21 +211,21 @@ export function FrontmatterEditor({
   const codeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const project = useQuery(
-    projectsGet,
+    api.cms.projects.get,
     projectId ? { projectId: projectId as Id<"projects"> } : "skip",
   );
   // AI suggestions trigger is hidden until the project has a configured,
   // active AI credential — same gating as the toolbar pill.
   const aiReadiness = useQuery(
-    api.ai.isAiReady,
+    api.ai.enhance.isAiReady,
     projectId ? { projectId: projectId as Id<"projects"> } : "skip",
   );
   const aiReady = aiReadiness?.ready ?? false;
   const document = useQuery(
-    documentsGet,
+    api.cms.documents.get,
     documentId ? { documentId: documentId as Id<"documents"> } : "skip",
   );
-  const updateDocument = useMutation(documentsUpdate);
+  const updateDocument = useMutation(api.cms.documents.update);
 
   const fields = useMemo(
     () => parseSchema(project?.frontmatterSchema).filter((f) => !f.hidden),
@@ -322,15 +315,11 @@ export function FrontmatterEditor({
           .filter(Boolean);
       }
 
-      const mutation: Record<string, unknown> = {
+      void updateDocument({
         documentId: documentId as Id<"documents">,
         frontmatter: JSON.stringify(newValues),
-      };
-      if (tags) {
-        mutation["tags"] = tags;
-      }
-
-      void updateDocument(mutation);
+        ...(tags ? { tags } : {}),
+      });
     },
     [documentId, updateDocument, tagFieldName],
   );

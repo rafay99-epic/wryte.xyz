@@ -16,6 +16,7 @@ import {
   Settings,
   Sparkles,
   Tag,
+  Trash2,
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -43,11 +44,27 @@ import { useBoardStore } from "@/stores/board-store";
 import { type SortOrder, useSearchStore } from "@/stores/search-store";
 import type { BoardColumnDef } from "@/types/board";
 import { BoardView } from "./board-view";
+import {
+  type BulkDeleteBatch,
+  type BulkDeleteCounts,
+  BulkDeleteDialog,
+  type BulkDeleteMode,
+} from "./bulk-delete-dialog";
+import { type BulkImportBatch, BulkImportDialog } from "./bulk-import-dialog";
 import { ContentEmptyState, type ViewFilter } from "./content-empty-state";
 import type { ContentItem } from "./content-table-row";
 import { TableView } from "./table-view";
 import { TagFilterBar } from "./tag-filter-bar";
 import { ViewModeSwitcher } from "./view-mode-switcher";
+
+/** Payload the dashboard hands back to the parent when the user confirms
+ *  a bulk delete. The parent resolves IDs → full records (with githubSha
+ *  etc.) before calling the Convex action. */
+export interface BulkDeleteSelection {
+  mode: BulkDeleteMode;
+  localIds: string[];
+  remotePaths: string[];
+}
 
 const PAGE_SIZE = 10;
 
@@ -105,12 +122,28 @@ interface ContentDashboardProps {
   onDeleteRemote: (item: ContentItem) => void;
   importingPath: string | null;
   onCreateClick: (initialStatus?: string) => void;
+  // ── Bulk import (reactive batch + lifecycle hooks) ─────────────
   onBatchImport: (paths: string[]) => Promise<void>;
-  isBatchImporting: boolean;
-  batchImportProgress: { done: number; total: number } | null;
+  /** Set while the start-action is in flight (parent triggers, batch hasn't been created yet). */
+  isStartingImport: boolean;
+  /** Reactive import_batches row, or null if no active import. */
+  importBatch: BulkImportBatch | null | undefined;
+  /** Called when the user clicks Done on the completion screen — parent clears its batchId. */
+  onBulkImportDone: () => void;
+  // ── Bulk publish (legacy floating-toolbar flow) ────────────────
   onBulkPublish?: ((docIds: string[]) => Promise<void>) | undefined;
   isBulkPublishing?: boolean | undefined;
   bulkPublishProgress?: { done: number; total: number } | null | undefined;
+  // ── Bulk delete (reactive batch + lifecycle hooks) ─────────────
+  onBulkDelete?:
+    | ((selection: BulkDeleteSelection) => Promise<void>)
+    | undefined;
+  /** Set while the delete start-action is in flight. */
+  isStartingDelete?: boolean | undefined;
+  /** Reactive delete_batches row, or null if no active delete. */
+  deleteBatch?: BulkDeleteBatch | null | undefined;
+  /** Called when the user clicks Done on the completion screen. */
+  onBulkDeleteDone?: (() => void) | undefined;
   projectId: string;
   frontmatterMap: Map<string, ParsedFrontmatter>;
 }
@@ -134,11 +167,16 @@ export function ContentDashboard({
   importingPath,
   onCreateClick,
   onBatchImport,
-  isBatchImporting,
-  batchImportProgress,
+  isStartingImport,
+  importBatch,
+  onBulkImportDone,
   onBulkPublish,
   isBulkPublishing,
   bulkPublishProgress,
+  onBulkDelete,
+  isStartingDelete,
+  deleteBatch,
+  onBulkDeleteDone,
   projectId,
   frontmatterMap,
 }: ContentDashboardProps) {
@@ -225,12 +263,43 @@ export function ContentDashboard({
     [items],
   );
 
+  // ── Bulk import — fires the start-action, opens the progress dialog ──
   const handleBatchImport = useCallback(async () => {
     const paths = Array.from(selectedPaths);
     if (paths.length === 0) return;
-    await onBatchImport(paths);
-    setSelectedPaths(new Set());
+    try {
+      // Parent will set its batchId + isStartingImport. We just kick it
+      // off and immediately clear the selection — the dialog (driven
+      // by the reactive `importBatch` prop) shows live progress from
+      // here on out.
+      await onBatchImport(paths);
+      setSelectedPaths(new Set());
+    } catch {
+      // Parent toasts on start-failure; no need to clear selection so
+      // the user can retry without re-picking.
+    }
   }, [selectedPaths, onBatchImport]);
+
+  const importDialogOpen = Boolean(importBatch) || isStartingImport;
+  const importPhase = useMemo(() => {
+    if (!importBatch) return "progress" as const;
+    return importBatch.succeeded + importBatch.failed >= importBatch.total
+      ? ("complete" as const)
+      : ("progress" as const);
+  }, [importBatch]);
+
+  const handleImportDialogOpenChange = useCallback(
+    (next: boolean) => {
+      if (next) return;
+      // While the workpool is still chewing, refuse to close — same
+      // contract the dialog enforces, mirrored here in the parent so
+      // an external close (Escape pressed, backdrop click, etc.) is
+      // ignored before it even reaches the dialog.
+      if (importPhase === "progress") return;
+      onBulkImportDone();
+    },
+    [importPhase, onBulkImportDone],
+  );
 
   const handleBulkPublish = useCallback(async () => {
     const ids = Array.from(selectedDocIds);
@@ -238,6 +307,88 @@ export function ContentDashboard({
     await onBulkPublish(ids);
     setSelectedDocIds(new Set());
   }, [selectedDocIds, onBulkPublish]);
+
+  // ── Bulk delete — confirm dialog + reactive progress + complete ──
+  const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
+
+  /** How many selected items are eligible for each delete mode. */
+  const bulkDeleteCounts: BulkDeleteCounts = useMemo(() => {
+    let local = 0;
+    let github = 0;
+    for (const item of items) {
+      if (item.kind === "local" && item.id && selectedDocIds.has(item.id)) {
+        local += 1;
+        if (item.path) github += 1;
+      } else if (
+        item.kind === "remote" &&
+        item.path &&
+        selectedPaths.has(item.path)
+      ) {
+        github += 1;
+      }
+    }
+    return { local, github };
+  }, [items, selectedDocIds, selectedPaths]);
+
+  const deletePhase = useMemo(() => {
+    if (!deleteBatch) return "confirm" as const;
+    return deleteBatch.succeeded + deleteBatch.failed >= deleteBatch.total
+      ? ("complete" as const)
+      : ("progress" as const);
+  }, [deleteBatch]);
+
+  // Dialog is "open" whenever the user is in any of the three phases.
+  // Confirm is local state; progress + complete are driven by whether a
+  // batch row exists in the parent.
+  const deleteDialogOpen =
+    bulkDeleteConfirmOpen || Boolean(deleteBatch) || Boolean(isStartingDelete);
+
+  const handleBulkDeleteConfirm = useCallback(
+    async (mode: BulkDeleteMode) => {
+      if (!onBulkDelete) return;
+      const localIds = Array.from(selectedDocIds);
+      const remotePaths = Array.from(selectedPaths);
+      if (localIds.length === 0 && remotePaths.length === 0) return;
+      try {
+        await onBulkDelete({ mode, localIds, remotePaths });
+        // Batch is in flight — clear the selection (the items are
+        // about to disappear) and dismiss the confirm phase. The dialog
+        // stays open via `deleteBatch` and transitions to progress.
+        setSelectedDocIds(new Set());
+        setSelectedPaths(new Set());
+        setBulkDeleteConfirmOpen(false);
+      } catch {
+        // Start-action failed (rate limit / not authenticated / etc).
+        // Parent surfaces the toast; keep the confirm dialog open so
+        // the user can retry without re-picking the selection.
+      }
+    },
+    [onBulkDelete, selectedDocIds, selectedPaths],
+  );
+
+  const handleDeleteDialogOpenChange = useCallback(
+    (next: boolean) => {
+      if (next) return;
+      if (deletePhase === "progress") return;
+      // In confirm phase, just close. In complete phase, also clear the
+      // parent's batchId so the dialog doesn't immediately reopen on
+      // the next reactive tick.
+      setBulkDeleteConfirmOpen(false);
+      if (deleteBatch && deletePhase === "complete") {
+        onBulkDeleteDone?.();
+      }
+    },
+    [deletePhase, deleteBatch, onBulkDeleteDone],
+  );
+
+  const handleBulkDeleteDone = useCallback(() => {
+    setBulkDeleteConfirmOpen(false);
+    onBulkDeleteDone?.();
+  }, [onBulkDeleteDone]);
+
+  const handleBulkImportDone = useCallback(() => {
+    onBulkImportDone();
+  }, [onBulkImportDone]);
 
   // Listen for keyboard shortcut layout switch event
   useEffect(() => {
@@ -651,19 +802,17 @@ export function ContentDashboard({
                   <Button
                     size="sm"
                     onClick={() => void handleBatchImport()}
-                    disabled={isBatchImporting}
+                    disabled={isStartingImport || importDialogOpen}
                   >
-                    {isBatchImporting ? (
+                    {isStartingImport ? (
                       <>
                         <Loader2 className="size-3.5 animate-spin" />
-                        {batchImportProgress
-                          ? `Importing ${batchImportProgress.done}/${batchImportProgress.total}...`
-                          : "Importing..."}
+                        Starting…
                       </>
                     ) : (
                       <>
                         <Download className="size-3.5" />
-                        Import to Convex
+                        Import to Wryte
                       </>
                     )}
                   </Button>
@@ -711,6 +860,31 @@ export function ContentDashboard({
                 </>
               )}
 
+              {/* Bulk delete — always available when there's any selection
+                  and the parent provided a handler. The destructive bulk
+                  action opens a dedicated confirm-then-progress dialog
+                  so the user reads the consequences before nuking. */}
+              {onBulkDelete &&
+                (selectedDocIds.size > 0 || selectedPaths.size > 0) && (
+                  <>
+                    <div className="h-5 w-px bg-border" />
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => setBulkDeleteConfirmOpen(true)}
+                      disabled={
+                        isStartingImport ||
+                        isBulkPublishing ||
+                        isStartingDelete ||
+                        deleteDialogOpen
+                      }
+                    >
+                      <Trash2 className="size-3.5" />
+                      Delete
+                    </Button>
+                  </>
+                )}
+
               <Button
                 variant="ghost"
                 size="icon-xs"
@@ -718,7 +892,9 @@ export function ContentDashboard({
                   setSelectedPaths(new Set());
                   setSelectedDocIds(new Set());
                 }}
-                disabled={isBatchImporting || isBulkPublishing}
+                disabled={
+                  isStartingImport || isBulkPublishing || isStartingDelete
+                }
               >
                 <X className="size-3.5" />
               </Button>
@@ -726,6 +902,29 @@ export function ContentDashboard({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Bulk delete — confirm → progress → complete in one dialog */}
+      {onBulkDelete && (
+        <BulkDeleteDialog
+          open={deleteDialogOpen}
+          onOpenChange={handleDeleteDialogOpenChange}
+          counts={bulkDeleteCounts}
+          phase={deletePhase}
+          batch={deleteBatch}
+          onConfirm={handleBulkDeleteConfirm}
+          onDone={handleBulkDeleteDone}
+          isStarting={Boolean(isStartingDelete)}
+        />
+      )}
+
+      {/* Bulk import — straight into progress, no confirm step */}
+      <BulkImportDialog
+        open={importDialogOpen}
+        onOpenChange={handleImportDialogOpenChange}
+        phase={importPhase}
+        batch={importBatch}
+        onDone={handleBulkImportDone}
+      />
     </div>
   );
 }

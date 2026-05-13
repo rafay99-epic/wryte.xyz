@@ -19,9 +19,6 @@ import { useCalendarStore } from "@/stores/calendar-store";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
 
-// biome-ignore lint/suspicious/noExplicitAny: api types are generated at build time via `npx convex dev`
-const schedulingSchedule = (api as any).scheduling.schedule;
-
 interface ScheduleTimePopoverProps {
   /** IANA timezone for the project. Falls back to the browser timezone. */
   timezone?: string | null;
@@ -29,7 +26,7 @@ interface ScheduleTimePopoverProps {
 
 export function ScheduleTimePopover({ timezone }: ScheduleTimePopoverProps) {
   const { pendingDrop, clearPendingDrop } = useCalendarStore();
-  const schedulePublish = useMutation(schedulingSchedule);
+  const schedulePublish = useMutation(api.integrations.scheduling.schedule);
 
   const [hour, setHour] = useState(pendingDrop?.existingHour ?? 9);
   const [minute, setMinute] = useState(pendingDrop?.existingMinute ?? 0);

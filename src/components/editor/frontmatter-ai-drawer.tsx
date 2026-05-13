@@ -28,11 +28,6 @@ import { cn } from "@/lib/utils";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 
-// biome-ignore lint/suspicious/noExplicitAny: api types are generated at build time via `npx convex dev`
-const aiCreateFrontmatterStream = (api as any).ai.createFrontmatterStream;
-// biome-ignore lint/suspicious/noExplicitAny: api types are generated at build time via `npx convex dev`
-const aiGetStreamBody = (api as any).ai.getStreamBody;
-
 interface Suggestion {
   title?: string;
   description?: string;
@@ -72,14 +67,14 @@ export function FrontmatterAiDrawer({
   currentFrontmatter,
   onAccept,
 }: FrontmatterAiDrawerProps) {
-  const createStream = useMutation(aiCreateFrontmatterStream);
+  const createStream = useMutation(api.ai.enhance.createFrontmatterStream);
 
   const [streamId, setStreamId] = useState<string | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const [accepted, setAccepted] = useState<Set<string>>(new Set());
 
   const streamBody = useQuery(
-    aiGetStreamBody,
+    api.ai.enhance.getStreamBody,
     streamId ? { streamId } : "skip",
   );
 

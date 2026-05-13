@@ -107,8 +107,8 @@ const STEPS = [
 
 export default function NewProjectPage() {
   const router = useRouter();
-  const createProject = useMutation(api.projects.create);
-  const setMediaCredentials = useAction(api.mediaCredentials.setCredentials);
+  const createProject = useMutation(api.cms.projects.create);
+  const setMediaCredentials = useAction(api.media.credentials.setCredentials);
   const [state, setState] = useState<WizardState>(INITIAL_STATE);
   const [isSubmitting, setIsSubmitting] = useState(false);
 

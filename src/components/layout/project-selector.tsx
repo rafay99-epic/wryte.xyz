@@ -21,7 +21,7 @@ import { api } from "../../../convex/_generated/api";
 
 export function ProjectSelector() {
   const router = useRouter();
-  const projects = useQuery(api.projects.list);
+  const projects = useQuery(api.cms.projects.list);
   const activeProjectId = useEditorStore((s) => s.activeProjectId);
   const setActiveProjectId = useEditorStore((s) => s.setActiveProjectId);
 

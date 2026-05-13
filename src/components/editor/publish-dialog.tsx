@@ -21,12 +21,9 @@ import { useEditorStore } from "@/stores/editor-store";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 
-// biome-ignore lint/suspicious/noExplicitAny: api types are generated at build time via `npx convex dev`
-const documentsGet = (api as any).documents.get;
-// biome-ignore lint/suspicious/noExplicitAny: api types are generated at build time via `npx convex dev`
-const projectsGet = (api as any).projects.get;
-// biome-ignore lint/suspicious/noExplicitAny: api types are generated at build time via `npx convex dev`
-const publishAction = (api as any).github.publish;
+const documentsGet = api.cms.documents.get;
+const projectsGet = api.cms.projects.get;
+const publishAction = api.integrations.github.publish;
 
 interface PublishDialogProps {
   open: boolean;

@@ -53,7 +53,7 @@ function areProjectRowsEqual(a: ProjectPageRow, b: ProjectPageRow) {
 }
 
 export default function ProjectsPage() {
-  const projects = useQuery(api.projects.listWithDocumentCounts);
+  const projects = useQuery(api.cms.projects.listWithDocumentCounts);
   const favoriteOverrides = useProjectsPageStore(
     useShallow((s) => s.favoriteOverrides),
   );
@@ -259,7 +259,7 @@ const ProjectCard = memo(
     row: ProjectPageRow;
     displayFavorite: boolean;
   }) {
-    const updateProject = useMutation(api.projects.update);
+    const updateProject = useMutation(api.cms.projects.update);
 
     useEffect(() => {
       const o = useProjectsPageStore.getState().favoriteOverrides[row._id];

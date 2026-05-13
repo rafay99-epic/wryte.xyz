@@ -5,9 +5,9 @@
  * When no custom columns exist, the client falls back to DEFAULT_BOARD_COLUMNS.
  */
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
-import { getCurrentUser } from "./auth_helpers";
-import { getRateLimitKey, rateLimiter } from "./rateLimits";
+import { mutation, query } from "../_generated/server";
+import { getAuthedUserOrNull, getCurrentUser } from "../_lib/auth";
+import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
 
 /** Shape of a single board column definition. */
 interface BoardColumnDef {
@@ -57,18 +57,7 @@ const DEFAULT_BOARD_COLUMNS: BoardColumnDef[] = [
 export const getColumns = query({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      return DEFAULT_BOARD_COLUMNS;
-    }
-
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_tokenIdentifier", (q) =>
-        q.eq("tokenIdentifier", identity.tokenIdentifier),
-      )
-      .unique();
-
+    const user = await getAuthedUserOrNull(ctx);
     if (!user) {
       return DEFAULT_BOARD_COLUMNS;
     }

@@ -34,8 +34,8 @@ export default function NewDocumentPage() {
   const projectId = params.projectId as Id<"projects">;
   const router = useRouter();
 
-  const project = useQuery(api.projects.get, { projectId });
-  const createDocument = useMutation(api.documents.create);
+  const project = useQuery(api.cms.projects.get, { projectId });
+  const createDocument = useMutation(api.cms.documents.create);
 
   const [title, setTitle] = useState("");
   const [slug, setSlug] = useState("");

@@ -71,17 +71,12 @@ const STATUS_STYLES = {
 /*  Main page                                                          */
 /* ------------------------------------------------------------------ */
 
-// biome-ignore lint/suspicious/noExplicitAny: api types are generated at build time via `npx convex dev`
-const listRecent = (api as any).documents.listRecent;
-// biome-ignore lint/suspicious/noExplicitAny: api types are generated at build time via `npx convex dev`
-const listAllForUser = (api as any).documents.listAllForUser;
-
 export default function DashboardPage() {
   const { user } = useUser();
   const router = useRouter();
-  const projects = useQuery(api.projects.list);
-  const recentDocs = useQuery(listRecent, { limit: 8 });
-  const allDocs = useQuery(listAllForUser);
+  const projects = useQuery(api.cms.projects.list);
+  const recentDocs = useQuery(api.cms.documents.listRecent, { limit: 8 });
+  const allDocs = useQuery(api.cms.documents.listAllForUser);
   const getKeys = useShortcutsStore((s) => s.getKeys);
 
   useEffect(() => {

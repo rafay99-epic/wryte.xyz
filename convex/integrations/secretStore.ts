@@ -12,7 +12,7 @@
 
 import { WorkOS } from "@workos-inc/node";
 import { v } from "convex/values";
-import { internalAction } from "./_generated/server";
+import { internalAction } from "../_generated/server";
 
 /** Metadata attached to every stored secret. Visible in WorkOS audit logs. */
 export interface SecretMeta {

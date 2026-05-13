@@ -20,20 +20,15 @@ import { useEditorStore } from "@/stores/editor-store";
 import { api } from "../../../../../convex/_generated/api";
 import type { Id } from "../../../../../convex/_generated/dataModel";
 
-// biome-ignore lint/suspicious/noExplicitAny: api types are generated at build time via `npx convex dev`
-const documentsGet = (api as any).documents.get;
-// biome-ignore lint/suspicious/noExplicitAny: api types are generated at build time via `npx convex dev`
-const projectsGet = (api as any).projects.get;
-
 export default function EditorPage() {
   const params = useParams();
   const documentId = params["documentId"] as string;
 
-  const document = useQuery(documentsGet, {
+  const document = useQuery(api.cms.documents.get, {
     documentId: documentId as Id<"documents">,
   });
   const project = useQuery(
-    projectsGet,
+    api.cms.projects.get,
     document ? { projectId: document.projectId } : "skip",
   );
 

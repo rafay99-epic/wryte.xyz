@@ -57,10 +57,10 @@ export function PublishHistoryPanel({
   onClose,
 }: PublishHistoryPanelProps) {
   const history = useQuery(
-    api.documents.getPublishHistory,
+    api.cms.documents.getPublishHistory,
     open ? { documentId: documentId as Id<"documents"> } : "skip",
   );
-  const rollback = useMutation(api.documents.rollbackToVersion);
+  const rollback = useMutation(api.cms.documents.rollbackToVersion);
   const [rollingBack, setRollingBack] = useState<string | null>(null);
 
   const handleRollback = useCallback(

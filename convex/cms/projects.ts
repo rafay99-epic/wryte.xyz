@@ -1,10 +1,11 @@
 import { v } from "convex/values";
-import type { Doc } from "./_generated/dataModel";
-import type { QueryCtx } from "./_generated/server";
-import { internalQuery, mutation, query } from "./_generated/server";
-import { getCurrentUser } from "./auth_helpers";
-import { compressionSettingsValidator } from "./compressionSettings";
-import { getRateLimitKey, rateLimiter } from "./rateLimits";
+import type { Doc } from "../_generated/dataModel";
+import type { QueryCtx } from "../_generated/server";
+import { internalQuery, mutation, query } from "../_generated/server";
+import { getAuthedUserOrNull, getCurrentUser } from "../_lib/auth";
+import { compressionSettingsValidator } from "../_lib/compression";
+import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
+import { cascadeDeleteScheduledPublishesForDoc } from "./documents";
 
 function sortProjectsForList(projects: Doc<"projects">[]): Doc<"projects">[] {
   const hasAnySortOrder = projects.some((p) => p.sortOrder !== undefined);
@@ -25,21 +26,8 @@ function sortProjectsForList(projects: Doc<"projects">[]): Doc<"projects">[] {
 async function projectsForCurrentUserOrEmpty(
   ctx: QueryCtx,
 ): Promise<Doc<"projects">[]> {
-  const identity = await ctx.auth.getUserIdentity();
-  if (!identity) {
-    return [];
-  }
-
-  const user = await ctx.db
-    .query("users")
-    .withIndex("by_tokenIdentifier", (q) =>
-      q.eq("tokenIdentifier", identity.tokenIdentifier),
-    )
-    .unique();
-
-  if (!user) {
-    return [];
-  }
+  const user = await getAuthedUserOrNull(ctx);
+  if (!user) return [];
 
   const projects = await ctx.db
     .query("projects")
@@ -97,20 +85,9 @@ export const listWithDocumentCounts = query({
 export const get = query({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Not authenticated");
-    }
-
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_tokenIdentifier", (q) =>
-        q.eq("tokenIdentifier", identity.tokenIdentifier),
-      )
-      .unique();
-
+    const user = await getAuthedUserOrNull(ctx);
     if (!user) {
-      throw new Error("User not found");
+      throw new Error("Not authenticated");
     }
 
     const project = await ctx.db.get(args.projectId);
@@ -373,15 +350,7 @@ export const remove = mutation({
       .collect();
 
     for (const doc of documents) {
-      const scheduledPublishes = await ctx.db
-        .query("scheduled_publishes")
-        .withIndex("by_documentId", (q) => q.eq("documentId", doc._id))
-        .collect();
-
-      for (const sp of scheduledPublishes) {
-        await ctx.db.delete(sp._id);
-      }
-
+      await cascadeDeleteScheduledPublishesForDoc(ctx, doc._id);
       await ctx.db.delete(doc._id);
     }
 

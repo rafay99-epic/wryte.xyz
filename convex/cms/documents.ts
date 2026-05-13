@@ -1,14 +1,14 @@
 import { v } from "convex/values";
-import type { Doc, Id } from "./_generated/dataModel";
-import type { DatabaseReader } from "./_generated/server";
+import type { Doc, Id } from "../_generated/dataModel";
+import type { DatabaseReader } from "../_generated/server";
 import {
   internalMutation,
   internalQuery,
   mutation,
   query,
-} from "./_generated/server";
-import { getCurrentUser } from "./auth_helpers";
-import { getRateLimitKey, rateLimiter } from "./rateLimits";
+} from "../_generated/server";
+import { getAuthedUserOrNull, getCurrentUser } from "../_lib/auth";
+import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
 
 /**
  * Verifies that a document exists and that the given user owns the parent project.
@@ -53,21 +53,8 @@ export const list = query({
     status: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      return [];
-    }
-
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_tokenIdentifier", (q) =>
-        q.eq("tokenIdentifier", identity.tokenIdentifier),
-      )
-      .unique();
-
-    if (!user) {
-      return [];
-    }
+    const user = await getAuthedUserOrNull(ctx);
+    if (!user) return [];
 
     const project = await ctx.db.get(args.projectId);
     if (!project || project.userId !== user._id) {
@@ -100,21 +87,8 @@ export const listRecent = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      return [];
-    }
-
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_tokenIdentifier", (q) =>
-        q.eq("tokenIdentifier", identity.tokenIdentifier),
-      )
-      .unique();
-
-    if (!user) {
-      return [];
-    }
+    const user = await getAuthedUserOrNull(ctx);
+    if (!user) return [];
 
     const limit = args.limit ?? 5;
 
@@ -134,21 +108,8 @@ export const listRecent = query({
 export const listAllForUser = query({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      return [];
-    }
-
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_tokenIdentifier", (q) =>
-        q.eq("tokenIdentifier", identity.tokenIdentifier),
-      )
-      .unique();
-
-    if (!user) {
-      return [];
-    }
+    const user = await getAuthedUserOrNull(ctx);
+    if (!user) return [];
 
     const documents = await ctx.db
       .query("documents")
@@ -176,22 +137,10 @@ export const listAllForUser = query({
 export const get = query({
   args: { documentId: v.id("documents") },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
+    const user = await getAuthedUserOrNull(ctx);
+    if (!user) {
       throw new Error("Not authenticated");
     }
-
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_tokenIdentifier", (q) =>
-        q.eq("tokenIdentifier", identity.tokenIdentifier),
-      )
-      .unique();
-
-    if (!user) {
-      throw new Error("User not found");
-    }
-
     const document = await verifyDocumentOwnership(
       ctx,
       args.documentId,
@@ -318,7 +267,7 @@ export const duplicate = mutation({
     const newTitle = `${doc.title} (copy)`;
     const newSlug = `${doc.slug}-copy-${Date.now().toString(36)}`;
 
-    const insertData: Record<string, unknown> = {
+    const newId = await ctx.db.insert("documents", {
       projectId: doc.projectId,
       userId: user._id,
       title: newTitle,
@@ -327,17 +276,9 @@ export const duplicate = mutation({
       status: doc.status,
       createdAt: now,
       updatedAt: now,
-    };
-
-    if (doc.frontmatter) {
-      insertData["frontmatter"] = doc.frontmatter;
-    }
-    if (doc.tags) {
-      insertData["tags"] = doc.tags;
-    }
-
-    // biome-ignore lint/suspicious/noExplicitAny: dynamic insert data
-    const newId = await ctx.db.insert("documents", insertData as any);
+      ...(doc.frontmatter ? { frontmatter: doc.frontmatter } : {}),
+      ...(doc.tags ? { tags: doc.tags } : {}),
+    });
     return { documentId: newId, title: newTitle };
   },
 });
@@ -395,15 +336,7 @@ export const remove = mutation({
     const user = await getCurrentUser(ctx);
     await verifyDocumentOwnership(ctx, args.documentId, user._id);
 
-    const scheduledPublishes = await ctx.db
-      .query("scheduled_publishes")
-      .withIndex("by_documentId", (q) => q.eq("documentId", args.documentId))
-      .collect();
-
-    for (const sp of scheduledPublishes) {
-      await ctx.db.delete(sp._id);
-    }
-
+    await cascadeDeleteScheduledPublishesForDoc(ctx, args.documentId);
     await ctx.db.delete(args.documentId);
   },
 });
@@ -447,13 +380,14 @@ export const importFromGithub = mutation({
       throw new Error("Unauthorized: you do not own this project");
     }
 
-    // Check for duplicate import by githubPath
-    const existing = await ctx.db
+    // Dedup by (projectId, githubPath) so re-importing the same file is a
+    // no-op. Indexed lookup — O(log n), not O(n) over the whole project.
+    const duplicate = await ctx.db
       .query("documents")
-      .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
-      .collect();
-
-    const duplicate = existing.find((d) => d.githubPath === args.githubPath);
+      .withIndex("by_projectId_and_githubPath", (q) =>
+        q.eq("projectId", args.projectId).eq("githubPath", args.githubPath),
+      )
+      .unique();
     if (duplicate) {
       return duplicate._id;
     }
@@ -499,6 +433,77 @@ export const importFromGithub = mutation({
 });
 
 /**
+ * Auth-skipped internal twin of `importFromGithub` for the bulk-import
+ * workpool job (`convex/github.ts:_importOneFromGithubJob`). The job has
+ * no user session — the parent `startBulkImport` action already verified
+ * project ownership before enqueuing, so this mutation just trusts its
+ * caller and gets out of the way. Same dedup-by-githubPath behaviour.
+ */
+export const _importFromGithubInternal = internalMutation({
+  args: {
+    projectId: v.id("projects"),
+    title: v.string(),
+    slug: v.string(),
+    content: v.string(),
+    frontmatter: v.optional(v.string()),
+    githubPath: v.string(),
+    githubSha: v.string(),
+  },
+  handler: async (ctx, args): Promise<Id<"documents">> => {
+    const project = await ctx.db.get(args.projectId);
+    if (!project) {
+      throw new Error("Project not found");
+    }
+
+    // Idempotent dedup — re-running the same file path is a no-op so
+    // workpool retries don't duplicate documents. Indexed lookup so a
+    // project with 10k+ docs doesn't melt under bulk-import retries.
+    const duplicate = await ctx.db
+      .query("documents")
+      .withIndex("by_projectId_and_githubPath", (q) =>
+        q.eq("projectId", args.projectId).eq("githubPath", args.githubPath),
+      )
+      .unique();
+    if (duplicate) return duplicate._id;
+
+    const now = Date.now();
+    const insertData: {
+      projectId: typeof args.projectId;
+      userId: Id<"users">;
+      title: string;
+      slug: string;
+      content: string;
+      status: string;
+      githubPath: string;
+      githubSha: string;
+      githubSyncedAt: number;
+      publishedAt: number;
+      createdAt: number;
+      updatedAt: number;
+      frontmatter?: string;
+    } = {
+      projectId: args.projectId,
+      userId: project.userId,
+      title: args.title,
+      slug: args.slug,
+      content: args.content,
+      status: "published",
+      githubPath: args.githubPath,
+      githubSha: args.githubSha,
+      githubSyncedAt: now,
+      publishedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    };
+    if (args.frontmatter !== undefined) {
+      insertData.frontmatter = args.frontmatter;
+    }
+
+    return await ctx.db.insert("documents", insertData);
+  },
+});
+
+/**
  * Looks up a document by its slug within a project. Returns null for
  * unauthenticated/unauthorized users rather than throwing, so the client
  * can handle missing documents gracefully.
@@ -513,21 +518,8 @@ export const getBySlug = query({
     slug: v.string(),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      return null;
-    }
-
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_tokenIdentifier", (q) =>
-        q.eq("tokenIdentifier", identity.tokenIdentifier),
-      )
-      .unique();
-
-    if (!user) {
-      return null;
-    }
+    const user = await getAuthedUserOrNull(ctx);
+    if (!user) return null;
 
     const project = await ctx.db.get(args.projectId);
     if (!project || project.userId !== user._id) {
@@ -585,6 +577,26 @@ export const internalGet = internalQuery({
   args: { documentId: v.id("documents") },
   handler: async (ctx, args) => {
     return await ctx.db.get(args.documentId);
+  },
+});
+
+/**
+ * Pre-flight check for bulk delete: returns only those documents whose
+ * ID is in `ids` AND whose `projectId` matches. `startBulkDelete`
+ * compares `result.length` to `ids.length` to detect cross-project ids
+ * before enqueuing N workpool jobs that would silently no-op.
+ */
+export const _listByIdsForProject = internalQuery({
+  args: {
+    ids: v.array(v.id("documents")),
+    projectId: v.id("projects"),
+  },
+  handler: async (ctx, args) => {
+    const docs = await Promise.all(args.ids.map((id) => ctx.db.get(id)));
+    return docs.filter(
+      (d): d is NonNullable<typeof d> =>
+        d !== null && d.projectId === args.projectId,
+    );
   },
 });
 
@@ -774,18 +786,9 @@ export const getPublishHistory = query({
     documentId: v.id("documents"),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return [];
-
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_tokenIdentifier", (q) =>
-        q.eq("tokenIdentifier", identity.tokenIdentifier),
-      )
-      .unique();
+    const user = await getAuthedUserOrNull(ctx);
     if (!user) return [];
 
-    // Verify ownership
     const document = await ctx.db.get(args.documentId);
     if (!document) return [];
     const project = await ctx.db.get(document.projectId);
@@ -856,15 +859,7 @@ export const rollbackToVersion = mutation({
 export const listForCalendar = query({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return [];
-
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_tokenIdentifier", (q) =>
-        q.eq("tokenIdentifier", identity.tokenIdentifier),
-      )
-      .unique();
+    const user = await getAuthedUserOrNull(ctx);
     if (!user) return [];
 
     const project = await ctx.db.get(args.projectId);
@@ -885,5 +880,324 @@ export const listForCalendar = query({
       updatedAt: d.updatedAt,
       createdAt: d.createdAt,
     }));
+  },
+});
+
+/* ------------------------------------------------------------------ */
+/*  Bulk import — tracking, progress, and workpool callback             */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Creates the `import_batches` row that `convex/github.ts:startBulkImport`
+ * uses to track progress. Internal-only because the caller has already
+ * resolved auth + ownership in the parent action.
+ */
+export const _createImportBatch = internalMutation({
+  args: {
+    projectId: v.id("projects"),
+    userId: v.id("users"),
+    total: v.number(),
+  },
+  handler: async (ctx, args): Promise<Id<"import_batches">> => {
+    const now = Date.now();
+    // Counts (`succeeded`, `failed`, `errors`) are now derived from
+    // `import_job_outcomes` to avoid OCC contention — leaving them off
+    // the new row entirely. The schema keeps them optional for legacy
+    // rows.
+    return await ctx.db.insert("import_batches", {
+      projectId: args.projectId,
+      userId: args.userId,
+      total: args.total,
+      createdAt: now,
+      updatedAt: now,
+    });
+  },
+});
+
+/**
+ * Workpool `onComplete` callback for the GitHub bulk-import pool. Runs
+ * once per finished job — succeeded, failed, or canceled.
+ *
+ * Each callback inserts a brand-new `import_job_outcomes` row instead
+ * of patching the parent batch. That eliminates the OCC hotspot that
+ * comes from N parallel callbacks fighting over a single row's counters
+ * — see https://docs.convex.dev/error#1. The `getImportBatch` query
+ * aggregates outcomes to compute live succeeded/failed/errors.
+ */
+export const _onImportFileComplete = internalMutation({
+  args: {
+    workId: v.string(),
+    context: v.any(),
+    result: v.any(),
+  },
+  handler: async (ctx, args) => {
+    const { batchId, filePath } = args.context as {
+      batchId: Id<"import_batches">;
+      filePath: string;
+    };
+    const result = args.result as
+      | { kind: "success"; returnValue: unknown }
+      | { kind: "failed"; error: string }
+      | { kind: "canceled" };
+
+    // Defense in depth: if the batch row is gone (manually cleaned up
+    // before workpool drained), don't leave orphaned outcomes.
+    const batch = await ctx.db.get(batchId);
+    if (!batch) return;
+
+    if (result.kind === "success") {
+      await ctx.db.insert("import_job_outcomes", {
+        batchId,
+        status: "success",
+        filePath,
+        createdAt: Date.now(),
+      });
+      return;
+    }
+
+    const errorMessage =
+      result.kind === "failed" ? result.error : "Import cancelled";
+    await ctx.db.insert("import_job_outcomes", {
+      batchId,
+      status: "failure",
+      filePath,
+      errorMessage,
+      createdAt: Date.now(),
+    });
+  },
+});
+
+/**
+ * Reactive read for the import progress UI. Returns the batch row
+ * enriched with aggregated `succeeded` / `failed` / `errors` derived
+ * from `import_job_outcomes` (which is contention-free — every job
+ * inserts its own row). Returns null if the caller doesn't own the
+ * batch's project.
+ *
+ * Note on cost: this aggregates by `collect()`-ing every outcome row
+ * for the batch on each read. For our max batch size (200 files) that's
+ * fine. If batch sizes grow, replace with the `@convex-dev/aggregate`
+ * component which maintains running counters lock-free.
+ */
+export const getImportBatch = query({
+  args: { batchId: v.id("import_batches") },
+  handler: async (ctx, args) => {
+    const user = await getAuthedUserOrNull(ctx);
+    if (!user) return null;
+
+    const batch = await ctx.db.get(args.batchId);
+    if (!batch || batch.userId !== user._id) return null;
+
+    const outcomes = await ctx.db
+      .query("import_job_outcomes")
+      .withIndex("by_batchId", (q) => q.eq("batchId", args.batchId))
+      .collect();
+
+    let succeeded = 0;
+    let failed = 0;
+    const MAX_ERRORS_RETURNED = 20;
+    const errors: Array<{ filePath: string; message: string }> = [];
+    for (const o of outcomes) {
+      if (o.status === "success") {
+        succeeded += 1;
+      } else {
+        failed += 1;
+        if (errors.length < MAX_ERRORS_RETURNED) {
+          errors.push({
+            filePath: o.filePath,
+            message: o.errorMessage ?? "Unknown error",
+          });
+        }
+      }
+    }
+
+    return {
+      ...batch,
+      succeeded,
+      failed,
+      errors,
+    };
+  },
+});
+
+/* ------------------------------------------------------------------ */
+/*  Bulk delete — tracking, progress, and workpool callback             */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Auth-skipped internal version of `remove` for the bulk-delete workpool
+ * job. The job has no user session — the parent `startBulkDelete` action
+ * verified the user owns `projectId` before enqueuing.
+ *
+ * **Project-bound for defense in depth.** Even though the parent action
+ * validates ownership of `projectId`, an internal action could in
+ * principle be called with a `documentId` that belongs to *another*
+ * project (e.g. a future bug, a malicious refactor, or a forged caller).
+ * We re-verify here that `doc.projectId === args.projectId` and
+ * no-op silently if not. Combined with `startBulkDelete`'s pre-flight
+ * filter, this means cross-project deletion is impossible by
+ * construction.
+ *
+ * Preserves the cascade to `scheduled_publishes` via
+ * `cascadeDeleteScheduledPublishesForDoc` so no orphaned workflow jobs
+ * fire against a deleted doc.
+ */
+export const _removeInternal = internalMutation({
+  args: {
+    documentId: v.id("documents"),
+    projectId: v.id("projects"),
+  },
+  handler: async (ctx, args) => {
+    const doc = await ctx.db.get(args.documentId);
+    if (!doc) return;
+    if (doc.projectId !== args.projectId) {
+      // Refuse to act on docs outside the scope the caller verified.
+      // Silent return rather than throw — callers loop over many docs
+      // and one bad id shouldn't halt the whole batch.
+      return;
+    }
+
+    await cascadeDeleteScheduledPublishesForDoc(ctx, args.documentId);
+    await ctx.db.delete(args.documentId);
+  },
+});
+
+/**
+ * Removes every `scheduled_publishes` row pointing at a document so
+ * workflow jobs don't fire against a deleted target. Used by the
+ * single-doc `remove` mutation, the bulk-delete workpool job, and the
+ * project-cascade `projects.remove` — same cascade, one place to
+ * maintain it. Exported so cross-file callers don't duplicate the loop.
+ */
+export async function cascadeDeleteScheduledPublishesForDoc(
+  ctx: { db: MutationCtxDb },
+  documentId: Id<"documents">,
+): Promise<void> {
+  const scheduledPublishes = await ctx.db
+    .query("scheduled_publishes")
+    .withIndex("by_documentId", (q) => q.eq("documentId", documentId))
+    .collect();
+  for (const sp of scheduledPublishes) {
+    await ctx.db.delete(sp._id);
+  }
+}
+
+/** Minimal writer shape for the cascade helper — keeps it usable from
+ *  both `mutation` and `internalMutation` ctx without dragging in the
+ *  full Convex generic. */
+type MutationCtxDb = import("../_generated/server").MutationCtx["db"];
+
+/**
+ * Creates the tracking row for a bulk delete. Mirror of
+ * `_createImportBatch`. Caller has already validated ownership.
+ */
+export const _createDeleteBatch = internalMutation({
+  args: {
+    projectId: v.id("projects"),
+    userId: v.id("users"),
+    mode: v.union(v.literal("local"), v.literal("github"), v.literal("both")),
+    total: v.number(),
+  },
+  handler: async (ctx, args): Promise<Id<"delete_batches">> => {
+    const now = Date.now();
+    return await ctx.db.insert("delete_batches", {
+      projectId: args.projectId,
+      userId: args.userId,
+      mode: args.mode,
+      total: args.total,
+      createdAt: now,
+      updatedAt: now,
+    });
+  },
+});
+
+/**
+ * Workpool `onComplete` callback for bulk delete. Mirror of
+ * `_onImportFileComplete` — inserts per-item outcome rows instead of
+ * patching shared counters.
+ */
+export const _onDeleteFileComplete = internalMutation({
+  args: {
+    workId: v.string(),
+    context: v.any(),
+    result: v.any(),
+  },
+  handler: async (ctx, args) => {
+    const { batchId, label } = args.context as {
+      batchId: Id<"delete_batches">;
+      label: string;
+    };
+    const result = args.result as
+      | { kind: "success"; returnValue: unknown }
+      | { kind: "failed"; error: string }
+      | { kind: "canceled" };
+
+    const batch = await ctx.db.get(batchId);
+    if (!batch) return;
+
+    if (result.kind === "success") {
+      await ctx.db.insert("delete_job_outcomes", {
+        batchId,
+        status: "success",
+        label,
+        createdAt: Date.now(),
+      });
+      return;
+    }
+
+    const errorMessage =
+      result.kind === "failed" ? result.error : "Delete cancelled";
+    await ctx.db.insert("delete_job_outcomes", {
+      batchId,
+      status: "failure",
+      label,
+      errorMessage,
+      createdAt: Date.now(),
+    });
+  },
+});
+
+/**
+ * Reactive read for the bulk-delete progress UI. Mirrors `getImportBatch`
+ * — counts derive from `delete_job_outcomes` rather than the batch row.
+ */
+export const getDeleteBatch = query({
+  args: { batchId: v.id("delete_batches") },
+  handler: async (ctx, args) => {
+    const user = await getAuthedUserOrNull(ctx);
+    if (!user) return null;
+
+    const batch = await ctx.db.get(args.batchId);
+    if (!batch || batch.userId !== user._id) return null;
+
+    const outcomes = await ctx.db
+      .query("delete_job_outcomes")
+      .withIndex("by_batchId", (q) => q.eq("batchId", args.batchId))
+      .collect();
+
+    let succeeded = 0;
+    let failed = 0;
+    const MAX_ERRORS_RETURNED = 20;
+    const errors: Array<{ label: string; message: string }> = [];
+    for (const o of outcomes) {
+      if (o.status === "success") {
+        succeeded += 1;
+      } else {
+        failed += 1;
+        if (errors.length < MAX_ERRORS_RETURNED) {
+          errors.push({
+            label: o.label,
+            message: o.errorMessage ?? "Unknown error",
+          });
+        }
+      }
+    }
+
+    return {
+      ...batch,
+      succeeded,
+      failed,
+      errors,
+    };
   },
 });

@@ -13,10 +13,12 @@
 "use node";
 
 import { ConvexError, v } from "convex/values";
-import { internal } from "./_generated/api";
-import type { Id } from "./_generated/dataModel";
-import type { ActionCtx } from "./_generated/server";
-import { action } from "./_generated/server";
+import { internal } from "../_generated/api";
+import type { Id } from "../_generated/dataModel";
+import type { ActionCtx } from "../_generated/server";
+import { action } from "../_generated/server";
+import { isAllowedMime, QUOTAS } from "../_lib/quotas";
+import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
 import {
   cldList,
   cldUpload,
@@ -28,14 +30,12 @@ import {
   utDelete,
   utList,
   utUpload,
-} from "./providers";
+} from "../providers";
 import {
   DEFAULT_MESSAGES,
   type MediaErrorCode,
   redactError,
-} from "./providers/errors";
-import { isAllowedMime, QUOTAS } from "./quotas";
-import { getRateLimitKey, rateLimiter } from "./rateLimits";
+} from "../providers/errors";
 
 type ActiveProvider = "github" | "uploadthing" | "cloudinary";
 
@@ -102,14 +102,17 @@ export const upload = action({
       throws: true,
     });
 
-    const owned = await ctx.runQuery(internal.mediaDb._findOwnedProject, {
-      tokenIdentifier: identity.tokenIdentifier,
-      projectId: args.projectId,
-    });
+    const owned = await ctx.runQuery(
+      internal.media.uploadsDb._findOwnedProject,
+      {
+        tokenIdentifier: identity.tokenIdentifier,
+        projectId: args.projectId,
+      },
+    );
     if (!owned) throw new Error("Unauthorized");
 
     // Project-level quota.
-    const quota = await ctx.runQuery(internal.mediaDb._quotaCheck, {
+    const quota = await ctx.runQuery(internal.media.uploadsDb._quotaCheck, {
       projectId: args.projectId,
       incomingBytes: args.bytes.byteLength,
     });
@@ -140,10 +143,13 @@ export const upload = action({
       let bytes = args.bytes.byteLength;
 
       if (provider === "uploadthing") {
-        const cred = await ctx.runQuery(internal.mediaDb._getCredential, {
-          projectId: args.projectId,
-          provider: "uploadthing",
-        });
+        const cred = await ctx.runQuery(
+          internal.media.uploadsDb._getCredential,
+          {
+            projectId: args.projectId,
+            provider: "uploadthing",
+          },
+        );
         if (!cred || cred.status === "invalid") {
           throw new ConvexError({
             code: "AUTH_INVALID" as MediaErrorCode,
@@ -151,9 +157,12 @@ export const upload = action({
           });
         }
         await rateLimiter.limit(ctx, "vault:read", { key, throws: true });
-        const token: string = await ctx.runAction(internal.secretStore._read, {
-          id: cred.vaultSecretId,
-        });
+        const token: string = await ctx.runAction(
+          internal.integrations.secretStore._read,
+          {
+            id: cred.vaultSecretId,
+          },
+        );
         const res = await utUpload(token, {
           buffer,
           mime: args.mime,
@@ -163,10 +172,13 @@ export const upload = action({
         externalId = res.externalId;
         bytes = res.bytes;
       } else if (provider === "cloudinary") {
-        const cred = await ctx.runQuery(internal.mediaDb._getCredential, {
-          projectId: args.projectId,
-          provider: "cloudinary",
-        });
+        const cred = await ctx.runQuery(
+          internal.media.uploadsDb._getCredential,
+          {
+            projectId: args.projectId,
+            provider: "cloudinary",
+          },
+        );
         if (!cred || cred.status === "invalid") {
           throw new ConvexError({
             code: "AUTH_INVALID" as MediaErrorCode,
@@ -175,7 +187,7 @@ export const upload = action({
         }
         await rateLimiter.limit(ctx, "vault:read", { key, throws: true });
         const rawSecret: string = await ctx.runAction(
-          internal.secretStore._read,
+          internal.integrations.secretStore._read,
           { id: cred.vaultSecretId },
         );
         const folder = owned.project.mediaPath ?? owned.project.slug;
@@ -199,7 +211,7 @@ export const upload = action({
           });
         }
         const { owner, repo } = parseRepoString(owned.project.githubRepo);
-        const { getGithubToken } = await import("./auth_helpers");
+        const { getGithubToken } = await import("../_lib/auth");
         const token = await getGithubToken(ctx, owned.userId);
         if (!token) {
           throw new ConvexError({
@@ -252,7 +264,7 @@ export const upload = action({
         recordArgs.documentId = args.documentId;
 
       const mediaId = await ctx.runMutation(
-        internal.mediaDb._recordUpload,
+        internal.media.uploadsDb._recordUpload,
         recordArgs,
       );
 
@@ -315,10 +327,13 @@ export const list = action({
     const key = await getRateLimitKey(ctx);
     await rateLimiter.limit(ctx, "media:list", { key, throws: true });
 
-    const owned = await ctx.runQuery(internal.mediaDb._findOwnedProject, {
-      tokenIdentifier: identity.tokenIdentifier,
-      projectId: args.projectId,
-    });
+    const owned = await ctx.runQuery(
+      internal.media.uploadsDb._findOwnedProject,
+      {
+        tokenIdentifier: identity.tokenIdentifier,
+        projectId: args.projectId,
+      },
+    );
     if (!owned) throw new Error("Unauthorized");
 
     const provider = resolveActiveProvider(owned.project.mediaStorageMode);
@@ -326,15 +341,21 @@ export const list = action({
 
     try {
       if (provider === "uploadthing") {
-        const cred = await ctx.runQuery(internal.mediaDb._getCredential, {
-          projectId: args.projectId,
-          provider: "uploadthing",
-        });
+        const cred = await ctx.runQuery(
+          internal.media.uploadsDb._getCredential,
+          {
+            projectId: args.projectId,
+            provider: "uploadthing",
+          },
+        );
         if (!cred) return { provider, items: [], nextCursor: null };
         await rateLimiter.limit(ctx, "vault:read", { key, throws: true });
-        const token: string = await ctx.runAction(internal.secretStore._read, {
-          id: cred.vaultSecretId,
-        });
+        const token: string = await ctx.runAction(
+          internal.integrations.secretStore._read,
+          {
+            id: cred.vaultSecretId,
+          },
+        );
         const offset = args.cursor ? Number(args.cursor) : 0;
         const { items, hasMore } = await utList(token, {
           limit: max,
@@ -348,14 +369,17 @@ export const list = action({
       }
 
       if (provider === "cloudinary") {
-        const cred = await ctx.runQuery(internal.mediaDb._getCredential, {
-          projectId: args.projectId,
-          provider: "cloudinary",
-        });
+        const cred = await ctx.runQuery(
+          internal.media.uploadsDb._getCredential,
+          {
+            projectId: args.projectId,
+            provider: "cloudinary",
+          },
+        );
         if (!cred) return { provider, items: [], nextCursor: null };
         await rateLimiter.limit(ctx, "vault:read", { key, throws: true });
         const rawSecret: string = await ctx.runAction(
-          internal.secretStore._read,
+          internal.integrations.secretStore._read,
           { id: cred.vaultSecretId },
         );
         const folder = owned.project.mediaPath ?? owned.project.slug;
@@ -375,7 +399,7 @@ export const list = action({
         return { provider, items: [], nextCursor: null };
       }
       const { owner, repo } = parseRepoString(owned.project.githubRepo);
-      const { getGithubToken } = await import("./auth_helpers");
+      const { getGithubToken } = await import("../_lib/auth");
       const token = await getGithubToken(ctx, owned.userId);
       if (!token) return { provider, items: [], nextCursor: null };
       const { items } = await ghList(token, {
@@ -418,52 +442,61 @@ export const del = action({
     const key = await getRateLimitKey(ctx);
     await rateLimiter.limit(ctx, "media:delete", { key, throws: true });
 
-    const row = await ctx.runQuery(internal.mediaDb._getById, {
+    const row = await ctx.runQuery(internal.media.uploadsDb._getById, {
       mediaId: args.mediaId,
     });
     if (!row) return;
 
-    const owned = await ctx.runQuery(internal.mediaDb._findOwnedProject, {
-      tokenIdentifier: identity.tokenIdentifier,
-      projectId: row.projectId,
-    });
+    const owned = await ctx.runQuery(
+      internal.media.uploadsDb._findOwnedProject,
+      {
+        tokenIdentifier: identity.tokenIdentifier,
+        projectId: row.projectId,
+      },
+    );
     if (!owned) throw new Error("Unauthorized");
 
     const provider = row.provider ?? "convex_legacy";
     try {
       if (provider === "uploadthing" && row.externalId) {
-        const cred = await ctx.runQuery(internal.mediaDb._getCredential, {
-          projectId: row.projectId,
-          provider: "uploadthing",
-        });
+        const cred = await ctx.runQuery(
+          internal.media.uploadsDb._getCredential,
+          {
+            projectId: row.projectId,
+            provider: "uploadthing",
+          },
+        );
         if (cred) {
           await rateLimiter.limit(ctx, "vault:read", { key, throws: true });
           const token: string = await ctx.runAction(
-            internal.secretStore._read,
+            internal.integrations.secretStore._read,
             { id: cred.vaultSecretId },
           );
           await utDelete(token, [row.externalId]);
         }
       } else if (provider === "cloudinary" && row.externalId) {
-        const cred = await ctx.runQuery(internal.mediaDb._getCredential, {
-          projectId: row.projectId,
-          provider: "cloudinary",
-        });
+        const cred = await ctx.runQuery(
+          internal.media.uploadsDb._getCredential,
+          {
+            projectId: row.projectId,
+            provider: "cloudinary",
+          },
+        );
         if (cred) {
           await rateLimiter.limit(ctx, "vault:read", { key, throws: true });
           const rawSecret: string = await ctx.runAction(
-            internal.secretStore._read,
+            internal.integrations.secretStore._read,
             { id: cred.vaultSecretId },
           );
           // Cloudinary's destroy needs the public_id; that's what we stored.
-          const { cldDelete: cldDeleteFn } = await import("./providers");
+          const { cldDelete: cldDeleteFn } = await import("../providers");
           await cldDeleteFn(rawSecret, row.externalId);
         }
       } else if (provider === "github" && row.externalId) {
         const project = owned.project;
         if (project.githubRepo) {
           const { owner, repo } = parseRepoString(project.githubRepo);
-          const { getGithubToken } = await import("./auth_helpers");
+          const { getGithubToken } = await import("../_lib/auth");
           const token = await getGithubToken(ctx, owned.userId);
           if (token) {
             // GitHub delete needs the current blob sha; re-list to find it.
@@ -514,7 +547,7 @@ export const del = action({
       });
     }
 
-    await ctx.runMutation(internal.mediaDb._deleteRow, {
+    await ctx.runMutation(internal.media.uploadsDb._deleteRow, {
       mediaId: args.mediaId,
     });
   },
@@ -551,18 +584,24 @@ export const deleteByRef = action({
     const key = await getRateLimitKey(ctx);
     await rateLimiter.limit(ctx, "media:delete", { key, throws: true });
 
-    const owned = await ctx.runQuery(internal.mediaDb._findOwnedProject, {
-      tokenIdentifier: identity.tokenIdentifier,
-      projectId: args.projectId,
-    });
+    const owned = await ctx.runQuery(
+      internal.media.uploadsDb._findOwnedProject,
+      {
+        tokenIdentifier: identity.tokenIdentifier,
+        projectId: args.projectId,
+      },
+    );
     if (!owned) throw new Error("Unauthorized");
 
     try {
       if (args.provider === "uploadthing") {
-        const cred = await ctx.runQuery(internal.mediaDb._getCredential, {
-          projectId: args.projectId,
-          provider: "uploadthing",
-        });
+        const cred = await ctx.runQuery(
+          internal.media.uploadsDb._getCredential,
+          {
+            projectId: args.projectId,
+            provider: "uploadthing",
+          },
+        );
         if (!cred) {
           throw new ConvexError({
             code: "AUTH_INVALID" as MediaErrorCode,
@@ -570,15 +609,21 @@ export const deleteByRef = action({
           });
         }
         await rateLimiter.limit(ctx, "vault:read", { key, throws: true });
-        const token: string = await ctx.runAction(internal.secretStore._read, {
-          id: cred.vaultSecretId,
-        });
+        const token: string = await ctx.runAction(
+          internal.integrations.secretStore._read,
+          {
+            id: cred.vaultSecretId,
+          },
+        );
         await utDelete(token, [args.externalId]);
       } else if (args.provider === "cloudinary") {
-        const cred = await ctx.runQuery(internal.mediaDb._getCredential, {
-          projectId: args.projectId,
-          provider: "cloudinary",
-        });
+        const cred = await ctx.runQuery(
+          internal.media.uploadsDb._getCredential,
+          {
+            projectId: args.projectId,
+            provider: "cloudinary",
+          },
+        );
         if (!cred) {
           throw new ConvexError({
             code: "AUTH_INVALID" as MediaErrorCode,
@@ -587,10 +632,10 @@ export const deleteByRef = action({
         }
         await rateLimiter.limit(ctx, "vault:read", { key, throws: true });
         const rawSecret: string = await ctx.runAction(
-          internal.secretStore._read,
+          internal.integrations.secretStore._read,
           { id: cred.vaultSecretId },
         );
-        const { cldDelete } = await import("./providers");
+        const { cldDelete } = await import("../providers");
         await cldDelete(rawSecret, args.externalId);
       } else {
         // GitHub
@@ -607,7 +652,7 @@ export const deleteByRef = action({
           });
         }
         const { owner, repo } = parseRepoString(owned.project.githubRepo);
-        const { getGithubToken } = await import("./auth_helpers");
+        const { getGithubToken } = await import("../_lib/auth");
         const token = await getGithubToken(ctx, owned.userId);
         if (!token) {
           throw new ConvexError({
@@ -648,14 +693,16 @@ export const deleteByRef = action({
 
     // Best-effort: remove any matching media row + decrement usage.
     const row = await ctx.runQuery(
-      internal.mediaDb._findByProviderAndExternalId,
+      internal.media.uploadsDb._findByProviderAndExternalId,
       {
         provider: args.provider,
         externalId: args.externalId,
       },
     );
     if (row) {
-      await ctx.runMutation(internal.mediaDb._deleteRow, { mediaId: row._id });
+      await ctx.runMutation(internal.media.uploadsDb._deleteRow, {
+        mediaId: row._id,
+      });
     }
   },
 });
@@ -692,7 +739,7 @@ async function logError(
       errorMessage,
     };
     if (providerError !== undefined) args.providerError = providerError;
-    await ctx.runMutation(internal.mediaDb._logError, args);
+    await ctx.runMutation(internal.media.uploadsDb._logError, args);
   } catch {
     // Logging is best-effort; never let it mask the original error.
   }

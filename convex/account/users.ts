@@ -1,15 +1,19 @@
 import { v } from "convex/values";
-import { internal } from "./_generated/api";
+import { internal } from "../_generated/api";
 import {
   action,
   internalMutation,
   internalQuery,
   mutation,
   query,
-} from "./_generated/server";
-import { parseClerkUserId } from "./auth_helpers";
-import { compressionSettingsValidator } from "./compressionSettings";
-import { getRateLimitKey, rateLimiter } from "./rateLimits";
+} from "../_generated/server";
+import {
+  getAuthedUserOrNull,
+  getCurrentUser,
+  parseClerkUserId,
+} from "../_lib/auth";
+import { compressionSettingsValidator } from "../_lib/compression";
+import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
 
 /**
  * Finds the current user by their Clerk token, or creates a new user record
@@ -90,19 +94,7 @@ export const getOrCreate = mutation({
 export const get = query({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      return null;
-    }
-
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_tokenIdentifier", (q) =>
-        q.eq("tokenIdentifier", identity.tokenIdentifier),
-      )
-      .unique();
-
-    return user;
+    return await getAuthedUserOrNull(ctx);
   },
 });
 
@@ -128,7 +120,7 @@ export const updateGithubToken = action({
       throw new Error("Not authenticated");
     }
 
-    const user = await ctx.runQuery(internal.users.internalGetByToken, {
+    const user = await ctx.runQuery(internal.account.users.internalGetByToken, {
       tokenIdentifier: identity.tokenIdentifier,
     });
     if (!user) {
@@ -137,23 +129,26 @@ export const updateGithubToken = action({
 
     // Store new value in vault first, then swap pointer on the user row,
     // then best-effort delete the old vault entry.
-    const created = await ctx.runAction(internal.secretStore._create, {
-      value: args.token,
-      meta: {
-        userId: user._id,
-        label: "github-pat",
+    const created = await ctx.runAction(
+      internal.integrations.secretStore._create,
+      {
+        value: args.token,
+        meta: {
+          userId: user._id,
+          label: "github-pat",
+        },
       },
-    });
+    );
 
     const previousVaultId = user.githubVaultSecretId;
-    await ctx.runMutation(internal.users._setGithubVaultId, {
+    await ctx.runMutation(internal.account.users._setGithubVaultId, {
       userId: user._id,
       vaultSecretId: created.id,
     });
 
     if (previousVaultId) {
       try {
-        await ctx.runAction(internal.secretStore._delete, {
+        await ctx.runAction(internal.integrations.secretStore._delete, {
           id: previousVaultId,
         });
       } catch {
@@ -179,22 +174,7 @@ export const updateDefaultCompressionSettings = mutation({
       throws: true,
     });
 
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Not authenticated");
-    }
-
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_tokenIdentifier", (q) =>
-        q.eq("tokenIdentifier", identity.tokenIdentifier),
-      )
-      .unique();
-
-    if (!user) {
-      throw new Error("User not found");
-    }
-
+    const user = await getCurrentUser(ctx);
     await ctx.db.patch(user._id, {
       defaultCompressionSettings: args.settings ?? undefined,
     });
@@ -213,22 +193,7 @@ export const updateGithubUsername = mutation({
       throws: true,
     });
 
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Not authenticated");
-    }
-
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_tokenIdentifier", (q) =>
-        q.eq("tokenIdentifier", identity.tokenIdentifier),
-      )
-      .unique();
-
-    if (!user) {
-      throw new Error("User not found");
-    }
-
+    const user = await getCurrentUser(ctx);
     await ctx.db.patch(user._id, {
       githubUsername: args.username,
     });

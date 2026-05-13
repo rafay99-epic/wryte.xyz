@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
  * Controlled component: parents own both `resolvedSettings` (the
  * inheritance-resolved defaults from `useImageCompression`) and `override`
  * (the active per-upload override, or `null` when inheriting). This avoids
- * a second `useQuery(api.users.get)` / `useQuery(api.projects.get)`
+ * a second `useQuery(api.account.users.get)` / `useQuery(api.cms.projects.get)`
  * subscription per dialog.
  *
  * The override panel collapses by default; expanding reveals a compact

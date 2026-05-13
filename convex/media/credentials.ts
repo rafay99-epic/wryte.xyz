@@ -2,7 +2,7 @@
  * mediaCredentials — public actions for the settings UI.
  *
  * All non-action helpers (queries, internal mutations) live in
- * `mediaCredentialsDb.ts`; everything in this file runs in Convex's Node
+ * `credentialsDb.ts`; everything in this file runs in Convex's Node
  * runtime because the provider SDKs depend on Node-specific globals.
  *
  * The rotation flow is delegated to `workflows/rotateCredential.ts` so the
@@ -11,14 +11,14 @@
 "use node";
 
 import { ConvexError, v } from "convex/values";
-import { internal } from "./_generated/api";
-import type { Id } from "./_generated/dataModel";
-import type { ActionCtx } from "./_generated/server";
-import { action } from "./_generated/server";
-import { cldPing, utPing } from "./providers";
-import { mapCloudinaryError, mapUploadThingError } from "./providers/errors";
-import { parseCloudinarySecret } from "./providers/shared";
-import { getRateLimitKey, rateLimiter } from "./rateLimits";
+import { internal } from "../_generated/api";
+import type { Id } from "../_generated/dataModel";
+import type { ActionCtx } from "../_generated/server";
+import { action } from "../_generated/server";
+import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
+import { cldPing, utPing } from "../providers";
+import { mapCloudinaryError, mapUploadThingError } from "../providers/errors";
+import { parseCloudinarySecret } from "../providers/shared";
 
 const PROVIDER_VALIDATOR = v.union(
   v.literal("uploadthing"),
@@ -57,11 +57,11 @@ export const setCredentials = action({
 
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
-    const user = await ctx.runQuery(internal.users.internalGetByToken, {
+    const user = await ctx.runQuery(internal.account.users.internalGetByToken, {
       tokenIdentifier: identity.tokenIdentifier,
     });
     if (!user) throw new Error("User not found");
-    const project = await ctx.runQuery(internal.projects.internalGet, {
+    const project = await ctx.runQuery(internal.cms.projects.internalGet, {
       projectId: args.projectId,
     });
     if (!project || project.userId !== user._id) {
@@ -83,19 +83,22 @@ export const setCredentials = action({
     }
 
     const existing = await ctx.runQuery(
-      internal.mediaCredentialsDb._findByProjectAndProvider,
+      internal.media.credentialsDb._findByProjectAndProvider,
       { projectId: args.projectId, provider: args.provider },
     );
 
-    const created = await ctx.runAction(internal.secretStore._create, {
-      value: args.secret,
-      meta: {
-        userId: user._id,
-        projectId: args.projectId,
-        provider: args.provider,
-        label: `${args.provider}-creds`,
+    const created = await ctx.runAction(
+      internal.integrations.secretStore._create,
+      {
+        value: args.secret,
+        meta: {
+          userId: user._id,
+          projectId: args.projectId,
+          provider: args.provider,
+          label: `${args.provider}-creds`,
+        },
       },
-    });
+    );
 
     let credentialId: Id<"mediaCredentials">;
     if (existing) {
@@ -116,13 +119,13 @@ export const setCredentials = action({
         replaceArgs.publicConfig = args.publicConfig;
       }
       await ctx.runMutation(
-        internal.mediaCredentialsDb._replaceVaultId,
+        internal.media.credentialsDb._replaceVaultId,
         replaceArgs,
       );
       // Best-effort delete of the prior vault entry. If this fails, the new
       // pointer is already in place so the user is unaffected.
       try {
-        await ctx.runAction(internal.secretStore._delete, {
+        await ctx.runAction(internal.integrations.secretStore._delete, {
           id: existing.vaultSecretId,
         });
       } catch {
@@ -149,7 +152,7 @@ export const setCredentials = action({
         insertArgs.publicConfig = args.publicConfig;
       }
       credentialId = await ctx.runMutation(
-        internal.mediaCredentialsDb._insert,
+        internal.media.credentialsDb._insert,
         insertArgs,
       );
     }
@@ -169,7 +172,7 @@ export const setCredentials = action({
     } else {
       statusArgs.lastVerifyError = verify.message;
     }
-    await ctx.runMutation(internal.mediaCredentialsDb._setStatus, statusArgs);
+    await ctx.runMutation(internal.media.credentialsDb._setStatus, statusArgs);
 
     const result: {
       credentialId: Id<"mediaCredentials">;
@@ -205,9 +208,12 @@ export const testCredentials = action({
 
     const cred = await loadOwnedCredential(ctx, args.projectId, args.provider);
     await rateLimiter.limit(ctx, "vault:read", { key, throws: true });
-    const secret: string = await ctx.runAction(internal.secretStore._read, {
-      id: cred.vaultSecretId,
-    });
+    const secret: string = await ctx.runAction(
+      internal.integrations.secretStore._read,
+      {
+        id: cred.vaultSecretId,
+      },
+    );
 
     const verify = await runProviderPing(args.provider, secret);
     const patch: {
@@ -221,7 +227,7 @@ export const testCredentials = action({
     };
     if (verify.ok) patch.lastVerifiedAt = Date.now();
     else patch.lastVerifyError = verify.message;
-    await ctx.runMutation(internal.mediaCredentialsDb._setStatus, patch);
+    await ctx.runMutation(internal.media.credentialsDb._setStatus, patch);
     return verify;
   },
 });
@@ -264,7 +270,7 @@ export const rotate = action({
       }
     }
 
-    await ctx.runMutation(internal.mediaCredentialsDb._setStatus, {
+    await ctx.runMutation(internal.media.credentialsDb._setStatus, {
       credentialId: cred._id,
       status: "rotating" as const,
     });
@@ -308,7 +314,7 @@ export const deleteCredentials = action({
     });
 
     const cred = await loadOwnedCredential(ctx, args.projectId, args.provider);
-    const project = await ctx.runQuery(internal.projects.internalGet, {
+    const project = await ctx.runQuery(internal.cms.projects.internalGet, {
       projectId: args.projectId,
     });
     if (project?.mediaStorageMode === args.provider) {
@@ -320,13 +326,13 @@ export const deleteCredentials = action({
     }
 
     try {
-      await ctx.runAction(internal.secretStore._delete, {
+      await ctx.runAction(internal.integrations.secretStore._delete, {
         id: cred.vaultSecretId,
       });
     } catch {
       // Vault entry may already be gone; row removal still proceeds.
     }
-    await ctx.runMutation(internal.mediaCredentialsDb._delete, {
+    await ctx.runMutation(internal.media.credentialsDb._delete, {
       credentialId: cred._id,
     });
   },
@@ -343,18 +349,18 @@ async function loadOwnedCredential(
 ): Promise<{ _id: Id<"mediaCredentials">; vaultSecretId: string }> {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) throw new Error("Not authenticated");
-  const user = await ctx.runQuery(internal.users.internalGetByToken, {
+  const user = await ctx.runQuery(internal.account.users.internalGetByToken, {
     tokenIdentifier: identity.tokenIdentifier,
   });
   if (!user) throw new Error("User not found");
-  const project = await ctx.runQuery(internal.projects.internalGet, {
+  const project = await ctx.runQuery(internal.cms.projects.internalGet, {
     projectId,
   });
   if (!project || project.userId !== user._id) {
     throw new Error("Unauthorized");
   }
   const cred = await ctx.runQuery(
-    internal.mediaCredentialsDb._findByProjectAndProvider,
+    internal.media.credentialsDb._findByProjectAndProvider,
     { projectId, provider },
   );
   if (!cred) {

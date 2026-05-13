@@ -10,24 +10,19 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { fadeSlideUp, smoothTransition } from "@/lib/motion";
 import { useCalendarStore } from "@/stores/calendar-store";
 import { useEditorStore } from "@/stores/editor-store";
-import { DEFAULT_BOARD_COLUMNS } from "@/types/board";
+import { type BoardColumnDef, DEFAULT_BOARD_COLUMNS } from "@/types/board";
 import { api } from "../../../../../../convex/_generated/api";
 import type { Id } from "../../../../../../convex/_generated/dataModel";
-
-// biome-ignore lint/suspicious/noExplicitAny: api types are generated at build time via `npx convex dev`
-const projectsGet = (api as any).projects.get;
-// biome-ignore lint/suspicious/noExplicitAny: api types are generated at build time via `npx convex dev`
-const documentsListForCalendar = (api as any).documents.listForCalendar;
-// biome-ignore lint/suspicious/noExplicitAny: api types are generated at build time via `npx convex dev`
-const boardColumnsGetColumns = (api as any).boardColumns.getColumns;
 
 export default function CalendarPage() {
   const params = useParams<{ projectId: string }>();
   const projectId = params.projectId as Id<"projects">;
 
-  const project = useQuery(projectsGet, { projectId });
-  const documents = useQuery(documentsListForCalendar, { projectId });
-  const boardColumns = useQuery(boardColumnsGetColumns, { projectId });
+  const project = useQuery(api.cms.projects.get, { projectId });
+  const documents = useQuery(api.cms.documents.listForCalendar, { projectId });
+  const boardColumns = useQuery(api.cms.boardColumns.getColumns, {
+    projectId,
+  }) as BoardColumnDef[] | undefined;
 
   // Set active project in sidebar
   useEffect(() => {

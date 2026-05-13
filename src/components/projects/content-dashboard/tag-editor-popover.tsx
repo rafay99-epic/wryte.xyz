@@ -69,7 +69,7 @@ export function TagEditorPopover({
   const popoverRef = React.useRef<HTMLDivElement>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
 
-  const updateTags = useMutation(api.documents.updateTags);
+  const updateTags = useMutation(api.cms.documents.updateTags);
 
   // Sync tags when prop changes (e.g. external update)
   React.useEffect(() => {

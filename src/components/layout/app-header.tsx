@@ -43,11 +43,6 @@ import { type BoardColumnDef, DEFAULT_BOARD_COLUMNS } from "@/types/board";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 
-// biome-ignore lint/suspicious/noExplicitAny: api types are generated at build time via `npx convex dev`
-const projectsGet = (api as any).projects.get;
-// biome-ignore lint/suspicious/noExplicitAny: api types are generated at build time via `npx convex dev`
-const documentsGet = (api as any).documents.get;
-
 /**
  * Editor header with article navigation arrows, bookmark, focus mode,
  * save status, and publish actions — matching the Seospace reference layout.
@@ -88,13 +83,13 @@ export function AppHeader() {
   );
 
   const project = useQuery(
-    projectsGet,
+    api.cms.projects.get,
     activeProjectId ? { projectId: activeProjectId as Id<"projects"> } : "skip",
   );
 
   // Fetch current document for bookmark state
   const document = useQuery(
-    documentsGet,
+    api.cms.documents.get,
     isEditorPage && documentId
       ? { documentId: documentId as Id<"documents"> }
       : "skip",
@@ -102,14 +97,14 @@ export function AppHeader() {
 
   // Board columns for status selector
   const boardColumns = useQuery(
-    api.boardColumns.getColumns,
+    api.cms.boardColumns.getColumns,
     activeProjectId ? { projectId: activeProjectId as Id<"projects"> } : "skip",
   ) as BoardColumnDef[] | undefined;
   const columns = boardColumns ?? DEFAULT_BOARD_COLUMNS;
 
   // Publish history for count display
   const publishHistory = useQuery(
-    api.documents.getPublishHistory,
+    api.cms.documents.getPublishHistory,
     isEditorPage && documentId
       ? { documentId: documentId as Id<"documents"> }
       : "skip",
@@ -117,10 +112,10 @@ export function AppHeader() {
   const publishCount = publishHistory?.length ?? 0;
 
   // Toggle bookmark mutation
-  const toggleBookmark = useMutation(api.documents.toggleBookmark);
+  const toggleBookmark = useMutation(api.cms.documents.toggleBookmark);
 
   // Status mutation
-  const updateStatus = useMutation(api.documents.updateStatus);
+  const updateStatus = useMutation(api.cms.documents.updateStatus);
 
   const handleToggleBookmark = async () => {
     if (!documentId) return;
@@ -136,7 +131,7 @@ export function AppHeader() {
 
   // Query documents list for article navigation
   const documents = useQuery(
-    api.documents.list,
+    api.cms.documents.list,
     activeProjectId && isEditorPage
       ? { projectId: activeProjectId as Id<"projects"> }
       : "skip",

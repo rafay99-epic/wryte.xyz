@@ -33,7 +33,7 @@ interface CalendarViewProps {
   columns: BoardColumnDef[];
   projectId: string;
   /** IANA timezone for the project. Falls back to the browser timezone. */
-  timezone?: string | null;
+  timezone?: string | null | undefined;
 }
 
 export function CalendarView({

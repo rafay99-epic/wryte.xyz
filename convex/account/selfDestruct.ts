@@ -16,17 +16,18 @@
 
 import type { WorkflowId } from "@convex-dev/workflow";
 import { v } from "convex/values";
-import { internal } from "./_generated/api";
-import type { Id } from "./_generated/dataModel";
+import { internal } from "../_generated/api";
+import type { Id } from "../_generated/dataModel";
 import {
   action,
   internalMutation,
   internalQuery,
   type MutationCtx,
   query,
-} from "./_generated/server";
-import { getRateLimitKey, rateLimiter } from "./rateLimits";
-import { publishWorkflowManager } from "./scheduling";
+} from "../_generated/server";
+import { getAuthedUserOrNull } from "../_lib/auth";
+import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
+import { publishWorkflowManager } from "../integrations/scheduling";
 
 /* ------------------------------------------------------------------ */
 /*  Public query: pre-flight inventory for the confirmation dialog     */
@@ -39,15 +40,7 @@ import { publishWorkflowManager } from "./scheduling";
 export const selfDestructPreview = query({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return null;
-
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_tokenIdentifier", (q) =>
-        q.eq("tokenIdentifier", identity.tokenIdentifier),
-      )
-      .unique();
+    const user = await getAuthedUserOrNull(ctx);
     if (!user) return null;
 
     const projects = await ctx.db
@@ -150,14 +143,14 @@ export const selfDestruct = action({
     const key = await getRateLimitKey(ctx);
     await rateLimiter.limit(ctx, "users:selfDestruct", { key, throws: true });
 
-    const user = await ctx.runQuery(internal.users.internalGetByToken, {
+    const user = await ctx.runQuery(internal.account.users.internalGetByToken, {
       tokenIdentifier: identity.tokenIdentifier,
     });
     if (!user) throw new Error("User not found");
 
     /* -- Step A: cancel scheduled-publish workflows -- */
     const cancellationTargets = await ctx.runQuery(
-      internal.selfDestruct._listCancellationTargets,
+      internal.account.selfDestruct._listCancellationTargets,
       { userId: user._id },
     );
     let scheduledCancelled = 0;
@@ -178,14 +171,17 @@ export const selfDestruct = action({
     }
 
     /* -- Step B: vault cleanup (best-effort) -- */
-    const vaultIds = await ctx.runQuery(internal.selfDestruct._listVaultIds, {
-      userId: user._id,
-    });
+    const vaultIds = await ctx.runQuery(
+      internal.account.selfDestruct._listVaultIds,
+      {
+        userId: user._id,
+      },
+    );
     let vaultDeleted = 0;
     let vaultOrphaned = 0;
     for (const id of vaultIds) {
       try {
-        await ctx.runAction(internal.secretStore._delete, { id });
+        await ctx.runAction(internal.integrations.secretStore._delete, { id });
         vaultDeleted++;
       } catch {
         // WorkOS unreachable or entry already gone — keep going. The Convex
@@ -202,10 +198,13 @@ export const selfDestruct = action({
     let documentsDeleted = 0;
     let mediaDeleted = 0;
     for (let i = 0; i < 200; i++) {
-      const chunk = await ctx.runMutation(internal.selfDestruct._wipeChunk, {
-        userId: user._id,
-        batch: 200,
-      });
+      const chunk = await ctx.runMutation(
+        internal.account.selfDestruct._wipeChunk,
+        {
+          userId: user._id,
+          batch: 200,
+        },
+      );
       projectsDeleted += chunk.projectsDeleted;
       documentsDeleted += chunk.documentsDeleted;
       mediaDeleted += chunk.mediaDeleted;
@@ -213,7 +212,7 @@ export const selfDestruct = action({
     }
 
     /* -- Step D: reset the user row in place -- */
-    await ctx.runMutation(internal.selfDestruct._resetUserRow, {
+    await ctx.runMutation(internal.account.selfDestruct._resetUserRow, {
       userId: user._id,
     });
 

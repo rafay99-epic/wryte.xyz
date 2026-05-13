@@ -79,8 +79,8 @@ export function ContentTableRow({
   onDelete,
   onDeleteRemote,
 }: ContentTableRowProps) {
-  const duplicateDoc = useMutation(api.documents.duplicate);
-  const moveCard = useMutation(api.documents.moveCard);
+  const duplicateDoc = useMutation(api.cms.documents.duplicate);
+  const moveCard = useMutation(api.cms.documents.moveCard);
 
   const handleDuplicate = useCallback(async () => {
     if (!item.id) return;

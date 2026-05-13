@@ -37,7 +37,8 @@
         "noImgElement": "off"
       },
       "style": {
-        "noDescendingSpecificity": "off"
+        "noDescendingSpecificity": "off",
+        "noNonNullAssertion": "error"
       },
       "a11y": {
         "noLabelWithoutControl": "off",
@@ -51,7 +52,17 @@
       },
       "suspicious": {
         "noArrayIndexKey": "off",
-        "noUnknownAtRules": "off"
+        "noUnknownAtRules": "off",
+        "noExplicitAny": "error",
+        "noConsole": {
+          "level": "warn",
+          "options": {
+            "allow": ["error", "warn", "info"]
+          }
+        }
+      },
+      "correctness": {
+        "useExhaustiveDependencies": "error"
       }
     },
     "domains": {

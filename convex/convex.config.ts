@@ -10,4 +10,5 @@ app.use(persistentTextStreaming);
 app.use(rateLimiter);
 app.use(workpool, { name: "mediaUploadPool" });
 app.use(workpool, { name: "mediaMaintenancePool" });
+app.use(workpool, { name: "githubImportPool" });
 export default app;

@@ -71,7 +71,7 @@ interface UnifiedMediaItem {
 export default function MediaPage() {
   const params = useParams<{ projectId: string }>();
   const projectId = params.projectId as Id<"projects">;
-  const project = useQuery(api.projects.get, { projectId });
+  const project = useQuery(api.cms.projects.get, { projectId });
 
   useEffect(() => {
     useEditorStore.getState().setActiveProjectId(projectId);
@@ -132,7 +132,7 @@ export default function MediaPage() {
   const { invalidateMedia } = useGithubInvalidation();
 
   /* ---------- UploadThing / Cloudinary source (Convex action) ---------- */
-  const listMedia = useAction(api.media.list);
+  const listMedia = useAction(api.media.uploads.list);
   const [providerItems, setProviderItems] = useState<UnifiedMediaItem[]>([]);
   const [isProviderLoading, setIsProviderLoading] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -758,7 +758,7 @@ function UploadMediaDialog({
   onOpenChange: (open: boolean) => void;
   onUploaded: () => void;
 }) {
-  const uploadMedia = useAction(api.media.upload);
+  const uploadMedia = useAction(api.media.uploads.upload);
   const { compress, isCompressing, resolvedSettings } =
     useImageCompression(projectId);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -935,7 +935,7 @@ function DeleteMediaDialog({
   onRestore: (externalId: string) => void;
   onDeleted: () => void;
 }) {
-  const deleteByRef = useAction(api.media.deleteByRef);
+  const deleteByRef = useAction(api.media.uploads.deleteByRef);
 
   const handleDelete = useCallback(() => {
     if (!item) return;

@@ -50,7 +50,7 @@ export function MarkdownEditor() {
   // the feature, but route them to settings when nothing's configured.
   const activeProjectId = useEditorStore((s) => s.activeProjectId);
   const aiReadiness = useQuery(
-    api.ai.isAiReady,
+    api.ai.enhance.isAiReady,
     activeProjectId ? { projectId: activeProjectId as Id<"projects"> } : "skip",
   );
   const aiReady = aiReadiness?.ready ?? false;

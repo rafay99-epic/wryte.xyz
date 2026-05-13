@@ -103,9 +103,9 @@ export function AppSidebar() {
   const activeProjectId = useEditorStore((s) => s.activeProjectId);
   const setActiveProjectId = useEditorStore((s) => s.setActiveProjectId);
 
-  const projects = useQuery(api.projects.list);
+  const projects = useQuery(api.cms.projects.list);
   const documents = useQuery(
-    api.documents.list,
+    api.cms.documents.list,
     activeProjectId ? { projectId: activeProjectId as Id<"projects"> } : "skip",
   );
 

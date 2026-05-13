@@ -9,19 +9,21 @@
  * `verifyRepoAccess` is the lone exception because it runs *before* a
  * user has anywhere to store a token (the connect wizard).
  *
- * Media migration at publish time has been removed — uploads now go directly
- * to the project's configured provider via `convex/media.ts:upload`.
+ * Media migration at publish time has been removed — uploads now go
+ * directly to the project's configured provider via
+ * `convex/media/uploads.ts:upload`.
  */
 "use node";
 
 import { Octokit } from "@octokit/rest";
 import { v } from "convex/values";
-import { api, internal } from "./_generated/api";
-import type { Id } from "./_generated/dataModel";
-import type { ActionCtx } from "./_generated/server";
-import { action, internalAction } from "./_generated/server";
-import { getGithubToken } from "./auth_helpers";
-import { getRateLimitKey, rateLimiter } from "./rateLimits";
+import { internal } from "../_generated/api";
+import type { Id } from "../_generated/dataModel";
+import type { ActionCtx } from "../_generated/server";
+import { action, internalAction } from "../_generated/server";
+import { getGithubToken } from "../_lib/auth";
+import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
+import { importPool } from "../_pools/import";
 
 /**
  * Assembles a complete markdown file with YAML frontmatter from structured data.
@@ -198,21 +200,21 @@ export const publishToGithub = internalAction({
     documentId: v.id("documents"),
   },
   handler: async (ctx, args) => {
-    const document = await ctx.runQuery(internal.documents.internalGet, {
+    const document = await ctx.runQuery(internal.cms.documents.internalGet, {
       documentId: args.documentId,
     });
     if (!document) {
       throw new Error("Document not found");
     }
 
-    const project = await ctx.runQuery(internal.projects.internalGet, {
+    const project = await ctx.runQuery(internal.cms.projects.internalGet, {
       projectId: document.projectId,
     });
     if (!project) {
       throw new Error("Project not found");
     }
 
-    const user = await ctx.runQuery(internal.users.internalGet, {
+    const user = await ctx.runQuery(internal.account.users.internalGet, {
       userId: project.userId,
     });
     if (!user) {
@@ -334,7 +336,7 @@ export const publishToGithub = internalAction({
 
     const publishedAt = Date.now();
 
-    await ctx.runMutation(internal.documents.internalUpdateAfterPublish, {
+    await ctx.runMutation(internal.cms.documents.internalUpdateAfterPublish, {
       documentId: args.documentId,
       githubPath: filePath,
       githubSha: newSha,
@@ -370,7 +372,7 @@ export const publishToGithub = internalAction({
       historyArgs.frontmatterSnapshot = document.frontmatter;
 
     await ctx.runMutation(
-      internal.documents.internalRecordPublishHistory,
+      internal.cms.documents.internalRecordPublishHistory,
       historyArgs,
     );
   },
@@ -393,21 +395,21 @@ export const publish = action({
       throw new Error("Not authenticated");
     }
 
-    const document = await ctx.runQuery(internal.documents.internalGet, {
+    const document = await ctx.runQuery(internal.cms.documents.internalGet, {
       documentId: args.documentId,
     });
     if (!document) {
       throw new Error("Document not found");
     }
 
-    const project = await ctx.runQuery(internal.projects.internalGet, {
+    const project = await ctx.runQuery(internal.cms.projects.internalGet, {
       projectId: document.projectId,
     });
     if (!project) {
       throw new Error("Project not found");
     }
 
-    const user = await ctx.runQuery(internal.users.internalGet, {
+    const user = await ctx.runQuery(internal.account.users.internalGet, {
       userId: project.userId,
     });
     if (!user) {
@@ -418,7 +420,7 @@ export const publish = action({
       throw new Error("Unauthorized: you do not own this document");
     }
 
-    await ctx.runAction(internal.github.publishToGithub, {
+    await ctx.runAction(internal.integrations.github.publishToGithub, {
       documentId: args.documentId,
     });
   },
@@ -447,12 +449,12 @@ export const bulkPublish = action({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
 
-    const project = await ctx.runQuery(internal.projects.internalGet, {
+    const project = await ctx.runQuery(internal.cms.projects.internalGet, {
       projectId: args.projectId,
     });
     if (!project) throw new Error("Project not found");
 
-    const user = await ctx.runQuery(internal.users.internalGet, {
+    const user = await ctx.runQuery(internal.account.users.internalGet, {
       userId: project.userId,
     });
     if (!user) throw new Error("User not found");
@@ -481,7 +483,7 @@ export const bulkPublish = action({
     }> = [];
 
     for (const docId of args.documentIds) {
-      const doc = await ctx.runQuery(internal.documents.internalGet, {
+      const doc = await ctx.runQuery(internal.cms.documents.internalGet, {
         documentId: docId,
       });
       if (doc && doc.projectId === args.projectId) {
@@ -637,7 +639,7 @@ export const bulkPublish = action({
       const blobEntry = treeEntries.find((t) => t.path === entry.filePath);
       const newFileSha = blobEntry?.sha ?? newCommit.sha;
 
-      await ctx.runMutation(internal.documents.internalUpdateAfterPublish, {
+      await ctx.runMutation(internal.cms.documents.internalUpdateAfterPublish, {
         documentId: entry.doc.id,
         githubPath: entry.filePath,
         githubSha: newFileSha,
@@ -678,7 +680,7 @@ export const bulkPublish = action({
       }
 
       await ctx.runMutation(
-        internal.documents.internalRecordPublishHistory,
+        internal.cms.documents.internalRecordPublishHistory,
         bulkHistoryArgs,
       );
     }
@@ -714,14 +716,14 @@ export const uploadMediaToGithub = action({
       throw new Error("Not authenticated");
     }
 
-    const project = await ctx.runQuery(internal.projects.internalGet, {
+    const project = await ctx.runQuery(internal.cms.projects.internalGet, {
       projectId: args.projectId,
     });
     if (!project) {
       throw new Error("Project not found");
     }
 
-    const user = await ctx.runQuery(internal.users.internalGet, {
+    const user = await ctx.runQuery(internal.account.users.internalGet, {
       userId: project.userId,
     });
     if (!user) {
@@ -798,14 +800,14 @@ async function resolveGithubImportContext(
     throw new Error("Not authenticated");
   }
 
-  const project = await ctx.runQuery(internal.projects.internalGet, {
+  const project = await ctx.runQuery(internal.cms.projects.internalGet, {
     projectId: args.projectId,
   });
   if (!project) {
     throw new Error("Project not found");
   }
 
-  const user = await ctx.runQuery(internal.users.internalGet, {
+  const user = await ctx.runQuery(internal.account.users.internalGet, {
     userId: project.userId,
   });
   if (!user) {
@@ -912,8 +914,12 @@ async function importOneFile(
     mutationArgs.frontmatter = frontmatter;
   }
 
+  // Use the auth-skipped internal mutation so this works from both the
+  // public `importFileFromGithub` action (which has user identity) AND
+  // the workpool job (which doesn't). Ownership was verified upstream
+  // either way via `resolveGithubImportContext` / `startBulkImport`.
   const documentId = await ctx.runMutation(
-    api.documents.importFromGithub,
+    internal.cms.documents._importFromGithubInternal,
     mutationArgs,
   );
 
@@ -948,72 +954,137 @@ export const importFileFromGithub = action({
 });
 
 /**
- * Batch variant of {@link importFileFromGithub}. Auth, project lookup,
- * token resolution, and Octokit setup happen ONCE for the whole batch
- * instead of once per file, and the entire loop runs server-side so
- * there is exactly one client → Convex round-trip regardless of file
- * count. Charges a single token in the `github:importFile` rate-limit
- * bucket, so a 100-file import counts as one "call" against the limit.
+ * Workpool job — imports a single file and is dispatched once per file by
+ * {@link startBulkImport}. Internal-only: the public entry point creates
+ * the `import_batches` row and enqueues these in `convex/importPool.ts`.
  *
- * The action never throws on a per-file error; it returns
- * `{ succeeded, failed }` so the UI can summarise the result.
+ * The job intentionally does NOT touch the batch row directly — that's
+ * the responsibility of the workpool's `onComplete` callback so success
+ * and failure counters update atomically based on whether this returns
+ * or throws. Throwing here just records the failure in the batch's
+ * errors array; the rest of the batch keeps progressing.
+ *
+ * Token note: the OAuth/PAT is resolved once at batch start and threaded
+ * through each job. That trades a tiny bit of workpool-state visibility
+ * for a meaningful reduction in Clerk-SDK round-trips (200 files would
+ * otherwise be 200 Clerk calls).
  */
-export const importFilesFromGithub = action({
+export const _importOneFromGithubJob = internalAction({
   args: {
+    batchId: v.id("import_batches"),
     projectId: v.id("projects"),
-    filePaths: v.array(v.string()),
+    filePath: v.string(),
+    token: v.string(),
+    owner: v.string(),
+    repo: v.string(),
+    branch: v.string(),
   },
   handler: async (
     ctx,
     args,
-  ): Promise<{
-    succeeded: Array<{ filePath: string; documentId: string; title: string }>;
-    failed: Array<{ filePath: string; error: string }>;
-  }> => {
+  ): Promise<{ documentId: string; title: string; slug: string }> => {
+    const octokit = new Octokit({ auth: args.token });
+    return importOneFile(ctx, {
+      octokit,
+      owner: args.owner,
+      repo: args.repo,
+      branch: args.branch,
+      projectId: args.projectId,
+      filePath: args.filePath,
+    });
+  },
+});
+
+/**
+ * Public entry point for bulk import. Replaces the previous server-side
+ * `importFilesFromGithub` loop (which hit the per-document rate limit
+ * after 60 files). Validates ownership, creates an `import_batches` row,
+ * and enqueues one workpool job per file. Returns the batchId so the UI
+ * can subscribe to `documents.getImportBatch` for live progress.
+ *
+ * Runs as an action (not a mutation) because it needs to resolve the
+ * GitHub token before enqueuing — that's a vault/Clerk call, which is
+ * Node-only.
+ */
+export const startBulkImport = action({
+  args: {
+    projectId: v.id("projects"),
+    filePaths: v.array(v.string()),
+  },
+  handler: async (ctx, args): Promise<{ batchId: Id<"import_batches"> }> => {
     if (args.filePaths.length === 0) {
-      return { succeeded: [], failed: [] };
+      throw new Error("No files to import");
     }
-    // Hard cap so a single call can't keep the action alive past the
-    // Convex action timeout on huge archives.
-    if (args.filePaths.length > 200) {
+    // Dedup paths: if the same file appears twice, the second job hits
+    // the idempotent `_importFromGithubInternal` dedup-by-githubPath
+    // branch and returns the same documentId — but the batch counter
+    // would tick twice as "succeeded" while only one document exists,
+    // giving the user an inflated success count. De-dup upfront so
+    // total matches reality.
+    const filePaths = Array.from(new Set(args.filePaths));
+    // Workpool happily handles any size, but a single-batch cap keeps the
+    // UI responsive (progress is meaningful at this scale) and bounds
+    // enqueue cost. 200 is plenty for a typical Astro/Hugo blog migration.
+    if (filePaths.length > 200) {
       throw new Error("Cannot import more than 200 files in a single batch");
     }
 
     const key = await getRateLimitKey(ctx);
-    await rateLimiter.limit(ctx, "github:importFile", { key, throws: true });
+    await rateLimiter.limit(ctx, "documents:startBulkImport", {
+      key,
+      throws: true,
+    });
 
+    // Auth + project resolution + token in one go.
     const setup = await resolveGithubImportContext(ctx, {
       projectId: args.projectId,
     });
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+    const user = await ctx.runQuery(internal.account.users.internalGetByToken, {
+      tokenIdentifier: identity.tokenIdentifier,
+    });
+    if (!user) throw new Error("User not found");
 
-    const succeeded: Array<{
-      filePath: string;
-      documentId: string;
-      title: string;
-    }> = [];
-    const failed: Array<{ filePath: string; error: string }> = [];
+    // We need the token for the workpool jobs — re-resolve cleanly via
+    // the canonical resolver so we get the same Clerk → vault → legacy
+    // fallback every other action gets.
+    const token = await resolveToken(ctx, user._id);
 
-    for (const filePath of args.filePaths) {
-      try {
-        const result = await importOneFile(ctx, {
-          ...setup,
+    // Create the tracking row up front so the UI can subscribe to it
+    // immediately, even before the first job runs.
+    const batchId: Id<"import_batches"> = await ctx.runMutation(
+      internal.cms.documents._createImportBatch,
+      {
+        projectId: args.projectId,
+        userId: user._id,
+        total: filePaths.length,
+      },
+    );
+
+    // Enqueue all jobs in a single batch call to avoid N round-trips
+    // between the action and the workpool component.
+    for (const filePath of filePaths) {
+      await importPool.enqueueAction(
+        ctx,
+        internal.integrations.github._importOneFromGithubJob,
+        {
+          batchId,
           projectId: args.projectId,
           filePath,
-        });
-        succeeded.push({
-          filePath,
-          documentId: result.documentId,
-          title: result.title,
-        });
-      } catch (err) {
-        failed.push({
-          filePath,
-          error: err instanceof Error ? err.message : String(err),
-        });
-      }
+          token,
+          owner: setup.owner,
+          repo: setup.repo,
+          branch: setup.branch,
+        },
+        {
+          onComplete: internal.cms.documents._onImportFileComplete,
+          context: { batchId, filePath },
+        },
+      );
     }
 
-    return { succeeded, failed };
+    return { batchId };
   },
 });
 
@@ -1070,14 +1141,14 @@ export const deleteFileFromGithub = action({
       throw new Error("Not authenticated");
     }
 
-    const project = await ctx.runQuery(internal.projects.internalGet, {
+    const project = await ctx.runQuery(internal.cms.projects.internalGet, {
       projectId: args.projectId,
     });
     if (!project) {
       throw new Error("Project not found");
     }
 
-    const user = await ctx.runQuery(internal.users.internalGet, {
+    const user = await ctx.runQuery(internal.account.users.internalGet, {
       userId: project.userId,
     });
     if (!user) {
@@ -1107,5 +1178,226 @@ export const deleteFileFromGithub = action({
       sha: args.sha,
       branch,
     });
+  },
+});
+
+/* ------------------------------------------------------------------ */
+/*  Bulk delete — workpool job + public entry action                    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Workpool job that removes one item per the chosen mode. Symmetric to
+ * `_importOneFromGithubJob`. Throws on any failure so the workpool's
+ * `onComplete` callback can record it on the parent `delete_batches`
+ * row.
+ *
+ * Token, owner, repo, branch are passed in (resolved once by the parent
+ * action) so each job doesn't redundantly hit Clerk/Vault for hundreds
+ * of files. Token field is omitted entirely for local-only mode.
+ */
+export const _deleteOneJob = internalAction({
+  args: {
+    batchId: v.id("delete_batches"),
+    /** Project scope — the internal delete mutation enforces that the
+     *  doc actually belongs here, so a malformed payload can't reach
+     *  across projects. */
+    projectId: v.id("projects"),
+    mode: v.union(v.literal("local"), v.literal("github"), v.literal("both")),
+    documentId: v.optional(v.id("documents")),
+    filePath: v.optional(v.string()),
+    githubSha: v.optional(v.string()),
+    token: v.optional(v.string()),
+    owner: v.optional(v.string()),
+    repo: v.optional(v.string()),
+    branch: v.optional(v.string()),
+  },
+  handler: async (ctx, args): Promise<void> => {
+    // Step 1: local doc removal (cascades scheduled_publishes via the
+    // internal mutation). Skip when the user asked for GitHub-only.
+    if (args.mode !== "github" && args.documentId) {
+      await ctx.runMutation(internal.cms.documents._removeInternal, {
+        documentId: args.documentId,
+        projectId: args.projectId,
+      });
+    }
+
+    // Step 2: GitHub file removal. Requires all four of (token, owner,
+    // repo, branch, filePath, sha) — caller is responsible for filtering
+    // jobs that don't have GitHub state when mode includes "github".
+    if (args.mode !== "local") {
+      if (
+        !args.token ||
+        !args.owner ||
+        !args.repo ||
+        !args.branch ||
+        !args.filePath ||
+        !args.githubSha
+      ) {
+        // For "both" mode, a doc with no GitHub linkage is still a partial
+        // success — local was deleted in step 1. Surface a soft error so
+        // the user knows the GitHub copy wasn't touched.
+        if (args.mode === "both") {
+          throw new Error("Skipped GitHub delete: file was not synced");
+        }
+        throw new Error("Missing GitHub coordinates for delete");
+      }
+      const octokit = new Octokit({ auth: args.token });
+      try {
+        await octokit.repos.deleteFile({
+          owner: args.owner,
+          repo: args.repo,
+          path: args.filePath,
+          message: `Delete ${args.filePath.split("/").pop()}`,
+          sha: args.githubSha,
+          branch: args.branch,
+        });
+      } catch (err: unknown) {
+        const e = err as { status?: number; message?: string };
+        if (e.status === 404) {
+          // File already gone — idempotent success. Don't throw so the
+          // batch counts this as succeeded.
+          return;
+        }
+        throw err;
+      }
+    }
+  },
+});
+
+/**
+ * Public entry point for bulk delete. Same workpool pattern as
+ * `startBulkImport`: validate, create a tracking row, enqueue one job
+ * per item, return a `batchId`. UI subscribes to
+ * `documents.getDeleteBatch` for live progress.
+ *
+ * Item shape mirrors what the selection toolbar already collects so the
+ * caller doesn't have to do schema gymnastics.
+ */
+export const startBulkDelete = action({
+  args: {
+    projectId: v.id("projects"),
+    mode: v.union(v.literal("local"), v.literal("github"), v.literal("both")),
+    items: v.array(
+      v.object({
+        documentId: v.optional(v.id("documents")),
+        filePath: v.optional(v.string()),
+        githubSha: v.optional(v.string()),
+        /** Human label for the error array — slug, title, or path. */
+        label: v.string(),
+      }),
+    ),
+  },
+  handler: async (ctx, args): Promise<{ batchId: Id<"delete_batches"> }> => {
+    if (args.items.length === 0) {
+      throw new Error("Nothing to delete");
+    }
+    if (args.items.length > 200) {
+      throw new Error("Cannot delete more than 200 items in a single batch");
+    }
+
+    const key = await getRateLimitKey(ctx);
+    await rateLimiter.limit(ctx, "documents:startBulkDelete", {
+      key,
+      throws: true,
+    });
+
+    // Ownership + repo context. For local-only deletes we still verify
+    // the user owns the project; we skip the token + repo lookup since
+    // no GitHub call will fire.
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+    const project = await ctx.runQuery(internal.cms.projects.internalGet, {
+      projectId: args.projectId,
+    });
+    if (!project) throw new Error("Project not found");
+    const user = await ctx.runQuery(internal.account.users.internalGet, {
+      userId: project.userId,
+    });
+    if (!user) throw new Error("User not found");
+    if (user.tokenIdentifier !== identity.tokenIdentifier) {
+      throw new Error("Unauthorized: you do not own this project");
+    }
+
+    let token: string | undefined;
+    let owner: string | undefined;
+    let repo: string | undefined;
+    let branch: string | undefined;
+    if (args.mode !== "local") {
+      if (!project.githubRepo) {
+        throw new Error("GitHub repository not configured for this project");
+      }
+      token = await resolveToken(ctx, user._id);
+      const parsed = parseRepoString(project.githubRepo);
+      owner = parsed.owner;
+      repo = parsed.repo;
+      branch = project.githubBranch ?? "main";
+    }
+
+    // SECURITY: pre-flight check that every documentId in the payload
+    // actually belongs to `args.projectId`. The workpool job also
+    // re-checks this inside `_removeInternal` for defense in depth, but
+    // failing fast here keeps a malicious or buggy caller from even
+    // creating a batch row + N enqueued jobs that would have no-ops'd.
+    const documentIdsInPayload = args.items
+      .map((it) => it.documentId)
+      .filter((id): id is Id<"documents"> => id !== undefined);
+    if (documentIdsInPayload.length > 0) {
+      const docs = await ctx.runQuery(
+        internal.cms.documents._listByIdsForProject,
+        {
+          ids: documentIdsInPayload,
+          projectId: args.projectId,
+        },
+      );
+      if (docs.length !== documentIdsInPayload.length) {
+        throw new Error(
+          "One or more documents in the selection don't belong to this project",
+        );
+      }
+    }
+
+    const batchId: Id<"delete_batches"> = await ctx.runMutation(
+      internal.cms.documents._createDeleteBatch,
+      {
+        projectId: args.projectId,
+        userId: user._id,
+        mode: args.mode,
+        total: args.items.length,
+      },
+    );
+
+    for (const item of args.items) {
+      const jobArgs: {
+        batchId: Id<"delete_batches">;
+        projectId: Id<"projects">;
+        mode: typeof args.mode;
+        documentId?: Id<"documents">;
+        filePath?: string;
+        githubSha?: string;
+        token?: string;
+        owner?: string;
+        repo?: string;
+        branch?: string;
+      } = { batchId, projectId: args.projectId, mode: args.mode };
+      if (item.documentId) jobArgs.documentId = item.documentId;
+      if (item.filePath) jobArgs.filePath = item.filePath;
+      if (item.githubSha) jobArgs.githubSha = item.githubSha;
+      if (token) jobArgs.token = token;
+      if (owner) jobArgs.owner = owner;
+      if (repo) jobArgs.repo = repo;
+      if (branch) jobArgs.branch = branch;
+
+      await importPool.enqueueAction(
+        ctx,
+        internal.integrations.github._deleteOneJob,
+        jobArgs,
+        {
+          onComplete: internal.cms.documents._onDeleteFileComplete,
+          context: { batchId, label: item.label },
+        },
+      );
+    }
+
+    return { batchId };
   },
 });

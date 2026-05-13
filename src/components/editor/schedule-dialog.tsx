@@ -53,19 +53,6 @@ import { cn } from "@/lib/utils";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 
-// biome-ignore lint/suspicious/noExplicitAny: api types are generated at build time via `npx convex dev`
-const documentsGet = (api as any).documents.get;
-// biome-ignore lint/suspicious/noExplicitAny: api types are generated at build time via `npx convex dev`
-const projectsGet = (api as any).projects.get;
-// biome-ignore lint/suspicious/noExplicitAny: api types are generated at build time via `npx convex dev`
-const documentsUpdate = (api as any).documents.update;
-// biome-ignore lint/suspicious/noExplicitAny: api types are generated at build time via `npx convex dev`
-const schedulingSchedule = (api as any).scheduling.schedule;
-// biome-ignore lint/suspicious/noExplicitAny: api types are generated at build time via `npx convex dev`
-const schedulingCancel = (api as any).scheduling.cancel;
-// biome-ignore lint/suspicious/noExplicitAny: api types are generated at build time via `npx convex dev`
-const schedulingGetLatest = (api as any).scheduling.getLatestForDocument;
-
 interface ScheduleDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -205,16 +192,19 @@ export function ScheduleDialog({
   const [isScheduling, setIsScheduling] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
 
-  const document = useQuery(documentsGet, {
+  const document = useQuery(api.cms.documents.get, {
     documentId: documentId as Id<"documents">,
   });
   const project = useQuery(
-    projectsGet,
+    api.cms.projects.get,
     document ? { projectId: document.projectId } : "skip",
   );
-  const latestPublish = useQuery(schedulingGetLatest, {
-    documentId: documentId as Id<"documents">,
-  }) as
+  const latestPublish = useQuery(
+    api.integrations.scheduling.getLatestForDocument,
+    {
+      documentId: documentId as Id<"documents">,
+    },
+  ) as
     | {
         status: "pending" | "processing" | "completed" | "failed";
         scheduledAt: number;
@@ -223,9 +213,9 @@ export function ScheduleDialog({
     | null
     | undefined;
 
-  const schedulePublish = useMutation(schedulingSchedule);
-  const cancelSchedule = useMutation(schedulingCancel);
-  const updateDocument = useMutation(documentsUpdate);
+  const schedulePublish = useMutation(api.integrations.scheduling.schedule);
+  const cancelSchedule = useMutation(api.integrations.scheduling.cancel);
+  const updateDocument = useMutation(api.cms.documents.update);
 
   const isAlreadyScheduled = document?.status === "scheduled";
   const existingScheduledAt = document?.scheduledAt;

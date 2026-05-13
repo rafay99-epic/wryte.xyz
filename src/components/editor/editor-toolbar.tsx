@@ -79,7 +79,7 @@ export function EditorToolbar({ projectId }: EditorToolbarProps) {
   // Gate the AI Assistant pill: hide entirely until the project has a
   // provider + model + active credential. Surfaces only through the AI
   // settings tab; clicking a non-functional button is the wrong UX.
-  const aiReadiness = useQuery(api.ai.isAiReady, {
+  const aiReadiness = useQuery(api.ai.enhance.isAiReady, {
     projectId: projectId as Id<"projects">,
   });
   const aiReady = aiReadiness?.ready ?? false;

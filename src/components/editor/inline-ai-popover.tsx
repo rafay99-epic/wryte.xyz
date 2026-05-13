@@ -54,11 +54,13 @@ export function InlineAiPopover({
   const inputRef = useRef<HTMLInputElement>(null);
   const resultRef = useRef<HTMLDivElement>(null);
 
-  const createInlineStream = useMutation(api.ai.createInlineEnhanceStream);
+  const createInlineStream = useMutation(
+    api.ai.enhance.createInlineEnhanceStream,
+  );
 
   // Stream body (reactive)
   const streamBody = useQuery(
-    api.ai.getStreamBody,
+    api.ai.enhance.getStreamBody,
     streamId ? { streamId } : "skip",
   );
 
@@ -90,14 +92,13 @@ export function InlineAiPopover({
 
   // Reset on close
   useEffect(() => {
-    if (!open) {
-      const timer = setTimeout(() => {
-        setInstruction("");
-        setStreamId(undefined);
-        setSelectionSnapshot(null);
-      }, 200);
-      return () => clearTimeout(timer);
-    }
+    if (open) return;
+    const timer = setTimeout(() => {
+      setInstruction("");
+      setStreamId(undefined);
+      setSelectionSnapshot(null);
+    }, 200);
+    return () => clearTimeout(timer);
   }, [open]);
 
   const handleSubmit = useCallback(async () => {

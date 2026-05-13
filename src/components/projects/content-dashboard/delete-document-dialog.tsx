@@ -37,8 +37,10 @@ export function DeleteDocumentDialog({
   open,
   onOpenChange,
 }: DeleteDocumentDialogProps) {
-  const removeDocument = useMutation(api.documents.remove);
-  const deleteFromGithub = useAction(api.github.deleteFileFromGithub);
+  const removeDocument = useMutation(api.cms.documents.remove);
+  const deleteFromGithub = useAction(
+    api.integrations.github.deleteFileFromGithub,
+  );
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteMode, setDeleteMode] = useState<"local" | "github" | "both">(
     "local",

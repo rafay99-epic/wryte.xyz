@@ -180,8 +180,8 @@ export default function ProjectSettingsPage() {
   const params = useParams<{ projectId: string }>();
   const projectId = params.projectId as Id<"projects">;
   const router = useRouter();
-  const project = useQuery(api.projects.get, { projectId });
-  const user = useQuery(api.users.get);
+  const project = useQuery(api.cms.projects.get, { projectId });
+  const user = useQuery(api.account.users.get);
   const projectDeleted = project === null;
   const [activeTab, setActiveTab] = useState<SettingsTab>("general");
 
@@ -429,7 +429,7 @@ function GeneralSection({
   projectId: Id<"projects">;
   project: ProjectData;
 }) {
-  const updateProject = useMutation(api.projects.update);
+  const updateProject = useMutation(api.cms.projects.update);
   const [name, setName] = useState(project.name);
   const [siteUrl, setSiteUrl] = useState(project.siteUrl ?? "");
   const [defaultAuthor, setDefaultAuthor] = useState(
@@ -564,9 +564,9 @@ function GitHubSection({
   project: ProjectData;
   existingToken: string;
 }) {
-  const updateProject = useMutation(api.projects.update);
-  const updateGithubToken = useAction(api.users.updateGithubToken);
-  const verifyRepoAccess = useAction(api.github.verifyRepoAccess);
+  const updateProject = useMutation(api.cms.projects.update);
+  const updateGithubToken = useAction(api.account.users.updateGithubToken);
+  const verifyRepoAccess = useAction(api.integrations.github.verifyRepoAccess);
 
   const [oauthConnected, setOauthConnected] = useState<boolean | null>(null);
   const [oauthToken, setOauthToken] = useState<string | null>(null);
@@ -911,7 +911,7 @@ function ContentSection({
   projectId: Id<"projects">;
   project: ProjectData;
 }) {
-  const updateProject = useMutation(api.projects.update);
+  const updateProject = useMutation(api.cms.projects.update);
 
   const [contentPath, setContentPath] = useState(
     project.contentPath ?? "content/blog",
@@ -1017,7 +1017,7 @@ function MediaSection({
   projectId: Id<"projects">;
   project: ProjectData;
 }) {
-  const updateProject = useMutation(api.projects.update);
+  const updateProject = useMutation(api.cms.projects.update);
 
   const [mediaPath, setMediaPath] = useState(
     project.mediaPath ?? "public/images",
@@ -1155,8 +1155,8 @@ function ProjectCompressionSection({
   projectId: Id<"projects">;
   project: ProjectData;
 }) {
-  const updateProject = useMutation(api.projects.update);
-  const user = useQuery(api.users.get);
+  const updateProject = useMutation(api.cms.projects.update);
+  const user = useQuery(api.account.users.get);
 
   const accountDefault: CompressionSettings = useMemo(
     () => ({
@@ -1316,7 +1316,7 @@ function MediaModeOption({
 
 /**
  * Per-provider credential input + status. Stores secrets in the WorkOS Vault
- * via `api.mediaCredentials.setCredentials`; the secret itself never round-trips
+ * via `api.media.credentials.setCredentials`; the secret itself never round-trips
  * back to the client. Once configured, the row's `status` (active/verifying/
  * invalid/rotating) is reactive — the UI re-renders as the server pings.
  */
@@ -1327,15 +1327,15 @@ function MediaCredentialsForm({
   projectId: Id<"projects">;
   provider: "uploadthing" | "cloudinary";
 }) {
-  const config = useQuery(api.mediaCredentialsDb.getPublicConfig, {
+  const config = useQuery(api.media.credentialsDb.getPublicConfig, {
     projectId,
     provider,
   });
 
-  const setCredentials = useAction(api.mediaCredentials.setCredentials);
-  const testCredentials = useAction(api.mediaCredentials.testCredentials);
-  const rotate = useAction(api.mediaCredentials.rotate);
-  const deleteCredentials = useAction(api.mediaCredentials.deleteCredentials);
+  const setCredentials = useAction(api.media.credentials.setCredentials);
+  const testCredentials = useAction(api.media.credentials.testCredentials);
+  const rotate = useAction(api.media.credentials.rotate);
+  const deleteCredentials = useAction(api.media.credentials.deleteCredentials);
 
   const [token, setToken] = useState("");
   const [cloudName, setCloudName] = useState("");
@@ -1771,7 +1771,7 @@ function PublishingSection({
   projectId: Id<"projects">;
   project: ProjectData;
 }) {
-  const updateProject = useMutation(api.projects.update);
+  const updateProject = useMutation(api.cms.projects.update);
 
   const [commitTemplate, setCommitTemplate] = useState(
     project.commitMessageTemplate ?? "docs: publish {{filename}}",
@@ -1990,7 +1990,7 @@ function FrontmatterSection({
   projectId: Id<"projects">;
   project: ProjectData;
 }) {
-  const updateProject = useMutation(api.projects.update);
+  const updateProject = useMutation(api.cms.projects.update);
 
   const initialFields = useMemo(() => {
     if (project.frontmatterSchema) {
@@ -2757,7 +2757,7 @@ function AiSection({
   projectId: Id<"projects">;
   project: ProjectData;
 }) {
-  const updateProject = useMutation(api.projects.update);
+  const updateProject = useMutation(api.cms.projects.update);
   const [provider, setProvider] = useState(project.aiProvider ?? "");
   const [model, setModel] = useState(project.aiModel ?? "");
   const [isSaving, setIsSaving] = useState(false);
@@ -2950,7 +2950,7 @@ function AiSection({
 
 /**
  * Per-provider API key input + status. Stores the secret in the WorkOS
- * Vault via `api.aiCredentials.setCredentials`; the secret itself never
+ * Vault via `api.ai.credentials.setCredentials`; the secret itself never
  * round-trips back to the client. Mirrors `MediaCredentialsForm`.
  */
 function AiCredentialsForm({
@@ -2960,15 +2960,15 @@ function AiCredentialsForm({
   projectId: Id<"projects">;
   provider: AiProviderId;
 }) {
-  const config = useQuery(api.aiCredentialsDb.getPublicConfig, {
+  const config = useQuery(api.ai.credentialsDb.getPublicConfig, {
     projectId,
     provider,
   });
 
-  const setCredentials = useAction(api.aiCredentials.setCredentials);
-  const testCredentials = useAction(api.aiCredentials.testCredentials);
-  const rotate = useAction(api.aiCredentials.rotate);
-  const deleteCredentials = useAction(api.aiCredentials.deleteCredentials);
+  const setCredentials = useAction(api.ai.credentials.setCredentials);
+  const testCredentials = useAction(api.ai.credentials.testCredentials);
+  const rotate = useAction(api.ai.credentials.rotate);
+  const deleteCredentials = useAction(api.ai.credentials.deleteCredentials);
 
   const [secret, setSecret] = useState("");
   const [showSecret, setShowSecret] = useState(false);
@@ -3234,7 +3234,7 @@ function AiStatusBadge({
 
 function DangerZoneSection({ projectId }: { projectId: Id<"projects"> }) {
   const router = useRouter();
-  const removeProject = useMutation(api.projects.remove);
+  const removeProject = useMutation(api.cms.projects.remove);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 

@@ -1,13 +1,14 @@
 /**
  * Non-Node helpers for media records and usage counters.
  *
- * The public `media` actions in `convex/media.ts` (Node-only) call into
- * these helpers via `ctx.runQuery` / `ctx.runMutation`.
+ * The public `media` actions in `convex/media/uploads.ts` (Node-only) call
+ * into these helpers via `ctx.runQuery` / `ctx.runMutation`.
  */
 import { v } from "convex/values";
-import type { Id } from "./_generated/dataModel";
-import { internalMutation, internalQuery, query } from "./_generated/server";
-import { currentMonthBucket, QUOTAS } from "./quotas";
+import type { Id } from "../_generated/dataModel";
+import { internalMutation, internalQuery, query } from "../_generated/server";
+import { getAuthedUserOrNull } from "../_lib/auth";
+import { currentMonthBucket, QUOTAS } from "../_lib/quotas";
 
 const PROVIDER_VALIDATOR = v.union(
   v.literal("github"),
@@ -30,15 +31,7 @@ export const listForProject = query({
     pageSize: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return { items: [], nextCursor: null as number | null };
-
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_tokenIdentifier", (q) =>
-        q.eq("tokenIdentifier", identity.tokenIdentifier),
-      )
-      .unique();
+    const user = await getAuthedUserOrNull(ctx);
     if (!user) return { items: [], nextCursor: null as number | null };
     const project = await ctx.db.get(args.projectId);
     if (!project || project.userId !== user._id) {
@@ -64,14 +57,7 @@ export const listForProject = query({
 export const getUsage = query({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return null;
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_tokenIdentifier", (q) =>
-        q.eq("tokenIdentifier", identity.tokenIdentifier),
-      )
-      .unique();
+    const user = await getAuthedUserOrNull(ctx);
     if (!user) return null;
     const project = await ctx.db.get(args.projectId);
     if (!project || project.userId !== user._id) return null;
@@ -91,14 +77,7 @@ export const getUsage = query({
 export const legacyCount = query({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return 0;
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_tokenIdentifier", (q) =>
-        q.eq("tokenIdentifier", identity.tokenIdentifier),
-      )
-      .unique();
+    const user = await getAuthedUserOrNull(ctx);
     if (!user) return 0;
     const project = await ctx.db.get(args.projectId);
     if (!project || project.userId !== user._id) return 0;

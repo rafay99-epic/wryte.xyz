@@ -92,10 +92,10 @@ export function AiEnhanceButton({
     })),
   );
 
-  const project = useQuery(api.projects.get, {
+  const project = useQuery(api.cms.projects.get, {
     projectId: projectId as Id<"projects">,
   });
-  const createEnhanceStream = useMutation(api.ai.createEnhanceStream);
+  const createEnhanceStream = useMutation(api.ai.enhance.createEnhanceStream);
 
   const [streamId, setStreamId] = useState<string | undefined>(undefined);
   const [originalContent, setOriginalContent] = useState("");
@@ -104,7 +104,7 @@ export function AiEnhanceButton({
 
   // Query the stream body reactively — auto-updates as chunks arrive
   const streamBody = useQuery(
-    api.ai.getStreamBody,
+    api.ai.enhance.getStreamBody,
     streamId ? { streamId } : "skip",
   );
 
@@ -153,15 +153,14 @@ export function AiEnhanceButton({
 
   // Reset state when panel closes
   useEffect(() => {
-    if (!open) {
-      const timer = setTimeout(() => {
-        setStreamId(undefined);
-        setOriginalContent("");
-        setPromptExpanded(false);
-        setOriginalExpanded(false);
-      }, 300);
-      return () => clearTimeout(timer);
-    }
+    if (open) return;
+    const timer = setTimeout(() => {
+      setStreamId(undefined);
+      setOriginalContent("");
+      setPromptExpanded(false);
+      setOriginalExpanded(false);
+    }, 300);
+    return () => clearTimeout(timer);
   }, [open]);
 
   const handleEnhance = useCallback(async () => {

@@ -2,7 +2,7 @@
  * AI enhancement — mutations and queries.
  *
  * Runs in the default Convex runtime (NOT Node.js). All actual provider
- * streaming lives in `ai_actions.ts`. Mutations here resolve the project's
+ * streaming lives in `enhanceActions.ts`. Mutations here resolve the project's
  * configured AI credential row, hand the `vaultSecretId` to the scheduled
  * action, and short-circuit with a friendly error if anything's missing.
  */
@@ -13,15 +13,16 @@ import {
   StreamIdValidator,
 } from "@convex-dev/persistent-text-streaming";
 import { v } from "convex/values";
-import { components, internal } from "./_generated/api";
-import type { Doc } from "./_generated/dataModel";
+import { components, internal } from "../_generated/api";
+import type { Doc } from "../_generated/dataModel";
 import {
   internalQuery,
   type MutationCtx,
   mutation,
   query,
-} from "./_generated/server";
-import { getRateLimitKey, rateLimiter } from "./rateLimits";
+} from "../_generated/server";
+import { getAuthedUserOrNull, getCurrentUser } from "../_lib/auth";
+import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
 
 /* ------------------------------------------------------------------ */
 /*  Streaming instance                                                 */
@@ -69,23 +70,14 @@ async function resolveProjectAndCredential(
   model: string;
   vaultSecretId: string;
 }> {
-  const identity = await ctx.auth.getUserIdentity();
-  if (!identity) {
-    throw new Error("Not authenticated");
-  }
+  const user = await getCurrentUser(ctx);
 
   const project = await ctx.db.get(projectId);
   if (!project) {
     throw new Error("Project not found");
   }
 
-  const user = await ctx.db
-    .query("users")
-    .withIndex("by_tokenIdentifier", (q) =>
-      q.eq("tokenIdentifier", identity.tokenIdentifier),
-    )
-    .unique();
-  if (!user || project.userId !== user._id) {
+  if (project.userId !== user._id) {
     throw new Error("Unauthorized: you do not own this project");
   }
 
@@ -144,7 +136,7 @@ export const createEnhanceStream = mutation({
 
     const streamId = await streaming.createStream(ctx);
 
-    await ctx.scheduler.runAfter(0, internal.ai_actions.runEnhancement, {
+    await ctx.scheduler.runAfter(0, internal.ai.enhanceActions.runEnhancement, {
       streamId,
       provider,
       model,
@@ -182,14 +174,18 @@ export const createInlineEnhanceStream = mutation({
 
     const streamId = await streaming.createStream(ctx);
 
-    await ctx.scheduler.runAfter(0, internal.ai_actions.runInlineEnhancement, {
-      streamId,
-      provider,
-      model,
-      selectedText: args.selectedText,
-      instruction: args.instruction,
-      vaultSecretId,
-    });
+    await ctx.scheduler.runAfter(
+      0,
+      internal.ai.enhanceActions.runInlineEnhancement,
+      {
+        streamId,
+        provider,
+        model,
+        selectedText: args.selectedText,
+        instruction: args.instruction,
+        vaultSecretId,
+      },
+    );
 
     return { streamId, provider, model };
   },
@@ -215,7 +211,7 @@ export const createFrontmatterStream = mutation({
 
     await ctx.scheduler.runAfter(
       0,
-      internal.ai_actions.runFrontmatterSuggestion,
+      internal.ai.enhanceActions.runFrontmatterSuggestion,
       {
         streamId,
         provider,
@@ -258,19 +254,11 @@ export const isAiReady = query({
     provider?: "anthropic" | "openai" | "openrouter";
     model?: string;
   }> => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return { ready: false, reason: "unauthorized" };
+    const user = await getAuthedUserOrNull(ctx);
+    if (!user) return { ready: false, reason: "unauthorized" };
 
     const project = await ctx.db.get(args.projectId);
-    if (!project) return { ready: false, reason: "unauthorized" };
-
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_tokenIdentifier", (q) =>
-        q.eq("tokenIdentifier", identity.tokenIdentifier),
-      )
-      .unique();
-    if (!user || project.userId !== user._id) {
+    if (!project || project.userId !== user._id) {
       return { ready: false, reason: "unauthorized" };
     }
 

@@ -24,6 +24,8 @@
     "erasableSyntaxOnly": true,
     "noImplicitOverride": true,
     "exactOptionalPropertyTypes": true,
+    "noImplicitReturns": true,
+    "verbatimModuleSyntax": true,
     "plugins": [
       {
         "name": "next"

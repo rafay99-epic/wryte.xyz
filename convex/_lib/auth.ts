@@ -1,17 +1,21 @@
-import { internal } from "./_generated/api";
-import type { Doc, Id } from "./_generated/dataModel";
-import type { ActionCtx, MutationCtx } from "./_generated/server";
+import { internal } from "../_generated/api";
+import type { Doc, Id } from "../_generated/dataModel";
+import type { ActionCtx, MutationCtx, QueryCtx } from "../_generated/server";
 
 /** Minimal Convex mutation context slice needed for user lookup. */
 export type AuthDbCtx = Pick<MutationCtx, "auth" | "db">;
+
+/** Read-only context slice used by query handlers — accepts QueryCtx
+ *  and MutationCtx since DatabaseWriter extends DatabaseReader. */
+export type AuthQueryCtx = Pick<QueryCtx, "auth" | "db">;
 
 /**
  * Convex stores `tokenIdentifier` as `<issuer-url>|<clerk-user-id>`. Issuers
  * are URLs, so `|` only appears as the delimiter. Returns null if the
  * trailing segment doesn't look like a Clerk user id.
  *
- * Exported so `convex/users.ts` (and any future caller) can stay in sync
- * with the parsing convention without duplicating the logic.
+ * Exported so `convex/account/users.ts` (and any future caller) can stay
+ * in sync with the parsing convention without duplicating the logic.
  */
 export function parseClerkUserId(tokenIdentifier: string): string | null {
   const parts = tokenIdentifier.split("|");
@@ -56,6 +60,28 @@ export async function getCurrentUser(ctx: AuthDbCtx): Promise<Doc<"users">> {
 }
 
 /**
+ * Read-only twin of {@link getCurrentUser} for query handlers. Returns
+ * `null` when the request is unauthenticated or the user row hasn't been
+ * created yet so UI queries can render empty states rather than throwing.
+ *
+ * Does NOT lazy-backfill `clerkUserId` (queries are read-only). The
+ * backfill happens the next time the user hits a mutation — every authed
+ * flow does so within seconds, so reads can stay clean.
+ */
+export async function getAuthedUserOrNull(
+  ctx: AuthQueryCtx,
+): Promise<Doc<"users"> | null> {
+  const identity = await ctx.auth.getUserIdentity();
+  if (!identity) return null;
+  return await ctx.db
+    .query("users")
+    .withIndex("by_tokenIdentifier", (q) =>
+      q.eq("tokenIdentifier", identity.tokenIdentifier),
+    )
+    .unique();
+}
+
+/**
  * Resolves a user's GitHub access token. Three-tier fallback so the same
  * function works for both OAuth-connected and PAT-only users:
  *
@@ -78,13 +104,15 @@ export async function getGithubToken(
   ctx: ActionCtx,
   userId: Id<"users">,
 ): Promise<string | null> {
-  const user = await ctx.runQuery(internal.users.internalGet, { userId });
+  const user = await ctx.runQuery(internal.account.users.internalGet, {
+    userId,
+  });
   if (!user) return null;
 
   // 1. Clerk OAuth — the live, authoritative source for OAuth users.
   if (user.clerkUserId) {
     const oauthToken = await ctx.runAction(
-      internal.clerk._getGithubOauthToken,
+      internal.integrations.clerk._getGithubOauthToken,
       { clerkUserId: user.clerkUserId },
     );
     if (oauthToken) return oauthToken;
@@ -95,7 +123,7 @@ export async function getGithubToken(
   // 2. Vault PAT — manual override.
   if (user.githubVaultSecretId) {
     try {
-      return await ctx.runAction(internal.secretStore._read, {
+      return await ctx.runAction(internal.integrations.secretStore._read, {
         id: user.githubVaultSecretId,
       });
     } catch (err) {
@@ -107,14 +135,17 @@ export async function getGithubToken(
 
   // 3. Legacy plaintext — lazy migrate into the vault on first read.
   if (user.githubAccessToken) {
-    const created = await ctx.runAction(internal.secretStore._create, {
-      value: user.githubAccessToken,
-      meta: {
-        userId: user._id,
-        label: "github-pat-migrated",
+    const created = await ctx.runAction(
+      internal.integrations.secretStore._create,
+      {
+        value: user.githubAccessToken,
+        meta: {
+          userId: user._id,
+          label: "github-pat-migrated",
+        },
       },
-    });
-    await ctx.runMutation(internal.users._setGithubVaultId, {
+    );
+    await ctx.runMutation(internal.account.users._setGithubVaultId, {
       userId: user._id,
       vaultSecretId: created.id,
     });

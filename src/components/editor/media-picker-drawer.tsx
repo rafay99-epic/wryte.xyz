@@ -50,7 +50,7 @@ export function MediaPickerDrawer({
   onSelect,
 }: MediaPickerDrawerProps) {
   const project = useQuery(
-    api.projects.get,
+    api.cms.projects.get,
     projectId ? { projectId: projectId as Id<"projects"> } : "skip",
   );
 
@@ -67,7 +67,7 @@ export function MediaPickerDrawer({
   // when the editor uploaded an image — the source of truth for "Recent".
   const projectMedia =
     useQuery(
-      api.mediaDb.listForProject,
+      api.media.uploadsDb.listForProject,
       projectId
         ? { projectId: projectId as Id<"projects">, pageSize: 50 }
         : "skip",
@@ -364,7 +364,7 @@ function UploadTab({
   projectId: string;
   onUploaded: (url: string) => void;
 }) {
-  const uploadMedia = useAction(api.media.upload);
+  const uploadMedia = useAction(api.media.uploads.upload);
   const { compress, isCompressing, resolvedSettings } = useImageCompression(
     projectId as Id<"projects">,
   );

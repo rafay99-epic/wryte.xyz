@@ -13,7 +13,7 @@
  */
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
-import { compressionSettingsValidator } from "./compressionSettings";
+import { compressionSettingsValidator } from "./_lib/compression";
 
 export default defineSchema({
   /**
@@ -166,7 +166,13 @@ export default defineSchema({
     .index("by_projectId", ["projectId"])
     .index("by_userId", ["userId"])
     .index("by_projectId_and_status", ["projectId", "status"])
-    .index("by_status_and_scheduledAt", ["status", "scheduledAt"]),
+    .index("by_status_and_scheduledAt", ["status", "scheduledAt"])
+    // Drives the dedup-by-githubPath lookup in `importFromGithub` /
+    // `_importFromGithubInternal`. Without it both have to `.collect()`
+    // every document in the project to find a single match — a full
+    // table scan per imported file. With the index it's an O(log n)
+    // `.unique()` lookup.
+    .index("by_projectId_and_githubPath", ["projectId", "githubPath"]),
 
   /**
    * Publish history table — tracks every publish to GitHub for a document.
@@ -345,6 +351,96 @@ export default defineSchema({
   })
     .index("by_projectId_and_createdAt", ["projectId", "createdAt"])
     .index("by_userId_and_createdAt", ["userId", "createdAt"]),
+
+  /**
+   * Import batches — one row per bulk GitHub-to-Convex import. Jobs are
+   * dispatched through `convex/importPool.ts`; the `onComplete` callback
+   * increments `succeeded` or `failed` on this row so the UI can subscribe
+   * via `documents:getImportBatch` and render live progress without
+   * polling.
+   *
+   * `errors` is intentionally capped (see `convex/github.ts`) so a batch
+   * with hundreds of failures doesn't grow this row past the document
+   * size limit. The full error list lives in Convex logs when needed.
+   */
+  import_batches: defineTable({
+    projectId: v.id("projects"),
+    userId: v.id("users"),
+    total: v.number(),
+    // `succeeded`, `failed`, `errors` are legacy fields kept optional for
+    // backwards compatibility with older rows. New writes never touch
+    // them; counts are aggregated from `import_job_outcomes` to avoid
+    // OCC contention when many parallel workpool callbacks try to bump
+    // a shared counter (see https://docs.convex.dev/error#1).
+    succeeded: v.optional(v.number()),
+    failed: v.optional(v.number()),
+    errors: v.optional(
+      v.array(
+        v.object({
+          filePath: v.string(),
+          message: v.string(),
+        }),
+      ),
+    ),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_userId_and_createdAt", ["userId", "createdAt"])
+    .index("by_projectId_and_createdAt", ["projectId", "createdAt"]),
+
+  /**
+   * Per-file outcome rows for a bulk import. One row per workpool job,
+   * inserted by `_onImportFileComplete`. Splitting the counter across
+   * rows eliminates the OCC hotspot that comes from N parallel callbacks
+   * patching a single `import_batches` document.
+   */
+  import_job_outcomes: defineTable({
+    batchId: v.id("import_batches"),
+    status: v.union(v.literal("success"), v.literal("failure")),
+    filePath: v.string(),
+    errorMessage: v.optional(v.string()),
+    createdAt: v.number(),
+  }).index("by_batchId", ["batchId"]),
+
+  /**
+   * Delete batches — same shape as `import_batches` but for bulk deletes.
+   * `mode` records what the user asked to delete ("local" wipes only the
+   * Convex doc, "github" only touches the repo, "both" does both). Each
+   * job is one item; the workpool's `onComplete` increments counters
+   * here so the UI can stream progress without polling.
+   */
+  delete_batches: defineTable({
+    projectId: v.id("projects"),
+    userId: v.id("users"),
+    mode: v.union(v.literal("local"), v.literal("github"), v.literal("both")),
+    total: v.number(),
+    // Same story as import_batches — optional legacy fields, counts
+    // come from `delete_job_outcomes` to avoid the OCC hotspot.
+    succeeded: v.optional(v.number()),
+    failed: v.optional(v.number()),
+    errors: v.optional(
+      v.array(
+        v.object({
+          label: v.string(),
+          message: v.string(),
+        }),
+      ),
+    ),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_userId_and_createdAt", ["userId", "createdAt"])
+    .index("by_projectId_and_createdAt", ["projectId", "createdAt"]),
+
+  /** Per-item outcome rows for a bulk delete. Mirror of
+   *  `import_job_outcomes`. */
+  delete_job_outcomes: defineTable({
+    batchId: v.id("delete_batches"),
+    status: v.union(v.literal("success"), v.literal("failure")),
+    label: v.string(),
+    errorMessage: v.optional(v.string()),
+    createdAt: v.number(),
+  }).index("by_batchId", ["batchId"]),
 
   /**
    * Scheduled publishes table — lightweight job queue for deferred publishing.

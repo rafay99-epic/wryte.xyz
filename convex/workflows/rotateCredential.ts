@@ -51,7 +51,7 @@ export const rotateCredentialWorkflow = rotateWorkflowManager.define({
     );
 
     if (!verify.ok) {
-      await step.runMutation(internal.mediaCredentialsDb._setStatus, {
+      await step.runMutation(internal.media.credentialsDb._setStatus, {
         credentialId: args.credentialId,
         status: "active" as const,
         lastVerifyError: verify.message,
@@ -59,20 +59,23 @@ export const rotateCredentialWorkflow = rotateWorkflowManager.define({
       return;
     }
 
-    const cred = await step.runQuery(internal.mediaCredentialsDb._findById, {
+    const cred = await step.runQuery(internal.media.credentialsDb._findById, {
       credentialId: args.credentialId,
     });
     if (!cred) return;
 
-    const created = await step.runAction(internal.secretStore._create, {
-      value: args.newSecret,
-      meta: {
-        userId: cred.userId,
-        projectId: cred.projectId,
-        provider: args.provider,
-        label: `${args.provider}-creds-rotated`,
+    const created = await step.runAction(
+      internal.integrations.secretStore._create,
+      {
+        value: args.newSecret,
+        meta: {
+          userId: cred.userId,
+          projectId: cred.projectId,
+          provider: args.provider,
+          label: `${args.provider}-creds-rotated`,
+        },
       },
-    });
+    );
 
     const markArgs: {
       credentialId: typeof args.credentialId;
@@ -89,11 +92,11 @@ export const rotateCredentialWorkflow = rotateWorkflowManager.define({
     if (args.publicConfig !== undefined) {
       markArgs.publicConfig = args.publicConfig;
     }
-    await step.runMutation(internal.mediaCredentialsDb._markRotated, markArgs);
+    await step.runMutation(internal.media.credentialsDb._markRotated, markArgs);
 
     // Best-effort cleanup of the old vault entry. If this step fails the
     // workflow will retry it (orphan vault entries cost money).
-    await step.runAction(internal.secretStore._delete, {
+    await step.runAction(internal.integrations.secretStore._delete, {
       id: cred.vaultSecretId,
     });
   },

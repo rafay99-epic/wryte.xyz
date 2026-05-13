@@ -37,7 +37,9 @@ export function DeleteRemoteFileDialog({
   onOpenChange,
   onDeleted,
 }: DeleteRemoteFileDialogProps) {
-  const deleteFromGithub = useAction(api.github.deleteFileFromGithub);
+  const deleteFromGithub = useAction(
+    api.integrations.github.deleteFileFromGithub,
+  );
   const [isDeleting, setIsDeleting] = useState(false);
 
   const handleDelete = useCallback(async () => {

@@ -30,14 +30,14 @@ interface UseImageCompressionResult {
  * override → user default → built-in defaults) and exposes a `compress`
  * function plus an `isCompressing` flag for UI affordances.
  *
- * Subscribes to `api.users.get` and `api.projects.get`, so settings updates
+ * Subscribes to `api.account.users.get` and `api.cms.projects.get`, so settings updates
  * propagate to upload dialogs in real time.
  */
 export function useImageCompression(
   projectId: Id<"projects">,
 ): UseImageCompressionResult {
-  const user = useQuery(api.users.get);
-  const project = useQuery(api.projects.get, { projectId });
+  const user = useQuery(api.account.users.get);
+  const project = useQuery(api.cms.projects.get, { projectId });
   const [isCompressing, setIsCompressing] = useState(false);
 
   const resolvedSettings = useMemo<CompressionSettings>(

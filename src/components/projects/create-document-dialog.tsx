@@ -22,9 +22,6 @@ import { generateSlug } from "@/lib/markdown";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 
-// biome-ignore lint/suspicious/noExplicitAny: api types are generated at build time via `npx convex dev`
-const projectsGet = (api as any).projects.get;
-
 interface CreateDocumentDialogProps {
   projectId: Id<"projects">;
   open: boolean;
@@ -47,8 +44,8 @@ export function CreateDocumentDialog({
   initialStatus,
 }: CreateDocumentDialogProps) {
   const router = useRouter();
-  const createDocument = useMutation(api.documents.create);
-  const project = useQuery(projectsGet, { projectId });
+  const createDocument = useMutation(api.cms.documents.create);
+  const project = useQuery(api.cms.projects.get, { projectId });
 
   const [title, setTitle] = useState("");
   const [slug, setSlug] = useState("");

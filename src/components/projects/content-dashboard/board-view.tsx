@@ -75,11 +75,9 @@ export function BoardView({
     setPendingSchedule,
   } = useBoardStore();
 
-  const moveCard = useMutation(api.documents.moveCard);
+  const moveCard = useMutation(api.cms.documents.moveCard);
 
-  // Dynamic import for github publish action
-  // biome-ignore lint/suspicious/noExplicitAny: Convex api types are generated at build time
-  const publishAction = useAction((api as any).github.publish);
+  const publishAction = useAction(api.integrations.github.publish);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {

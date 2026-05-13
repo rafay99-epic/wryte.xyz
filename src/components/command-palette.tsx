@@ -94,8 +94,8 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   // Data sources
   // ---------------------------------------------------------------------------
 
-  const projects = useQuery(api.projects.list);
-  const recentDocs = useQuery(api.documents.listRecent, { limit: 20 });
+  const projects = useQuery(api.cms.projects.list);
+  const recentDocs = useQuery(api.cms.documents.listRecent, { limit: 20 });
 
   // ---------------------------------------------------------------------------
   // Build command items

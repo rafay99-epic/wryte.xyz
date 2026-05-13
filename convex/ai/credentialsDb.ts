@@ -1,22 +1,23 @@
 /**
- * Non-Node database helpers for `mediaCredentials`.
+ * Non-Node database helpers for `ai/credentials`.
  *
- * Convex requires queries and mutations to live in files without the
- * `"use node"` directive. This module holds the public query and the
- * internal queries / mutations that callers in `mediaCredentials.ts`
- * (Node-only actions) and `workflows/rotateCredential.ts` depend on.
+ * Mirrors `convex/media/credentialsDb.ts` exactly — split out so the
+ * Node-only action file can call into these via `ctx.runQuery` /
+ * `ctx.runMutation`.
  */
 import { v } from "convex/values";
-import { internalMutation, internalQuery, query } from "./_generated/server";
+import { internalMutation, internalQuery, query } from "../_generated/server";
+import { getAuthedUserOrNull } from "../_lib/auth";
 
 const PROVIDER_VALIDATOR = v.union(
-  v.literal("uploadthing"),
-  v.literal("cloudinary"),
+  v.literal("anthropic"),
+  v.literal("openai"),
+  v.literal("openrouter"),
 );
 
 /**
  * Public read for the settings UI. Never returns the secret — only the
- * opaque status fields the UI needs to render verification chips.
+ * fields the UI needs to render verification chips.
  */
 export const getPublicConfig = query({
   args: {
@@ -24,22 +25,14 @@ export const getPublicConfig = query({
     provider: PROVIDER_VALIDATOR,
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return null;
-
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_tokenIdentifier", (q) =>
-        q.eq("tokenIdentifier", identity.tokenIdentifier),
-      )
-      .unique();
+    const user = await getAuthedUserOrNull(ctx);
     if (!user) return null;
 
     const project = await ctx.db.get(args.projectId);
     if (!project || project.userId !== user._id) return null;
 
     const cred = await ctx.db
-      .query("mediaCredentials")
+      .query("aiCredentials")
       .withIndex("by_projectId_and_provider", (q) =>
         q.eq("projectId", args.projectId).eq("provider", args.provider),
       )
@@ -49,7 +42,6 @@ export const getPublicConfig = query({
     return {
       _id: cred._id,
       provider: cred.provider,
-      publicConfig: cred.publicConfig,
       status: cred.status,
       lastVerifiedAt: cred.lastVerifiedAt,
       lastVerifyError: cred.lastVerifyError,
@@ -60,43 +52,8 @@ export const getPublicConfig = query({
   },
 });
 
-/**
- * Lists all configured credentials for a project (uploadthing, cloudinary).
- * Returns at most one entry per provider. Never includes secrets.
- */
-export const listForProject = query({
-  args: { projectId: v.id("projects") },
-  handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return [];
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_tokenIdentifier", (q) =>
-        q.eq("tokenIdentifier", identity.tokenIdentifier),
-      )
-      .unique();
-    if (!user) return [];
-    const project = await ctx.db.get(args.projectId);
-    if (!project || project.userId !== user._id) return [];
-
-    const rows = await ctx.db
-      .query("mediaCredentials")
-      .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
-      .collect();
-    return rows.map((r) => ({
-      _id: r._id,
-      provider: r.provider,
-      publicConfig: r.publicConfig,
-      status: r.status,
-      lastVerifiedAt: r.lastVerifiedAt,
-      lastVerifyError: r.lastVerifyError,
-      rotatedAt: r.rotatedAt,
-    }));
-  },
-});
-
 /* ------------------------------------------------------------------ */
-/*  Internal queries / mutations consumed by actions and workflows.    */
+/*  Internal queries / mutations                                         */
 /* ------------------------------------------------------------------ */
 
 export const _findByProjectAndProvider = internalQuery({
@@ -106,7 +63,7 @@ export const _findByProjectAndProvider = internalQuery({
   },
   handler: async (ctx, args) => {
     return await ctx.db
-      .query("mediaCredentials")
+      .query("aiCredentials")
       .withIndex("by_projectId_and_provider", (q) =>
         q.eq("projectId", args.projectId).eq("provider", args.provider),
       )
@@ -115,7 +72,7 @@ export const _findByProjectAndProvider = internalQuery({
 });
 
 export const _findById = internalQuery({
-  args: { credentialId: v.id("mediaCredentials") },
+  args: { credentialId: v.id("aiCredentials") },
   handler: async (ctx, args) => ctx.db.get(args.credentialId),
 });
 
@@ -126,20 +83,16 @@ export const _insert = internalMutation({
     provider: PROVIDER_VALIDATOR,
     vaultSecretId: v.string(),
     vaultVersionId: v.optional(v.string()),
-    publicConfig: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const now = Date.now();
-    return await ctx.db.insert("mediaCredentials", {
+    return await ctx.db.insert("aiCredentials", {
       projectId: args.projectId,
       userId: args.userId,
       provider: args.provider,
       vaultSecretId: args.vaultSecretId,
       ...(args.vaultVersionId !== undefined
         ? { vaultVersionId: args.vaultVersionId }
-        : {}),
-      ...(args.publicConfig !== undefined
-        ? { publicConfig: args.publicConfig }
         : {}),
       status: "verifying" as const,
       createdAt: now,
@@ -150,10 +103,9 @@ export const _insert = internalMutation({
 
 export const _replaceVaultId = internalMutation({
   args: {
-    credentialId: v.id("mediaCredentials"),
+    credentialId: v.id("aiCredentials"),
     newVaultSecretId: v.string(),
     newVersionId: v.optional(v.string()),
-    publicConfig: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const patch: Record<string, unknown> = {
@@ -164,16 +116,13 @@ export const _replaceVaultId = internalMutation({
     if (args.newVersionId !== undefined) {
       patch["vaultVersionId"] = args.newVersionId;
     }
-    if (args.publicConfig !== undefined) {
-      patch["publicConfig"] = args.publicConfig;
-    }
     await ctx.db.patch(args.credentialId, patch);
   },
 });
 
 export const _setStatus = internalMutation({
   args: {
-    credentialId: v.id("mediaCredentials"),
+    credentialId: v.id("aiCredentials"),
     status: v.union(
       v.literal("active"),
       v.literal("verifying"),
@@ -202,10 +151,9 @@ export const _setStatus = internalMutation({
 
 export const _markRotated = internalMutation({
   args: {
-    credentialId: v.id("mediaCredentials"),
+    credentialId: v.id("aiCredentials"),
     newVaultSecretId: v.string(),
     newVersionId: v.optional(v.string()),
-    publicConfig: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const now = Date.now();
@@ -220,15 +168,12 @@ export const _markRotated = internalMutation({
     if (args.newVersionId !== undefined) {
       patch["vaultVersionId"] = args.newVersionId;
     }
-    if (args.publicConfig !== undefined) {
-      patch["publicConfig"] = args.publicConfig;
-    }
     await ctx.db.patch(args.credentialId, patch);
   },
 });
 
 export const _delete = internalMutation({
-  args: { credentialId: v.id("mediaCredentials") },
+  args: { credentialId: v.id("aiCredentials") },
   handler: async (ctx, args) => {
     await ctx.db.delete(args.credentialId);
   },

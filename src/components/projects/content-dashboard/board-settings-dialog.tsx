@@ -244,7 +244,7 @@ export function BoardSettingsDialog({
   >(null);
   const [isSaving, setIsSaving] = React.useState(false);
 
-  const updateColumns = useMutation(api.boardColumns.updateColumns);
+  const updateColumns = useMutation(api.cms.boardColumns.updateColumns);
 
   // Sync local state when dialog opens
   React.useEffect(() => {

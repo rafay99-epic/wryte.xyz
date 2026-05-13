@@ -1,13 +1,13 @@
 /**
  * aiCredentials — per-project AI provider key management.
  *
- * Mirrors the public surface of `mediaCredentials`:
+ * Mirrors the public surface of `media/credentials`:
  *   - `setCredentials` (first-time save + verify)
  *   - `rotate` (replace the key; verifies before swapping)
  *   - `testCredentials` (re-verify the stored key)
  *   - `deleteCredentials` (remove vault entry + row)
  *
- * All non-action helpers live in `aiCredentialsDb.ts` (Convex can't put a
+ * All non-action helpers live in `credentialsDb.ts` (Convex can't put a
  * mutation inside a `"use node"` file).
  *
  * Verification = a cheap `models.list()` call against each provider. That
@@ -19,11 +19,11 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { ConvexError, v } from "convex/values";
 import OpenAI from "openai";
-import { internal } from "./_generated/api";
-import type { Id } from "./_generated/dataModel";
-import type { ActionCtx } from "./_generated/server";
-import { action } from "./_generated/server";
-import { getRateLimitKey, rateLimiter } from "./rateLimits";
+import { internal } from "../_generated/api";
+import type { Id } from "../_generated/dataModel";
+import type { ActionCtx } from "../_generated/server";
+import { action } from "../_generated/server";
+import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
 
 const PROVIDER_VALIDATOR = v.union(
   v.literal("anthropic"),
@@ -62,11 +62,11 @@ export const setCredentials = action({
 
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
-    const user = await ctx.runQuery(internal.users.internalGetByToken, {
+    const user = await ctx.runQuery(internal.account.users.internalGetByToken, {
       tokenIdentifier: identity.tokenIdentifier,
     });
     if (!user) throw new Error("User not found");
-    const project = await ctx.runQuery(internal.projects.internalGet, {
+    const project = await ctx.runQuery(internal.cms.projects.internalGet, {
       projectId: args.projectId,
     });
     if (!project || project.userId !== user._id) {
@@ -81,19 +81,22 @@ export const setCredentials = action({
     }
 
     const existing = await ctx.runQuery(
-      internal.aiCredentialsDb._findByProjectAndProvider,
+      internal.ai.credentialsDb._findByProjectAndProvider,
       { projectId: args.projectId, provider: args.provider },
     );
 
-    const created = await ctx.runAction(internal.secretStore._create, {
-      value: secret,
-      meta: {
-        userId: user._id,
-        projectId: args.projectId,
-        provider: args.provider,
-        label: `${args.provider}-ai-key`,
+    const created = await ctx.runAction(
+      internal.integrations.secretStore._create,
+      {
+        value: secret,
+        meta: {
+          userId: user._id,
+          projectId: args.projectId,
+          provider: args.provider,
+          label: `${args.provider}-ai-key`,
+        },
       },
-    });
+    );
 
     let credentialId: Id<"aiCredentials">;
     if (existing) {
@@ -110,11 +113,11 @@ export const setCredentials = action({
         replaceArgs.newVersionId = created.versionId;
       }
       await ctx.runMutation(
-        internal.aiCredentialsDb._replaceVaultId,
+        internal.ai.credentialsDb._replaceVaultId,
         replaceArgs,
       );
       try {
-        await ctx.runAction(internal.secretStore._delete, {
+        await ctx.runAction(internal.integrations.secretStore._delete, {
           id: existing.vaultSecretId,
         });
       } catch {
@@ -137,7 +140,7 @@ export const setCredentials = action({
         insertArgs.vaultVersionId = created.versionId;
       }
       credentialId = await ctx.runMutation(
-        internal.aiCredentialsDb._insert,
+        internal.ai.credentialsDb._insert,
         insertArgs,
       );
     }
@@ -154,7 +157,7 @@ export const setCredentials = action({
     };
     if (verify.ok) statusArgs.lastVerifiedAt = Date.now();
     else statusArgs.lastVerifyError = verify.message;
-    await ctx.runMutation(internal.aiCredentialsDb._setStatus, statusArgs);
+    await ctx.runMutation(internal.ai.credentialsDb._setStatus, statusArgs);
 
     const result: {
       credentialId: Id<"aiCredentials">;
@@ -178,9 +181,12 @@ export const testCredentials = action({
 
     const cred = await loadOwnedCredential(ctx, args.projectId, args.provider);
     await rateLimiter.limit(ctx, "vault:read", { key, throws: true });
-    const secret: string = await ctx.runAction(internal.secretStore._read, {
-      id: cred.vaultSecretId,
-    });
+    const secret: string = await ctx.runAction(
+      internal.integrations.secretStore._read,
+      {
+        id: cred.vaultSecretId,
+      },
+    );
 
     const verify = await runProviderPing(args.provider, secret);
     const patch: {
@@ -194,7 +200,7 @@ export const testCredentials = action({
     };
     if (verify.ok) patch.lastVerifiedAt = Date.now();
     else patch.lastVerifyError = verify.message;
-    await ctx.runMutation(internal.aiCredentialsDb._setStatus, patch);
+    await ctx.runMutation(internal.ai.credentialsDb._setStatus, patch);
     return verify;
   },
 });
@@ -232,7 +238,7 @@ export const rotate = action({
     }
 
     // Mark as rotating up front so the UI can react.
-    await ctx.runMutation(internal.aiCredentialsDb._setStatus, {
+    await ctx.runMutation(internal.ai.credentialsDb._setStatus, {
       credentialId: cred._id,
       status: "rotating" as const,
     });
@@ -240,7 +246,7 @@ export const rotate = action({
     // Verify before storing — bail early if the new key is junk.
     const verify = await runProviderPing(args.provider, newSecret);
     if (!verify.ok) {
-      await ctx.runMutation(internal.aiCredentialsDb._setStatus, {
+      await ctx.runMutation(internal.ai.credentialsDb._setStatus, {
         credentialId: cred._id,
         status: "active" as const,
         lastVerifyError: verify.message,
@@ -249,15 +255,18 @@ export const rotate = action({
     }
 
     // Create the new vault entry, swap the pointer, then delete the old one.
-    const created = await ctx.runAction(internal.secretStore._create, {
-      value: newSecret,
-      meta: {
-        userId: cred.userId,
-        projectId: args.projectId,
-        provider: args.provider,
-        label: `${args.provider}-ai-key-rotated`,
+    const created = await ctx.runAction(
+      internal.integrations.secretStore._create,
+      {
+        value: newSecret,
+        meta: {
+          userId: cred.userId,
+          projectId: args.projectId,
+          provider: args.provider,
+          label: `${args.provider}-ai-key-rotated`,
+        },
       },
-    });
+    );
     const markArgs: {
       credentialId: Id<"aiCredentials">;
       newVaultSecretId: string;
@@ -269,10 +278,10 @@ export const rotate = action({
     if (created.versionId !== undefined) {
       markArgs.newVersionId = created.versionId;
     }
-    await ctx.runMutation(internal.aiCredentialsDb._markRotated, markArgs);
+    await ctx.runMutation(internal.ai.credentialsDb._markRotated, markArgs);
 
     try {
-      await ctx.runAction(internal.secretStore._delete, {
+      await ctx.runAction(internal.integrations.secretStore._delete, {
         id: cred.vaultSecretId,
       });
     } catch {
@@ -301,7 +310,7 @@ export const deleteCredentials = action({
     });
 
     const cred = await loadOwnedCredential(ctx, args.projectId, args.provider);
-    const project = await ctx.runQuery(internal.projects.internalGet, {
+    const project = await ctx.runQuery(internal.cms.projects.internalGet, {
       projectId: args.projectId,
     });
     if (project?.aiProvider === args.provider) {
@@ -312,13 +321,13 @@ export const deleteCredentials = action({
     }
 
     try {
-      await ctx.runAction(internal.secretStore._delete, {
+      await ctx.runAction(internal.integrations.secretStore._delete, {
         id: cred.vaultSecretId,
       });
     } catch {
       // Best-effort.
     }
-    await ctx.runMutation(internal.aiCredentialsDb._delete, {
+    await ctx.runMutation(internal.ai.credentialsDb._delete, {
       credentialId: cred._id,
     });
   },
@@ -339,18 +348,18 @@ async function loadOwnedCredential(
 }> {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) throw new Error("Not authenticated");
-  const user = await ctx.runQuery(internal.users.internalGetByToken, {
+  const user = await ctx.runQuery(internal.account.users.internalGetByToken, {
     tokenIdentifier: identity.tokenIdentifier,
   });
   if (!user) throw new Error("User not found");
-  const project = await ctx.runQuery(internal.projects.internalGet, {
+  const project = await ctx.runQuery(internal.cms.projects.internalGet, {
     projectId,
   });
   if (!project || project.userId !== user._id) {
     throw new Error("Unauthorized");
   }
   const cred = await ctx.runQuery(
-    internal.aiCredentialsDb._findByProjectAndProvider,
+    internal.ai.credentialsDb._findByProjectAndProvider,
     { projectId, provider },
   );
   if (!cred) {
