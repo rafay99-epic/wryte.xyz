@@ -49,6 +49,8 @@ type RemoteFile = ContentFile;
 // Dynamic import reference — cast needed because the GitHub action is generated at build time.
 // biome-ignore lint/suspicious/noExplicitAny: Convex api types are generated at build time
 const importAction = (api as any).github.importFileFromGithub;
+// biome-ignore lint/suspicious/noExplicitAny: Convex api types are generated at build time
+const importBatchAction = (api as any).github.importFilesFromGithub;
 
 /**
  * Project detail page — thin orchestrator that fetches data, manages state,
@@ -320,12 +322,50 @@ export default function ProjectDetailPage() {
 
   // --- Auto-import + navigate for remote files ---
   const importFile = useAction(importAction);
+  const importFilesBatch = useAction(importBatchAction);
   const [importingPath, setImportingPath] = useState<string | null>(null);
   const [isBatchImporting, setIsBatchImporting] = useState(false);
   const [batchImportProgress, setBatchImportProgress] = useState<{
     done: number;
     total: number;
   } | null>(null);
+
+  /**
+   * Wraps the Convex `importFileFromGithub` action with automatic retries on
+   * the rate-limit response. Convex throws a `ConvexError` whose `.data`
+   * carries `{ kind: "RateLimited", retryAfter: <ms> }`; we sleep for that
+   * window and try again (up to 3 attempts). Anything else bubbles up.
+   *
+   * This makes large bulk imports just slow down under throttle instead of
+   * silently failing partway through.
+   */
+  const importWithRetry = useCallback(
+    // biome-ignore lint/suspicious/noExplicitAny: importFile arg type is generated at build time
+    async (args: any, maxRetries = 3) => {
+      for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+          return await importFile(args);
+        } catch (err) {
+          const data = (
+            err as { data?: { kind?: string; retryAfter?: number } }
+          )?.data;
+          if (
+            data?.kind === "RateLimited" &&
+            typeof data.retryAfter === "number" &&
+            attempt < maxRetries
+          ) {
+            await new Promise((resolve) =>
+              setTimeout(resolve, (data.retryAfter ?? 0) + 50),
+            );
+            continue;
+          }
+          throw err;
+        }
+      }
+      throw new Error("Import failed after max retries");
+    },
+    [importFile],
+  );
 
   // --- Bulk publish ---
   // biome-ignore lint/suspicious/noExplicitAny: Convex api types are generated at build time
@@ -363,7 +403,7 @@ export default function ProjectDetailPage() {
         } = { projectId, filePath: item.path };
         if (githubAccessToken) args.githubAccessToken = githubAccessToken;
 
-        const result = (await importFile(args)) as {
+        const result = (await importWithRetry(args)) as {
           documentId: string;
           title: string;
         };
@@ -374,12 +414,19 @@ export default function ProjectDetailPage() {
         setImportingPath(null);
       }
     },
-    [projectId, importFile, router],
+    [projectId, importWithRetry, router],
   );
 
   // --- Batch import for multi-select ---
+  /**
+   * Sends the whole list to the server-side `importFilesFromGithub` action,
+   * which loops internally. This collapses N round-trips and N rate-limit
+   * charges into one. Per-file progress isn't streamed (the call is
+   * indeterminate while running), so we show the total as the progress.
+   */
   const handleBatchImport = useCallback(
     async (paths: string[]) => {
+      if (paths.length === 0) return;
       setIsBatchImporting(true);
       setBatchImportProgress({ done: 0, total: paths.length });
 
@@ -394,43 +441,44 @@ export default function ProjectDetailPage() {
         // Fall back to stored PAT
       }
 
-      let successCount = 0;
-      let failCount = 0;
+      try {
+        const args: {
+          projectId: Id<"projects">;
+          filePaths: string[];
+          githubAccessToken?: string;
+        } = { projectId, filePaths: paths };
+        if (githubAccessToken) args.githubAccessToken = githubAccessToken;
 
-      for (let i = 0; i < paths.length; i++) {
-        const filePath = paths[i] as string;
-        try {
-          const args: {
-            projectId: Id<"projects">;
-            filePath: string;
-            githubAccessToken?: string;
-          } = { projectId, filePath };
-          if (githubAccessToken) args.githubAccessToken = githubAccessToken;
+        const result = (await importFilesBatch(args)) as {
+          succeeded: Array<{ filePath: string }>;
+          failed: Array<{ filePath: string; error: string }>;
+        };
 
-          await importFile(args);
-          successCount++;
-        } catch {
-          failCount++;
+        const successCount = result.succeeded.length;
+        const failCount = result.failed.length;
+        setBatchImportProgress({ done: paths.length, total: paths.length });
+
+        if (successCount > 0 && failCount === 0) {
+          toast.success(
+            `Imported ${successCount} ${successCount === 1 ? "file" : "files"} successfully`,
+          );
+        } else if (successCount > 0 && failCount > 0) {
+          toast.warning(
+            `Imported ${successCount} ${successCount === 1 ? "file" : "files"}, ${failCount} failed`,
+          );
+        } else {
+          toast.error("Failed to import files");
         }
-        setBatchImportProgress({ done: i + 1, total: paths.length });
-      }
-
-      setIsBatchImporting(false);
-      setBatchImportProgress(null);
-
-      if (successCount > 0 && failCount === 0) {
-        toast.success(
-          `Imported ${successCount} ${successCount === 1 ? "file" : "files"} successfully`,
-        );
-      } else if (successCount > 0 && failCount > 0) {
-        toast.warning(
-          `Imported ${successCount} ${successCount === 1 ? "file" : "files"}, ${failCount} failed`,
-        );
-      } else {
-        toast.error("Failed to import files");
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "Failed to import files";
+        toast.error(message);
+      } finally {
+        setIsBatchImporting(false);
+        setBatchImportProgress(null);
       }
     },
-    [projectId, importFile],
+    [projectId, importFilesBatch],
   );
 
   // --- Bulk publish handler ---

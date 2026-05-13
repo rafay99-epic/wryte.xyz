@@ -57,22 +57,13 @@ export async function runEncodePipeline(
     applyRoundedCornerMask(canvas, task.cornerRadius);
   }
 
-  const blob =
-    resolvedFormat === "avif"
-      ? await encodeAvif(canvas, task.quality)
-      : await encodeNative(canvas, resolvedFormat, task.quality);
-
-  return {
-    blob,
-    width: task.width,
-    height: task.height,
-    resolvedFormat,
-  };
+  const blob = await encodeNative(canvas, resolvedFormat, task.quality);
+  return { blob, width: task.width, height: task.height, resolvedFormat };
 }
 
 async function encodeNative(
   canvas: OffscreenCanvas,
-  format: Exclude<ResolvedFormat, "avif">,
+  format: ResolvedFormat,
   quality: number,
 ): Promise<Blob> {
   if (format === "png") {
@@ -82,24 +73,4 @@ async function encodeNative(
     type: format === "jpeg" ? "image/jpeg" : "image/webp",
     quality,
   });
-}
-
-/**
- * AVIF via `@jsquash/avif` WASM. The codec is ~200 KB, so we dynamic-import
- * it here — callers that never request AVIF never pay the cost. The same
- * dynamic import works from the worker and from the main-thread fallback,
- * since the bundler emits a separate chunk either way.
- */
-async function encodeAvif(
-  canvas: OffscreenCanvas,
-  quality: number,
-): Promise<Blob> {
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("Failed to acquire 2D canvas context for AVIF");
-  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  const { encode } = await import("@jsquash/avif");
-  const encoded = await encode(imageData, {
-    quality: Math.round(quality * 100),
-  });
-  return new Blob([encoded], { type: "image/avif" });
 }

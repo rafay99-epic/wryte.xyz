@@ -349,10 +349,18 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     rate: 20,
     period: MINUTE,
   },
+  /**
+   * Imports are called in a loop when the user bulk-pulls existing posts
+   * from a repo. A token bucket with a generous burst lets a typical
+   * 30-file import go through instantly, then refills steadily for larger
+   * archives. The batch importer also honours `retryAfter` so really large
+   * imports (100+) just slow down rather than fail.
+   */
   "github:importFile": {
-    kind: "fixed window",
-    rate: 30,
+    kind: "token bucket",
+    rate: 120,
     period: MINUTE,
+    capacity: 60,
   },
   "github:verifyRepoAccess": {
     kind: "fixed window",

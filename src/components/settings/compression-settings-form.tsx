@@ -83,25 +83,29 @@ export function CompressionSettingsForm({
           htmlFor={`${baseId}-format`}
           hint={
             value.format === "auto"
-              ? "Picks the smallest format your browser can encode (AVIF → WebP → JPEG)."
+              ? "Picks the smallest format your browser can encode (WebP → JPEG)."
               : value.format === "png"
                 ? "Lossless. Quality slider is ignored."
                 : "Lossy. Use the quality slider to balance size vs sharpness."
           }
         >
           <Select
-            value={value.format}
+            value={value.format === "avif" ? "webp" : value.format}
             onValueChange={(v) => setField("format", v as CompressionFormat)}
             disabled={fieldsDisabled}
           >
-            <SelectTrigger id={`${baseId}-format`}>
+            <SelectTrigger id={`${baseId}-format`} className="w-full">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent
+              alignItemWithTrigger={false}
+              side="bottom"
+              align="start"
+              sideOffset={6}
+            >
               <SelectItem value="auto">Auto</SelectItem>
               <SelectItem value="jpeg">JPEG</SelectItem>
               <SelectItem value="webp">WebP</SelectItem>
-              <SelectItem value="avif">AVIF</SelectItem>
               <SelectItem value="png">PNG</SelectItem>
             </SelectContent>
           </Select>

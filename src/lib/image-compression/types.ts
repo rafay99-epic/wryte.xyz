@@ -12,10 +12,19 @@ export interface CompressionSettings {
   skipThresholdBytes: number;
 }
 
+/**
+ * Settings values that callers can ask for. `"avif"` is kept here for
+ * back-compat with records that stored it before AVIF output was removed;
+ * the resolver coerces it to `"webp"` so it never reaches the encoder.
+ */
 export type CompressionFormat = "auto" | "jpeg" | "png" | "webp" | "avif";
 
-/** Concrete codec the compressor settled on; `"auto"` is never present here. */
-export type ResolvedFormat = Exclude<CompressionFormat, "auto">;
+/**
+ * Concrete codec the encoder writes. AVIF output is no longer supported —
+ * Firefox can't encode it natively and the WASM codec broke production
+ * builds — so the resolver always lands on JPEG / PNG / WebP.
+ */
+export type ResolvedFormat = "jpeg" | "png" | "webp";
 
 export type SkipReason =
   | "disabled"

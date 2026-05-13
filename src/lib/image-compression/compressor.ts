@@ -148,15 +148,18 @@ function clampQuality(q: number): number {
  * Resolves the user's `format` choice to a concrete encoder.
  *
  * `"auto"` consults `detectFormatSupport()` and picks the smallest format
- * the browser can natively encode. Explicit `"avif"` is honoured directly:
- * even if the browser can't encode AVIF natively, the worker falls back to
- * `@jsquash/avif` (WASM), so we don't second-guess the user's request.
+ * the browser can natively encode (WebP when supported, JPEG otherwise).
+ * `"avif"` is a legacy value kept on the validator for back-compat with
+ * records saved before AVIF output was removed; it silently maps to WebP.
  */
 async function resolveFormat(
   format: CompressionSettings["format"],
 ): Promise<ResolvedFormat> {
   if (format === "auto") {
     return pickAutoFormat(await detectFormatSupport());
+  }
+  if (format === "avif") {
+    return "webp";
   }
   return format;
 }

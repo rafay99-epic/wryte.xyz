@@ -9,9 +9,11 @@ import type { Id } from "../../convex/_generated/dataModel";
 /**
  * How long (ms) to wait after the last keystroke before triggering a save.
  * Balances responsiveness (user sees "saved" quickly) against not flooding
- * the backend with mutations on every character typed.
+ * the backend with mutations on every character typed. 3 seconds is the
+ * sweet spot — long enough to coalesce a burst of typing into a single
+ * save, short enough that the "saved" indicator still feels live.
  */
-const DEBOUNCE_MS = 2000;
+const DEBOUNCE_MS = 3000;
 
 /** After this many consecutive failures, show a warning toast. */
 const FAILURE_THRESHOLD = 3;

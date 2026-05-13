@@ -698,6 +698,147 @@ export const uploadMediaToGithub = action({
 });
 
 /**
+ * Resolves the project + user + GitHub token + Octokit client needed to
+ * import files from a repo. Shared by the single-file and batch import
+ * actions so they spend the same auth/setup cost exactly once.
+ */
+async function resolveGithubImportContext(
+  ctx: ActionCtx,
+  args: { projectId: Id<"projects">; githubAccessToken?: string },
+): Promise<{
+  octokit: Octokit;
+  owner: string;
+  repo: string;
+  branch: string;
+}> {
+  const identity = await ctx.auth.getUserIdentity();
+  if (!identity) {
+    throw new Error("Not authenticated");
+  }
+
+  const project = await ctx.runQuery(internal.projects.internalGet, {
+    projectId: args.projectId,
+  });
+  if (!project) {
+    throw new Error("Project not found");
+  }
+
+  const user = await ctx.runQuery(internal.users.internalGet, {
+    userId: project.userId,
+  });
+  if (!user) {
+    throw new Error("User not found");
+  }
+
+  if (user.tokenIdentifier !== identity.tokenIdentifier) {
+    throw new Error("Unauthorized: you do not own this project");
+  }
+
+  if (!project.githubRepo) {
+    throw new Error("GitHub repository not configured for this project");
+  }
+
+  const token = await resolveToken(ctx, user._id, args.githubAccessToken);
+  const { owner, repo } = parseRepoString(project.githubRepo);
+  const branch: string = project.githubBranch ?? "main";
+  const octokit = new Octokit({ auth: token });
+
+  return { octokit, owner, repo, branch };
+}
+
+/**
+ * Fetches a single markdown file from GitHub, parses frontmatter, and
+ * inserts it as a document. Throws on parse / fetch failures so the
+ * caller can decide whether to abort or aggregate.
+ */
+async function importOneFile(
+  ctx: ActionCtx,
+  args: {
+    octokit: Octokit;
+    owner: string;
+    repo: string;
+    branch: string;
+    projectId: Id<"projects">;
+    filePath: string;
+  },
+): Promise<{ documentId: string; title: string; slug: string }> {
+  const { data } = await args.octokit.repos.getContent({
+    owner: args.owner,
+    repo: args.repo,
+    path: args.filePath,
+    ref: args.branch,
+  });
+
+  if (Array.isArray(data) || data.type !== "file") {
+    throw new Error(`Path "${args.filePath}" is not a file`);
+  }
+
+  const fileContent = Buffer.from(data.content, "base64").toString("utf-8");
+  const githubSha = data.sha;
+
+  let title: string = data.name.replace(/\.mdx?$/, "");
+  let content: string = fileContent;
+  let frontmatter: string | undefined;
+
+  const frontmatterMatch = fileContent.match(
+    /^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/,
+  );
+  if (frontmatterMatch) {
+    const rawFrontmatter = frontmatterMatch[1] ?? "";
+    content = (frontmatterMatch[2] ?? "").trim();
+
+    const fmObj: Record<string, string> = {};
+    for (const line of rawFrontmatter.split("\n")) {
+      const colonIdx = line.indexOf(":");
+      if (colonIdx > 0) {
+        const key = line.slice(0, colonIdx).trim();
+        const value = line
+          .slice(colonIdx + 1)
+          .trim()
+          .replace(/^["']|["']$/g, "");
+        fmObj[key] = value;
+      }
+    }
+
+    if (fmObj["title"]) {
+      title = fmObj["title"];
+    }
+
+    frontmatter = JSON.stringify(fmObj);
+  }
+
+  const slug = data.name.replace(/\.mdx?$/, "");
+
+  const mutationArgs: {
+    projectId: Id<"projects">;
+    title: string;
+    slug: string;
+    content: string;
+    githubPath: string;
+    githubSha: string;
+    frontmatter?: string;
+  } = {
+    projectId: args.projectId,
+    title,
+    slug,
+    content,
+    githubPath: args.filePath,
+    githubSha: githubSha,
+  };
+
+  if (frontmatter !== undefined) {
+    mutationArgs.frontmatter = frontmatter;
+  }
+
+  const documentId = await ctx.runMutation(
+    api.documents.importFromGithub,
+    mutationArgs,
+  );
+
+  return { documentId, title, slug };
+}
+
+/**
  * Imports a single markdown file from a GitHub repo into the project.
  */
 export const importFileFromGithub = action({
@@ -713,114 +854,96 @@ export const importFileFromGithub = action({
     const key = await getRateLimitKey(ctx);
     await rateLimiter.limit(ctx, "github:importFile", { key, throws: true });
 
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Not authenticated");
-    }
-
-    const project = await ctx.runQuery(internal.projects.internalGet, {
-      projectId: args.projectId,
-    });
-    if (!project) {
-      throw new Error("Project not found");
-    }
-
-    const user = await ctx.runQuery(internal.users.internalGet, {
-      userId: project.userId,
-    });
-    if (!user) {
-      throw new Error("User not found");
-    }
-
-    if (user.tokenIdentifier !== identity.tokenIdentifier) {
-      throw new Error("Unauthorized: you do not own this project");
-    }
-
-    const token = await resolveToken(ctx, user._id, args.githubAccessToken);
-
-    if (!project.githubRepo) {
-      throw new Error("GitHub repository not configured for this project");
-    }
-
-    const { owner, repo } = parseRepoString(project.githubRepo);
-    const branch: string = project.githubBranch ?? "main";
-
-    const octokit = new Octokit({ auth: token });
-
-    const { data } = await octokit.repos.getContent({
-      owner,
-      repo,
-      path: args.filePath,
-      ref: branch,
-    });
-
-    if (Array.isArray(data) || data.type !== "file") {
-      throw new Error(`Path "${args.filePath}" is not a file`);
-    }
-
-    const fileContent = Buffer.from(data.content, "base64").toString("utf-8");
-    const githubSha = data.sha;
-
-    let title: string = data.name.replace(/\.mdx?$/, "");
-    let content: string = fileContent;
-    let frontmatter: string | undefined;
-
-    const frontmatterMatch = fileContent.match(
-      /^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/,
-    );
-    if (frontmatterMatch) {
-      const rawFrontmatter = frontmatterMatch[1] ?? "";
-      content = (frontmatterMatch[2] ?? "").trim();
-
-      const fmObj: Record<string, string> = {};
-      for (const line of rawFrontmatter.split("\n")) {
-        const colonIdx = line.indexOf(":");
-        if (colonIdx > 0) {
-          const key = line.slice(0, colonIdx).trim();
-          const value = line
-            .slice(colonIdx + 1)
-            .trim()
-            .replace(/^["']|["']$/g, "");
-          fmObj[key] = value;
-        }
-      }
-
-      if (fmObj["title"]) {
-        title = fmObj["title"];
-      }
-
-      frontmatter = JSON.stringify(fmObj);
-    }
-
-    const slug = data.name.replace(/\.mdx?$/, "");
-
-    const mutationArgs: {
+    const setupArgs: {
       projectId: typeof args.projectId;
-      title: string;
-      slug: string;
-      content: string;
-      githubPath: string;
-      githubSha: string;
-      frontmatter?: string;
-    } = {
-      projectId: args.projectId,
-      title,
-      slug,
-      content,
-      githubPath: args.filePath,
-      githubSha: githubSha,
-    };
+      githubAccessToken?: string;
+    } = { projectId: args.projectId };
+    if (args.githubAccessToken !== undefined) {
+      setupArgs.githubAccessToken = args.githubAccessToken;
+    }
+    const setup = await resolveGithubImportContext(ctx, setupArgs);
 
-    if (frontmatter !== undefined) {
-      mutationArgs.frontmatter = frontmatter;
+    return importOneFile(ctx, {
+      ...setup,
+      projectId: args.projectId,
+      filePath: args.filePath,
+    });
+  },
+});
+
+/**
+ * Batch variant of {@link importFileFromGithub}. Auth, project lookup,
+ * token resolution, and Octokit setup happen ONCE for the whole batch
+ * instead of once per file, and the entire loop runs server-side so
+ * there is exactly one client → Convex round-trip regardless of file
+ * count. Charges a single token in the `github:importFile` rate-limit
+ * bucket, so a 100-file import counts as one "call" against the limit.
+ *
+ * The action never throws on a per-file error; it returns
+ * `{ succeeded, failed }` so the UI can summarise the result.
+ */
+export const importFilesFromGithub = action({
+  args: {
+    projectId: v.id("projects"),
+    filePaths: v.array(v.string()),
+    githubAccessToken: v.optional(v.string()),
+  },
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{
+    succeeded: Array<{ filePath: string; documentId: string; title: string }>;
+    failed: Array<{ filePath: string; error: string }>;
+  }> => {
+    if (args.filePaths.length === 0) {
+      return { succeeded: [], failed: [] };
+    }
+    // Hard cap so a single call can't keep the action alive past the
+    // Convex action timeout on huge archives.
+    if (args.filePaths.length > 200) {
+      throw new Error("Cannot import more than 200 files in a single batch");
     }
 
-    const documentId = await ctx.runMutation(
-      api.documents.importFromGithub,
-      mutationArgs,
-    );
+    const key = await getRateLimitKey(ctx);
+    await rateLimiter.limit(ctx, "github:importFile", { key, throws: true });
 
-    return { documentId, title, slug };
+    const setupArgs: {
+      projectId: typeof args.projectId;
+      githubAccessToken?: string;
+    } = { projectId: args.projectId };
+    if (args.githubAccessToken !== undefined) {
+      setupArgs.githubAccessToken = args.githubAccessToken;
+    }
+    const setup = await resolveGithubImportContext(ctx, setupArgs);
+
+    const succeeded: Array<{
+      filePath: string;
+      documentId: string;
+      title: string;
+    }> = [];
+    const failed: Array<{ filePath: string; error: string }> = [];
+
+    for (const filePath of args.filePaths) {
+      try {
+        const result = await importOneFile(ctx, {
+          ...setup,
+          projectId: args.projectId,
+          filePath,
+        });
+        succeeded.push({
+          filePath,
+          documentId: result.documentId,
+          title: result.title,
+        });
+      } catch (err) {
+        failed.push({
+          filePath,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+
+    return { succeeded, failed };
   },
 });
 
