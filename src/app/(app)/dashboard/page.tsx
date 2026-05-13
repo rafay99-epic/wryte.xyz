@@ -110,7 +110,6 @@ export default function DashboardPage() {
 
   const isLoading = allDocs === undefined;
   const hasProjects = projects && projects.length > 0;
-  const firstProjectId = projects?.[0]?._id;
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-8 lg:px-8">
@@ -137,7 +136,7 @@ export default function DashboardPage() {
         <div className="flex items-center gap-2">
           {hasProjects && (
             <Link
-              href={`/projects/${firstProjectId}/documents/new`}
+              href="/articles/new"
               className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
             >
               <Plus className="size-3.5" />
@@ -247,10 +246,7 @@ export default function DashboardPage() {
               ))}
             </div>
           ) : recentDocs.length === 0 ? (
-            <EmptyState
-              hasProjects={!!hasProjects}
-              firstProjectId={firstProjectId}
-            />
+            <EmptyState hasProjects={!!hasProjects} />
           ) : (
             <motion.div
               variants={staggerContainer}
@@ -450,13 +446,7 @@ function StatPill({
 /*  Empty state                                                        */
 /* ------------------------------------------------------------------ */
 
-function EmptyState({
-  hasProjects,
-  firstProjectId,
-}: {
-  hasProjects: boolean;
-  firstProjectId: string | undefined;
-}) {
+function EmptyState({ hasProjects }: { hasProjects: boolean }) {
   return (
     <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border/30 px-8 py-16 text-center">
       <div className="mb-4 flex size-12 items-center justify-center rounded-full bg-muted/50">
@@ -469,11 +459,7 @@ function EmptyState({
           : "Start by creating a project, then add articles to it."}
       </p>
       <Link
-        href={
-          hasProjects && firstProjectId
-            ? `/projects/${firstProjectId}/documents/new`
-            : "/projects/new"
-        }
+        href={hasProjects ? "/articles/new" : "/projects/new"}
         className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-primary px-4 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
       >
         <Plus className="size-3.5" />
