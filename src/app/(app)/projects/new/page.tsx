@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation } from "convex/react";
+import { useAction, useMutation } from "convex/react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowLeft,
@@ -31,6 +31,8 @@ import { api } from "../../../../../convex/_generated/api";
  * All three steps share a single state object so values entered in earlier
  * steps are preserved when navigating back and forth.
  */
+export type MediaStorageMode = "github" | "uploadthing" | "cloudinary";
+
 export interface WizardState {
   step: 1 | 2 | 3;
   // Step 1 — repo selection & project identity
@@ -48,7 +50,15 @@ export interface WizardState {
   // Step 2 — directory paths & media config
   contentPath: string;
   mediaPath: string;
-  mediaStorageMode: "github" | "external";
+  mediaStorageMode: MediaStorageMode;
+  /** UploadThing — single base64 UPLOADTHING_TOKEN. */
+  uploadthingToken: string;
+  /** Cloudinary — split fields combined into the JSON secret on submit. */
+  cloudinaryCloudName: string;
+  cloudinaryApiKey: string;
+  cloudinaryApiSecret: string;
+  /** Cloudinary folder prefix; non-secret, also stored in publicConfig. */
+  cloudinaryFolder: string;
   // Step 3 — frontmatter schema definition
   frontmatterFields: FrontmatterField[];
   /** If frontmatter fields were auto-detected from an existing file, its name is stored here. */
@@ -65,6 +75,11 @@ const INITIAL_STATE: WizardState = {
   contentPath: "content/blog",
   mediaPath: "public/images",
   mediaStorageMode: "github",
+  uploadthingToken: "",
+  cloudinaryCloudName: "",
+  cloudinaryApiKey: "",
+  cloudinaryApiSecret: "",
+  cloudinaryFolder: "",
   frontmatterFields: DEFAULT_FRONTMATTER_FIELDS,
   detectedFromFile: null,
 };
@@ -93,6 +108,7 @@ const STEPS = [
 export default function NewProjectPage() {
   const router = useRouter();
   const createProject = useMutation(api.projects.create);
+  const setMediaCredentials = useAction(api.mediaCredentials.setCredentials);
   const [state, setState] = useState<WizardState>(INITIAL_STATE);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -129,6 +145,24 @@ export default function NewProjectPage() {
           if (!state.contentPath.trim()) {
             toast.error("Content directory is required");
             return false;
+          }
+          if (state.mediaStorageMode === "uploadthing") {
+            if (!state.uploadthingToken.trim()) {
+              toast.error("UploadThing token is required");
+              return false;
+            }
+          }
+          if (state.mediaStorageMode === "cloudinary") {
+            if (
+              !state.cloudinaryCloudName.trim() ||
+              !state.cloudinaryApiKey.trim() ||
+              !state.cloudinaryApiSecret.trim()
+            ) {
+              toast.error(
+                "Cloud name, API key, and API secret are all required for Cloudinary",
+              );
+              return false;
+            }
           }
           return true;
         }
@@ -202,7 +236,7 @@ export default function NewProjectPage() {
         githubBranch?: string;
         contentPath?: string;
         mediaPath?: string;
-        mediaStorageMode?: "github" | "external";
+        mediaStorageMode?: MediaStorageMode;
         frontmatterSchema?: string;
       } = {
         name: state.projectName.trim(),
@@ -220,6 +254,63 @@ export default function NewProjectPage() {
 
       const projectId = await createProject(args);
 
+      // Persist provider credentials when applicable. We do this after the
+      // project exists so a credential save failure leaves a valid project
+      // (the user can rotate the key from settings later).
+      if (state.mediaStorageMode === "uploadthing") {
+        try {
+          const res = await setMediaCredentials({
+            projectId,
+            provider: "uploadthing",
+            secret: state.uploadthingToken.trim(),
+          });
+          if (!res.ok) {
+            toast.warning(
+              res.message ??
+                "UploadThing credentials saved but failed verification. Open project settings to fix.",
+            );
+          }
+        } catch (err) {
+          const data = (err as { data?: { message?: string } })?.data;
+          toast.warning(
+            data?.message ??
+              "Project created but UploadThing credentials couldn't be saved. Add them in project settings.",
+          );
+        }
+      } else if (state.mediaStorageMode === "cloudinary") {
+        try {
+          const secret = JSON.stringify({
+            cloud_name: state.cloudinaryCloudName.trim(),
+            api_key: state.cloudinaryApiKey.trim(),
+            api_secret: state.cloudinaryApiSecret.trim(),
+          });
+          const publicConfig: Record<string, string> = {
+            cloudName: state.cloudinaryCloudName.trim(),
+          };
+          if (state.cloudinaryFolder.trim()) {
+            publicConfig["folder"] = state.cloudinaryFolder.trim();
+          }
+          const res = await setMediaCredentials({
+            projectId,
+            provider: "cloudinary",
+            secret,
+            publicConfig: JSON.stringify(publicConfig),
+          });
+          if (!res.ok) {
+            toast.warning(
+              res.message ??
+                "Cloudinary credentials saved but failed verification. Open project settings to fix.",
+            );
+          }
+        } catch (err) {
+          const data = (err as { data?: { message?: string } })?.data;
+          toast.warning(
+            data?.message ??
+              "Project created but Cloudinary credentials couldn't be saved. Add them in project settings.",
+          );
+        }
+      }
+
       toast.success("Project created successfully");
       router.push(`/projects/${projectId}`);
     } catch {
@@ -227,7 +318,7 @@ export default function NewProjectPage() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [state, createProject, router, validateStep]);
+  }, [state, createProject, setMediaCredentials, router, validateStep]);
 
   return (
     <div className="flex h-full">

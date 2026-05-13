@@ -145,7 +145,12 @@ export const create = mutation({
     contentPath: v.optional(v.string()),
     mediaPath: v.optional(v.string()),
     mediaStorageMode: v.optional(
-      v.union(v.literal("github"), v.literal("external")),
+      v.union(
+        v.literal("github"),
+        v.literal("uploadthing"),
+        v.literal("cloudinary"),
+        v.literal("external"),
+      ),
     ),
     frontmatterSchema: v.optional(v.string()),
     commitMessageTemplate: v.optional(v.string()),
@@ -187,7 +192,7 @@ export const create = mutation({
       githubBranch?: string;
       contentPath?: string;
       mediaPath?: string;
-      mediaStorageMode?: "github" | "external";
+      mediaStorageMode?: "github" | "uploadthing" | "cloudinary" | "external";
       frontmatterSchema?: string;
       commitMessageTemplate?: string;
       filenamePattern?: string;
@@ -265,7 +270,12 @@ export const update = mutation({
     contentPath: v.optional(v.string()),
     mediaPath: v.optional(v.string()),
     mediaStorageMode: v.optional(
-      v.union(v.literal("github"), v.literal("external")),
+      v.union(
+        v.literal("github"),
+        v.literal("uploadthing"),
+        v.literal("cloudinary"),
+        v.literal("external"),
+      ),
     ),
     frontmatterSchema: v.optional(v.string()),
     commitMessageTemplate: v.optional(v.string()),

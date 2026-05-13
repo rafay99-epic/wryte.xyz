@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery } from "convex/react";
+import { useAction, useQuery } from "convex/react";
 import { Loader2, Upload } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -18,13 +18,6 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
-
-// biome-ignore lint/suspicious/noExplicitAny: api types are generated at build time via `npx convex dev`
-const projectsGet = (api as any).projects.get;
-// biome-ignore lint/suspicious/noExplicitAny: api types are generated at build time via `npx convex dev`
-const mediaGenerateUploadUrl = (api as any).media.generateUploadUrl;
-// biome-ignore lint/suspicious/noExplicitAny: api types are generated at build time via `npx convex dev`
-const mediaSaveMedia = (api as any).media.saveMedia;
 
 interface ImageInsertDialogProps {
   open: boolean;
@@ -52,13 +45,13 @@ export function ImageInsertDialog({
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const project = useQuery(projectsGet, {
+  const project = useQuery(api.projects.get, {
     projectId: projectId as Id<"projects">,
   });
-  const generateUploadUrl = useMutation(mediaGenerateUploadUrl);
-  const saveMedia = useMutation(mediaSaveMedia);
+  const uploadMedia = useAction(api.media.upload);
 
-  const isGithubStorage = project?.mediaStorageMode === "github";
+  // Every provider now accepts direct uploads — gating by storage mode is gone.
+  const canUpload = Boolean(project);
 
   /** Build the markdown image syntax from the URL tab inputs and close the drawer. */
   function handleUrlInsert() {
@@ -70,9 +63,9 @@ export function ImageInsertDialog({
   }
 
   /**
-   * Upload an image file to Convex storage (temporary staging).
-   * Images are NOT pushed to GitHub until publish time, preventing
-   * draft images from polluting the repo.
+   * Upload an image file directly to the project's configured media provider
+   * (GitHub repo, UploadThing, or Cloudinary). The Convex action runs the
+   * full pipeline server-side: vault lookup → provider call → media record.
    */
   const handleFileUpload = useCallback(
     async (file: File) => {
@@ -80,46 +73,32 @@ export function ImageInsertDialog({
       setUploadError(null);
 
       try {
-        // Step 1: Get a short-lived upload URL from Convex
-        const uploadUrl = await generateUploadUrl();
-
-        // Step 2: POST the file binary directly to Convex storage
-        const uploadResponse = await fetch(uploadUrl, {
-          method: "POST",
-          headers: { "Content-Type": file.type },
-          body: file,
-        });
-
-        if (!uploadResponse.ok) {
-          throw new Error("Failed to upload file to storage");
-        }
-
-        const { storageId } = (await uploadResponse.json()) as {
-          storageId: string;
-        };
-
-        // Step 3: Save the media record and get back a serving URL
-        const { url } = await saveMedia({
+        const bytes = await file.arrayBuffer();
+        const result = await uploadMedia({
           projectId: projectId as Id<"projects">,
-          storageId: storageId as Id<"_storage">,
-          fileName: file.name,
-          contentType: file.type,
-          size: file.size,
+          bytes,
+          mime: file.type,
+          filename: file.name,
         });
 
         const alt = altText || file.name;
-        onInsert(`![${alt}](${url})`);
+        onInsert(`![${alt}](${result.url})`);
         setImageUrl("");
         setAltText("");
         setUploadError(null);
         onOpenChange(false);
       } catch (err) {
-        setUploadError(err instanceof Error ? err.message : "Upload failed");
+        // ConvexError carries our MediaErrorCode in `data.message`.
+        const data = (err as { data?: { message?: string } })?.data;
+        setUploadError(
+          data?.message ??
+            (err instanceof Error ? err.message : "Upload failed"),
+        );
       } finally {
         setIsUploading(false);
       }
     },
-    [altText, generateUploadUrl, onInsert, onOpenChange, projectId, saveMedia],
+    [altText, onInsert, onOpenChange, projectId, uploadMedia],
   );
 
   /** Handle drag-and-drop; only accepts image/* MIME types. */
@@ -211,47 +190,32 @@ export function ImageInsertDialog({
                   />
                 </div>
 
-                {isGithubStorage ? (
-                  <button
-                    type="button"
-                    className="flex w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-muted-foreground/25 bg-transparent p-8 text-center transition-colors hover:border-muted-foreground/50"
-                    onDrop={handleDrop}
-                    onDragOver={(e) => e.preventDefault()}
-                    onClick={() => fileInputRef.current?.click()}
-                  >
-                    {isUploading ? (
-                      <Loader2 className="size-8 animate-spin text-muted-foreground" />
-                    ) : (
-                      <Upload className="size-8 text-muted-foreground" />
-                    )}
-                    <p className="text-sm text-muted-foreground">
-                      {isUploading
-                        ? "Uploading..."
-                        : "Drop an image here or click to browse"}
-                    </p>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={handleFileChange}
-                    />
-                  </button>
-                ) : (
-                  <div className="space-y-1.5">
-                    <Label htmlFor="img-external-url">External image URL</Label>
-                    <Input
-                      id="img-external-url"
-                      value={imageUrl}
-                      onChange={(e) => setImageUrl(e.target.value)}
-                      placeholder="Paste URL from Cloudinary, etc."
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Upload your image to an external service and paste the URL
-                      here.
-                    </p>
-                  </div>
-                )}
+                <button
+                  type="button"
+                  className="flex w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-muted-foreground/25 bg-transparent p-8 text-center transition-colors hover:border-muted-foreground/50 disabled:cursor-not-allowed disabled:opacity-60"
+                  onDrop={handleDrop}
+                  onDragOver={(e) => e.preventDefault()}
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={!canUpload || isUploading}
+                >
+                  {isUploading ? (
+                    <Loader2 className="size-8 animate-spin text-muted-foreground" />
+                  ) : (
+                    <Upload className="size-8 text-muted-foreground" />
+                  )}
+                  <p className="text-sm text-muted-foreground">
+                    {isUploading
+                      ? "Uploading..."
+                      : "Drop an image here or click to browse"}
+                  </p>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleFileChange}
+                  />
+                </button>
 
                 {uploadError && (
                   <p className="text-sm text-destructive">{uploadError}</p>
@@ -271,22 +235,16 @@ export function ImageInsertDialog({
           >
             Cancel
           </Button>
-          {isGithubStorage ? (
-            <Button disabled={isUploading}>
-              {isUploading ? (
-                <>
-                  <Loader2 className="size-3.5 animate-spin" />
-                  Uploading...
-                </>
-              ) : (
-                "Upload & Insert"
-              )}
-            </Button>
-          ) : (
-            <Button onClick={handleUrlInsert} disabled={!imageUrl}>
-              Insert
-            </Button>
-          )}
+          <Button onClick={handleUrlInsert} disabled={!imageUrl || isUploading}>
+            {isUploading ? (
+              <>
+                <Loader2 className="size-3.5 animate-spin" />
+                Uploading...
+              </>
+            ) : (
+              "Insert URL"
+            )}
+          </Button>
         </SheetFooter>
       </SheetContent>
     </Sheet>

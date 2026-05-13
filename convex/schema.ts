@@ -5,6 +5,10 @@
  * - users: Authenticated users linked via Clerk token identifiers
  * - projects: Writing projects that map to GitHub repositories
  * - documents: Markdown documents belonging to projects, with lifecycle tracking
+ * - media: Records of images uploaded to the project's configured storage provider
+ * - mediaCredentials: Per-project, encrypted credentials for UploadThing/Cloudinary (vault-backed)
+ * - mediaUsage: Denormalized counters for cheap quota checks
+ * - mediaErrorLog: Normalized error log for ops visibility and the UI
  * - scheduled_publishes: Job queue for time-delayed publishing to GitHub
  */
 import { defineSchema, defineTable } from "convex/server";
@@ -14,14 +18,20 @@ export default defineSchema({
   /**
    * Users table — stores Clerk-authenticated user profiles.
    * `tokenIdentifier` is the Clerk-issued unique ID used to look up users on every request.
-   * GitHub credentials are stored here so any project owned by the user can publish.
+   *
+   * `githubAccessToken` is the legacy plaintext field — kept for one release so that
+   * existing users can be lazily migrated into the vault on first read. New writes
+   * go to `githubVaultSecretId`.
    */
   users: defineTable({
     tokenIdentifier: v.string(),
     name: v.string(),
     email: v.string(),
     imageUrl: v.optional(v.string()),
+    /** @deprecated Use githubVaultSecretId. Cleared on lazy migration. */
     githubAccessToken: v.optional(v.string()),
+    /** Opaque WorkOS Vault id for the user's GitHub PAT. */
+    githubVaultSecretId: v.optional(v.string()),
     githubUsername: v.optional(v.string()),
     createdAt: v.number(),
   }).index("by_tokenIdentifier", ["tokenIdentifier"]),
@@ -30,7 +40,14 @@ export default defineSchema({
    * Projects table — each project corresponds to a writing workspace and optionally
    * maps to a GitHub repository for publishing. Users can configure content/media paths,
    * the target branch, and a frontmatter schema for consistent metadata across documents.
-   * Relationship: projects.userId -> users._id (many-to-one)
+   *
+   * `mediaStorageMode` picks the per-project upload destination:
+   *  - "github": commit binaries directly into the project's repo at `mediaPath`
+   *  - "uploadthing": user-provided UploadThing token (stored in vault)
+   *  - "cloudinary": user-provided Cloudinary cloud_name + api_key + api_secret (secrets in vault)
+   *
+   * `mediaPath` carries the framework-specific destination — e.g. `public/images`
+   * for Astro, `static/images` for SvelteKit, a Cloudinary folder, etc.
    */
   projects: defineTable({
     userId: v.id("users"),
@@ -41,7 +58,13 @@ export default defineSchema({
     contentPath: v.optional(v.string()),
     mediaPath: v.optional(v.string()),
     mediaStorageMode: v.optional(
-      v.union(v.literal("github"), v.literal("external")),
+      v.union(
+        v.literal("github"),
+        v.literal("uploadthing"),
+        v.literal("cloudinary"),
+        // legacy value kept to allow non-destructive read; treat as "github" in code
+        v.literal("external"),
+      ),
     ),
     frontmatterSchema: v.optional(v.string()),
     /** Custom commit message template, e.g. "docs: update {{filename}}" */
@@ -85,11 +108,6 @@ export default defineSchema({
    * Each document belongs to exactly one project and one user.
    * `githubPath` and `githubSha` track the file's location and version in GitHub
    * to support updates (rather than creating duplicates) on subsequent publishes.
-   *
-   * Indexes:
-   * - by_projectId: list all docs in a project
-   * - by_projectId_and_status: filter docs by status within a project
-   * - by_status_and_scheduledAt: used by the cron job to find documents due for publishing
    */
   documents: defineTable({
     projectId: v.id("projects"),
@@ -118,31 +136,20 @@ export default defineSchema({
   /**
    * Publish history table — tracks every publish to GitHub for a document.
    * Enables "Published N times" display and one-click rollback to any version.
-   * Each record captures the full content snapshot so rollback doesn't require GitHub API.
    */
   publish_history: defineTable({
     documentId: v.id("documents"),
     projectId: v.id("projects"),
     userId: v.id("users"),
-    /** Git commit SHA from the GitHub API response */
     commitSha: v.string(),
-    /** Full GitHub commit URL for linking */
     commitUrl: v.optional(v.string()),
-    /** The file path in the repo at publish time */
     githubPath: v.string(),
-    /** Commit message used */
     commitMessage: v.string(),
-    /** Snapshot of the document content at publish time (for rollback) */
     contentSnapshot: v.string(),
-    /** Snapshot of frontmatter JSON at publish time */
     frontmatterSnapshot: v.optional(v.string()),
-    /** Document title at publish time */
     titleSnapshot: v.string(),
-    /** Whether this was a first publish or an update */
     isUpdate: v.boolean(),
-    /** Whether this was part of a bulk publish */
     isBulk: v.optional(v.boolean()),
-    /** Bulk publish batch ID (groups publishes from the same bulk operation) */
     bulkBatchId: v.optional(v.string()),
     createdAt: v.number(),
   })
@@ -151,39 +158,127 @@ export default defineSchema({
     .index("by_bulkBatchId", ["bulkBatchId"]),
 
   /**
-   * Media table — temporary staging for uploaded images.
+   * Media table — records of images uploaded to a project's chosen storage provider.
    *
-   * Images are stored in Convex file storage while documents are in draft/review/ready.
-   * At publish time, images are uploaded to GitHub and deleted from Convex storage.
-   * This prevents polluting the GitHub repo with images from unfinished drafts.
+   * `provider` indicates where the binary lives:
+   *  - "github": file lives at `externalId` (repo path) in the project's repo
+   *  - "uploadthing": `externalId` is the UploadThing file key
+   *  - "cloudinary": `externalId` is the Cloudinary public_id
+   *  - "convex_legacy": legacy rows from the old staging flow; `storageId` is the Convex blob.
+   *    Run `migrations/dropConvexMedia` to convert these to one of the active providers.
    */
   media: defineTable({
     projectId: v.id("projects"),
-    /** Document this image is associated with (optional — can be project-level). */
+    userId: v.optional(v.id("users")),
+    provider: v.optional(
+      v.union(
+        v.literal("github"),
+        v.literal("uploadthing"),
+        v.literal("cloudinary"),
+        v.literal("convex_legacy"),
+      ),
+    ),
+    externalId: v.optional(v.string()),
+    url: v.optional(v.string()),
+    filename: v.optional(v.string()),
+    mime: v.optional(v.string()),
+    bytes: v.optional(v.number()),
+    width: v.optional(v.number()),
+    height: v.optional(v.number()),
     documentId: v.optional(v.id("documents")),
-    /** Convex storage ID for the uploaded file. */
-    storageId: v.id("_storage"),
-    /** Original filename (e.g., "hero-image.png"). */
-    fileName: v.string(),
-    /** MIME type (e.g., "image/png"). */
-    contentType: v.string(),
-    /** File size in bytes. */
-    size: v.number(),
-    /** Whether this image has been synced to GitHub. */
-    syncedToGithub: v.boolean(),
-    /** The GitHub repo path after syncing (e.g., "public/images/hero.png"). */
-    githubPath: v.optional(v.string()),
     createdAt: v.number(),
+    // ── Legacy fields (kept for in-flight rows being migrated) ──
+    /** @deprecated convex_legacy provider only */
+    storageId: v.optional(v.id("_storage")),
+    /** @deprecated convex_legacy provider only */
+    fileName: v.optional(v.string()),
+    /** @deprecated convex_legacy provider only */
+    contentType: v.optional(v.string()),
+    /** @deprecated convex_legacy provider only */
+    size: v.optional(v.number()),
+    /** @deprecated convex_legacy provider only */
+    syncedToGithub: v.optional(v.boolean()),
+    /** @deprecated convex_legacy provider only */
+    githubPath: v.optional(v.string()),
   })
     .index("by_projectId", ["projectId"])
+    .index("by_userId", ["userId"])
+    .index("by_projectId_and_createdAt", ["projectId", "createdAt"])
     .index("by_documentId", ["documentId"])
+    .index("by_provider_and_externalId", ["provider", "externalId"])
     .index("by_storageId", ["storageId"]),
 
   /**
-   * Scheduled publishes table — acts as a lightweight job queue for deferred publishing.
-   * Each record tracks a single publish intent with a status lifecycle:
-   * pending -> processing -> completed | failed.
-   * The cron job in crons.ts polls this table every 5 minutes for due items.
+   * Media credentials — per-project encrypted credentials for the active provider.
+   * Only one row per (projectId, provider). Secret values live in WorkOS Vault;
+   * we store an opaque pointer plus non-secret hints (e.g. Cloudinary `cloud_name`).
+   *
+   * `status` is an explicit state machine so the UI can render
+   * "verifying…" / "rotating…" / "invalid — please update" reactively.
+   */
+  mediaCredentials: defineTable({
+    projectId: v.id("projects"),
+    userId: v.id("users"),
+    provider: v.union(v.literal("uploadthing"), v.literal("cloudinary")),
+    vaultSecretId: v.string(),
+    vaultVersionId: v.optional(v.string()),
+    /** JSON-serialized non-secret hints, e.g. { cloudName, folder } for Cloudinary. */
+    publicConfig: v.optional(v.string()),
+    status: v.union(
+      v.literal("active"),
+      v.literal("verifying"),
+      v.literal("invalid"),
+      v.literal("rotating"),
+    ),
+    lastVerifiedAt: v.optional(v.number()),
+    lastVerifyError: v.optional(v.string()),
+    rotatedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_projectId", ["projectId"])
+    .index("by_projectId_and_provider", ["projectId", "provider"])
+    .index("by_userId_and_provider", ["userId", "provider"]),
+
+  /**
+   * Media usage counters — denormalized so quota checks don't scan the media table
+   * on every upload. Incremented in the same mutation that writes the media row,
+   * decremented on delete. `uploadsThisMonth` resets when `monthBucket` rolls over.
+   */
+  mediaUsage: defineTable({
+    projectId: v.id("projects"),
+    userId: v.id("users"),
+    fileCount: v.number(),
+    totalBytes: v.number(),
+    uploadsThisMonth: v.number(),
+    monthBucket: v.string(),
+    updatedAt: v.number(),
+  })
+    .index("by_projectId", ["projectId"])
+    .index("by_userId", ["userId"]),
+
+  /**
+   * Normalized error log for media operations. One row per failed upload /
+   * delete / list / ping, mapped to a closed `MediaErrorCode` enum so the UI
+   * can render friendly toasts. Pruned by a daily cron after 30 days.
+   */
+  mediaErrorLog: defineTable({
+    projectId: v.id("projects"),
+    userId: v.id("users"),
+    provider: v.string(),
+    operation: v.string(),
+    errorCode: v.string(),
+    errorMessage: v.string(),
+    /** Raw provider error JSON (redacted of secrets) for debugging. */
+    providerError: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_projectId_and_createdAt", ["projectId", "createdAt"])
+    .index("by_userId_and_createdAt", ["userId", "createdAt"]),
+
+  /**
+   * Scheduled publishes table — lightweight job queue for deferred publishing.
+   * Pending → processing → completed | failed.
    */
   scheduled_publishes: defineTable({
     documentId: v.id("documents"),

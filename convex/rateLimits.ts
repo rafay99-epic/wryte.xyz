@@ -55,6 +55,15 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     rate: 10,
     period: MINUTE,
   },
+  /**
+   * Self-destruct (account reset). Intentionally tight — this is a
+   * destructive action; nobody should be running it on a loop.
+   */
+  "users:selfDestruct": {
+    kind: "fixed window",
+    rate: 3,
+    period: HOUR,
+  },
 
   /* ------------------------------------------------------------------ */
   /*  Projects                                                           */
@@ -165,6 +174,80 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
 
   /* ------------------------------------------------------------------ */
   /*  Media                                                              */
+  /* ------------------------------------------------------------------ */
+
+  /** Direct provider uploads — generous burst for paste-heavy writing. */
+  "media:upload": {
+    kind: "token bucket",
+    rate: 60,
+    period: MINUTE,
+    capacity: 10,
+  },
+  /** Library list calls — reactive UI may refresh frequently. */
+  "media:list": {
+    kind: "token bucket",
+    rate: 60,
+    period: MINUTE,
+    capacity: 20,
+  },
+  /** Manual deletes from the media library. */
+  "media:delete": {
+    kind: "token bucket",
+    rate: 30,
+    period: MINUTE,
+    capacity: 5,
+  },
+  /** Per-user concurrency token — only 3 in flight at a time. */
+  "media:uploadConcurrency": {
+    kind: "token bucket",
+    rate: 180,
+    period: MINUTE,
+    capacity: 3,
+  },
+  /** Global circuit breaker — keyed on a constant string. */
+  "media:globalUpload": {
+    kind: "fixed window",
+    rate: 5000,
+    period: MINUTE,
+  },
+  "mediaCredentials:set": {
+    kind: "token bucket",
+    rate: 5,
+    period: MINUTE,
+    capacity: 2,
+  },
+  "mediaCredentials:rotate": {
+    kind: "fixed window",
+    rate: 10,
+    period: HOUR,
+  },
+  "mediaCredentials:test": {
+    kind: "token bucket",
+    rate: 20,
+    period: MINUTE,
+    capacity: 5,
+  },
+  "mediaCredentials:delete": {
+    kind: "fixed window",
+    rate: 5,
+    period: HOUR,
+  },
+  /** WorkOS Vault reads — protects our WorkOS bill. */
+  "vault:read": {
+    kind: "token bucket",
+    rate: 240,
+    period: MINUTE,
+    capacity: 30,
+  },
+  "vault:write": {
+    kind: "token bucket",
+    rate: 10,
+    period: MINUTE,
+    capacity: 3,
+  },
+
+  /* ------------------------------------------------------------------ */
+  /*  Legacy media (kept for one release to support drain migration)     */
   /* ------------------------------------------------------------------ */
 
   "media:generateUploadUrl": {

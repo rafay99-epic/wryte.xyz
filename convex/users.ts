@@ -1,5 +1,12 @@
 import { v } from "convex/values";
-import { internalQuery, mutation, query } from "./_generated/server";
+import { internal } from "./_generated/api";
+import {
+  action,
+  internalMutation,
+  internalQuery,
+  mutation,
+  query,
+} from "./_generated/server";
 import { getRateLimitKey, rateLimiter } from "./rateLimits";
 
 /**
@@ -82,49 +89,64 @@ export const get = query({
 });
 
 /**
- * Persists the user's GitHub personal access token for use in publishing.
- * The token is stored on the user record so it can be used by internal
- * actions (e.g., scheduled publishes) that don't have access to client-provided tokens.
+ * Stores the user's GitHub PAT in the secret vault and pins the opaque ID
+ * on the user record. Replaces any prior stored token (vault entry is
+ * deleted if rotation is needed).
  *
- * @requires Authentication - throws if not authenticated or user not found.
- * @param args.token - GitHub personal access token.
+ * Implemented as an action because the vault SDK runs in Node.
  */
-export const updateGithubToken = mutation({
+export const updateGithubToken = action({
   args: { token: v.string() },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<void> => {
     const key = await getRateLimitKey(ctx);
     await rateLimiter.limit(ctx, "users:updateGithubToken", {
       key,
       throws: true,
     });
+    await rateLimiter.limit(ctx, "vault:write", { key, throws: true });
 
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       throw new Error("Not authenticated");
     }
 
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_tokenIdentifier", (q) =>
-        q.eq("tokenIdentifier", identity.tokenIdentifier),
-      )
-      .unique();
-
+    const user = await ctx.runQuery(internal.users.internalGetByToken, {
+      tokenIdentifier: identity.tokenIdentifier,
+    });
     if (!user) {
       throw new Error("User not found");
     }
 
-    await ctx.db.patch(user._id, {
-      githubAccessToken: args.token,
+    // Store new value in vault first, then swap pointer on the user row,
+    // then best-effort delete the old vault entry.
+    const created = await ctx.runAction(internal.secretStore._create, {
+      value: args.token,
+      meta: {
+        userId: user._id,
+        label: "github-pat",
+      },
     });
+
+    const previousVaultId = user.githubVaultSecretId;
+    await ctx.runMutation(internal.users._setGithubVaultId, {
+      userId: user._id,
+      vaultSecretId: created.id,
+    });
+
+    if (previousVaultId) {
+      try {
+        await ctx.runAction(internal.secretStore._delete, {
+          id: previousVaultId,
+        });
+      } catch {
+        // Vault entry may already be gone; ignore.
+      }
+    }
   },
 });
 
 /**
  * Stores the user's GitHub username for display and identification purposes.
- *
- * @requires Authentication - throws if not authenticated or user not found.
- * @param args.username - GitHub username.
  */
 export const updateGithubUsername = mutation({
   args: { username: v.string() },
@@ -159,15 +181,42 @@ export const updateGithubUsername = mutation({
 
 /**
  * Internal-only query to fetch a user by ID. Used by server-side actions
- * (e.g., github.ts) that already have a trusted userId and don't need
- * to re-authenticate via Clerk.
- *
- * @param args.userId - The Convex user document ID.
- * @returns The user document, or null if not found.
+ * that already have a trusted userId and don't need to re-authenticate.
  */
 export const internalGet = internalQuery({
   args: { userId: v.id("users") },
   handler: async (ctx, args) => {
     return await ctx.db.get(args.userId);
+  },
+});
+
+/** Internal user lookup by Clerk token, for actions that can't query directly. */
+export const internalGetByToken = internalQuery({
+  args: { tokenIdentifier: v.string() },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("users")
+      .withIndex("by_tokenIdentifier", (q) =>
+        q.eq("tokenIdentifier", args.tokenIdentifier),
+      )
+      .unique();
+  },
+});
+
+/**
+ * Sets the vault-backed GitHub secret pointer and clears any legacy plaintext
+ * `githubAccessToken` value. Internal because it's invoked from the
+ * `updateGithubToken` action and from `getGithubToken`'s lazy migration path.
+ */
+export const _setGithubVaultId = internalMutation({
+  args: {
+    userId: v.id("users"),
+    vaultSecretId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.userId, {
+      githubVaultSecretId: args.vaultSecretId,
+      githubAccessToken: undefined,
+    });
   },
 });

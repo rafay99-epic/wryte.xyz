@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery } from "convex/react";
+import { useAction, useQuery } from "convex/react";
 import { Check, ImageIcon, Loader2, Search, Upload } from "lucide-react";
 import Image from "next/image";
 import { useCallback, useMemo, useRef, useState } from "react";
@@ -23,15 +23,6 @@ import { cn } from "@/lib/utils";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 
-// biome-ignore lint/suspicious/noExplicitAny: api types are generated at build time via `npx convex dev`
-const projectsGet = (api as any).projects.get;
-// biome-ignore lint/suspicious/noExplicitAny: api types are generated at build time via `npx convex dev`
-const mediaListStaged = (api as any).media.listStaged;
-// biome-ignore lint/suspicious/noExplicitAny: api types are generated at build time via `npx convex dev`
-const mediaGenerateUploadUrl = (api as any).media.generateUploadUrl;
-// biome-ignore lint/suspicious/noExplicitAny: api types are generated at build time via `npx convex dev`
-const mediaSaveMedia = (api as any).media.saveMedia;
-
 interface MediaPickerDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -53,7 +44,7 @@ export function MediaPickerDrawer({
   onSelect,
 }: MediaPickerDrawerProps) {
   const project = useQuery(
-    projectsGet,
+    api.projects.get,
     projectId ? { projectId: projectId as Id<"projects"> } : "skip",
   );
 
@@ -66,11 +57,15 @@ export function MediaPickerDrawer({
   });
   const githubFiles = mediaData?.files ?? [];
 
-  const stagedMedia =
+  // Project-scoped media records (any provider). These are the rows we wrote
+  // when the editor uploaded an image — the source of truth for "Recent".
+  const projectMedia =
     useQuery(
-      mediaListStaged,
-      projectId ? { projectId: projectId as Id<"projects"> } : "skip",
-    ) ?? [];
+      api.mediaDb.listForProject,
+      projectId
+        ? { projectId: projectId as Id<"projects">, pageSize: 50 }
+        : "skip",
+    )?.items ?? [];
 
   const [searchQuery, setSearchQuery] = useState("");
   const [externalUrl, setExternalUrl] = useState("");
@@ -84,13 +79,13 @@ export function MediaPickerDrawer({
     );
   }, [githubFiles, searchQuery]);
 
-  const filteredStagedMedia = useMemo(() => {
-    if (!searchQuery.trim()) return stagedMedia;
+  const filteredProjectMedia = useMemo(() => {
+    if (!searchQuery.trim()) return projectMedia;
     const q = searchQuery.toLowerCase();
-    return stagedMedia.filter((item: { fileName: string }) =>
-      item.fileName.toLowerCase().includes(q),
+    return projectMedia.filter((item) =>
+      (item.filename ?? item.fileName ?? "").toLowerCase().includes(q),
     );
-  }, [stagedMedia, searchQuery]);
+  }, [projectMedia, searchQuery]);
 
   const handleSelect = useCallback(
     (url: string) => {
@@ -112,8 +107,8 @@ export function MediaPickerDrawer({
   const defaultTab =
     hasGithub && githubFiles.length > 0
       ? "library"
-      : stagedMedia.length > 0
-        ? "staged"
+      : projectMedia.length > 0
+        ? "recent"
         : "upload";
 
   return (
@@ -145,7 +140,7 @@ export function MediaPickerDrawer({
           <Tabs defaultValue={defaultTab}>
             <TabsList className="w-full">
               {hasGithub && <TabsTrigger value="library">Library</TabsTrigger>}
-              <TabsTrigger value="staged">Staged</TabsTrigger>
+              <TabsTrigger value="recent">Recent</TabsTrigger>
               <TabsTrigger value="upload">Upload</TabsTrigger>
               <TabsTrigger value="url">URL</TabsTrigger>
             </TabsList>
@@ -179,29 +174,26 @@ export function MediaPickerDrawer({
               </TabsContent>
             )}
 
-            {/* Staged Media */}
-            <TabsContent value="staged">
-              {filteredStagedMedia.length === 0 ? (
+            {/* Recent uploads (project-scoped, any provider) */}
+            <TabsContent value="recent">
+              {filteredProjectMedia.length === 0 ? (
                 <EmptyState
-                  message={searchQuery ? "No matches found" : "No staged media"}
+                  message={searchQuery ? "No matches found" : "No uploads yet"}
                 />
               ) : (
                 <MediaGrid>
-                  {filteredStagedMedia.map(
-                    (item: {
-                      _id: string;
-                      fileName: string;
-                      contentType: string;
-                      size: number;
-                      url: string;
-                    }) => (
-                      <StagedMediaItem
+                  {filteredProjectMedia.map((item) => {
+                    const url = item.url ?? "";
+                    const filename = item.filename ?? item.fileName ?? "image";
+                    return (
+                      <RecentMediaItem
                         key={item._id}
-                        item={item}
-                        onSelect={() => handleSelect(item.url)}
+                        url={url}
+                        filename={filename}
+                        onSelect={() => handleSelect(url)}
                       />
-                    ),
-                  )}
+                    );
+                  })}
                 </MediaGrid>
               )}
             </TabsContent>
@@ -284,7 +276,10 @@ function GitHubMediaItem({
   file: MediaFile;
   onSelect: () => void;
 }) {
-  const isImage = /\.(png|jpe?g|gif|webp|svg|avif|bmp|ico)$/i.test(file.name);
+  const isImage =
+    /\.(png|jpe?g|gif|webp|svg|avif|bmp|ico)$/i.test(file.name) &&
+    typeof file.downloadUrl === "string" &&
+    file.downloadUrl.length > 0;
 
   return (
     <button
@@ -317,33 +312,29 @@ function GitHubMediaItem({
   );
 }
 
-function StagedMediaItem({
-  item,
+function RecentMediaItem({
+  url,
+  filename,
   onSelect,
 }: {
-  item: {
-    _id: string;
-    fileName: string;
-    url: string;
-  };
+  url: string;
+  filename: string;
   onSelect: () => void;
 }) {
-  const isImage = /\.(png|jpe?g|gif|webp|svg|avif|bmp|ico)$/i.test(
-    item.fileName,
-  );
+  const isImage = /\.(png|jpe?g|gif|webp|svg|avif|bmp|ico)$/i.test(filename);
 
   return (
     <button
       type="button"
       onClick={onSelect}
-      className="group overflow-hidden rounded-lg border border-amber-500/20 bg-card text-left transition-all hover:border-primary/40 hover:ring-2 hover:ring-primary/10"
+      className="group overflow-hidden rounded-lg border bg-card text-left transition-all hover:border-primary/40 hover:ring-2 hover:ring-primary/10"
     >
-      <div className="relative flex h-24 items-center justify-center bg-amber-500/5">
-        {isImage ? (
+      <div className="relative flex h-24 items-center justify-center bg-muted/50">
+        {isImage && url ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={item.url}
-            alt={item.fileName}
+            src={url}
+            alt={filename}
             className="size-full object-contain p-1.5"
           />
         ) : (
@@ -354,8 +345,7 @@ function StagedMediaItem({
         </div>
       </div>
       <div className="px-2 py-1.5">
-        <p className="truncate text-[11px] font-medium">{item.fileName}</p>
-        <p className="text-[9px] text-amber-600 dark:text-amber-400">Staged</p>
+        <p className="truncate text-[11px] font-medium">{filename}</p>
       </div>
     </button>
   );
@@ -368,8 +358,7 @@ function UploadTab({
   projectId: string;
   onUploaded: (url: string) => void;
 }) {
-  const generateUploadUrl = useMutation(mediaGenerateUploadUrl);
-  const saveMedia = useMutation(mediaSaveMedia);
+  const uploadMedia = useAction(api.media.upload);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -378,35 +367,26 @@ function UploadTab({
     async (file: File) => {
       setIsUploading(true);
       try {
-        const uploadUrl = await generateUploadUrl();
-        const uploadResponse = await fetch(uploadUrl, {
-          method: "POST",
-          headers: { "Content-Type": file.type },
-          body: file,
-        });
-        if (!uploadResponse.ok) throw new Error("Upload failed");
-
-        const { storageId } = (await uploadResponse.json()) as {
-          storageId: string;
-        };
-
-        const { url } = await saveMedia({
+        const bytes = await file.arrayBuffer();
+        const result = await uploadMedia({
           projectId: projectId as Id<"projects">,
-          storageId: storageId as Id<"_storage">,
-          fileName: file.name,
-          contentType: file.type,
-          size: file.size,
+          bytes,
+          mime: file.type,
+          filename: file.name,
         });
-
         toast.success(`Uploaded ${file.name}`);
-        onUploaded(url as string);
-      } catch {
-        toast.error("Failed to upload image");
+        onUploaded(result.url);
+      } catch (err) {
+        const data = (err as { data?: { message?: string } })?.data;
+        toast.error(
+          data?.message ??
+            (err instanceof Error ? err.message : "Failed to upload image"),
+        );
       } finally {
         setIsUploading(false);
       }
     },
-    [generateUploadUrl, saveMedia, projectId, onUploaded],
+    [uploadMedia, projectId, onUploaded],
   );
 
   const handleDrop = useCallback(

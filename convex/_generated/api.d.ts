@@ -17,10 +17,25 @@ import type * as documents from "../documents.js";
 import type * as github from "../github.js";
 import type * as http from "../http.js";
 import type * as media from "../media.js";
+import type * as mediaCredentials from "../mediaCredentials.js";
+import type * as mediaCredentialsDb from "../mediaCredentialsDb.js";
+import type * as mediaDb from "../mediaDb.js";
 import type * as projects from "../projects.js";
+import type * as providers_cloudinary from "../providers/cloudinary.js";
+import type * as providers_errors from "../providers/errors.js";
+import type * as providers_github from "../providers/github.js";
+import type * as providers_index from "../providers/index.js";
+import type * as providers_shared from "../providers/shared.js";
+import type * as providers_uploadthing from "../providers/uploadthing.js";
+import type * as quotas from "../quotas.js";
 import type * as rateLimits from "../rateLimits.js";
 import type * as scheduling from "../scheduling.js";
+import type * as secretStore from "../secretStore.js";
+import type * as selfDestruct from "../selfDestruct.js";
+import type * as uploadPool from "../uploadPool.js";
 import type * as users from "../users.js";
+import type * as workflows_rotateCredential from "../workflows/rotateCredential.js";
+import type * as workflows_rotateCredentialActions from "../workflows/rotateCredentialActions.js";
 
 import type {
   ApiFromModules,
@@ -38,10 +53,25 @@ declare const fullApi: ApiFromModules<{
   github: typeof github;
   http: typeof http;
   media: typeof media;
+  mediaCredentials: typeof mediaCredentials;
+  mediaCredentialsDb: typeof mediaCredentialsDb;
+  mediaDb: typeof mediaDb;
   projects: typeof projects;
+  "providers/cloudinary": typeof providers_cloudinary;
+  "providers/errors": typeof providers_errors;
+  "providers/github": typeof providers_github;
+  "providers/index": typeof providers_index;
+  "providers/shared": typeof providers_shared;
+  "providers/uploadthing": typeof providers_uploadthing;
+  quotas: typeof quotas;
   rateLimits: typeof rateLimits;
   scheduling: typeof scheduling;
+  secretStore: typeof secretStore;
+  selfDestruct: typeof selfDestruct;
+  uploadPool: typeof uploadPool;
   users: typeof users;
+  "workflows/rotateCredential": typeof workflows_rotateCredential;
+  "workflows/rotateCredentialActions": typeof workflows_rotateCredentialActions;
 }>;
 
 /**
@@ -760,6 +790,202 @@ export declare const components: {
     };
     time: {
       getServerTime: FunctionReference<"mutation", "internal", {}, number>;
+    };
+  };
+  mediaUploadPool: {
+    config: {
+      update: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          logLevel?: "DEBUG" | "TRACE" | "INFO" | "REPORT" | "WARN" | "ERROR";
+          maxParallelism?: number;
+        },
+        any
+      >;
+    };
+    lib: {
+      cancel: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          id: string;
+          logLevel?: "DEBUG" | "TRACE" | "INFO" | "REPORT" | "WARN" | "ERROR";
+        },
+        any
+      >;
+      cancelAll: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          before?: number;
+          limit?: number;
+          logLevel?: "DEBUG" | "TRACE" | "INFO" | "REPORT" | "WARN" | "ERROR";
+        },
+        any
+      >;
+      enqueue: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          config: {
+            logLevel?: "DEBUG" | "TRACE" | "INFO" | "REPORT" | "WARN" | "ERROR";
+            maxParallelism?: number;
+          };
+          fnArgs: any;
+          fnHandle: string;
+          fnName: string;
+          fnType: "action" | "mutation" | "query";
+          onComplete?: { context?: any; fnHandle: string };
+          retryBehavior?: {
+            base: number;
+            initialBackoffMs: number;
+            maxAttempts: number;
+          };
+          runAt: number;
+        },
+        string
+      >;
+      enqueueBatch: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          config: {
+            logLevel?: "DEBUG" | "TRACE" | "INFO" | "REPORT" | "WARN" | "ERROR";
+            maxParallelism?: number;
+          };
+          items: Array<{
+            fnArgs: any;
+            fnHandle: string;
+            fnName: string;
+            fnType: "action" | "mutation" | "query";
+            onComplete?: { context?: any; fnHandle: string };
+            retryBehavior?: {
+              base: number;
+              initialBackoffMs: number;
+              maxAttempts: number;
+            };
+            runAt: number;
+          }>;
+        },
+        Array<string>
+      >;
+      status: FunctionReference<
+        "query",
+        "internal",
+        { id: string },
+        | { previousAttempts: number; state: "pending" }
+        | { previousAttempts: number; state: "running" }
+        | { state: "finished" }
+      >;
+      statusBatch: FunctionReference<
+        "query",
+        "internal",
+        { ids: Array<string> },
+        Array<
+          | { previousAttempts: number; state: "pending" }
+          | { previousAttempts: number; state: "running" }
+          | { state: "finished" }
+        >
+      >;
+    };
+  };
+  mediaMaintenancePool: {
+    config: {
+      update: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          logLevel?: "DEBUG" | "TRACE" | "INFO" | "REPORT" | "WARN" | "ERROR";
+          maxParallelism?: number;
+        },
+        any
+      >;
+    };
+    lib: {
+      cancel: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          id: string;
+          logLevel?: "DEBUG" | "TRACE" | "INFO" | "REPORT" | "WARN" | "ERROR";
+        },
+        any
+      >;
+      cancelAll: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          before?: number;
+          limit?: number;
+          logLevel?: "DEBUG" | "TRACE" | "INFO" | "REPORT" | "WARN" | "ERROR";
+        },
+        any
+      >;
+      enqueue: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          config: {
+            logLevel?: "DEBUG" | "TRACE" | "INFO" | "REPORT" | "WARN" | "ERROR";
+            maxParallelism?: number;
+          };
+          fnArgs: any;
+          fnHandle: string;
+          fnName: string;
+          fnType: "action" | "mutation" | "query";
+          onComplete?: { context?: any; fnHandle: string };
+          retryBehavior?: {
+            base: number;
+            initialBackoffMs: number;
+            maxAttempts: number;
+          };
+          runAt: number;
+        },
+        string
+      >;
+      enqueueBatch: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          config: {
+            logLevel?: "DEBUG" | "TRACE" | "INFO" | "REPORT" | "WARN" | "ERROR";
+            maxParallelism?: number;
+          };
+          items: Array<{
+            fnArgs: any;
+            fnHandle: string;
+            fnName: string;
+            fnType: "action" | "mutation" | "query";
+            onComplete?: { context?: any; fnHandle: string };
+            retryBehavior?: {
+              base: number;
+              initialBackoffMs: number;
+              maxAttempts: number;
+            };
+            runAt: number;
+          }>;
+        },
+        Array<string>
+      >;
+      status: FunctionReference<
+        "query",
+        "internal",
+        { id: string },
+        | { previousAttempts: number; state: "pending" }
+        | { previousAttempts: number; state: "running" }
+        | { state: "finished" }
+      >;
+      statusBatch: FunctionReference<
+        "query",
+        "internal",
+        { ids: Array<string> },
+        Array<
+          | { previousAttempts: number; state: "pending" }
+          | { previousAttempts: number; state: "running" }
+          | { state: "finished" }
+        >
+      >;
     };
   };
 };

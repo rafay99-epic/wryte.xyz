@@ -17,7 +17,7 @@ import { getRateLimitKey, rateLimiter } from "./rateLimits";
 /*  Workflow manager                                                    */
 /* ------------------------------------------------------------------ */
 
-const publishWorkflowManager = new WorkflowManager(components.workflow, {
+export const publishWorkflowManager = new WorkflowManager(components.workflow, {
   workpoolOptions: {
     defaultRetryBehavior: {
       maxAttempts: 3,
