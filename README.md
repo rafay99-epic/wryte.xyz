@@ -40,11 +40,15 @@ bun run dev
 | Variable                  | Description                                                                     |
 | ------------------------- | ------------------------------------------------------------------------------- |
 | `CLERK_JWT_ISSUER_DOMAIN` | Clerk JWT issuer domain used in `convex/auth.config.ts` for token verification. |
-| `ANTHROPIC_API_KEY`       | Optional; used for Anthropic-backed AI flows.                                   |
-| `OPENAI_API_KEY`          | Optional; used for OpenAI / compatible providers.                               |
-| `OPENROUTER_API_KEY`      | Optional; used when models are routed through OpenRouter.                       |
+| `WORKOS_API_KEY`          | WorkOS Vault API key — encrypts every user-supplied secret (AI provider keys, media provider keys, GitHub PAT). |
 
-Set AI keys only for the providers you enable in project settings.
+AI provider keys (Anthropic / OpenAI / OpenRouter) and media provider keys
+(UploadThing / Cloudinary) are no longer environment variables. Each user
+supplies their own keys in **Project Settings → AI** / **Project Settings →
+Media**; they're stored encrypted in WorkOS Vault and read per-request. If
+you previously set `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, or
+`OPENROUTER_API_KEY` on a Convex deployment, they're safe to remove — no
+code path reads them anymore.
 
 ## Scripts
 

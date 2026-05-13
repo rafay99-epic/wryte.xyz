@@ -301,6 +301,28 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     rate: 10,
     period: MINUTE,
   },
+  "aiCredentials:set": {
+    kind: "token bucket",
+    rate: 5,
+    period: MINUTE,
+    capacity: 2,
+  },
+  "aiCredentials:rotate": {
+    kind: "fixed window",
+    rate: 10,
+    period: HOUR,
+  },
+  "aiCredentials:test": {
+    kind: "token bucket",
+    rate: 20,
+    period: MINUTE,
+    capacity: 5,
+  },
+  "aiCredentials:delete": {
+    kind: "fixed window",
+    rate: 5,
+    period: HOUR,
+  },
 
   /* ------------------------------------------------------------------ */
   /*  GitHub actions                                                     */

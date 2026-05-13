@@ -1,5 +1,6 @@
 "use client";
 
+import { useQuery } from "convex/react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useShallow } from "zustand/react/shallow";
@@ -7,6 +8,8 @@ import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { splitShortcutKeys } from "@/lib/shortcuts";
 import { useEditorStore } from "@/stores/editor-store";
 import { useShortcutsStore } from "@/stores/shortcuts-store";
+import { api } from "../../../convex/_generated/api";
+import type { Id } from "../../../convex/_generated/dataModel";
 import { useEditorContext } from "./editor-context";
 import { InlineAiPopover } from "./inline-ai-popover";
 
@@ -42,7 +45,35 @@ export function MarkdownEditor() {
   const inlineAiKeys = useShortcutsStore((s) => s.getKeys("inlineAI"));
   const inlineAiLabel = splitShortcutKeys(inlineAiKeys).join("+");
 
+  // Inline AI is only available once the project's AI provider has an
+  // active credential. We still register the shortcut so users discover
+  // the feature, but route them to settings when nothing's configured.
+  const activeProjectId = useEditorStore((s) => s.activeProjectId);
+  const aiReadiness = useQuery(
+    api.ai.isAiReady,
+    activeProjectId ? { projectId: activeProjectId as Id<"projects"> } : "skip",
+  );
+  const aiReady = aiReadiness?.ready ?? false;
+
   const onInlineAI = useCallback(() => {
+    if (!aiReady) {
+      const reason = aiReadiness?.reason;
+      const message =
+        reason === "no-credential" || reason === "invalid"
+          ? "Add your API key in Project Settings → AI to enable inline AI."
+          : reason === "no-provider" || reason === "no-model"
+            ? "Pick an AI provider and model in Project Settings → AI."
+            : reason === "verifying"
+              ? "Your API key is still being verified — try again in a moment."
+              : reason === "rotating"
+                ? "Your API key is being rotated — try again in a moment."
+                : "AI isn't ready yet for this project.";
+      toast("AI is not configured", {
+        description: message,
+        duration: 3500,
+      });
+      return;
+    }
     const sel = getSelection();
     if (!sel) {
       toast("Select some text first", {
@@ -53,7 +84,7 @@ export function MarkdownEditor() {
     }
     setInlineAiSelection(sel);
     setInlineAiOpen(true);
-  }, [getSelection, inlineAiLabel]);
+  }, [aiReady, aiReadiness?.reason, getSelection, inlineAiLabel]);
 
   useKeyboardShortcuts(textareaRef, {
     onBold,

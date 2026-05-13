@@ -1,5 +1,6 @@
 "use client";
 
+import { useQuery } from "convex/react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Bold,
@@ -39,6 +40,8 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/stores/editor-store";
+import { api } from "../../../convex/_generated/api";
+import type { Id } from "../../../convex/_generated/dataModel";
 import { AiEnhanceButton } from "./ai-enhance-button";
 import { useEditorContext } from "./editor-context";
 import { ImageInsertDialog } from "./image-insert-dialog";
@@ -72,6 +75,14 @@ export function EditorToolbar({ projectId }: EditorToolbarProps) {
 
   const [imageDialogOpen, setImageDialogOpen] = useState(false);
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
+
+  // Gate the AI Assistant pill: hide entirely until the project has a
+  // provider + model + active credential. Surfaces only through the AI
+  // settings tab; clicking a non-functional button is the wrong UX.
+  const aiReadiness = useQuery(api.ai.isAiReady, {
+    projectId: projectId as Id<"projects">,
+  });
+  const aiReady = aiReadiness?.ready ?? false;
 
   // Word count
   const stats = useMemo(() => {
@@ -300,15 +311,17 @@ export function EditorToolbar({ projectId }: EditorToolbarProps) {
             ))}
           </div>
 
-          {/* AI Assistant button — prominent pill */}
-          <button
-            type="button"
-            onClick={() => setAiDialogOpen(true)}
-            className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground shadow-sm transition-all hover:bg-primary/90 active:scale-[0.97]"
-          >
-            <Sparkles className="size-3.5" />
-            <span>AI Assistant</span>
-          </button>
+          {/* AI Assistant button — only visible once AI is fully configured */}
+          {aiReady && (
+            <button
+              type="button"
+              onClick={() => setAiDialogOpen(true)}
+              className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground shadow-sm transition-all hover:bg-primary/90 active:scale-[0.97]"
+            >
+              <Sparkles className="size-3.5" />
+              <span>AI Assistant</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -319,11 +332,13 @@ export function EditorToolbar({ projectId }: EditorToolbarProps) {
         projectId={projectId}
       />
 
-      <AiEnhanceButton
-        open={aiDialogOpen}
-        onOpenChange={setAiDialogOpen}
-        projectId={projectId}
-      />
+      {aiReady && (
+        <AiEnhanceButton
+          open={aiDialogOpen}
+          onOpenChange={setAiDialogOpen}
+          projectId={projectId}
+        />
+      )}
     </>
   );
 }

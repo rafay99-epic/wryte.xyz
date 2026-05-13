@@ -241,6 +241,41 @@ export default defineSchema({
     .index("by_userId_and_provider", ["userId", "provider"]),
 
   /**
+   * AI provider credentials — per-project, encrypted in WorkOS Vault.
+   *
+   * Mirrors `mediaCredentials` exactly but for LLM provider keys
+   * (Anthropic / OpenAI / OpenRouter). The project's `aiProvider` field
+   * picks which row to use at call time; `aiModel` picks the model id.
+   *
+   * Only one row per (projectId, provider); insert-or-replace on save.
+   */
+  aiCredentials: defineTable({
+    projectId: v.id("projects"),
+    userId: v.id("users"),
+    provider: v.union(
+      v.literal("anthropic"),
+      v.literal("openai"),
+      v.literal("openrouter"),
+    ),
+    vaultSecretId: v.string(),
+    vaultVersionId: v.optional(v.string()),
+    status: v.union(
+      v.literal("active"),
+      v.literal("verifying"),
+      v.literal("invalid"),
+      v.literal("rotating"),
+    ),
+    lastVerifiedAt: v.optional(v.number()),
+    lastVerifyError: v.optional(v.string()),
+    rotatedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_projectId", ["projectId"])
+    .index("by_projectId_and_provider", ["projectId", "provider"])
+    .index("by_userId_and_provider", ["userId", "provider"]),
+
+  /**
    * Media usage counters — denormalized so quota checks don't scan the media table
    * on every upload. Incremented in the same mutation that writes the media row,
    * decremented on delete. `uploadsThisMonth` resets when `monthBucket` rolls over.

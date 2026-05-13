@@ -3,18 +3,20 @@
 /**
  * AI enhancement — Node.js action that performs the actual streaming.
  *
- * This file uses "use node" for external AI SDK access.
- * It exports an internalAction that writes chunks to a PersistentTextStreaming stream.
+ * Reads the provider's API key from WorkOS Vault via the `vaultSecretId`
+ * passed in by the calling mutation. There are no `process.env.*_API_KEY`
+ * lookups anymore — every project supplies its own key through the
+ * `aiCredentials` table.
  */
 import Anthropic from "@anthropic-ai/sdk";
 import { StreamIdValidator } from "@convex-dev/persistent-text-streaming";
 import { v } from "convex/values";
 import OpenAI from "openai";
-import { components } from "./_generated/api";
+import { components, internal } from "./_generated/api";
 import { internalAction } from "./_generated/server";
 
 /* ------------------------------------------------------------------ */
-/*  System prompt                                                      */
+/*  System prompts                                                     */
 /* ------------------------------------------------------------------ */
 
 const ENHANCE_SYSTEM_PROMPT = `You are an expert writing editor. Improve the provided markdown content while preserving the author's voice, intent, and meaning.
@@ -30,193 +32,6 @@ Guidelines:
 - Return ONLY the improved markdown content, nothing else
 - If the content is already well-written, make minimal changes`;
 
-/* ------------------------------------------------------------------ */
-/*  Provider adapters                                                  */
-/* ------------------------------------------------------------------ */
-
-type ChunkWriter = {
-  addChunk(text: string): Promise<void>;
-};
-
-async function streamWithAnthropic(
-  model: string,
-  content: string,
-  writer: ChunkWriter,
-  systemPrompt?: string,
-): Promise<void> {
-  const apiKey = process.env["ANTHROPIC_API_KEY"];
-  if (!apiKey) {
-    throw new Error(
-      "ANTHROPIC_API_KEY is not configured. Add it in the Convex dashboard.",
-    );
-  }
-
-  const client = new Anthropic({ apiKey });
-
-  const stream = client.messages.stream({
-    model,
-    max_tokens: 8192,
-    system: systemPrompt ?? ENHANCE_SYSTEM_PROMPT,
-    messages: [{ role: "user", content }],
-  });
-
-  for await (const event of stream) {
-    if (
-      event.type === "content_block_delta" &&
-      event.delta.type === "text_delta"
-    ) {
-      await writer.addChunk(event.delta.text);
-    }
-  }
-}
-
-async function streamWithOpenAI(
-  model: string,
-  content: string,
-  writer: ChunkWriter,
-  options?: {
-    baseURL?: string;
-    apiKeyEnvVar?: string;
-    extraHeaders?: Record<string, string>;
-    systemPrompt?: string;
-  },
-): Promise<void> {
-  const envVar = options?.apiKeyEnvVar ?? "OPENAI_API_KEY";
-  const apiKey = process.env[envVar];
-  if (!apiKey) {
-    throw new Error(
-      `${envVar} is not configured. Add it in the Convex dashboard.`,
-    );
-  }
-
-  const client = new OpenAI({
-    apiKey,
-    ...(options?.baseURL ? { baseURL: options.baseURL } : {}),
-    ...(options?.extraHeaders ? { defaultHeaders: options.extraHeaders } : {}),
-  });
-
-  const stream = await client.chat.completions.create({
-    model,
-    stream: true,
-    messages: [
-      {
-        role: "system",
-        content: options?.systemPrompt ?? ENHANCE_SYSTEM_PROMPT,
-      },
-      { role: "user", content },
-    ],
-  });
-
-  for await (const chunk of stream) {
-    const text = chunk.choices[0]?.delta?.content;
-    if (text) {
-      await writer.addChunk(text);
-    }
-  }
-}
-
-/* ------------------------------------------------------------------ */
-/*  Helpers: directly call component mutations (addChunk/setStreamStatus
- *  are private on the PersistentTextStreaming class, so we call the
- *  underlying component mutations directly from the action context). */
-/* ------------------------------------------------------------------ */
-
-function hasDelimiter(text: string) {
-  return text.includes(".") || text.includes("!") || text.includes("?");
-}
-
-/* ------------------------------------------------------------------ */
-/*  Internal action: runs the AI enhancement and writes chunks         */
-/* ------------------------------------------------------------------ */
-
-/**
- * Internal action that calls the AI provider's streaming API and writes
- * chunks to the persistent text stream. Called by the mutation after
- * creating the stream, scheduled to run immediately.
- */
-export const runEnhancement = internalAction({
-  args: {
-    streamId: StreamIdValidator,
-    provider: v.union(
-      v.literal("anthropic"),
-      v.literal("openai"),
-      v.literal("openrouter"),
-    ),
-    model: v.string(),
-    content: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const streamId = args.streamId;
-    let pending = "";
-
-    const writer = {
-      addChunk: async (text: string) => {
-        pending += text;
-        // Batch writes at sentence boundaries to reduce mutation calls
-        if (hasDelimiter(text)) {
-          await ctx.runMutation(
-            components.persistentTextStreaming.lib.addChunk,
-            { streamId, text: pending, final: false },
-          );
-          pending = "";
-        }
-      },
-    };
-
-    try {
-      switch (args.provider) {
-        case "anthropic":
-          await streamWithAnthropic(args.model, args.content, writer);
-          break;
-        case "openai":
-          await streamWithOpenAI(args.model, args.content, writer);
-          break;
-        case "openrouter":
-          await streamWithOpenAI(args.model, args.content, writer, {
-            baseURL: "https://openrouter.ai/api/v1",
-            apiKeyEnvVar: "OPENROUTER_API_KEY",
-            extraHeaders: {
-              "HTTP-Referer": "https://wryte.xyz",
-              "X-Title": "Wryte",
-            },
-          });
-          break;
-      }
-
-      // Flush remaining text and mark stream as complete
-      await ctx.runMutation(components.persistentTextStreaming.lib.addChunk, {
-        streamId,
-        text: pending,
-        final: true,
-      });
-    } catch (error: unknown) {
-      const err = error as { status?: number; message?: string };
-      let message = err.message ?? "Unknown error";
-
-      if (err.status === 401) {
-        message = `Invalid API key for ${args.provider}. Check your Convex environment variables.`;
-      } else if (err.status === 429) {
-        message = `Rate limited by ${args.provider}. Please try again in a moment.`;
-      }
-
-      // Set stream to error state
-      try {
-        await ctx.runMutation(
-          components.persistentTextStreaming.lib.setStreamStatus,
-          { streamId, status: "error" },
-        );
-      } catch {
-        // Stream may already be in terminal state
-      }
-      throw new Error(message);
-    }
-  },
-});
-
-/* ------------------------------------------------------------------ */
-/*  Inline enhancement: selected text + custom user instruction        */
-/* ------------------------------------------------------------------ */
-
 const INLINE_SYSTEM_PROMPT = `You are a writing assistant. Transform the provided text according to the user's instruction.
 
 Rules:
@@ -225,97 +40,6 @@ Rules:
 - Preserve markdown formatting unless the instruction says otherwise
 - If the instruction is unclear, make your best interpretation
 - Keep the same language unless asked to translate`;
-
-export const runInlineEnhancement = internalAction({
-  args: {
-    streamId: StreamIdValidator,
-    provider: v.union(
-      v.literal("anthropic"),
-      v.literal("openai"),
-      v.literal("openrouter"),
-    ),
-    model: v.string(),
-    selectedText: v.string(),
-    instruction: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const streamId = args.streamId;
-    let pending = "";
-
-    const userMessage = `Instruction: ${args.instruction}\n\nText to transform:\n${args.selectedText}`;
-
-    const writer = {
-      addChunk: async (text: string) => {
-        pending += text;
-        if (hasDelimiter(text)) {
-          await ctx.runMutation(
-            components.persistentTextStreaming.lib.addChunk,
-            { streamId, text: pending, final: false },
-          );
-          pending = "";
-        }
-      },
-    };
-
-    try {
-      switch (args.provider) {
-        case "anthropic":
-          await streamWithAnthropic(
-            args.model,
-            userMessage,
-            writer,
-            INLINE_SYSTEM_PROMPT,
-          );
-          break;
-        case "openai":
-          await streamWithOpenAI(args.model, userMessage, writer, {
-            systemPrompt: INLINE_SYSTEM_PROMPT,
-          });
-          break;
-        case "openrouter":
-          await streamWithOpenAI(args.model, userMessage, writer, {
-            baseURL: "https://openrouter.ai/api/v1",
-            apiKeyEnvVar: "OPENROUTER_API_KEY",
-            extraHeaders: {
-              "HTTP-Referer": "https://wryte.xyz",
-              "X-Title": "Wryte",
-            },
-            systemPrompt: INLINE_SYSTEM_PROMPT,
-          });
-          break;
-      }
-
-      await ctx.runMutation(components.persistentTextStreaming.lib.addChunk, {
-        streamId,
-        text: pending,
-        final: true,
-      });
-    } catch (error: unknown) {
-      const err = error as { status?: number; message?: string };
-      let message = err.message ?? "Unknown error";
-
-      if (err.status === 401) {
-        message = `Invalid API key for ${args.provider}. Check your Convex environment variables.`;
-      } else if (err.status === 429) {
-        message = `Rate limited by ${args.provider}. Please try again in a moment.`;
-      }
-
-      try {
-        await ctx.runMutation(
-          components.persistentTextStreaming.lib.setStreamStatus,
-          { streamId, status: "error" },
-        );
-      } catch {
-        // Stream may already be in terminal state
-      }
-      throw new Error(message);
-    }
-  },
-});
-
-/* ------------------------------------------------------------------ */
-/*  Frontmatter suggestion: analyse content and suggest metadata       */
-/* ------------------------------------------------------------------ */
 
 const FRONTMATTER_SYSTEM_PROMPT = `You are an expert SEO and content strategist. Analyse the provided markdown article and suggest frontmatter metadata that maximises discoverability and reader engagement.
 
@@ -335,37 +59,152 @@ Guidelines:
 - If the content is short or empty, do your best with what's available
 - Only return keys listed above — no extra fields`;
 
-export const runFrontmatterSuggestion = internalAction({
+const OPENROUTER_HEADERS = {
+  "HTTP-Referer": "https://wryte.xyz",
+  "X-Title": "Wryte",
+} as const;
+
+const PROVIDER_VALIDATOR = v.union(
+  v.literal("anthropic"),
+  v.literal("openai"),
+  v.literal("openrouter"),
+);
+
+type ProviderName = "anthropic" | "openai" | "openrouter";
+
+/* ------------------------------------------------------------------ */
+/*  Provider adapters                                                  */
+/* ------------------------------------------------------------------ */
+
+type ChunkWriter = {
+  addChunk(text: string): Promise<void>;
+};
+
+async function streamWithAnthropic(
+  apiKey: string,
+  model: string,
+  userContent: string,
+  writer: ChunkWriter,
+  systemPrompt: string,
+): Promise<void> {
+  const client = new Anthropic({ apiKey });
+  const stream = client.messages.stream({
+    model,
+    max_tokens: 8192,
+    system: systemPrompt,
+    messages: [{ role: "user", content: userContent }],
+  });
+
+  for await (const event of stream) {
+    if (
+      event.type === "content_block_delta" &&
+      event.delta.type === "text_delta"
+    ) {
+      await writer.addChunk(event.delta.text);
+    }
+  }
+}
+
+async function streamWithOpenAI(
+  apiKey: string,
+  model: string,
+  userContent: string,
+  writer: ChunkWriter,
+  systemPrompt: string,
+  opts?: { baseURL?: string; extraHeaders?: Record<string, string> },
+): Promise<void> {
+  const client = new OpenAI({
+    apiKey,
+    ...(opts?.baseURL ? { baseURL: opts.baseURL } : {}),
+    ...(opts?.extraHeaders ? { defaultHeaders: opts.extraHeaders } : {}),
+  });
+
+  const stream = await client.chat.completions.create({
+    model,
+    stream: true,
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userContent },
+    ],
+  });
+
+  for await (const chunk of stream) {
+    const text = chunk.choices[0]?.delta?.content;
+    if (text) {
+      await writer.addChunk(text);
+    }
+  }
+}
+
+/**
+ * Dispatch by provider. Wraps the SDK-specific helpers so callers don't
+ * have to know what the underlying client looks like.
+ */
+async function streamByProvider(
+  provider: ProviderName,
+  apiKey: string,
+  model: string,
+  userContent: string,
+  systemPrompt: string,
+  writer: ChunkWriter,
+): Promise<void> {
+  if (provider === "anthropic") {
+    await streamWithAnthropic(apiKey, model, userContent, writer, systemPrompt);
+  } else if (provider === "openai") {
+    await streamWithOpenAI(apiKey, model, userContent, writer, systemPrompt);
+  } else {
+    await streamWithOpenAI(apiKey, model, userContent, writer, systemPrompt, {
+      baseURL: "https://openrouter.ai/api/v1",
+      extraHeaders: OPENROUTER_HEADERS,
+    });
+  }
+}
+
+function hasSentenceDelimiter(text: string): boolean {
+  return text.includes(".") || text.includes("!") || text.includes("?");
+}
+
+function hasJsonDelimiter(text: string): boolean {
+  return text.includes("}") || text.includes(",") || text.includes("]");
+}
+
+function describeProviderError(err: unknown, provider: ProviderName): string {
+  const e = err as { status?: number; message?: string };
+  if (e?.status === 401) {
+    return `${provider} rejected the API key. Update it in Project Settings → AI.`;
+  }
+  if (e?.status === 429) {
+    return `${provider} is rate-limiting your requests. Try again in a moment.`;
+  }
+  if (e?.status !== undefined && e.status >= 500) {
+    return `${provider} returned a server error (${e.status}). Try again shortly.`;
+  }
+  return e?.message ?? "Unknown error";
+}
+
+/* ------------------------------------------------------------------ */
+/*  Internal action: full-document enhancement                          */
+/* ------------------------------------------------------------------ */
+
+export const runEnhancement = internalAction({
   args: {
     streamId: StreamIdValidator,
-    provider: v.union(
-      v.literal("anthropic"),
-      v.literal("openai"),
-      v.literal("openrouter"),
-    ),
+    provider: PROVIDER_VALIDATOR,
     model: v.string(),
     content: v.string(),
-    frontmatterSchema: v.string(),
-    currentFrontmatter: v.string(),
+    vaultSecretId: v.string(),
   },
   handler: async (ctx, args) => {
+    const apiKey: string = await ctx.runAction(internal.secretStore._read, {
+      id: args.vaultSecretId,
+    });
+
     const streamId = args.streamId;
     let pending = "";
-
-    const schemaContext = args.frontmatterSchema
-      ? `\nProject schema fields: ${args.frontmatterSchema}`
-      : "";
-    const currentContext = args.currentFrontmatter
-      ? `\nCurrent frontmatter: ${args.currentFrontmatter}`
-      : "";
-
-    const userMessage = `Analyse this article and suggest frontmatter metadata.${schemaContext}${currentContext}\n\nArticle content:\n${args.content}`;
-
     const writer = {
       addChunk: async (text: string) => {
         pending += text;
-        // For JSON output, flush on closing braces or commas
-        if (text.includes("}") || text.includes(",") || text.includes("]")) {
+        if (hasSentenceDelimiter(text)) {
           await ctx.runMutation(
             components.persistentTextStreaming.lib.addChunk,
             { streamId, text: pending, final: false },
@@ -376,55 +215,170 @@ export const runFrontmatterSuggestion = internalAction({
     };
 
     try {
-      switch (args.provider) {
-        case "anthropic":
-          await streamWithAnthropic(
-            args.model,
-            userMessage,
-            writer,
-            FRONTMATTER_SYSTEM_PROMPT,
-          );
-          break;
-        case "openai":
-          await streamWithOpenAI(args.model, userMessage, writer, {
-            systemPrompt: FRONTMATTER_SYSTEM_PROMPT,
-          });
-          break;
-        case "openrouter":
-          await streamWithOpenAI(args.model, userMessage, writer, {
-            baseURL: "https://openrouter.ai/api/v1",
-            apiKeyEnvVar: "OPENROUTER_API_KEY",
-            extraHeaders: {
-              "HTTP-Referer": "https://wryte.xyz",
-              "X-Title": "Wryte",
-            },
-            systemPrompt: FRONTMATTER_SYSTEM_PROMPT,
-          });
-          break;
-      }
+      await streamByProvider(
+        args.provider,
+        apiKey,
+        args.model,
+        args.content,
+        ENHANCE_SYSTEM_PROMPT,
+        writer,
+      );
 
       await ctx.runMutation(components.persistentTextStreaming.lib.addChunk, {
         streamId,
         text: pending,
         final: true,
       });
-    } catch (error: unknown) {
-      const err = error as { status?: number; message?: string };
-      let message = err.message ?? "Unknown error";
-
-      if (err.status === 401) {
-        message = `Invalid API key for ${args.provider}. Check your Convex environment variables.`;
-      } else if (err.status === 429) {
-        message = `Rate limited by ${args.provider}. Please try again in a moment.`;
-      }
-
+    } catch (error) {
+      const message = describeProviderError(error, args.provider);
       try {
         await ctx.runMutation(
           components.persistentTextStreaming.lib.setStreamStatus,
           { streamId, status: "error" },
         );
       } catch {
-        // May already be in terminal state
+        // Stream may already be in a terminal state.
+      }
+      throw new Error(message);
+    }
+  },
+});
+
+/* ------------------------------------------------------------------ */
+/*  Internal action: inline selection transform                         */
+/* ------------------------------------------------------------------ */
+
+export const runInlineEnhancement = internalAction({
+  args: {
+    streamId: StreamIdValidator,
+    provider: PROVIDER_VALIDATOR,
+    model: v.string(),
+    selectedText: v.string(),
+    instruction: v.string(),
+    vaultSecretId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const apiKey: string = await ctx.runAction(internal.secretStore._read, {
+      id: args.vaultSecretId,
+    });
+
+    const streamId = args.streamId;
+    let pending = "";
+    const userMessage = `Instruction: ${args.instruction}\n\nText to transform:\n${args.selectedText}`;
+
+    const writer = {
+      addChunk: async (text: string) => {
+        pending += text;
+        if (hasSentenceDelimiter(text)) {
+          await ctx.runMutation(
+            components.persistentTextStreaming.lib.addChunk,
+            { streamId, text: pending, final: false },
+          );
+          pending = "";
+        }
+      },
+    };
+
+    try {
+      await streamByProvider(
+        args.provider,
+        apiKey,
+        args.model,
+        userMessage,
+        INLINE_SYSTEM_PROMPT,
+        writer,
+      );
+
+      await ctx.runMutation(components.persistentTextStreaming.lib.addChunk, {
+        streamId,
+        text: pending,
+        final: true,
+      });
+    } catch (error) {
+      const message = describeProviderError(error, args.provider);
+      try {
+        await ctx.runMutation(
+          components.persistentTextStreaming.lib.setStreamStatus,
+          { streamId, status: "error" },
+        );
+      } catch {
+        // Already terminal.
+      }
+      throw new Error(message);
+    }
+  },
+});
+
+/* ------------------------------------------------------------------ */
+/*  Internal action: frontmatter suggestions (JSON output)             */
+/* ------------------------------------------------------------------ */
+
+export const runFrontmatterSuggestion = internalAction({
+  args: {
+    streamId: StreamIdValidator,
+    provider: PROVIDER_VALIDATOR,
+    model: v.string(),
+    content: v.string(),
+    frontmatterSchema: v.string(),
+    currentFrontmatter: v.string(),
+    vaultSecretId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const apiKey: string = await ctx.runAction(internal.secretStore._read, {
+      id: args.vaultSecretId,
+    });
+
+    const streamId = args.streamId;
+    let pending = "";
+
+    const schemaContext = args.frontmatterSchema
+      ? `\nProject schema fields: ${args.frontmatterSchema}`
+      : "";
+    const currentContext = args.currentFrontmatter
+      ? `\nCurrent frontmatter: ${args.currentFrontmatter}`
+      : "";
+    const userMessage = `Analyse this article and suggest frontmatter metadata.${schemaContext}${currentContext}\n\nArticle content:\n${args.content}`;
+
+    const writer = {
+      addChunk: async (text: string) => {
+        pending += text;
+        // JSON output: flush on closing braces/commas/brackets so the UI
+        // can render the response as it arrives without waiting for the
+        // entire object to be parsed.
+        if (hasJsonDelimiter(text)) {
+          await ctx.runMutation(
+            components.persistentTextStreaming.lib.addChunk,
+            { streamId, text: pending, final: false },
+          );
+          pending = "";
+        }
+      },
+    };
+
+    try {
+      await streamByProvider(
+        args.provider,
+        apiKey,
+        args.model,
+        userMessage,
+        FRONTMATTER_SYSTEM_PROMPT,
+        writer,
+      );
+
+      await ctx.runMutation(components.persistentTextStreaming.lib.addChunk, {
+        streamId,
+        text: pending,
+        final: true,
+      });
+    } catch (error) {
+      const message = describeProviderError(error, args.provider);
+      try {
+        await ctx.runMutation(
+          components.persistentTextStreaming.lib.setStreamStatus,
+          { streamId, status: "error" },
+        );
+      } catch {
+        // Already terminal.
       }
       throw new Error(message);
     }

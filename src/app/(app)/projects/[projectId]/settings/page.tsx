@@ -2722,31 +2722,18 @@ function AiSection({
 
         <Divider />
 
-        <div className="rounded-lg border border-border/40 bg-muted/20 px-3.5 py-3">
-          <p className="text-[11px] leading-relaxed text-muted-foreground/70">
-            API keys are configured as environment variables in the{" "}
-            <span className="font-medium text-muted-foreground">
-              Convex dashboard
-            </span>
-            . Set{" "}
-            {provider === "anthropic" && (
-              <code className="text-[10px] bg-muted px-1 py-0.5 rounded font-mono">
-                ANTHROPIC_API_KEY
-              </code>
-            )}
-            {provider === "openai" && (
-              <code className="text-[10px] bg-muted px-1 py-0.5 rounded font-mono">
-                OPENAI_API_KEY
-              </code>
-            )}
-            {provider === "openrouter" && (
-              <code className="text-[10px] bg-muted px-1 py-0.5 rounded font-mono">
-                OPENROUTER_API_KEY
-              </code>
-            )}
-            {!provider && "the relevant API key"} for your chosen provider.
-          </p>
-        </div>
+        {provider ? (
+          <AiCredentialsForm
+            projectId={projectId}
+            provider={provider as AiProviderId}
+          />
+        ) : (
+          <div className="rounded-lg border border-dashed border-border/60 bg-muted/10 px-4 py-6 text-center">
+            <p className="text-xs text-muted-foreground/50">
+              Select a provider above to add your API key
+            </p>
+          </div>
+        )}
 
         <div className="flex justify-end pt-1">
           <SaveButton
@@ -2757,6 +2744,290 @@ function AiSection({
         </div>
       </motion.div>
     </motion.div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  AI Credentials Form                                                 */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Per-provider API key input + status. Stores the secret in the WorkOS
+ * Vault via `api.aiCredentials.setCredentials`; the secret itself never
+ * round-trips back to the client. Mirrors `MediaCredentialsForm`.
+ */
+function AiCredentialsForm({
+  projectId,
+  provider,
+}: {
+  projectId: Id<"projects">;
+  provider: AiProviderId;
+}) {
+  const config = useQuery(api.aiCredentialsDb.getPublicConfig, {
+    projectId,
+    provider,
+  });
+
+  const setCredentials = useAction(api.aiCredentials.setCredentials);
+  const testCredentials = useAction(api.aiCredentials.testCredentials);
+  const rotate = useAction(api.aiCredentials.rotate);
+  const deleteCredentials = useAction(api.aiCredentials.deleteCredentials);
+
+  const [secret, setSecret] = useState("");
+  const [showSecret, setShowSecret] = useState(false);
+  const [busy, setBusy] = useState<"save" | "test" | "delete" | null>(null);
+
+  const hasExisting = config !== null && config !== undefined;
+  const isRotating = config?.status === "rotating";
+
+  // Clear typed value when provider switches.
+  useEffect(() => {
+    setSecret("");
+  }, []);
+
+  const placeholder =
+    provider === "anthropic"
+      ? "sk-ant-…"
+      : provider === "openai"
+        ? "sk-…"
+        : "sk-or-…";
+
+  const dashboardLink =
+    provider === "anthropic"
+      ? "https://console.anthropic.com/settings/keys"
+      : provider === "openai"
+        ? "https://platform.openai.com/api-keys"
+        : "https://openrouter.ai/keys";
+
+  const handleSave = useCallback(async () => {
+    const trimmed = secret.trim();
+    if (!trimmed) {
+      toast.error("Paste your API key before saving.");
+      return;
+    }
+    setBusy("save");
+    try {
+      const result = hasExisting
+        ? await rotate({ projectId, provider, secret: trimmed })
+        : await setCredentials({ projectId, provider, secret: trimmed });
+      if (result.ok) {
+        toast.success(
+          hasExisting ? "API key rotated." : `${provider} key saved.`,
+        );
+        setSecret("");
+      } else {
+        toast.error(result.message ?? "Key failed verification.");
+      }
+    } catch (err) {
+      const data = (err as { data?: { message?: string } })?.data;
+      toast.error(
+        data?.message ??
+          (err instanceof Error ? err.message : "Failed to save API key."),
+      );
+    } finally {
+      setBusy(null);
+    }
+  }, [hasExisting, projectId, provider, rotate, secret, setCredentials]);
+
+  const handleTest = useCallback(async () => {
+    setBusy("test");
+    try {
+      const result = await testCredentials({ projectId, provider });
+      if (result.ok) toast.success("Connection looks good.");
+      else toast.error(result.message ?? "Connection failed.");
+    } catch (err) {
+      const data = (err as { data?: { message?: string } })?.data;
+      toast.error(
+        data?.message ?? (err instanceof Error ? err.message : "Test failed."),
+      );
+    } finally {
+      setBusy(null);
+    }
+  }, [projectId, provider, testCredentials]);
+
+  const handleDelete = useCallback(async () => {
+    if (
+      !window.confirm(
+        "Remove this API key? AI enhancements will stop working until you reconfigure.",
+      )
+    ) {
+      return;
+    }
+    setBusy("delete");
+    try {
+      await deleteCredentials({ projectId, provider });
+      toast.success("API key removed.");
+    } catch (err) {
+      const data = (err as { data?: { message?: string } })?.data;
+      toast.error(
+        data?.message ??
+          (err instanceof Error ? err.message : "Failed to remove."),
+      );
+    } finally {
+      setBusy(null);
+    }
+  }, [deleteCredentials, projectId, provider]);
+
+  const providerLabel =
+    provider === "anthropic"
+      ? "Anthropic"
+      : provider === "openai"
+        ? "OpenAI"
+        : "OpenRouter";
+
+  return (
+    <div className="space-y-4 rounded-lg border bg-muted/30 p-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-semibold">{providerLabel} API key</h3>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Stored encrypted in the secret vault. Verification doesn't consume
+            any tokens.{" "}
+            <a
+              href={dashboardLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-foreground underline-offset-2 hover:underline"
+            >
+              Get your key →
+            </a>
+          </p>
+        </div>
+        {hasExisting && <AiStatusBadge status={config.status} />}
+      </div>
+
+      {hasExisting && config.lastVerifyError && (
+        <div className="rounded-md border border-destructive/30 bg-destructive/5 p-2 text-xs text-destructive">
+          <span className="font-medium">Last error:</span>{" "}
+          {config.lastVerifyError}
+        </div>
+      )}
+
+      <FieldGroup
+        label={hasExisting ? "Replace API key" : "API key"}
+        htmlFor="ai-secret"
+      >
+        <div className="relative">
+          <Input
+            id="ai-secret"
+            type={showSecret ? "text" : "password"}
+            value={secret}
+            onChange={(e) => setSecret(e.target.value)}
+            placeholder={
+              hasExisting ? "Paste a new key to rotate…" : placeholder
+            }
+            autoComplete="off"
+            spellCheck={false}
+            className="pr-9 font-mono text-xs"
+          />
+          <button
+            type="button"
+            onClick={() => setShowSecret((v) => !v)}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            aria-label={showSecret ? "Hide" : "Show"}
+          >
+            {showSecret ? (
+              <EyeOff className="size-3.5" />
+            ) : (
+              <Eye className="size-3.5" />
+            )}
+          </button>
+        </div>
+      </FieldGroup>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          size="sm"
+          onClick={handleSave}
+          disabled={busy !== null || isRotating}
+        >
+          {busy === "save" ? (
+            <>
+              <Loader2 className="size-3.5 animate-spin" />
+              Saving…
+            </>
+          ) : hasExisting ? (
+            "Replace key"
+          ) : (
+            "Save"
+          )}
+        </Button>
+        {hasExisting && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleTest}
+            disabled={busy !== null || isRotating}
+          >
+            {busy === "test" ? (
+              <>
+                <Loader2 className="size-3.5 animate-spin" />
+                Testing…
+              </>
+            ) : (
+              "Test connection"
+            )}
+          </Button>
+        )}
+        {hasExisting && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={handleDelete}
+            disabled={busy !== null || isRotating}
+            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+          >
+            {busy === "delete" ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <Trash2 className="size-3.5" />
+            )}
+            Remove
+          </Button>
+        )}
+        {hasExisting && config.lastVerifiedAt && (
+          <span className="ml-auto text-[11px] text-muted-foreground">
+            Last verified{" "}
+            {new Date(config.lastVerifiedAt).toLocaleString(undefined, {
+              dateStyle: "medium",
+              timeStyle: "short",
+            })}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AiStatusBadge({
+  status,
+}: {
+  status: "active" | "verifying" | "invalid" | "rotating";
+}) {
+  const styles: Record<typeof status, string> = {
+    active:
+      "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
+    verifying:
+      "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
+    invalid: "bg-destructive/10 text-destructive border-destructive/30",
+    rotating:
+      "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20",
+  };
+  const label: Record<typeof status, string> = {
+    active: "Active",
+    verifying: "Verifying",
+    invalid: "Invalid",
+    rotating: "Rotating",
+  };
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium",
+        styles[status],
+      )}
+    >
+      {label[status]}
+    </span>
   );
 }
 

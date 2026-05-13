@@ -221,6 +221,13 @@ export function FrontmatterEditor({
     projectsGet,
     projectId ? { projectId: projectId as Id<"projects"> } : "skip",
   );
+  // AI suggestions trigger is hidden until the project has a configured,
+  // active AI credential — same gating as the toolbar pill.
+  const aiReadiness = useQuery(
+    api.ai.isAiReady,
+    projectId ? { projectId: projectId as Id<"projects"> } : "skip",
+  );
+  const aiReady = aiReadiness?.ready ?? false;
   const document = useQuery(
     documentsGet,
     documentId ? { documentId: documentId as Id<"documents"> } : "skip",
@@ -454,17 +461,19 @@ export function FrontmatterEditor({
             {filledCount}/{fields.length}
           </span>
         </button>
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            setAiDrawerOpen(true);
-          }}
-          title="AI suggestions"
-          className="mr-3 flex items-center gap-1 rounded-md px-1.5 py-1 text-muted-foreground/50 transition-colors hover:bg-primary/10 hover:text-primary"
-        >
-          <Sparkles className="size-3.5" />
-        </button>
+        {aiReady && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setAiDrawerOpen(true);
+            }}
+            title="AI suggestions"
+            className="mr-3 flex items-center gap-1 rounded-md px-1.5 py-1 text-muted-foreground/50 transition-colors hover:bg-primary/10 hover:text-primary"
+          >
+            <Sparkles className="size-3.5" />
+          </button>
+        )}
       </div>
 
       {/* Fields panel with animated height */}
@@ -666,14 +675,16 @@ export function FrontmatterEditor({
         )}
       </AnimatePresence>
 
-      <FrontmatterAiDrawer
-        open={aiDrawerOpen}
-        onOpenChange={setAiDrawerOpen}
-        projectId={projectId}
-        documentContent={document?.content ?? ""}
-        currentFrontmatter={JSON.stringify(values)}
-        onAccept={handleAiAccept}
-      />
+      {aiReady && (
+        <FrontmatterAiDrawer
+          open={aiDrawerOpen}
+          onOpenChange={setAiDrawerOpen}
+          projectId={projectId}
+          documentContent={document?.content ?? ""}
+          currentFrontmatter={JSON.stringify(values)}
+          onAccept={handleAiAccept}
+        />
+      )}
     </div>
   );
 }
