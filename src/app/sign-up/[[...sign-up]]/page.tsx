@@ -1,5 +1,13 @@
 import { SignUp } from "@clerk/nextjs";
+import type { Metadata } from "next";
 import Image from "next/image";
+
+export const metadata: Metadata = {
+  title: "Sign up",
+  description: "Create a Wryte account and start publishing to GitHub.",
+  robots: { index: false, follow: false },
+  alternates: { canonical: "https://wryte.xyz/sign-up" },
+};
 
 export default function SignUpPage() {
   return (
