@@ -1,22 +1,32 @@
 name: Deploy Convex
 
 # ──────────────────────────────────────────────────────────────────────
-# Deploys Convex functions to production ONLY when files inside the
-# convex/ folder actually change. Two layers of protection:
+# Deploys Convex functions to production when anything that affects the
+# deployed backend changes. That includes:
 #
-#   1. `paths` filter — GitHub won't even start the workflow unless
-#      the push includes changes under convex/.
-#   2. `detect-changes` job — compares the commit diff to confirm
-#      convex/ was modified. This catches edge cases like merge
-#      commits or manual workflow_dispatch where no convex code changed.
+#   - convex/**         — backend source
+#   - package.json      — declares dependencies + patchedDependencies
+#   - bun.lock          — pins exact versions (incl. patched packages)
+#   - patches/**        — local bun patches that bun install re-applies
 #
-# The deploy job is skipped entirely if no convex changes are detected.
+# Two layers of protection:
+#   1. `paths` filter — GitHub won't even start the workflow unless one
+#      of those paths is touched.
+#   2. `detect-changes` job — re-checks the diff for the same patterns
+#      to catch merge commits / workflow_dispatch with no real change.
+#
+# The deploy job is skipped if none of the watched paths actually
+# changed in the commit (and not skipped when triggered manually via
+# workflow_dispatch — we honour the manual intent).
 # ──────────────────────────────────────────────────────────────────────
 on:
   push:
     branches: [main, master]
     paths:
       - "convex/**"
+      - "package.json"
+      - "bun.lock"
+      - "patches/**"
   workflow_dispatch:
 
 permissions:
@@ -41,15 +51,25 @@ jobs:
         with:
           fetch-depth: 2
 
-      - name: Detect changes in convex/
+      - name: Detect deploy-relevant changes
         id: filter
         run: |
-          if git diff --name-only HEAD~1 HEAD | grep -q '^convex/'; then
+          # Manual workflow_dispatch always counts as a deploy intent.
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "convex_changed=true" >> "$GITHUB_OUTPUT"
-            echo "✅ Changes detected in convex/"
+            echo "✅ Manual workflow_dispatch — deploy will run"
+            exit 0
+          fi
+
+          # Otherwise look for changes that affect the deployed backend:
+          # convex source, package.json, bun.lock, or any local bun patch.
+          if git diff --name-only HEAD~1 HEAD \
+              | grep -Eq '^(convex/|package\.json$|bun\.lock$|patches/)'; then
+            echo "convex_changed=true" >> "$GITHUB_OUTPUT"
+            echo "✅ Deploy-relevant changes detected"
           else
             echo "convex_changed=false" >> "$GITHUB_OUTPUT"
-            echo "⏭️  No changes in convex/ — deploy will be skipped"
+            echo "⏭️  No deploy-relevant changes — deploy will be skipped"
           fi
 
   # ── Step 2: Deploy only if convex/ changed ───────────────────────────
