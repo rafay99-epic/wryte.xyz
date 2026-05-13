@@ -81,5 +81,8 @@
     "ip-address": "^10.2.0",
     "fast-uri": "^3.1.2",
     "effect": "^3.21.2"
+  },
+  "patchedDependencies": {
+    "@convex-dev/persistent-text-streaming@0.3.2": "patches/@convex-dev%2Fpersistent-text-streaming@0.3.2.patch"
   }
 }

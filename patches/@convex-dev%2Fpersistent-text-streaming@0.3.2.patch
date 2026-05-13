@@ -1,0 +1,15 @@
+diff --git a/dist/component/crons.js b/dist/component/crons.js
+index 08b59badd6f1df060ab8a96189d0c8f1fd464c90..105819b8df801a8724dc13a944356731691c97ab 100644
+--- a/dist/component/crons.js
++++ b/dist/component/crons.js
+@@ -1,7 +1,7 @@
+ import { cronJobs } from "convex/server";
+ import { internal } from "./_generated/api.js";
+ const crons = cronJobs();
+-// Run every minute
+-crons.interval("cleanup expired streams", { minutes: 1 }, internal.lib.cleanupExpiredStreams);
++// Run every 24 hours (patched from 1 minute to reduce Convex function-call budget)
++crons.interval("cleanup expired streams", { hours: 24 }, internal.lib.cleanupExpiredStreams);
+ export default crons;
+ //# sourceMappingURL=crons.js.map
+\ No newline at end of file

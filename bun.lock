@@ -63,6 +63,9 @@
   "trustedDependencies": [
     "sharp",
   ],
+  "patchedDependencies": {
+    "@convex-dev/persistent-text-streaming@0.3.2": "patches/@convex-dev%2Fpersistent-text-streaming@0.3.2.patch",
+  },
   "overrides": {
     "@hono/node-server": "1.19.13",
     "effect": "^3.21.2",
