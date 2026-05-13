@@ -7,7 +7,6 @@ import {
   Check,
   Cloud,
   Copy,
-  FileText,
   Loader2,
   MoreHorizontal,
   Pencil,
@@ -149,21 +148,6 @@ export function ContentTableRow({
       {/* Title + meta */}
       <td className="px-4 py-3">
         <div className="flex items-center gap-2">
-          {item.kind === "remote" ? (
-            <Cloud className="size-3.5 shrink-0 text-blue-500" />
-          ) : item.needsSync ? (
-            <span className="relative flex size-3.5 shrink-0">
-              <FileText className="size-3.5 text-foreground" />
-              <Cloud className="absolute -right-1 -bottom-0.5 size-2 text-amber-500" />
-            </span>
-          ) : item.synced ? (
-            <span className="relative flex size-3.5 shrink-0">
-              <FileText className="size-3.5 text-foreground" />
-              <Cloud className="absolute -right-1 -bottom-0.5 size-2 text-blue-500" />
-            </span>
-          ) : (
-            <FileText className="size-3.5 shrink-0 text-muted-foreground" />
-          )}
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <span className="truncate text-sm font-medium">{item.title}</span>

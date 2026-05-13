@@ -297,6 +297,8 @@ export const update = mutation({
       ),
     ),
     aiModel: v.optional(v.string()),
+    timezone: v.optional(v.string()),
+    autoSaveEnabled: v.optional(v.boolean()),
     isFavorite: v.optional(v.boolean()),
     sortOrder: v.optional(v.number()),
     /**

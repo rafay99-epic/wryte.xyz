@@ -14,6 +14,7 @@ import type * as aiCredentialsDb from "../aiCredentialsDb.js";
 import type * as ai_actions from "../ai_actions.js";
 import type * as auth_helpers from "../auth_helpers.js";
 import type * as boardColumns from "../boardColumns.js";
+import type * as clerk from "../clerk.js";
 import type * as compressionSettings from "../compressionSettings.js";
 import type * as crons from "../crons.js";
 import type * as documents from "../documents.js";
@@ -53,6 +54,7 @@ declare const fullApi: ApiFromModules<{
   ai_actions: typeof ai_actions;
   auth_helpers: typeof auth_helpers;
   boardColumns: typeof boardColumns;
+  clerk: typeof clerk;
   compressionSettings: typeof compressionSettings;
   crons: typeof crons;
   documents: typeof documents;

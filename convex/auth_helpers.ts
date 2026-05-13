@@ -6,8 +6,23 @@ import type { ActionCtx, MutationCtx } from "./_generated/server";
 export type AuthDbCtx = Pick<MutationCtx, "auth" | "db">;
 
 /**
- * Authenticates the caller and loads their `users` row.
- * Shared by mutations that require a confirmed identity.
+ * Convex stores `tokenIdentifier` as `<issuer-url>|<clerk-user-id>`. Issuers
+ * are URLs, so `|` only appears as the delimiter. Returns null if the
+ * trailing segment doesn't look like a Clerk user id.
+ *
+ * Exported so `convex/users.ts` (and any future caller) can stay in sync
+ * with the parsing convention without duplicating the logic.
+ */
+export function parseClerkUserId(tokenIdentifier: string): string | null {
+  const parts = tokenIdentifier.split("|");
+  const last = parts[parts.length - 1] ?? "";
+  return last.startsWith("user_") ? last : null;
+}
+
+/**
+ * Authenticates the caller and loads their `users` row. Lazily backfills
+ * `clerkUserId` for legacy users so downstream Convex actions can call
+ * Clerk's backend SDK without having to reparse `tokenIdentifier`.
  */
 export async function getCurrentUser(ctx: AuthDbCtx): Promise<Doc<"users">> {
   const identity = await ctx.auth.getUserIdentity();
@@ -26,21 +41,38 @@ export async function getCurrentUser(ctx: AuthDbCtx): Promise<Doc<"users">> {
     throw new Error("User not found. Please sign in first.");
   }
 
+  // Lazy backfill: legacy rows predate the `clerkUserId` field. We parse
+  // it from the trusted `tokenIdentifier` and pin it once so the cost is
+  // amortised across all future requests for this user.
+  if (!user.clerkUserId) {
+    const clerkUserId = parseClerkUserId(identity.tokenIdentifier);
+    if (clerkUserId) {
+      await ctx.db.patch(user._id, { clerkUserId });
+      user.clerkUserId = clerkUserId;
+    }
+  }
+
   return user;
 }
 
 /**
- * Resolves a user's GitHub access token from the vault.
+ * Resolves a user's GitHub access token. Three-tier fallback so the same
+ * function works for both OAuth-connected and PAT-only users:
  *
- * Handles three states transparently:
- *  1. `githubVaultSecretId` is set — reads via the vault and returns the token.
- *  2. Only the legacy `githubAccessToken` is set — migrates lazily to the
- *     vault, clears the plaintext field, returns the token.
- *  3. Neither is set — returns null so callers can surface a friendly
- *     "Reconnect GitHub" message.
+ *   1. Clerk OAuth — fresh token via the backend SDK. Authoritative when
+ *      the user connected GitHub through Clerk; the token's scopes match
+ *      what they granted in the OAuth consent screen.
+ *   2. Vault PAT — `secretStore._read(user.githubVaultSecretId)`. Power-
+ *      user override for bot accounts, fine-grained PATs, or anyone who
+ *      isn't using Clerk OAuth.
+ *   3. Legacy plaintext — `user.githubAccessToken`. Migrated into the
+ *      vault on the first read so this branch retires itself over time.
  *
- * Must be called from a Convex action (the vault SDK is Node-only). The
- * `userId` is enough; the action does the rest via internal helpers.
+ * Returns null only when none of the three yields a token; callers throw
+ * a friendly error and surface "Reconnect GitHub or set a PAT".
+ *
+ * Must be called from a Convex action — the vault and Clerk SDKs are
+ * Node-only.
  */
 export async function getGithubToken(
   ctx: ActionCtx,
@@ -49,14 +81,32 @@ export async function getGithubToken(
   const user = await ctx.runQuery(internal.users.internalGet, { userId });
   if (!user) return null;
 
-  if (user.githubVaultSecretId) {
-    return await ctx.runAction(internal.secretStore._read, {
-      id: user.githubVaultSecretId,
-    });
+  // 1. Clerk OAuth — the live, authoritative source for OAuth users.
+  if (user.clerkUserId) {
+    const oauthToken = await ctx.runAction(
+      internal.clerk._getGithubOauthToken,
+      { clerkUserId: user.clerkUserId },
+    );
+    if (oauthToken) return oauthToken;
+    // Fall through — user may have disconnected GitHub in Clerk but still
+    // has a PAT in the vault.
   }
 
+  // 2. Vault PAT — manual override.
+  if (user.githubVaultSecretId) {
+    try {
+      return await ctx.runAction(internal.secretStore._read, {
+        id: user.githubVaultSecretId,
+      });
+    } catch (err) {
+      console.error("[Vault] PAT read failed:", err);
+      // Fall through to legacy/null rather than throw — gives a friendlier
+      // error at the call site than a vault-internal one.
+    }
+  }
+
+  // 3. Legacy plaintext — lazy migrate into the vault on first read.
   if (user.githubAccessToken) {
-    // Lazy migration: stash the plaintext into the vault, swap pointer.
     const created = await ctx.runAction(internal.secretStore._create, {
       value: user.githubAccessToken,
       meta: {

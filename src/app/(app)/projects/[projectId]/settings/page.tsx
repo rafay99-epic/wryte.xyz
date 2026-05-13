@@ -57,6 +57,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import { TimezoneSelect } from "@/components/ui/timezone-select";
 import {
   type CompressionSettings,
   compressionSettingsEqual,
@@ -111,6 +112,8 @@ interface ProjectData {
   defaultAuthor?: string;
   aiProvider?: "anthropic" | "openai" | "openrouter";
   aiModel?: string;
+  timezone?: string;
+  autoSaveEnabled?: boolean;
   compressionSettings?: CompressionSettings;
 }
 
@@ -1782,6 +1785,10 @@ function PublishingSection({
   const [frontmatterFormat, setFrontmatterFormat] = useState<"yaml" | "toml">(
     project.frontmatterFormat ?? "yaml",
   );
+  const [timezone, setTimezone] = useState(project.timezone ?? "");
+  const [autoSaveEnabled, setAutoSaveEnabled] = useState(
+    project.autoSaveEnabled ?? true,
+  );
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -1791,11 +1798,15 @@ function PublishingSection({
     setDefaultDraft(project.defaultDraft ?? true);
     setDeployHookUrl(project.deployHookUrl ?? "");
     setFrontmatterFormat(project.frontmatterFormat ?? "yaml");
+    setTimezone(project.timezone ?? "");
+    setAutoSaveEnabled(project.autoSaveEnabled ?? true);
   }, [
     project.commitMessageTemplate,
     project.defaultDraft,
     project.deployHookUrl,
     project.frontmatterFormat,
+    project.timezone,
+    project.autoSaveEnabled,
   ]);
 
   const hasChanges =
@@ -1803,7 +1814,9 @@ function PublishingSection({
       (project.commitMessageTemplate ?? "docs: publish {{filename}}") ||
     defaultDraft !== (project.defaultDraft ?? true) ||
     deployHookUrl.trim() !== (project.deployHookUrl ?? "") ||
-    frontmatterFormat !== (project.frontmatterFormat ?? "yaml");
+    frontmatterFormat !== (project.frontmatterFormat ?? "yaml") ||
+    timezone !== (project.timezone ?? "") ||
+    autoSaveEnabled !== (project.autoSaveEnabled ?? true);
 
   const handleSave = useCallback(async () => {
     setIsSaving(true);
@@ -1813,6 +1826,8 @@ function PublishingSection({
         commitMessageTemplate: commitTemplate.trim(),
         defaultDraft,
         frontmatterFormat,
+        timezone,
+        autoSaveEnabled,
       };
       if (deployHookUrl.trim()) args.deployHookUrl = deployHookUrl.trim();
       await updateProject(args);
@@ -1827,6 +1842,8 @@ function PublishingSection({
     defaultDraft,
     deployHookUrl,
     frontmatterFormat,
+    timezone,
+    autoSaveEnabled,
     projectId,
     updateProject,
   ]);
@@ -1875,6 +1892,28 @@ function PublishingSection({
           />
         </div>
 
+        <div className="flex items-center justify-between rounded-xl border border-border/40 bg-card px-4 py-3">
+          <div>
+            <p className="text-sm font-medium">Auto-save</p>
+            <p className="text-xs text-muted-foreground">
+              When on, edits persist a few seconds after you stop typing. When
+              off, use{" "}
+              <code className="rounded bg-muted px-1 py-px text-[10px]">
+                ⌘S
+              </code>{" "}
+              /{" "}
+              <code className="rounded bg-muted px-1 py-px text-[10px]">
+                Ctrl+S
+              </code>{" "}
+              to save manually.
+            </p>
+          </div>
+          <Switch
+            checked={autoSaveEnabled}
+            onCheckedChange={(checked) => setAutoSaveEnabled(checked)}
+          />
+        </div>
+
         <FieldGroup label="Frontmatter Format">
           <div className="grid gap-3 sm:grid-cols-2">
             <MediaModeOption
@@ -1890,6 +1929,18 @@ function PublishingSection({
               description="Delimited with +++ (Hugo default)"
             />
           </div>
+        </FieldGroup>
+
+        <FieldGroup
+          label="Publishing Timezone"
+          htmlFor="s-timezone"
+          hint="Drives how scheduled publish times are interpreted and how the publish-date frontmatter field is rendered. Leave on browser default to use whatever timezone you happen to be in."
+        >
+          <TimezoneSelect
+            id="s-timezone"
+            value={timezone}
+            onChange={setTimezone}
+          />
         </FieldGroup>
       </motion.div>
 

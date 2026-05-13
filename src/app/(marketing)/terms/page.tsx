@@ -2,9 +2,10 @@
 
 import { motion, useInView } from "framer-motion";
 import { ArrowLeft, Scale } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
 import { useRef } from "react";
+import { BrandIcon } from "@/components/branding/brand-icon";
+import { MarketingThemeToggle } from "@/components/layout/marketing-theme-toggle";
 
 /* ------------------------------------------------------------------ */
 /*  Animated section wrapper — fades in when scrolled into view        */
@@ -36,10 +37,10 @@ function Section({
 /* ------------------------------------------------------------------ */
 export default function TermsPage() {
   return (
-    <div className="relative min-h-screen overflow-x-hidden bg-[#08080D] text-white">
+    <div className="relative min-h-screen overflow-x-hidden bg-background text-foreground">
       {/* ── Noise texture ──────────────────────────────────────────── */}
       <div
-        className="pointer-events-none fixed inset-0 z-[1] opacity-[0.025]"
+        className="pointer-events-none fixed inset-0 z-[1] hidden opacity-[0.025] dark:block"
         style={{
           backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`,
         }}
@@ -61,25 +62,22 @@ export default function TermsPage() {
         >
           <div className="mx-auto flex h-16 max-w-[1200px] items-center justify-between px-6">
             <Link href="/" className="flex items-center gap-2.5">
-              <Image
-                src="/wryte-icon.png"
-                alt="Wryte"
-                width={28}
-                height={28}
-                className="rounded-md"
-              />
-              <span className="text-[15px] font-semibold tracking-tight text-white/80">
+              <BrandIcon width={28} height={28} className="rounded-md" />
+              <span className="text-[15px] font-semibold tracking-tight text-foreground/80">
                 wryte
               </span>
             </Link>
 
-            <Link
-              href="/"
-              className="inline-flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-[13px] text-white/35 transition-colors hover:bg-white/5 hover:text-white/70"
-            >
-              <ArrowLeft className="size-3.5" />
-              Back to Home
-            </Link>
+            <div className="flex items-center gap-2">
+              <MarketingThemeToggle />
+              <Link
+                href="/"
+                className="inline-flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-[13px] text-foreground/65 dark:text-foreground/35 transition-colors hover:bg-foreground/5 hover:text-foreground/70"
+              >
+                <ArrowLeft className="size-3.5" />
+                Back to Home
+              </Link>
+            </div>
           </div>
         </motion.header>
 
@@ -91,35 +89,35 @@ export default function TermsPage() {
             transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
             className="text-center"
           >
-            <div className="mx-auto mb-6 flex size-14 items-center justify-center rounded-2xl border border-white/[0.06] bg-white/[0.02]">
+            <div className="mx-auto mb-6 flex size-14 items-center justify-center rounded-2xl border border-foreground/[0.15] dark:border-foreground/[0.06] bg-foreground/[0.02]">
               <Scale className="size-6 text-amber-400" />
             </div>
 
             <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
-              <span className="text-white/90">Terms &amp; </span>
+              <span className="text-foreground/90">Terms &amp; </span>
               <span className="text-amber-400">Conditions</span>
             </h1>
 
-            <p className="mt-4 text-[15px] text-white/30">
+            <p className="mt-4 text-[15px] text-foreground/65 dark:text-foreground/30">
               Last updated: April 9, 2026
             </p>
           </motion.div>
         </section>
 
         {/* ── Divider ────────────────────────────────────────────── */}
-        <div className="mx-auto h-px max-w-3xl bg-gradient-to-r from-transparent via-white/[0.06] to-transparent" />
+        <div className="mx-auto h-px max-w-3xl bg-gradient-to-r from-transparent via-foreground/[0.06] to-transparent" />
 
         {/* ── Content ────────────────────────────────────────────── */}
         <main className="mx-auto max-w-3xl px-6 py-16">
           <div className="space-y-10">
             <Section delay={0}>
-              <h2 className="mb-3 flex items-center gap-2.5 text-lg font-semibold text-white/90">
+              <h2 className="mb-3 flex items-center gap-2.5 text-lg font-semibold text-foreground/90">
                 <span className="font-mono text-[13px] font-bold text-amber-400/60">
                   01
                 </span>
                 Acceptance of Terms
               </h2>
-              <p className="text-[15px] leading-relaxed text-white/35">
+              <p className="text-[15px] leading-relaxed text-foreground/65 dark:text-foreground/35">
                 By accessing or using Wryte (&ldquo;the Service&rdquo;),
                 available at{" "}
                 <Link
@@ -134,13 +132,13 @@ export default function TermsPage() {
             </Section>
 
             <Section delay={0.04}>
-              <h2 className="mb-3 flex items-center gap-2.5 text-lg font-semibold text-white/90">
+              <h2 className="mb-3 flex items-center gap-2.5 text-lg font-semibold text-foreground/90">
                 <span className="font-mono text-[13px] font-bold text-amber-400/60">
                   02
                 </span>
                 Description of Service
               </h2>
-              <p className="text-[15px] leading-relaxed text-white/35">
+              <p className="text-[15px] leading-relaxed text-foreground/65 dark:text-foreground/35">
                 Wryte is an editor-first content workflow tool that allows
                 developers to capture ideas, refine drafts with AI assistance,
                 and publish content directly to GitHub repositories. The Service
@@ -149,13 +147,13 @@ export default function TermsPage() {
             </Section>
 
             <Section delay={0.04}>
-              <h2 className="mb-3 flex items-center gap-2.5 text-lg font-semibold text-white/90">
+              <h2 className="mb-3 flex items-center gap-2.5 text-lg font-semibold text-foreground/90">
                 <span className="font-mono text-[13px] font-bold text-amber-400/60">
                   03
                 </span>
                 User Accounts
               </h2>
-              <ul className="space-y-2.5 text-[15px] leading-relaxed text-white/35">
+              <ul className="space-y-2.5 text-[15px] leading-relaxed text-foreground/65 dark:text-foreground/35">
                 <li className="flex gap-3">
                   <span className="mt-2 size-1.5 shrink-0 rounded-full bg-amber-400/40" />
                   <span>
@@ -180,13 +178,13 @@ export default function TermsPage() {
             </Section>
 
             <Section delay={0.04}>
-              <h2 className="mb-3 flex items-center gap-2.5 text-lg font-semibold text-white/90">
+              <h2 className="mb-3 flex items-center gap-2.5 text-lg font-semibold text-foreground/90">
                 <span className="font-mono text-[13px] font-bold text-amber-400/60">
                   04
                 </span>
                 User Content
               </h2>
-              <ul className="space-y-2.5 text-[15px] leading-relaxed text-white/35">
+              <ul className="space-y-2.5 text-[15px] leading-relaxed text-foreground/65 dark:text-foreground/35">
                 <li className="flex gap-3">
                   <span className="mt-2 size-1.5 shrink-0 rounded-full bg-purple-400/40" />
                   <span>
@@ -214,13 +212,13 @@ export default function TermsPage() {
             </Section>
 
             <Section delay={0.04}>
-              <h2 className="mb-3 flex items-center gap-2.5 text-lg font-semibold text-white/90">
+              <h2 className="mb-3 flex items-center gap-2.5 text-lg font-semibold text-foreground/90">
                 <span className="font-mono text-[13px] font-bold text-amber-400/60">
                   05
                 </span>
                 GitHub Integration
               </h2>
-              <p className="text-[15px] leading-relaxed text-white/35">
+              <p className="text-[15px] leading-relaxed text-foreground/65 dark:text-foreground/35">
                 The Service connects to GitHub on your behalf using OAuth tokens
                 you authorize. Wryte will only access repositories and data you
                 explicitly grant access to. You may revoke this access at any
@@ -229,13 +227,13 @@ export default function TermsPage() {
             </Section>
 
             <Section delay={0.04}>
-              <h2 className="mb-3 flex items-center gap-2.5 text-lg font-semibold text-white/90">
+              <h2 className="mb-3 flex items-center gap-2.5 text-lg font-semibold text-foreground/90">
                 <span className="font-mono text-[13px] font-bold text-amber-400/60">
                   06
                 </span>
                 AI Features
               </h2>
-              <p className="text-[15px] leading-relaxed text-white/35">
+              <p className="text-[15px] leading-relaxed text-foreground/65 dark:text-foreground/35">
                 Wryte may offer AI-powered writing assistance. Content processed
                 by AI features may be sent to third-party AI providers (e.g.,
                 Anthropic, OpenAI). AI-generated suggestions are provided for
@@ -244,16 +242,16 @@ export default function TermsPage() {
             </Section>
 
             <Section delay={0.04}>
-              <h2 className="mb-3 flex items-center gap-2.5 text-lg font-semibold text-white/90">
+              <h2 className="mb-3 flex items-center gap-2.5 text-lg font-semibold text-foreground/90">
                 <span className="font-mono text-[13px] font-bold text-amber-400/60">
                   07
                 </span>
                 Prohibited Uses
               </h2>
-              <p className="mb-3 text-[15px] leading-relaxed text-white/35">
+              <p className="mb-3 text-[15px] leading-relaxed text-foreground/65 dark:text-foreground/35">
                 You agree not to:
               </p>
-              <ul className="space-y-2.5 text-[15px] leading-relaxed text-white/35">
+              <ul className="space-y-2.5 text-[15px] leading-relaxed text-foreground/65 dark:text-foreground/35">
                 <li className="flex gap-3">
                   <span className="mt-2 size-1.5 shrink-0 rounded-full bg-red-400/40" />
                   <span>Use the Service for any unlawful purpose.</span>
@@ -283,13 +281,13 @@ export default function TermsPage() {
             </Section>
 
             <Section delay={0.04}>
-              <h2 className="mb-3 flex items-center gap-2.5 text-lg font-semibold text-white/90">
+              <h2 className="mb-3 flex items-center gap-2.5 text-lg font-semibold text-foreground/90">
                 <span className="font-mono text-[13px] font-bold text-amber-400/60">
                   08
                 </span>
                 Limitation of Liability
               </h2>
-              <p className="text-[15px] leading-relaxed text-white/35">
+              <p className="text-[15px] leading-relaxed text-foreground/65 dark:text-foreground/35">
                 To the maximum extent permitted by law, Wryte and its creators
                 shall not be liable for any indirect, incidental, special,
                 consequential, or punitive damages, including loss of data,
@@ -298,13 +296,13 @@ export default function TermsPage() {
             </Section>
 
             <Section delay={0.04}>
-              <h2 className="mb-3 flex items-center gap-2.5 text-lg font-semibold text-white/90">
+              <h2 className="mb-3 flex items-center gap-2.5 text-lg font-semibold text-foreground/90">
                 <span className="font-mono text-[13px] font-bold text-amber-400/60">
                   09
                 </span>
                 Service Availability &amp; Modifications
               </h2>
-              <ul className="space-y-2.5 text-[15px] leading-relaxed text-white/35">
+              <ul className="space-y-2.5 text-[15px] leading-relaxed text-foreground/65 dark:text-foreground/35">
                 <li className="flex gap-3">
                   <span className="mt-2 size-1.5 shrink-0 rounded-full bg-amber-400/40" />
                   <span>
@@ -324,13 +322,13 @@ export default function TermsPage() {
             </Section>
 
             <Section delay={0.04}>
-              <h2 className="mb-3 flex items-center gap-2.5 text-lg font-semibold text-white/90">
+              <h2 className="mb-3 flex items-center gap-2.5 text-lg font-semibold text-foreground/90">
                 <span className="font-mono text-[13px] font-bold text-amber-400/60">
                   10
                 </span>
                 Termination
               </h2>
-              <p className="text-[15px] leading-relaxed text-white/35">
+              <p className="text-[15px] leading-relaxed text-foreground/65 dark:text-foreground/35">
                 We may terminate or suspend your access to the Service
                 immediately, without prior notice, for conduct that we believe
                 violates these Terms or is harmful to other users or the
@@ -339,13 +337,13 @@ export default function TermsPage() {
             </Section>
 
             <Section delay={0.04}>
-              <h2 className="mb-3 flex items-center gap-2.5 text-lg font-semibold text-white/90">
+              <h2 className="mb-3 flex items-center gap-2.5 text-lg font-semibold text-foreground/90">
                 <span className="font-mono text-[13px] font-bold text-amber-400/60">
                   11
                 </span>
                 Governing Law
               </h2>
-              <p className="text-[15px] leading-relaxed text-white/35">
+              <p className="text-[15px] leading-relaxed text-foreground/65 dark:text-foreground/35">
                 These Terms shall be governed by and construed in accordance
                 with applicable laws, without regard to conflict of law
                 principles.
@@ -353,13 +351,13 @@ export default function TermsPage() {
             </Section>
 
             <Section delay={0.04}>
-              <h2 className="mb-3 flex items-center gap-2.5 text-lg font-semibold text-white/90">
+              <h2 className="mb-3 flex items-center gap-2.5 text-lg font-semibold text-foreground/90">
                 <span className="font-mono text-[13px] font-bold text-amber-400/60">
                   12
                 </span>
                 Contact
               </h2>
-              <p className="text-[15px] leading-relaxed text-white/35">
+              <p className="text-[15px] leading-relaxed text-foreground/65 dark:text-foreground/35">
                 If you have questions about these Terms, please reach out via
                 the project&apos;s{" "}
                 <Link
@@ -377,28 +375,29 @@ export default function TermsPage() {
         </main>
 
         {/* ── Footer ─────────────────────────────────────────────── */}
-        <footer className="border-t border-white/[0.04] py-8">
+        <footer className="border-t border-foreground/[0.12] dark:border-foreground/[0.04] py-8">
           <div className="mx-auto flex max-w-[1100px] items-center justify-between px-6">
             <div className="flex items-center gap-2">
-              <Image
-                src="/wryte-icon.png"
-                alt="Wryte"
+              <BrandIcon
                 width={18}
                 height={18}
                 className="rounded-[3px] opacity-40"
               />
-              <span className="text-[12px] text-white/20">
+              <span className="text-[12px] text-foreground/55 dark:text-foreground/20">
                 &copy; {new Date().getFullYear()} Wryte
               </span>
             </div>
-            <div className="flex items-center gap-5 text-[12px] text-white/20">
+            <div className="flex items-center gap-5 text-[12px] text-foreground/55 dark:text-foreground/20">
               <Link
                 href="/privacy"
-                className="transition-colors hover:text-white/40"
+                className="transition-colors hover:text-foreground dark:hover:text-foreground/40"
               >
                 Privacy Policy
               </Link>
-              <Link href="/" className="transition-colors hover:text-white/40">
+              <Link
+                href="/"
+                className="transition-colors hover:text-foreground dark:hover:text-foreground/40"
+              >
                 Home
               </Link>
             </div>

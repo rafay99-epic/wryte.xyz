@@ -43,29 +43,11 @@ export function DeleteRemoteFileDialog({
   const handleDelete = useCallback(async () => {
     setIsDeleting(true);
     try {
-      let githubAccessToken: string | undefined;
-      try {
-        const res = await fetch("/api/github/token");
-        if (res.ok) {
-          const data = (await res.json()) as { token?: string };
-          if (data.token) githubAccessToken = data.token;
-        }
-      } catch {
-        // Fall back to stored PAT
-      }
-
-      const ghArgs: {
-        projectId: Id<"projects">;
-        filePath: string;
-        sha: string;
-        githubAccessToken?: string;
-      } = {
+      await deleteFromGithub({
         projectId,
         filePath: target.path,
         sha: target.sha,
-      };
-      if (githubAccessToken) ghArgs.githubAccessToken = githubAccessToken;
-      await deleteFromGithub(ghArgs);
+      });
 
       toast.success(`Deleted "${target.title}" from GitHub`);
       onOpenChange(false);

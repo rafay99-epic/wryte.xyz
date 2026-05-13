@@ -9,6 +9,12 @@ import { Button } from "@/components/ui/button";
 import { TimePicker } from "@/components/ui/time-picker";
 import { isSameDay, MONTHS, parseDateKey } from "@/lib/calendar-utils";
 import { smoothTransition } from "@/lib/motion";
+import {
+  getTimezoneCityLabel,
+  getTimezoneOffsetLabel,
+  resolveTimezone,
+  zonedTimeToUtc,
+} from "@/lib/timezone";
 import { useCalendarStore } from "@/stores/calendar-store";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
@@ -16,7 +22,12 @@ import type { Id } from "../../../../convex/_generated/dataModel";
 // biome-ignore lint/suspicious/noExplicitAny: api types are generated at build time via `npx convex dev`
 const schedulingSchedule = (api as any).scheduling.schedule;
 
-export function ScheduleTimePopover() {
+interface ScheduleTimePopoverProps {
+  /** IANA timezone for the project. Falls back to the browser timezone. */
+  timezone?: string | null;
+}
+
+export function ScheduleTimePopover({ timezone }: ScheduleTimePopoverProps) {
   const { pendingDrop, clearPendingDrop } = useCalendarStore();
   const schedulePublish = useMutation(schedulingSchedule);
 
@@ -24,24 +35,28 @@ export function ScheduleTimePopover() {
   const [minute, setMinute] = useState(pendingDrop?.existingMinute ?? 0);
   const [isScheduling, setIsScheduling] = useState(false);
 
+  const resolvedTimezone = resolveTimezone(timezone);
+
   const targetDate = useMemo(() => {
     if (!pendingDrop) return null;
     return parseDateKey(pendingDrop.targetDate);
   }, [pendingDrop]);
 
+  // Interpret the picked day+time in the project's timezone so the resulting
+  // UTC instant matches what the user sees in the UI.
   const timestamp = useMemo(() => {
     if (!targetDate) return null;
-    const d = new Date(targetDate);
-    d.setHours(hour, minute, 0, 0);
-    return d.getTime();
-  }, [targetDate, hour, minute]);
+    return zonedTimeToUtc(
+      targetDate.getFullYear(),
+      targetDate.getMonth() + 1,
+      targetDate.getDate(),
+      hour,
+      minute,
+      resolvedTimezone,
+    );
+  }, [targetDate, hour, minute, resolvedTimezone]);
 
   const isInPast = timestamp != null && timestamp <= Date.now();
-
-  const timezone = useMemo(
-    () => Intl.DateTimeFormat().resolvedOptions().timeZone,
-    [],
-  );
 
   const formattedDate = useMemo(() => {
     if (!targetDate) return "";
@@ -52,20 +67,28 @@ export function ScheduleTimePopover() {
 
   const formattedDateTime = useMemo(() => {
     if (!timestamp) return null;
-    return new Date(timestamp).toLocaleString(undefined, {
+    const dateTime = new Date(timestamp).toLocaleString(undefined, {
       weekday: "short",
       month: "short",
       day: "numeric",
       hour: "numeric",
       minute: "2-digit",
+      hour12: true,
+      timeZone: resolvedTimezone,
     });
-  }, [timestamp]);
+    return `${dateTime} · ${getTimezoneCityLabel(resolvedTimezone)} (${getTimezoneOffsetLabel(
+      resolvedTimezone,
+      timestamp,
+    )})`;
+  }, [timestamp, resolvedTimezone]);
 
   const handleSchedule = useCallback(async () => {
     if (!pendingDrop || !timestamp || isInPast) return;
 
     setIsScheduling(true);
     try {
+      // Token resolved server-side at fire-time by `publishToGithub` —
+      // see the schedule mutation for the rationale.
       await schedulePublish({
         documentId: pendingDrop.documentId as Id<"documents">,
         scheduledAt: timestamp,
@@ -146,7 +169,7 @@ export function ScheduleTimePopover() {
             />
           </div>
           <p className="mt-1.5 text-[10px] text-muted-foreground/50">
-            {timezone}
+            {resolvedTimezone}
           </p>
         </div>
 

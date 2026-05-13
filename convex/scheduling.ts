@@ -9,7 +9,7 @@ import { type WorkflowId, WorkflowManager } from "@convex-dev/workflow";
 import { v } from "convex/values";
 import { components, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
-import { internalMutation, mutation } from "./_generated/server";
+import { internalMutation, mutation, query } from "./_generated/server";
 import { getCurrentUser } from "./auth_helpers";
 import { getRateLimitKey, rateLimiter } from "./rateLimits";
 
@@ -54,7 +54,10 @@ export const scheduledPublishWorkflow = publishWorkflowManager.define({
       { runAt: args.scheduledAt },
     );
 
-    // Step 2: Publish to GitHub (retries handled by workflow manager)
+    // Step 2: Publish to GitHub. The action resolves the GitHub token
+    // server-side at fire-time (Clerk OAuth → vault PAT → legacy plaintext),
+    // so workflows fire correctly regardless of how long after scheduling
+    // they wake up.
     await step.runAction(
       internal.github.publishToGithub,
       { documentId: args.documentId },
@@ -72,6 +75,49 @@ export const scheduledPublishWorkflow = publishWorkflowManager.define({
       publishId: args.publishId,
       status: "completed",
     });
+  },
+});
+
+/* ------------------------------------------------------------------ */
+/*  Public queries                                                       */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Returns the most-recent `scheduled_publishes` record for a document, or
+ * null if none exist. Used by the editor to surface workflow state — pending,
+ * processing, completed, or failed (with the error reason) — so the author
+ * can tell *why* a scheduled post hasn't gone live yet.
+ *
+ * Auth: the document must be owned by the calling user; otherwise null.
+ */
+export const getLatestForDocument = query({
+  args: { documentId: v.id("documents") },
+  handler: async (ctx, args) => {
+    // Inline auth — `getCurrentUser` is mutation-only because it types `db`
+    // as a writer. Queries need their own read-only lookup.
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_tokenIdentifier", (q) =>
+        q.eq("tokenIdentifier", identity.tokenIdentifier),
+      )
+      .unique();
+    if (!user) return null;
+
+    const document = await ctx.db.get(args.documentId);
+    if (!document) return null;
+    const project = await ctx.db.get(document.projectId);
+    if (!project || project.userId !== user._id) return null;
+
+    const records = await ctx.db
+      .query("scheduled_publishes")
+      .withIndex("by_documentId", (q) => q.eq("documentId", args.documentId))
+      .collect();
+
+    if (records.length === 0) return null;
+    records.sort((a, b) => b.createdAt - a.createdAt);
+    return records[0];
   },
 });
 
@@ -149,7 +195,11 @@ export const schedule = mutation({
       createdAt: Date.now(),
     });
 
-    // Start the durable workflow
+    // Start the durable workflow. The workflow no longer carries a
+    // credential — `publishToGithub` resolves a fresh token from Clerk
+    // (or vault) at fire-time, which is what makes long-term schedules
+    // reliable even when the captured-at-schedule-time token would have
+    // expired.
     const workflowId = await publishWorkflowManager.start(
       ctx,
       internal.scheduling.scheduledPublishWorkflow,
@@ -296,6 +346,33 @@ export const onPublishComplete = internalMutation({
           status: "failed" as const,
           error: result.error,
         });
+      }
+      // Revert the document to draft so the editor stops showing "scheduled"
+      // indefinitely. The user can re-schedule once they've fixed whatever
+      // caused the failure (e.g. expired GitHub token, wrong repo path).
+      // We don't revert if a NEWER schedule has been created in the meantime
+      // (rescheduling races): only revert if this publish is the current
+      // active one.
+      const doc = await ctx.db.get(documentId as Id<"documents">);
+      if (doc && doc.status === "scheduled") {
+        const otherActive = await ctx.db
+          .query("scheduled_publishes")
+          .withIndex("by_documentId", (q) =>
+            q.eq("documentId", documentId as Id<"documents">),
+          )
+          .collect();
+        const hasFreshSchedule = otherActive.some(
+          (s) =>
+            s._id !== (publishId as Id<"scheduled_publishes">) &&
+            (s.status === "pending" || s.status === "processing"),
+        );
+        if (!hasFreshSchedule) {
+          await ctx.db.patch(doc._id, {
+            status: "draft",
+            scheduledAt: undefined,
+            updatedAt: Date.now(),
+          });
+        }
       }
     } else if (result.kind === "canceled") {
       // Only revert to draft if this specific publish record still exists

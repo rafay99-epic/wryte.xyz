@@ -114,39 +114,14 @@ export function PublishDialog({
     content.length > 200 ? `${content.slice(0, 200)}...` : content;
 
   /**
-   * Execute the publish flow:
-   * 1. Attempt to fetch a fresh OAuth token from the `/api/github/token` route
-   * 2. Call the Convex `github.publish` action, passing the token if available
-   * 3. Show success/error toast and close the dialog
+   * Publishes the document. The Convex action resolves the GitHub token
+   * server-side (Clerk OAuth → vault PAT → legacy), so the client doesn't
+   * touch credentials at all.
    */
   async function handlePublish() {
     setIsPublishing(true);
     try {
-      // Try to get OAuth token from Clerk first, fall back to stored PAT
-      let githubAccessToken: string | undefined;
-      try {
-        const res = await fetch("/api/github/token");
-        if (res.ok) {
-          const data = (await res.json()) as { token?: string };
-          if (data.token) {
-            githubAccessToken = data.token;
-          }
-        }
-      } catch {
-        // OAuth token not available, will fall back to stored PAT
-      }
-
-      const publishArgs: {
-        documentId: Id<"documents">;
-        githubAccessToken?: string;
-      } = {
-        documentId: documentId as Id<"documents">,
-      };
-      if (githubAccessToken) {
-        publishArgs.githubAccessToken = githubAccessToken;
-      }
-
-      await publishToGithub(publishArgs);
+      await publishToGithub({ documentId: documentId as Id<"documents"> });
       toast.success("Published successfully!", {
         description: `${title} has been published to GitHub.`,
       });

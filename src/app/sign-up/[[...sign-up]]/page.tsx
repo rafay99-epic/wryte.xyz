@@ -1,6 +1,8 @@
-import { SignUp } from "@clerk/nextjs";
 import type { Metadata } from "next";
-import Image from "next/image";
+import Link from "next/link";
+import { BrandIcon } from "@/components/branding/brand-icon";
+import { ClerkSignUp } from "@/components/layout/clerk-auth-widget";
+import { MarketingThemeToggle } from "@/components/layout/marketing-theme-toggle";
 
 export const metadata: Metadata = {
   title: "Sign up",
@@ -11,26 +13,17 @@ export const metadata: Metadata = {
 
 export default function SignUpPage() {
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-8 bg-background px-4">
-      <div className="flex items-center gap-2.5">
-        <Image
-          src="/wryte-icon.png"
-          alt="Wryte"
-          width={32}
-          height={32}
-          className="rounded-lg"
-        />
+    <div className="relative flex min-h-screen flex-col items-center justify-center gap-8 bg-background px-4">
+      <div className="absolute top-4 right-4">
+        <MarketingThemeToggle />
+      </div>
+      <Link href="/" className="flex items-center gap-2.5">
+        <BrandIcon width={32} height={32} className="rounded-lg" />
         <span className="text-2xl font-bold tracking-tight text-foreground">
           wryte
         </span>
-      </div>
-      <SignUp
-        appearance={{
-          elements: {
-            rootBox: "mx-auto",
-          },
-        }}
-      />
+      </Link>
+      <ClerkSignUp />
     </div>
   );
 }

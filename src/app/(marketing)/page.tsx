@@ -24,6 +24,8 @@ import {
 import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { BrandIcon } from "@/components/branding/brand-icon";
+import { MarketingThemeToggle } from "@/components/layout/marketing-theme-toggle";
 
 /* ------------------------------------------------------------------ */
 /*  Typewriter hook — types out content character by character          */
@@ -140,8 +142,8 @@ function Marquee({
 }) {
   return (
     <div className="relative flex overflow-hidden select-none">
-      <div className="pointer-events-none absolute left-0 top-0 z-10 h-full w-24 bg-linear-to-r from-[#08080D] to-transparent" />
-      <div className="pointer-events-none absolute right-0 top-0 z-10 h-full w-24 bg-linear-to-l from-[#08080D] to-transparent" />
+      <div className="pointer-events-none absolute left-0 top-0 z-10 h-full w-24 bg-linear-to-r from-background to-transparent" />
+      <div className="pointer-events-none absolute right-0 top-0 z-10 h-full w-24 bg-linear-to-l from-background to-transparent" />
       {[0, 1].map((i) => (
         <motion.div
           key={i}
@@ -159,7 +161,7 @@ function Marquee({
           {items.map((item) => (
             <span
               key={`${i}-${item}`}
-              className="whitespace-nowrap text-sm font-medium tracking-[0.2em] text-white/10 uppercase"
+              className="whitespace-nowrap text-sm font-medium tracking-[0.2em] text-foreground/65 dark:text-foreground/10 uppercase"
             >
               {item}
             </span>
@@ -237,7 +239,7 @@ function BentoCard({
           : { opacity: 0, y: 30, scale: 0.97 }
       }
       transition={{ duration: 0.7, delay, ease: [0.22, 1, 0.36, 1] }}
-      className={`group relative overflow-hidden rounded-2xl border border-white/[0.06] bg-white/[0.02] transition-colors duration-500 hover:border-white/[0.12] hover:bg-white/[0.04] ${className ?? ""}`}
+      className={`group relative overflow-hidden rounded-2xl border border-foreground/[0.15] bg-foreground/[0.02] transition-colors duration-500 hover:border-foreground/[0.25] hover:bg-foreground/[0.04] dark:border-foreground/[0.06] dark:bg-foreground/[0.02] dark:hover:border-foreground/[0.12] dark:hover:bg-foreground/[0.04] ${className ?? ""}`}
     >
       {children}
     </motion.div>
@@ -302,11 +304,11 @@ export default function LandingPage() {
   return (
     <div
       ref={containerRef}
-      className="relative min-h-screen overflow-x-hidden bg-[#08080D] text-white"
+      className="relative min-h-screen overflow-x-hidden bg-background text-foreground"
     >
       {/* ── Subtle noise texture ─────────────────────────────────────── */}
       <div
-        className="pointer-events-none fixed inset-0 z-[1] opacity-[0.025]"
+        className="pointer-events-none fixed inset-0 z-[1] hidden opacity-[0.025] dark:block"
         style={{
           backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`,
         }}
@@ -324,14 +326,8 @@ export default function LandingPage() {
         >
           <div className="mx-auto flex h-16 max-w-[1200px] items-center justify-between px-6">
             <Link href="/" className="flex items-center gap-2.5">
-              <Image
-                src="/wryte-icon.png"
-                alt="Wryte"
-                width={28}
-                height={28}
-                className="rounded-md"
-              />
-              <span className="text-[15px] font-semibold tracking-tight text-white/80">
+              <BrandIcon width={28} height={28} className="rounded-md" />
+              <span className="text-[15px] font-semibold tracking-tight text-foreground/80">
                 wryte
               </span>
             </Link>
@@ -342,14 +338,15 @@ export default function LandingPage() {
                   key={item}
                   type="button"
                   onClick={() => scrollToSection(item.toLowerCase())}
-                  className="rounded-lg px-3.5 py-1.5 text-[13px] text-white/35 transition-colors hover:bg-white/5 hover:text-white/70"
+                  className="rounded-lg px-3.5 py-1.5 text-[13px] text-foreground/65 dark:text-foreground/35 transition-colors hover:bg-foreground/5 hover:text-foreground/70"
                 >
                   {item}
                 </button>
               ))}
             </nav>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <MarketingThemeToggle />
               {isSignedIn ? (
                 <>
                   <Link
@@ -361,7 +358,7 @@ export default function LandingPage() {
                   </Link>
                   <Link
                     href="/dashboard"
-                    className="flex items-center gap-2 rounded-lg px-2 py-1 transition-colors hover:bg-white/5"
+                    className="flex items-center gap-2 rounded-lg px-2 py-1 transition-colors hover:bg-foreground/5"
                   >
                     {user?.imageUrl ? (
                       <Image
@@ -376,7 +373,7 @@ export default function LandingPage() {
                         {user?.firstName?.[0] ?? "U"}
                       </div>
                     )}
-                    <span className="hidden text-[13px] font-medium text-white/70 sm:block">
+                    <span className="hidden text-[13px] font-medium text-foreground/70 sm:block">
                       {user?.firstName}
                     </span>
                   </Link>
@@ -385,7 +382,7 @@ export default function LandingPage() {
                 <>
                   <Link
                     href="/sign-in"
-                    className="hidden rounded-lg px-3.5 py-1.5 text-[13px] text-white/40 transition-colors hover:text-white/80 sm:block"
+                    className="hidden rounded-lg px-3.5 py-1.5 text-[13px] text-foreground/70 dark:text-foreground/40 transition-colors hover:text-foreground/80 sm:block"
                   >
                     Log in
                   </Link>
@@ -445,9 +442,7 @@ export default function LandingPage() {
                     delay={5}
                   />
 
-                  <Image
-                    src="/wryte-icon.png"
-                    alt="Wryte"
+                  <BrandIcon
                     width={100}
                     height={100}
                     className="relative z-10"
@@ -472,8 +467,8 @@ export default function LandingPage() {
                 }}
                 className="text-[clamp(2.5rem,7vw,5.5rem)] font-bold leading-[0.95] tracking-[-0.03em]"
               >
-                <span className="block text-white/90">Write.</span>
-                <span className="block text-white/90">Refine.</span>
+                <span className="block text-foreground/90">Write.</span>
+                <span className="block text-foreground/90">Refine.</span>
                 <span className="relative block">
                   <span className="text-amber-400">Publish.</span>
                   {/* Animated underline */}
@@ -494,7 +489,7 @@ export default function LandingPage() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.8, delay: 0.9 }}
-                className="mx-auto mt-8 max-w-md text-[17px] leading-relaxed text-white/30"
+                className="mx-auto mt-8 max-w-md text-[17px] leading-relaxed text-foreground/65 dark:text-foreground/30"
               >
                 A markdown editor that publishes to GitHub.
                 <br />
@@ -518,7 +513,7 @@ export default function LandingPage() {
 
                 <MagneticButton
                   href="#editor"
-                  className="inline-flex h-12 items-center gap-2 rounded-xl border border-white/[0.08] px-7 text-[15px] font-medium text-white/50 transition-all hover:border-white/20 hover:text-white/80"
+                  className="inline-flex h-12 items-center gap-2 rounded-xl border border-foreground/[0.2] dark:border-foreground/[0.08] px-7 text-[15px] font-medium text-foreground/75 dark:text-foreground/50 transition-all hover:border-foreground/20 hover:text-foreground/80"
                 >
                   See it in action
                 </MagneticButton>
@@ -542,10 +537,10 @@ export default function LandingPage() {
               }}
               className="flex flex-col items-center gap-2"
             >
-              <span className="text-[10px] font-medium tracking-[0.3em] text-white/15 uppercase">
+              <span className="text-[10px] font-medium tracking-[0.3em] text-foreground/70 dark:text-foreground/15 uppercase">
                 Scroll
               </span>
-              <div className="h-8 w-px bg-gradient-to-b from-white/20 to-transparent" />
+              <div className="h-8 w-px bg-gradient-to-b from-foreground/20 to-transparent" />
             </motion.div>
           </motion.div>
         </section>
@@ -553,7 +548,7 @@ export default function LandingPage() {
         {/* ══════════════════════════════════════════════════════════════ */}
         {/*  MARQUEE — Visual rhythm breaker                              */}
         {/* ══════════════════════════════════════════════════════════════ */}
-        <div className="border-y border-white/[0.04] py-5">
+        <div className="border-y border-foreground/[0.12] dark:border-foreground/[0.04] py-5">
           <Marquee
             items={[
               "Markdown",
@@ -581,13 +576,13 @@ export default function LandingPage() {
             transition={{ duration: 1 }}
             className="mx-auto max-w-[900px] px-6"
           >
-            <p className="text-center text-[clamp(1.25rem,3vw,2rem)] font-light leading-[1.5] tracking-[-0.01em] text-white/50">
+            <p className="text-center text-[clamp(1.25rem,3vw,2rem)] font-light leading-[1.5] tracking-[-0.01em] text-foreground/75 dark:text-foreground/50">
               We built Wryte because{" "}
-              <span className="text-white/90">
+              <span className="text-foreground/90">
                 publishing content as a developer
               </span>{" "}
               shouldn&apos;t require a deploy pipeline.{" "}
-              <span className="text-white/90">
+              <span className="text-foreground/90">
                 Write in markdown, preview live,{" "}
               </span>
               and push to GitHub with{" "}
@@ -648,20 +643,24 @@ export default function LandingPage() {
               {/* Glow behind editor */}
               <div className="absolute -inset-px rounded-2xl bg-gradient-to-b from-amber-500/20 via-transparent to-purple-500/10 blur-sm" />
 
-              <div className="relative overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0C0C13] shadow-2xl shadow-black/60">
+              <div className="relative overflow-hidden rounded-2xl border border-foreground/[0.2] dark:border-foreground/[0.08] bg-card shadow-2xl shadow-black/60">
                 {/* ── Title bar ────────────────────────────────── */}
-                <div className="flex items-center justify-between border-b border-white/[0.06] px-4 py-2.5">
+                <div className="flex items-center justify-between border-b border-foreground/[0.15] dark:border-foreground/[0.06] px-4 py-2.5">
                   <div className="flex items-center gap-2">
                     <div className="flex gap-1.5">
                       <div className="size-[10px] rounded-full bg-[#ff5f57]" />
                       <div className="size-[10px] rounded-full bg-[#febc2e]" />
                       <div className="size-[10px] rounded-full bg-[#28c840]" />
                     </div>
-                    <div className="ml-3 flex items-center gap-1.5 rounded-md bg-white/[0.04] px-2.5 py-1">
-                      <Layers className="size-3 text-white/20" />
-                      <span className="text-[11px] text-white/25">my-blog</span>
-                      <span className="text-[11px] text-white/10">/</span>
-                      <span className="text-[11px] text-white/40">
+                    <div className="ml-3 flex items-center gap-1.5 rounded-md bg-foreground/[0.04] px-2.5 py-1">
+                      <Layers className="size-3 text-foreground/75 dark:text-foreground/20" />
+                      <span className="text-[11px] text-foreground/55 dark:text-foreground/25">
+                        my-blog
+                      </span>
+                      <span className="text-[11px] text-foreground/65 dark:text-foreground/10">
+                        /
+                      </span>
+                      <span className="text-[11px] text-foreground/70 dark:text-foreground/40">
                         shipping-faster.md
                       </span>
                     </div>
@@ -673,7 +672,7 @@ export default function LandingPage() {
                         className={`rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors ${
                           i === 0
                             ? "bg-amber-500/15 text-amber-400"
-                            : "text-white/20 hover:text-white/40"
+                            : "text-foreground/75 hover:text-foreground/70 dark:text-foreground/20 dark:hover:text-foreground/40"
                         }`}
                       >
                         {mode}
@@ -685,8 +684,8 @@ export default function LandingPage() {
                 {/* ── Editor + sidebar layout ─────────────────── */}
                 <div className="flex">
                   {/* Frontmatter sidebar */}
-                  <div className="hidden w-56 shrink-0 border-r border-white/[0.04] p-4 lg:block">
-                    <div className="mb-3 text-[10px] font-semibold tracking-[0.15em] text-white/20 uppercase">
+                  <div className="hidden w-56 shrink-0 border-r border-foreground/[0.12] dark:border-foreground/[0.04] p-4 lg:block">
+                    <div className="mb-3 text-[10px] font-semibold tracking-[0.15em] text-foreground/75 dark:text-foreground/20 uppercase">
                       Frontmatter
                     </div>
                     {[
@@ -696,17 +695,17 @@ export default function LandingPage() {
                       { label: "Draft", value: "false" },
                     ].map((field) => (
                       <div key={field.label} className="mb-3">
-                        <div className="text-[10px] font-medium text-white/25">
+                        <div className="text-[10px] font-medium text-foreground/55 dark:text-foreground/25">
                           {field.label}
                         </div>
-                        <div className="mt-0.5 rounded bg-white/[0.03] px-2 py-1 text-[11px] text-white/40">
+                        <div className="mt-0.5 rounded bg-foreground/[0.03] px-2 py-1 text-[11px] text-foreground/70 dark:text-foreground/40">
                           {field.value}
                         </div>
                       </div>
                     ))}
 
-                    <div className="mt-6 border-t border-white/[0.04] pt-4">
-                      <div className="mb-2 text-[10px] font-semibold tracking-[0.15em] text-white/20 uppercase">
+                    <div className="mt-6 border-t border-foreground/[0.12] dark:border-foreground/[0.04] pt-4">
+                      <div className="mb-2 text-[10px] font-semibold tracking-[0.15em] text-foreground/75 dark:text-foreground/20 uppercase">
                         Status
                       </div>
                       <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-1 text-[10px] font-medium text-emerald-400">
@@ -722,15 +721,17 @@ export default function LandingPage() {
                       {output.map((line, i) => (
                         <div key={i} className="flex">
                           {/* Line number */}
-                          <span className="mr-4 inline-block w-5 shrink-0 text-right text-white/10 select-none">
+                          <span className="mr-4 inline-block w-5 shrink-0 text-right text-foreground/65 dark:text-foreground/10 select-none">
                             {i + 1}
                           </span>
                           <span>
                             {/* Color the lines based on content */}
                             {line.startsWith("---") ? (
-                              <span className="text-white/15">{line}</span>
+                              <span className="text-foreground/70 dark:text-foreground/15">
+                                {line}
+                              </span>
                             ) : line.startsWith("#") ? (
-                              <span className="font-semibold text-white/80">
+                              <span className="font-semibold text-foreground/80">
                                 {line}
                               </span>
                             ) : line.includes(":") && i < 6 ? (
@@ -738,18 +739,20 @@ export default function LandingPage() {
                                 <span className="text-purple-400">
                                   {line.split(":")[0]}
                                 </span>
-                                <span className="text-white/20">:</span>
+                                <span className="text-foreground/75 dark:text-foreground/20">
+                                  :
+                                </span>
                                 <span className="text-amber-300/70">
                                   {line.slice(line.indexOf(":") + 1)}
                                 </span>
                               </>
                             ) : line.includes("**") ? (
-                              <span className="text-white/40">
+                              <span className="text-foreground/70 dark:text-foreground/40">
                                 {line.split("**").map((part, j) =>
                                   j % 2 === 1 ? (
                                     <span
                                       key={j}
-                                      className="font-semibold text-white/80"
+                                      className="font-semibold text-foreground/80"
                                     >
                                       {part}
                                     </span>
@@ -759,7 +762,9 @@ export default function LandingPage() {
                                 )}
                               </span>
                             ) : (
-                              <span className="text-white/35">{line}</span>
+                              <span className="text-foreground/65 dark:text-foreground/35">
+                                {line}
+                              </span>
                             )}
                             {/* Blinking cursor at current position */}
                             {i === cursorLine && (
@@ -781,10 +786,14 @@ export default function LandingPage() {
                 </div>
 
                 {/* ── Status bar ──────────────────────────────── */}
-                <div className="flex items-center justify-between border-t border-white/[0.04] px-4 py-1.5">
+                <div className="flex items-center justify-between border-t border-foreground/[0.12] dark:border-foreground/[0.04] px-4 py-1.5">
                   <div className="flex items-center gap-3">
-                    <span className="text-[10px] text-white/15">Markdown</span>
-                    <span className="text-[10px] text-white/15">UTF-8</span>
+                    <span className="text-[10px] text-foreground/70 dark:text-foreground/15">
+                      Markdown
+                    </span>
+                    <span className="text-[10px] text-foreground/70 dark:text-foreground/15">
+                      UTF-8
+                    </span>
                   </div>
                   <div className="flex items-center gap-1 text-[10px] text-emerald-400/50">
                     <Save className="size-3" />
@@ -801,14 +810,14 @@ export default function LandingPage() {
                 transition={{ delay: 1.5, duration: 0.6 }}
                 className="absolute -right-3 top-1/4 hidden xl:block"
               >
-                <div className="rounded-xl border border-white/[0.06] bg-[#0C0C13]/90 p-3 shadow-xl backdrop-blur-sm">
+                <div className="rounded-xl border border-foreground/[0.15] dark:border-foreground/[0.06] bg-card/90 p-3 shadow-xl backdrop-blur-sm">
                   <div className="flex items-center gap-2">
                     <Eye className="size-3.5 text-purple-400" />
-                    <span className="text-[11px] font-medium text-white/50">
+                    <span className="text-[11px] font-medium text-foreground/75 dark:text-foreground/50">
                       Live Preview
                     </span>
                   </div>
-                  <p className="mt-1 text-[10px] text-white/25">
+                  <p className="mt-1 text-[10px] text-foreground/55 dark:text-foreground/25">
                     Toggle split view to see
                     <br />
                     rendered output instantly
@@ -823,14 +832,14 @@ export default function LandingPage() {
                 transition={{ delay: 1.8, duration: 0.6 }}
                 className="absolute -left-3 bottom-1/3 hidden xl:block"
               >
-                <div className="rounded-xl border border-white/[0.06] bg-[#0C0C13]/90 p-3 shadow-xl backdrop-blur-sm">
+                <div className="rounded-xl border border-foreground/[0.15] dark:border-foreground/[0.06] bg-card/90 p-3 shadow-xl backdrop-blur-sm">
                   <div className="flex items-center gap-2">
                     <Keyboard className="size-3.5 text-amber-400" />
-                    <span className="text-[11px] font-medium text-white/50">
+                    <span className="text-[11px] font-medium text-foreground/75 dark:text-foreground/50">
                       Keyboard First
                     </span>
                   </div>
-                  <p className="mt-1 text-[10px] text-white/25">
+                  <p className="mt-1 text-[10px] text-foreground/55 dark:text-foreground/25">
                     Ctrl+B, Ctrl+I, Ctrl+K
                     <br />
                     and more — stays native
@@ -867,10 +876,10 @@ export default function LandingPage() {
               <BentoCard className="lg:row-span-2" delay={0}>
                 <div className="flex h-full flex-col p-6">
                   <GitBranch className="mb-4 size-5 text-amber-400" />
-                  <h3 className="mb-2 text-lg font-semibold text-white/90">
+                  <h3 className="mb-2 text-lg font-semibold text-foreground/90">
                     GitHub Native
                   </h3>
-                  <p className="mb-6 text-[13px] leading-relaxed text-white/30">
+                  <p className="mb-6 text-[13px] leading-relaxed text-foreground/65 dark:text-foreground/30">
                     Connect any repo, configure content paths, and publish.
                     Wryte generates clean commits and tracks file SHAs for smart
                     create-or-update logic.
@@ -902,16 +911,16 @@ export default function LandingPage() {
                     ].map((commit) => (
                       <div
                         key={commit.msg}
-                        className="flex items-start gap-3 rounded-lg bg-white/[0.02] px-3 py-2 transition-colors group-hover:bg-white/[0.04]"
+                        className="flex items-start gap-3 rounded-lg bg-foreground/[0.02] px-3 py-2 transition-colors group-hover:bg-foreground/[0.04]"
                       >
                         <div
                           className={`mt-1.5 size-1.5 shrink-0 rounded-full ${commit.color}`}
                         />
                         <div className="min-w-0 flex-1">
-                          <div className="truncate font-mono text-[11px] text-white/40">
+                          <div className="truncate font-mono text-[11px] text-foreground/70 dark:text-foreground/40">
                             {commit.msg}
                           </div>
-                          <div className="text-[10px] text-white/15">
+                          <div className="text-[10px] text-foreground/70 dark:text-foreground/15">
                             {commit.time}
                           </div>
                         </div>
@@ -925,10 +934,10 @@ export default function LandingPage() {
               <BentoCard delay={0.08}>
                 <div className="flex h-full flex-col p-6">
                   <Clock className="mb-4 size-5 text-purple-400" />
-                  <h3 className="mb-2 text-lg font-semibold text-white/90">
+                  <h3 className="mb-2 text-lg font-semibold text-foreground/90">
                     Schedule & Forget
                   </h3>
-                  <p className="text-[13px] leading-relaxed text-white/30">
+                  <p className="text-[13px] leading-relaxed text-foreground/65 dark:text-foreground/30">
                     Pick a date and time. Wryte&apos;s cron engine handles the
                     rest — your content goes live while you sleep.
                   </p>
@@ -946,7 +955,7 @@ export default function LandingPage() {
                               ? "bg-amber-500/20 text-amber-400 font-medium"
                               : isPublished
                                 ? "bg-emerald-500/10 text-emerald-400/50"
-                                : "bg-white/[0.02] text-white/15"
+                                : "bg-foreground/[0.02] text-foreground/70 dark:text-foreground/15"
                           }`}
                         >
                           {i + 7}
@@ -961,10 +970,10 @@ export default function LandingPage() {
               <BentoCard delay={0.16}>
                 <div className="flex h-full flex-col p-6">
                   <Save className="mb-4 size-5 text-emerald-400" />
-                  <h3 className="mb-2 text-lg font-semibold text-white/90">
+                  <h3 className="mb-2 text-lg font-semibold text-foreground/90">
                     Never Lose Work
                   </h3>
-                  <p className="text-[13px] leading-relaxed text-white/30">
+                  <p className="text-[13px] leading-relaxed text-foreground/65 dark:text-foreground/30">
                     Real-time auto-save syncs every keystroke to the cloud. Pick
                     up exactly where you left off, on any device.
                   </p>
@@ -993,10 +1002,10 @@ export default function LandingPage() {
               <BentoCard delay={0.12}>
                 <div className="flex h-full flex-col p-6">
                   <Command className="mb-4 size-5 text-blue-400" />
-                  <h3 className="mb-2 text-lg font-semibold text-white/90">
+                  <h3 className="mb-2 text-lg font-semibold text-foreground/90">
                     Smart Frontmatter
                   </h3>
-                  <p className="mb-4 text-[13px] leading-relaxed text-white/30">
+                  <p className="mb-4 text-[13px] leading-relaxed text-foreground/65 dark:text-foreground/30">
                     Auto-detects schema from your repo. Define custom fields —
                     strings, dates, tags, selects — and Wryte builds the form.
                   </p>
@@ -1014,7 +1023,9 @@ export default function LandingPage() {
                         className="flex items-center gap-2 font-mono text-[10px]"
                       >
                         <span className="text-purple-400">{field.key}</span>
-                        <span className="text-white/10">:</span>
+                        <span className="text-foreground/65 dark:text-foreground/10">
+                          :
+                        </span>
                         <span className="text-amber-300/40">{field.type}</span>
                         {field.required && (
                           <span className="rounded bg-red-500/10 px-1 text-[8px] text-red-400/50">
@@ -1031,10 +1042,10 @@ export default function LandingPage() {
               <BentoCard delay={0.2}>
                 <div className="relative flex h-full flex-col p-6">
                   <Sparkles className="mb-4 size-5 text-pink-400" />
-                  <h3 className="mb-2 text-lg font-semibold text-white/90">
+                  <h3 className="mb-2 text-lg font-semibold text-foreground/90">
                     AI-Powered Polish
                   </h3>
-                  <p className="text-[13px] leading-relaxed text-white/30">
+                  <p className="text-[13px] leading-relaxed text-foreground/65 dark:text-foreground/30">
                     Tone shifts, SEO suggestions, and content improvements. Your
                     voice, amplified by AI.
                   </p>
@@ -1067,7 +1078,7 @@ export default function LandingPage() {
           className="relative overflow-hidden py-24 sm:py-32"
         >
           {/* Top rule */}
-          <div className="absolute left-1/2 top-0 h-px w-3/4 -translate-x-1/2 bg-gradient-to-r from-transparent via-white/[0.06] to-transparent" />
+          <div className="absolute left-1/2 top-0 h-px w-3/4 -translate-x-1/2 bg-gradient-to-r from-transparent via-foreground/[0.06] to-transparent" />
 
           <div className="mx-auto max-w-[1100px] px-6">
             <motion.div
@@ -1142,10 +1153,10 @@ export default function LandingPage() {
                     >
                       {step.num}
                     </div>
-                    <h3 className="mb-2 text-xl font-semibold text-white/90">
+                    <h3 className="mb-2 text-xl font-semibold text-foreground/90">
                       {step.title}
                     </h3>
-                    <p className="mx-auto max-w-xs text-[13px] leading-relaxed text-white/30 lg:mx-0">
+                    <p className="mx-auto max-w-xs text-[13px] leading-relaxed text-foreground/65 dark:text-foreground/30 lg:mx-0">
                       {step.desc}
                     </p>
                   </motion.div>
@@ -1159,7 +1170,7 @@ export default function LandingPage() {
         {/*  CTA — Dramatic, minimal                                      */}
         {/* ══════════════════════════════════════════════════════════════ */}
         <section className="relative py-32 sm:py-40">
-          <div className="absolute left-1/2 top-0 h-px w-3/4 -translate-x-1/2 bg-gradient-to-r from-transparent via-white/[0.06] to-transparent" />
+          <div className="absolute left-1/2 top-0 h-px w-3/4 -translate-x-1/2 bg-gradient-to-r from-transparent via-foreground/[0.06] to-transparent" />
 
           {/* Ambient CTA glow */}
           <div className="pointer-events-none absolute inset-0">
@@ -1173,15 +1184,14 @@ export default function LandingPage() {
             transition={{ duration: 0.8 }}
             className="relative z-10 mx-auto max-w-2xl px-6 text-center"
           >
-            <Image
-              src="/wryte-wordmark.png"
-              alt="Wryte"
-              width={280}
-              height={120}
-              className="mx-auto mb-10"
-            />
+            <div className="mx-auto mb-10 flex items-center justify-center gap-3">
+              <BrandIcon width={64} height={64} />
+              <span className="text-6xl font-bold leading-none tracking-tight text-foreground">
+                wryte
+              </span>
+            </div>
 
-            <p className="mb-10 text-lg text-white/30">
+            <p className="mb-10 text-lg text-foreground/65 dark:text-foreground/30">
               Stop juggling markdown files and deploy scripts.
               <br />
               Start shipping content that matters.
@@ -1195,11 +1205,11 @@ export default function LandingPage() {
               <ArrowRight className="size-5 transition-transform duration-300 group-hover:translate-x-1" />
             </MagneticButton>
 
-            <div className="mt-6 flex items-center justify-center gap-5 text-[12px] text-white/20">
+            <div className="mt-6 flex items-center justify-center gap-5 text-[12px] text-foreground/75 dark:text-foreground/20">
               <span>No credit card</span>
-              <span className="size-0.5 rounded-full bg-white/20" />
+              <span className="size-0.5 rounded-full bg-foreground/20" />
               <span>GitHub login</span>
-              <span className="size-0.5 rounded-full bg-white/20" />
+              <span className="size-0.5 rounded-full bg-foreground/20" />
               <span>Ships in seconds</span>
             </div>
           </motion.div>
@@ -1208,51 +1218,49 @@ export default function LandingPage() {
         {/* ══════════════════════════════════════════════════════════════ */}
         {/*  FOOTER — Clean and minimal                                   */}
         {/* ══════════════════════════════════════════════════════════════ */}
-        <footer className="border-t border-white/[0.04] py-8">
+        <footer className="border-t border-foreground/[0.12] dark:border-foreground/[0.04] py-8">
           <div className="mx-auto flex max-w-[1100px] items-center justify-between px-6">
             <div className="flex items-center gap-2">
-              <Image
-                src="/wryte-icon.png"
-                alt="Wryte"
+              <BrandIcon
                 width={18}
                 height={18}
                 className="rounded-[3px] opacity-40"
               />
-              <span className="text-[12px] text-white/20">
+              <span className="text-[12px] text-foreground/75 dark:text-foreground/20">
                 &copy; {new Date().getFullYear()} Wryte
               </span>
             </div>
-            <div className="flex items-center gap-5 text-[12px] text-white/20">
+            <div className="flex items-center gap-5 text-[12px] text-foreground/75 dark:text-foreground/20">
               <button
                 type="button"
                 onClick={() => scrollToSection("editor")}
-                className="transition-colors hover:text-white/40"
+                className="transition-colors hover:text-foreground dark:hover:text-foreground/40"
               >
                 Editor
               </button>
               <button
                 type="button"
                 onClick={() => scrollToSection("features")}
-                className="transition-colors hover:text-white/40"
+                className="transition-colors hover:text-foreground dark:hover:text-foreground/40"
               >
                 Features
               </button>
               <button
                 type="button"
                 onClick={() => scrollToSection("workflow")}
-                className="transition-colors hover:text-white/40"
+                className="transition-colors hover:text-foreground dark:hover:text-foreground/40"
               >
                 Workflow
               </button>
               <Link
                 href="/terms"
-                className="transition-colors hover:text-white/40"
+                className="transition-colors hover:text-foreground dark:hover:text-foreground/40"
               >
                 Terms
               </Link>
               <Link
                 href="/privacy"
-                className="transition-colors hover:text-white/40"
+                className="transition-colors hover:text-foreground dark:hover:text-foreground/40"
               >
                 Privacy
               </Link>

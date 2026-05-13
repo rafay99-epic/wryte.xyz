@@ -89,6 +89,7 @@ export default function CalendarPage() {
         documents={documents ?? []}
         columns={columns}
         projectId={projectId}
+        timezone={project.timezone}
       />
     </div>
   );

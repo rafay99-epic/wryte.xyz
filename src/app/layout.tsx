@@ -5,6 +5,7 @@ import { Providers } from "@/components/providers/convex-provider";
 import { QueryProvider } from "@/components/providers/query-provider";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { BRAND, resolveBrandAsset } from "@/lib/branding";
 import {
   SITE_AUTHOR,
   SITE_AUTHOR_URL,
@@ -15,6 +16,8 @@ import {
   SITE_TWITTER,
   SITE_URL,
 } from "@/lib/seo";
+
+const BRAND_ICON_URL = resolveBrandAsset(BRAND.icon);
 
 // Primary UI font — variable weights allow granular typographic control
 const poppins = Poppins({
@@ -75,9 +78,9 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       { url: "/favicon.ico", sizes: "any" },
-      { url: "/wryte-icon.png", type: "image/png", sizes: "512x512" },
+      { url: BRAND_ICON_URL, type: "image/png", sizes: "512x512" },
     ],
-    apple: [{ url: "/wryte-icon.png", sizes: "512x512" }],
+    apple: [{ url: BRAND_ICON_URL, sizes: "512x512" }],
   },
 
   manifest: "/manifest.webmanifest",
@@ -92,9 +95,9 @@ export const metadata: Metadata = {
     description: SITE_DESCRIPTION,
     images: [
       {
-        url: "/wryte-logos.png",
-        width: 1200,
-        height: 630,
+        url: BRAND_ICON_URL,
+        width: 1024,
+        height: 1024,
         alt: "Wryte — Write Now, Publish Later",
         type: "image/png",
       },
@@ -106,7 +109,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: SITE_TITLE,
     description: SITE_DESCRIPTION,
-    images: ["/wryte-logos.png"],
+    images: [BRAND_ICON_URL],
     creator: SITE_TWITTER,
   },
 
@@ -206,7 +209,7 @@ export default function RootLayout({
                   url: SITE_URL,
                   logo: {
                     "@type": "ImageObject",
-                    url: `${SITE_URL}/wryte-logos.png`,
+                    url: `${SITE_URL}${BRAND_ICON_URL}`,
                   },
                   sameAs: [SITE_GITHUB],
                 },

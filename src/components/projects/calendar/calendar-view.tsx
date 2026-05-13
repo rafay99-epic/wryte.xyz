@@ -14,7 +14,12 @@ import {
 import { AnimatePresence } from "framer-motion";
 import { useCallback, useMemo } from "react";
 import { toast } from "sonner";
-import { getDateKey, isBeforeToday, parseDateKey } from "@/lib/calendar-utils";
+import { isBeforeToday, parseDateKey } from "@/lib/calendar-utils";
+import {
+  formatLocalDate,
+  getPartsInTimezone,
+  resolveTimezone,
+} from "@/lib/timezone";
 import type { CalendarDoc } from "@/stores/calendar-store";
 import { useCalendarStore } from "@/stores/calendar-store";
 import type { BoardColumnDef } from "@/types/board";
@@ -27,13 +32,17 @@ interface CalendarViewProps {
   documents: CalendarDoc[];
   columns: BoardColumnDef[];
   projectId: string;
+  /** IANA timezone for the project. Falls back to the browser timezone. */
+  timezone?: string | null;
 }
 
 export function CalendarView({
   documents,
   columns,
   projectId,
+  timezone,
 }: CalendarViewProps) {
+  const resolvedTimezone = resolveTimezone(timezone);
   const { activeDocument, setActiveDocument, setPendingDrop, pendingDrop } =
     useCalendarStore();
 
@@ -44,7 +53,9 @@ export function CalendarView({
     useSensor(KeyboardSensor),
   );
 
-  // Group documents by date for the calendar grid
+  // Group documents by date for the calendar grid, using the project
+  // timezone so a 9 AM Tokyo post lands on its Tokyo-local day regardless
+  // of where the viewer is.
   const documentsByDate = useMemo(() => {
     const map = new Map<string, CalendarDoc[]>();
 
@@ -52,9 +63,9 @@ export function CalendarView({
       let dateKey: string | null = null;
 
       if (doc.status === "scheduled" && doc.scheduledAt) {
-        dateKey = getDateKey(new Date(doc.scheduledAt));
+        dateKey = formatLocalDate(doc.scheduledAt, resolvedTimezone);
       } else if (doc.status === "published" && doc.publishedAt) {
-        dateKey = getDateKey(new Date(doc.publishedAt));
+        dateKey = formatLocalDate(doc.publishedAt, resolvedTimezone);
       }
 
       if (dateKey) {
@@ -74,7 +85,7 @@ export function CalendarView({
     }
 
     return map;
-  }, [documents]);
+  }, [documents, resolvedTimezone]);
 
   const handleDragStart = useCallback(
     (event: DragStartEvent) => {
@@ -128,14 +139,14 @@ export function CalendarView({
       };
 
       if (doc.scheduledAt) {
-        const existing = new Date(doc.scheduledAt);
-        pendingDropData.existingHour = existing.getHours();
-        pendingDropData.existingMinute = existing.getMinutes();
+        const parts = getPartsInTimezone(doc.scheduledAt, resolvedTimezone);
+        pendingDropData.existingHour = parts.hour;
+        pendingDropData.existingMinute = parts.minute;
       }
 
       setPendingDrop(pendingDropData);
     },
-    [setActiveDocument, setPendingDrop],
+    [setActiveDocument, setPendingDrop, resolvedTimezone],
   );
 
   return (
@@ -175,7 +186,7 @@ export function CalendarView({
 
       {/* Time picker popover */}
       <AnimatePresence>
-        {pendingDrop && <ScheduleTimePopover />}
+        {pendingDrop && <ScheduleTimePopover timezone={resolvedTimezone} />}
       </AnimatePresence>
     </div>
   );

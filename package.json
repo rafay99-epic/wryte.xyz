@@ -15,6 +15,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.95.2",
     "@base-ui/react": "^1.4.1",
+    "@clerk/backend": "^3.4.7",
     "@clerk/nextjs": "^7.3.3",
     "@convex-dev/persistent-text-streaming": "^0.3.2",
     "@convex-dev/rate-limiter": "^0.3.2",

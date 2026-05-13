@@ -16,6 +16,7 @@ import {
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { BrandIcon } from "@/components/branding/brand-icon";
 
 /* ── Star field ──────────────────────────────────────────────────────── */
 
@@ -219,13 +220,7 @@ export default function ConstellationLanding() {
         >
           <div className="mx-auto flex h-16 max-w-[1200px] items-center justify-between px-6">
             <Link href="/" className="flex items-center gap-2.5">
-              <Image
-                src="/wryte-icon.png"
-                alt="Wryte"
-                width={28}
-                height={28}
-                className="rounded-md"
-              />
+              <BrandIcon width={28} height={28} className="rounded-md" />
               <span className="text-[15px] font-semibold tracking-tight text-white/80">
                 wryte
               </span>
@@ -357,9 +352,7 @@ export default function ConstellationLanding() {
                   <div className="absolute -top-1 left-1/2 size-1.5 -translate-x-1/2 rounded-full bg-purple-400 opacity-40" />
                 </motion.div>
 
-                <Image
-                  src="/wryte-icon.png"
-                  alt="Wryte"
+                <BrandIcon
                   width={90}
                   height={90}
                   className="relative z-10"
@@ -974,13 +967,12 @@ export default function ConstellationLanding() {
             viewport={{ once: true }}
             className="relative z-10 mx-auto max-w-2xl px-6 text-center"
           >
-            <Image
-              src="/wryte-wordmark.png"
-              alt="Wryte"
-              width={280}
-              height={120}
-              className="mx-auto mb-10"
-            />
+            <div className="mx-auto mb-10 flex items-center justify-center gap-3">
+              <BrandIcon width={64} height={64} />
+              <span className="text-6xl font-bold leading-none tracking-tight text-white">
+                wryte
+              </span>
+            </div>
             <p className="mb-10 text-lg text-white/30">
               Stop juggling deploy scripts.
               <br />
@@ -1007,9 +999,7 @@ export default function ConstellationLanding() {
         <footer className="border-t border-white/[0.04] py-8">
           <div className="mx-auto flex max-w-[1100px] items-center justify-between px-6">
             <div className="flex items-center gap-2">
-              <Image
-                src="/wryte-icon.png"
-                alt="Wryte"
+              <BrandIcon
                 width={18}
                 height={18}
                 className="rounded-[3px] opacity-40"

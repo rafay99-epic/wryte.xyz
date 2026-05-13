@@ -11,14 +11,17 @@ import { useTheme } from "next-themes";
 import { Toaster as Sonner, type ToasterProps } from "sonner";
 
 const Toaster = ({ ...props }: ToasterProps) => {
-  const { theme = "system" } = useTheme();
-  const resolvedTheme = (theme ?? "system") as NonNullable<
-    ToasterProps["theme"]
-  >;
+  // `resolvedTheme` is the *actual* applied theme ("light" or "dark"); `theme`
+  // can be "system" which Sonner doesn't translate as reliably as our own
+  // CSS-variable approach.
+  const { resolvedTheme } = useTheme();
+  const sonnerTheme = (resolvedTheme === "dark" ? "dark" : "light") as
+    | "dark"
+    | "light";
 
   return (
     <Sonner
-      theme={resolvedTheme}
+      theme={sonnerTheme}
       className="toaster group"
       icons={{
         success: <CircleCheckIcon className="size-4" />,
@@ -32,12 +35,31 @@ const Toaster = ({ ...props }: ToasterProps) => {
           "--normal-bg": "var(--popover)",
           "--normal-text": "var(--popover-foreground)",
           "--normal-border": "var(--border)",
+          "--success-bg": "var(--popover)",
+          "--success-text": "var(--popover-foreground)",
+          "--success-border": "var(--border)",
+          "--error-bg": "var(--popover)",
+          "--error-text": "var(--popover-foreground)",
+          "--error-border": "var(--border)",
+          "--info-bg": "var(--popover)",
+          "--info-text": "var(--popover-foreground)",
+          "--info-border": "var(--border)",
+          "--warning-bg": "var(--popover)",
+          "--warning-text": "var(--popover-foreground)",
+          "--warning-border": "var(--border)",
           "--border-radius": "var(--radius)",
         } as React.CSSProperties
       }
       toastOptions={{
         classNames: {
-          toast: "cn-toast",
+          toast:
+            "cn-toast !bg-popover !text-popover-foreground !border-border shadow-lg",
+          title: "!text-popover-foreground font-medium",
+          // Description was rendering at ~50% opacity against a dark popover
+          // which made it nearly invisible — bump to /80 for legibility.
+          description: "!text-popover-foreground/80",
+          actionButton: "!bg-primary !text-primary-foreground",
+          cancelButton: "!bg-muted !text-muted-foreground",
         },
       }}
       {...props}

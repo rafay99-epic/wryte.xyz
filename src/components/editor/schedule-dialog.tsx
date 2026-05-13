@@ -3,7 +3,9 @@
 import { useMutation, useQuery } from "convex/react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
+  AlertTriangle,
   Calendar as CalendarIcon,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Clock,
@@ -23,6 +25,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { TimePicker } from "@/components/ui/time-picker";
+import { TimezoneSelect } from "@/components/ui/timezone-select";
 import {
   findPubDateFieldName,
   findPubDateFieldType,
@@ -36,6 +39,16 @@ import {
   MONTHS,
 } from "@/lib/calendar-utils";
 import { smoothTransition } from "@/lib/motion";
+import {
+  formatLocalDate,
+  formatLocalDatetime,
+  getBrowserTimezone,
+  getPartsInTimezone,
+  getTimezoneCityLabel,
+  getTimezoneOffsetLabel,
+  resolveTimezone,
+  zonedTimeToUtc,
+} from "@/lib/timezone";
 import { cn } from "@/lib/utils";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
@@ -50,6 +63,8 @@ const documentsUpdate = (api as any).documents.update;
 const schedulingSchedule = (api as any).scheduling.schedule;
 // biome-ignore lint/suspicious/noExplicitAny: api types are generated at build time via `npx convex dev`
 const schedulingCancel = (api as any).scheduling.cancel;
+// biome-ignore lint/suspicious/noExplicitAny: api types are generated at build time via `npx convex dev`
+const schedulingGetLatest = (api as any).scheduling.getLatestForDocument;
 
 interface ScheduleDialogProps {
   open: boolean;
@@ -197,6 +212,16 @@ export function ScheduleDialog({
     projectsGet,
     document ? { projectId: document.projectId } : "skip",
   );
+  const latestPublish = useQuery(schedulingGetLatest, {
+    documentId: documentId as Id<"documents">,
+  }) as
+    | {
+        status: "pending" | "processing" | "completed" | "failed";
+        scheduledAt: number;
+        error?: string;
+      }
+    | null
+    | undefined;
 
   const schedulePublish = useMutation(schedulingSchedule);
   const cancelSchedule = useMutation(schedulingCancel);
@@ -204,6 +229,15 @@ export function ScheduleDialog({
 
   const isAlreadyScheduled = document?.status === "scheduled";
   const existingScheduledAt = document?.scheduledAt;
+  const projectTimezone = resolveTimezone(project?.timezone);
+  const browserTimezone = useMemo(() => getBrowserTimezone(), []);
+
+  // Per-dialog timezone override. Defaults to the project timezone but the
+  // author can switch (e.g. preview the time in their own timezone before
+  // scheduling). The chosen value drives both the picked timestamp and the
+  // formatted preview/toast.
+  const [timezone, setTimezone] = useState(projectTimezone);
+  const timezoneDiffersFromBrowser = timezone !== browserTimezone;
 
   // Initialize date/time from existing schedule or default to tomorrow
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -213,22 +247,32 @@ export function ScheduleDialog({
   // Reset state when panel opens
   useEffect(() => {
     if (open) {
+      // Reset the per-dialog timezone to the project default each time the
+      // dialog is reopened, so unrelated schedules don't inherit a stale
+      // override from a previous session.
+      setTimezone(projectTimezone);
       if (existingScheduledAt) {
-        const d = new Date(existingScheduledAt);
-        setSelectedDate(d);
-        setHour(d.getHours());
-        setMinute(d.getMinutes());
+        // Read the existing instant *in the project timezone* so the calendar
+        // highlights the day the user originally picked, not whatever day it
+        // happens to be in the current browser timezone.
+        const parts = getPartsInTimezone(existingScheduledAt, projectTimezone);
+        setSelectedDate(new Date(parts.year, parts.month - 1, parts.day));
+        setHour(parts.hour);
+        setMinute(parts.minute);
       } else {
-        // Default: tomorrow at 9:00 AM
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        tomorrow.setHours(9, 0, 0, 0);
+        // Default: tomorrow at 9:00 AM in the project timezone.
+        const nowParts = getPartsInTimezone(Date.now(), projectTimezone);
+        const tomorrow = new Date(
+          nowParts.year,
+          nowParts.month - 1,
+          nowParts.day + 1,
+        );
         setSelectedDate(tomorrow);
         setHour(9);
         setMinute(0);
       }
     }
-  }, [open, existingScheduledAt]);
+  }, [open, existingScheduledAt, projectTimezone]);
 
   // When user picks a date, auto-adjust time if it would be in the past
   const handleDateSelect = useCallback(
@@ -252,40 +296,51 @@ export function ScheduleDialog({
     [hour, minute],
   );
 
-  const timezone = useMemo(
-    () => Intl.DateTimeFormat().resolvedOptions().timeZone,
-    [],
-  );
-
-  // Construct the final timestamp from selectedDate + hour + minute
+  // Construct the final timestamp by interpreting the picked wall-clock time
+  // in the project timezone, then converting to a UTC instant for storage.
   const scheduledTimestamp = useMemo(() => {
     if (!selectedDate) return null;
-    const d = new Date(selectedDate);
-    d.setHours(hour, minute, 0, 0);
-    return d.getTime();
-  }, [selectedDate, hour, minute]);
+    return zonedTimeToUtc(
+      selectedDate.getFullYear(),
+      selectedDate.getMonth() + 1,
+      selectedDate.getDate(),
+      hour,
+      minute,
+      timezone,
+    );
+  }, [selectedDate, hour, minute, timezone]);
 
   const isInPast =
     scheduledTimestamp != null && scheduledTimestamp <= Date.now();
 
   const formattedDateTime = useMemo(() => {
     if (!scheduledTimestamp) return null;
-    return new Date(scheduledTimestamp).toLocaleString(undefined, {
+    // Lock hour12=true so AM/PM is always shown regardless of the user's
+    // browser locale (some locales would otherwise render 24-hour time).
+    const dateTime = new Date(scheduledTimestamp).toLocaleString(undefined, {
       weekday: "short",
       year: "numeric",
       month: "short",
       day: "numeric",
       hour: "numeric",
       minute: "2-digit",
-      timeZoneName: "short",
+      hour12: true,
+      timeZone: timezone,
     });
-  }, [scheduledTimestamp]);
+    return `${dateTime} · ${getTimezoneCityLabel(timezone)} (${getTimezoneOffsetLabel(
+      timezone,
+      scheduledTimestamp,
+    )})`;
+  }, [scheduledTimestamp, timezone]);
 
   async function handleSchedule() {
     if (!scheduledTimestamp || isInPast) return;
 
     setIsScheduling(true);
     try {
+      // No client-side token capture. `publishToGithub` will resolve a
+      // fresh token from Clerk (or the vault PAT) at fire-time, which is
+      // what makes scheduling work for arbitrarily long delays.
       await schedulePublish({
         documentId: documentId as Id<"documents">,
         scheduledAt: scheduledTimestamp,
@@ -300,13 +355,12 @@ export function ScheduleDialog({
             : {};
           const fieldType = findPubDateFieldType(project?.frontmatterSchema);
           if (fieldType === "datetime") {
-            fm[pubDateField] = new Date(scheduledTimestamp)
-              .toISOString()
-              .slice(0, 16);
+            fm[pubDateField] = formatLocalDatetime(
+              scheduledTimestamp,
+              timezone,
+            );
           } else {
-            fm[pubDateField] = new Date(scheduledTimestamp)
-              .toISOString()
-              .slice(0, 10);
+            fm[pubDateField] = formatLocalDate(scheduledTimestamp, timezone);
           }
           await updateDocument({
             documentId: documentId as Id<"documents">,
@@ -366,35 +420,147 @@ export function ScheduleDialog({
 
         <SheetBody>
           <div className="space-y-6">
-            {/* Current schedule banner */}
+            {/* Current schedule banner — reflects the workflow status, not just
+                the document's `scheduled` flag, so failed/processing publishes
+                are visible to the author instead of stuck silently. */}
             <AnimatePresence>
-              {isAlreadyScheduled && existingScheduledAt && (
-                <motion.div
-                  initial={{ opacity: 0, y: -8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -8 }}
-                  transition={smoothTransition}
-                  className="flex items-start gap-3 rounded-xl border border-blue-500/20 bg-blue-500/5 px-4 py-3"
-                >
-                  <Clock className="mt-0.5 size-4 shrink-0 text-blue-500" />
-                  <div>
-                    <p className="text-sm font-medium text-blue-500">
-                      Currently scheduled
-                    </p>
-                    <p className="mt-0.5 text-[13px] text-foreground/70">
-                      {new Date(existingScheduledAt).toLocaleString(undefined, {
-                        weekday: "short",
-                        year: "numeric",
-                        month: "short",
-                        day: "numeric",
-                        hour: "numeric",
-                        minute: "2-digit",
-                        timeZoneName: "short",
-                      })}
-                    </p>
-                  </div>
-                </motion.div>
-              )}
+              {(() => {
+                const status = latestPublish?.status;
+                const scheduledFor =
+                  latestPublish?.scheduledAt ?? existingScheduledAt;
+                if (!scheduledFor) return null;
+
+                if (status === "failed") {
+                  return (
+                    <motion.div
+                      initial={{ opacity: 0, y: -8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -8 }}
+                      transition={smoothTransition}
+                      className="flex items-start gap-3 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3"
+                    >
+                      <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-destructive">
+                          Publish failed
+                        </p>
+                        <p className="mt-0.5 text-[13px] text-foreground/70">
+                          The scheduled publish for{" "}
+                          {new Date(scheduledFor).toLocaleString(undefined, {
+                            month: "short",
+                            day: "numeric",
+                            hour: "numeric",
+                            minute: "2-digit",
+                            hour12: true,
+                            timeZone: timezone,
+                          })}{" "}
+                          did not go through. Re-check your GitHub connection
+                          and the project's repo, then schedule again.
+                        </p>
+                        {latestPublish?.error && (
+                          <p className="mt-2 break-words rounded-md bg-destructive/10 px-2 py-1 font-mono text-[11px] text-destructive">
+                            {latestPublish.error}
+                          </p>
+                        )}
+                      </div>
+                    </motion.div>
+                  );
+                }
+
+                if (status === "processing") {
+                  return (
+                    <motion.div
+                      initial={{ opacity: 0, y: -8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -8 }}
+                      transition={smoothTransition}
+                      className="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3"
+                    >
+                      <Loader2 className="mt-0.5 size-4 shrink-0 animate-spin text-amber-500" />
+                      <div>
+                        <p className="text-sm font-medium text-amber-500">
+                          Publishing now
+                        </p>
+                        <p className="mt-0.5 text-[13px] text-foreground/70">
+                          GitHub commit in progress. Hold on for a few seconds.
+                        </p>
+                      </div>
+                    </motion.div>
+                  );
+                }
+
+                if (status === "completed") {
+                  return (
+                    <motion.div
+                      initial={{ opacity: 0, y: -8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -8 }}
+                      transition={smoothTransition}
+                      className="flex items-start gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-4 py-3"
+                    >
+                      <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-500" />
+                      <div>
+                        <p className="text-sm font-medium text-emerald-500">
+                          Published
+                        </p>
+                        <p className="mt-0.5 text-[13px] text-foreground/70">
+                          This document went live on{" "}
+                          {new Date(scheduledFor).toLocaleString(undefined, {
+                            month: "short",
+                            day: "numeric",
+                            hour: "numeric",
+                            minute: "2-digit",
+                            hour12: true,
+                            timeZone: timezone,
+                          })}
+                          .
+                        </p>
+                      </div>
+                    </motion.div>
+                  );
+                }
+
+                if (isAlreadyScheduled && existingScheduledAt) {
+                  return (
+                    <motion.div
+                      initial={{ opacity: 0, y: -8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -8 }}
+                      transition={smoothTransition}
+                      className="flex items-start gap-3 rounded-xl border border-blue-500/20 bg-blue-500/5 px-4 py-3"
+                    >
+                      <Clock className="mt-0.5 size-4 shrink-0 text-blue-500" />
+                      <div>
+                        <p className="text-sm font-medium text-blue-500">
+                          Currently scheduled
+                        </p>
+                        <p className="mt-0.5 text-[13px] text-foreground/70">
+                          {new Date(existingScheduledAt).toLocaleString(
+                            undefined,
+                            {
+                              weekday: "short",
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                              hour: "numeric",
+                              minute: "2-digit",
+                              hour12: true,
+                              timeZone: timezone,
+                            },
+                          )}{" "}
+                          · {getTimezoneCityLabel(timezone)} (
+                          {getTimezoneOffsetLabel(
+                            timezone,
+                            existingScheduledAt,
+                          )}
+                          )
+                        </p>
+                      </div>
+                    </motion.div>
+                  );
+                }
+                return null;
+              })()}
             </AnimatePresence>
 
             {/* Calendar section */}
@@ -425,9 +591,24 @@ export function ScheduleDialog({
                   onMinuteChange={setMinute}
                 />
               </div>
-              <p className="mt-2 text-[11px] text-muted-foreground/50">
-                Timezone: {timezone}
-              </p>
+            </div>
+
+            {/* Timezone section */}
+            <div>
+              <h3 className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+                Timezone
+              </h3>
+              <TimezoneSelect value={timezone} onChange={setTimezone} />
+              {timezone !== projectTimezone && (
+                <p className="mt-1.5 text-[11px] text-amber-500">
+                  Override · the project default is {projectTimezone}
+                </p>
+              )}
+              {timezoneDiffersFromBrowser && timezone === projectTimezone && (
+                <p className="mt-1.5 text-[11px] text-muted-foreground/60">
+                  Your browser is in {browserTimezone}
+                </p>
+              )}
             </div>
 
             {/* Preview */}

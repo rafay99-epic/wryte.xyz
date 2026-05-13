@@ -29,12 +29,11 @@ export async function getGithubToken(): Promise<
     return { error: "Not authenticated" };
   }
 
-  // Look up the OAuth token Clerk stored when the user connected GitHub
+  // Look up the OAuth token Clerk stored when the user connected GitHub.
+  // The provider name is "github" — the legacy "oauth_" prefix is deprecated
+  // and will be removed in the next Clerk major release.
   const client = await clerkClient();
-  const tokens = await client.users.getUserOauthAccessToken(
-    userId,
-    "oauth_github",
-  );
+  const tokens = await client.users.getUserOauthAccessToken(userId, "github");
 
   const token = tokens.data[0]?.token;
 

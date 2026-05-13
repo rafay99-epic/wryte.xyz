@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { BRAND, resolveBrandAsset } from "@/lib/branding";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_TITLE } from "@/lib/seo";
 
 /**
@@ -22,19 +23,19 @@ export default function manifest(): MetadataRoute.Manifest {
     categories: ["developer tools", "productivity", "writing"],
     icons: [
       {
-        src: "/wryte-icon.png",
+        src: resolveBrandAsset(BRAND.icon),
         sizes: "192x192",
         type: "image/png",
         purpose: "any",
       },
       {
-        src: "/wryte-icon.png",
+        src: resolveBrandAsset(BRAND.icon),
         sizes: "512x512",
         type: "image/png",
         purpose: "any",
       },
       {
-        src: "/wryte-icon.png",
+        src: resolveBrandAsset(BRAND.icon),
         sizes: "512x512",
         type: "image/png",
         purpose: "maskable",

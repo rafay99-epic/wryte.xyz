@@ -7,6 +7,7 @@ import {
   mutation,
   query,
 } from "./_generated/server";
+import { parseClerkUserId } from "./auth_helpers";
 import { compressionSettingsValidator } from "./compressionSettings";
 import { getRateLimitKey, rateLimiter } from "./rateLimits";
 
@@ -37,11 +38,22 @@ export const getOrCreate = mutation({
       .unique();
 
     if (existing) {
+      // Backfill `clerkUserId` for legacy users (created before the field
+      // was added). Without this, anyone whose only post-schema interaction
+      // is `getOrCreate` (clients that don't go through `getCurrentUser`)
+      // would stay on the vault-only path forever.
+      if (!existing.clerkUserId) {
+        const clerkUserId = parseClerkUserId(identity.tokenIdentifier);
+        if (clerkUserId) {
+          await ctx.db.patch(existing._id, { clerkUserId });
+        }
+      }
       return existing._id;
     }
 
     const insertData: {
       tokenIdentifier: string;
+      clerkUserId?: string;
       name: string;
       email: string;
       imageUrl?: string;
@@ -52,6 +64,11 @@ export const getOrCreate = mutation({
       email: identity.email ?? "",
       createdAt: Date.now(),
     };
+
+    const clerkUserId = parseClerkUserId(identity.tokenIdentifier);
+    if (clerkUserId) {
+      insertData.clerkUserId = clerkUserId;
+    }
 
     if (identity.pictureUrl) {
       insertData.imageUrl = identity.pictureUrl;

@@ -23,6 +23,23 @@ interface AutosaveOptions {
   documentId: string;
   content: string;
   title: string;
+  /**
+   * When false, suppresses the debounced auto-save and the flush-on-unmount
+   * safety net. The returned `saveNow` still works so the author can persist
+   * changes manually (e.g. via Cmd/Ctrl+S). Defaults to `true`.
+   */
+  enabled?: boolean;
+}
+
+interface AutosaveReturn {
+  isSaving: boolean;
+  lastSavedAt: number | null;
+  /**
+   * Persist the latest content/title immediately, cancelling any pending
+   * debounce. Safe to call repeatedly — no-ops if there's nothing dirty.
+   * Resolves once the save round-trip completes (success or failure).
+   */
+  saveNow: () => Promise<void>;
 }
 
 const updateMutation = api.documents.update;
@@ -43,7 +60,12 @@ const updateMutation = api.documents.update;
  * Save status (isSaving / lastSavedAt) is managed through the global editor store
  * so the toolbar can display a save indicator without prop drilling.
  */
-export function useAutosave({ documentId, content, title }: AutosaveOptions) {
+export function useAutosave({
+  documentId,
+  content,
+  title,
+  enabled = true,
+}: AutosaveOptions): AutosaveReturn {
   const updateDocument = useMutation(updateMutation);
   // Pull only the save-related slice to avoid re-renders from unrelated store changes
   const { isSaving, lastSavedAt, isDirty, setSaving, markSaved } =
@@ -93,18 +115,35 @@ export function useAutosave({ documentId, content, title }: AutosaveOptions) {
     // Guard: skip if the store reports nothing has changed
     if (!useEditorStore.getState().isDirty) return;
 
-    const { content: currentContent, title: currentTitle } = latestRef.current;
+    // Snapshot the values we're about to persist so that we can detect typing
+    // that happens DURING the in-flight save. Without this, `markSaved()`
+    // would clear the dirty flag even though the local content has moved on,
+    // and the editor page's "sync external changes" effect would then
+    // overwrite the user's in-progress typing with the server snapshot.
+    const snapshotContent = latestRef.current.content;
+    const snapshotTitle = latestRef.current.title;
     setSaving(true);
     try {
       await updateDocument({
         documentId: documentId as Id<"documents">,
-        content: currentContent,
-        title: currentTitle,
+        content: snapshotContent,
+        title: snapshotTitle,
       });
 
       // Only update state if still mounted and on the same document
       if (isMountedRef.current && latestRef.current.documentId === documentId) {
-        markSaved();
+        const stillFresh =
+          latestRef.current.content === snapshotContent &&
+          latestRef.current.title === snapshotTitle;
+        if (stillFresh) {
+          // No typing happened during the save — safe to mark clean.
+          markSaved();
+        } else {
+          // The user typed while we were saving. Keep `isDirty` true so the
+          // sync effect on the editor page doesn't snap us back to the
+          // server snapshot, and let the debounce schedule the next save.
+          setSaving(false);
+        }
         failureCountRef.current = 0; // reset on success
       }
     } catch (err) {
@@ -127,11 +166,22 @@ export function useAutosave({ documentId, content, title }: AutosaveOptions) {
 
   // Debounce effect: every time content or title changes, restart the timer.
   // When the timer finally fires (no new changes for DEBOUNCE_MS), trigger save.
+  //
+  // The deps deliberately include `content` and `title` (not just `isDirty`)
+  // so that EVERY keystroke resets the timer — otherwise the timer fires
+  // N seconds after the first dirty change regardless of subsequent typing,
+  // which opens a wide race window where the save runs with stale content
+  // while the user is still typing.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: content & title are intentional re-trigger signals, not values read inside the effect (the save callback reads latestRef.current at execution time)
   useEffect(() => {
     // Cancel any previously scheduled save
     if (timerRef.current) {
       clearTimeout(timerRef.current);
     }
+
+    // If auto-save is off, never schedule — the author is driving saves
+    // manually via the Cmd/Ctrl+S shortcut.
+    if (!enabled) return;
 
     // Only schedule if there's actually something to save
     if (!isDirty) return;
@@ -148,7 +198,51 @@ export function useAutosave({ documentId, content, title }: AutosaveOptions) {
         timerRef.current = null;
       }
     };
-  }, [isDirty, save]);
+  }, [content, title, isDirty, save, enabled]);
 
-  return { isSaving, lastSavedAt };
+  // Flush-on-unmount: if there's a pending save when the component goes away
+  // (user navigates away mid-debounce), fire the mutation as fire-and-forget.
+  // Convex completes the mutation server-side regardless of the React tree.
+  //
+  // This effect is registered last so its cleanup runs first on unmount —
+  // before the debounce cleanup nukes `timerRef` and before the editor page's
+  // cleanup wipes the store via `reset()`.
+  useEffect(() => {
+    return () => {
+      // Auto-save is the contract that "your work is safe even if you forget
+      // to save." When the author disables it, they own the responsibility
+      // for unsaved work, and a surprise flush on navigation would violate
+      // that expectation.
+      if (!enabled) return;
+      const hasPendingTimer = timerRef.current !== null;
+      const state = useEditorStore.getState();
+      if (!hasPendingTimer || !state.isDirty) return;
+      const { documentId: id, content: c, title: t } = latestRef.current;
+      // Read from latestRef (not the store) — `latestRef` mirrors the values
+      // we'd have saved on the next debounce tick, which is the user's
+      // intent. Fire-and-forget; nothing here awaits the result.
+      void updateDocument({
+        documentId: id as Id<"documents">,
+        content: c,
+        title: t,
+      }).catch((err) => {
+        console.error("[Autosave] Flush-on-unmount failed:", err);
+      });
+    };
+  }, [updateDocument, enabled]);
+
+  /**
+   * Manual save trigger. Cancels any pending debounce and runs the save
+   * immediately. Useful for the Cmd/Ctrl+S shortcut and works regardless
+   * of whether auto-save is enabled.
+   */
+  const saveNow = useCallback(async () => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    await save();
+  }, [save]);
+
+  return { isSaving, lastSavedAt, saveNow };
 }

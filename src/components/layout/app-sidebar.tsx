@@ -15,10 +15,10 @@ import {
   Settings,
   Star,
 } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useMemo } from "react";
+import { BrandIcon } from "@/components/branding/brand-icon";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { getColorClasses } from "@/lib/board-colors";
 import { cn } from "@/lib/utils";
@@ -161,13 +161,7 @@ export function AppSidebar() {
     <div className="flex h-full w-[260px] flex-col bg-sidebar">
       {/* Product header */}
       <div className="flex h-12 shrink-0 items-center gap-2 border-b border-sidebar-border px-4">
-        <Image
-          src="/wryte-icon.png"
-          alt="Wryte"
-          width={24}
-          height={24}
-          className="rounded-md"
-        />
+        <BrandIcon width={24} height={24} className="rounded-md" />
         <span className="text-sm font-semibold tracking-tight text-sidebar-foreground">
           wryte
         </span>

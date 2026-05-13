@@ -5,13 +5,15 @@ import { motion } from "framer-motion";
 import { ArrowLeft, FileQuestion, LayoutDashboard } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
+import { toast } from "sonner";
 import { useShallow } from "zustand/react/shallow";
 import { EditorLayout } from "@/components/editor/editor-layout";
 import { PublishHistoryPanel } from "@/components/editor/publish-history-panel";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAutosave } from "@/hooks/use-autosave";
+import { useSaveShortcut } from "@/hooks/use-save-shortcut";
 import { fadeSlideUp, smoothTransition } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/stores/editor-store";
@@ -89,8 +91,34 @@ export default function EditorPage() {
     }
   }, [document, isDirty, content, title, initDocument]);
 
-  // Wire up autosave
-  useAutosave({ documentId, content, title });
+  // Wire up autosave. `autoSaveEnabled` is per-project, defaults to true
+  // when the field is absent on the document/project.
+  const autoSaveEnabled = project?.autoSaveEnabled ?? true;
+  const { saveNow } = useAutosave({
+    documentId,
+    content,
+    title,
+    enabled: autoSaveEnabled,
+  });
+
+  // Manual save via Cmd/Ctrl+S — works regardless of auto-save setting so
+  // authors who disable auto-save still have a fast keyboard path.
+  const handleManualSave = useCallback(() => {
+    if (!useEditorStore.getState().isDirty) {
+      toast.info("Nothing to save", { id: "manual-save" });
+      return;
+    }
+    void saveNow()
+      .then(() => {
+        toast.success("Saved", { id: "manual-save", duration: 1500 });
+      })
+      .catch(() => {
+        // useAutosave already surfaces persistent failures; this toast covers
+        // the immediate one-off case so the user gets feedback right away.
+        toast.error("Save failed", { id: "manual-save" });
+      });
+  }, [saveNow]);
+  useSaveShortcut(handleManualSave);
 
   const historyPanelOpen = useEditorStore((s) => s.historyPanelOpen);
   const toggleHistoryPanel = useEditorStore((s) => s.toggleHistoryPanel);

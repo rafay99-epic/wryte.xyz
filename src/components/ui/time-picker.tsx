@@ -35,11 +35,11 @@ export function TimePicker({
   };
 
   const incrementMinute = () => {
-    onMinuteChange((minute + 5) % 60);
+    onMinuteChange((minute + 1) % 60);
   };
 
   const decrementMinute = () => {
-    onMinuteChange((minute - 5 + 60) % 60);
+    onMinuteChange((minute - 1 + 60) % 60);
   };
 
   return (

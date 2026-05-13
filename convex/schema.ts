@@ -26,6 +26,14 @@ export default defineSchema({
    */
   users: defineTable({
     tokenIdentifier: v.string(),
+    /**
+     * Clerk-issued user identifier (e.g. "user_2abc..."), parsed once from
+     * `tokenIdentifier` and pinned here so Convex Node actions can call
+     * Clerk's backend SDK without reparsing on every request. Optional
+     * because legacy users predate this field — backfilled lazily inside
+     * `getCurrentUser` on the next authenticated request.
+     */
+    clerkUserId: v.optional(v.string()),
     name: v.string(),
     email: v.string(),
     imageUrl: v.optional(v.string()),
@@ -103,6 +111,19 @@ export default defineSchema({
     ),
     /** AI model identifier, e.g. "claude-sonnet-4-20250514" */
     aiModel: v.optional(v.string()),
+    /**
+     * IANA timezone identifier (e.g. "America/New_York"). Drives how
+     * scheduled publish times are interpreted and how the publish-date
+     * frontmatter field is rendered. Absent = fall back to the editor's
+     * browser timezone at schedule time.
+     */
+    timezone: v.optional(v.string()),
+    /**
+     * When false, the editor never persists changes automatically — the
+     * author must use the manual save shortcut (Cmd/Ctrl+S). Absent =
+     * auto-save enabled (default behaviour).
+     */
+    autoSaveEnabled: v.optional(v.boolean()),
     /** User-starred project for quick scanning */
     isFavorite: v.optional(v.boolean()),
     /** Manual display order; set by reorder mutation (0 = first) */

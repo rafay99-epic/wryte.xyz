@@ -232,25 +232,9 @@ export function BoardView({
         // Handle column behavior
         if (result.behavior === "publish" && hasGithub) {
           try {
-            let githubAccessToken: string | undefined;
-            try {
-              const res = await fetch("/api/github/token");
-              if (res.ok) {
-                const data = (await res.json()) as { token?: string };
-                if (data.token) githubAccessToken = data.token;
-              }
-            } catch {
-              // Fall back to stored PAT
-            }
-
-            const pubArgs: {
-              documentId: Id<"documents">;
-              githubAccessToken?: string;
-            } = { documentId: draggedItem.id as Id<"documents"> };
-            if (githubAccessToken)
-              pubArgs.githubAccessToken = githubAccessToken;
-
-            await publishAction(pubArgs);
+            await publishAction({
+              documentId: draggedItem.id as Id<"documents">,
+            });
             toast.success(`Published "${draggedItem.title}" to GitHub`);
           } catch (err) {
             toast.error(

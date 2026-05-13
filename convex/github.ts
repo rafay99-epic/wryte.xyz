@@ -2,10 +2,12 @@
  * GitHub integration actions for publishing documents and managing media.
  * Runs in a Node.js environment ("use node") because it depends on Octokit.
  *
- * Token sourcing: the GitHub PAT now lives in the secret vault. All actions
- * resolve it via `getGithubToken(ctx, user._id)`. Callers can still pass
- * `args.githubAccessToken` as an override (used by the OAuth refresh path
- * in the settings page), but the canonical source is the vault.
+ * Token sourcing: every action resolves the GitHub token server-side via
+ * `getGithubToken(ctx, user._id)`. That helper checks Clerk OAuth first,
+ * falls back to the WorkOS Vault PAT, and finally drains the legacy
+ * plaintext field. There is no longer a "pass a token in" override —
+ * `verifyRepoAccess` is the lone exception because it runs *before* a
+ * user has anywhere to store a token (the connect wizard).
  *
  * Media migration at publish time has been removed — uploads now go directly
  * to the project's configured provider via `convex/media.ts:upload`.
@@ -86,19 +88,100 @@ function parseRepoString(repo: string): { owner: string; repo: string } {
 }
 
 /**
- * Resolves the token to use for an action: explicit override > vault.
- * Throws if neither path yields a token so the caller surfaces a clear
- * "Reconnect GitHub" message.
+ * Strips leading and trailing slashes from a repo-relative path. GitHub's
+ * Contents API rejects paths with leading slashes (looks for a file literally
+ * named "/src/..." which doesn't exist → 404), and a trailing slash on a
+ * directory prefix would produce a double-slash when joined to a slug.
+ *
+ * Examples:
+ *   "/src/content/blog"   → "src/content/blog"
+ *   "src/content/blog/"   → "src/content/blog"
+ *   "/src/content/blog/"  → "src/content/blog"
+ *   ""                    → ""
+ *   "/"                   → ""
+ */
+function normalizeRepoPath(path: string): string {
+  return path.replace(/^\/+/, "").replace(/\/+$/, "");
+}
+
+/**
+ * Joins a directory prefix and a filename into a clean repo-relative path,
+ * gracefully handling missing/empty prefixes (root-of-repo posts).
+ */
+function joinRepoPath(prefix: string, filename: string): string {
+  const cleanPrefix = normalizeRepoPath(prefix);
+  return cleanPrefix ? `${cleanPrefix}/${filename}` : filename;
+}
+
+/**
+ * Given a 404 from a Contents API write, walk back through the auth chain to
+ * figure out *why* — GitHub returns 404 in three indistinguishable cases:
+ *
+ *   1. The repo doesn't exist or isn't visible to the token's user
+ *      (different account, repo deleted/renamed, or private repo without
+ *      proper scope grant).
+ *   2. The token's user doesn't have write access (read-only collaborator).
+ *   3. The token's OAuth scopes don't include `repo` — Clerk's default
+ *      GitHub OAuth scope set is `read:user user:email`; without explicit
+ *      configuration the token can't write anywhere.
+ *
+ * The branch on the original error path tells us which one. Returns a
+ * caller-friendly message; callers throw it so it surfaces in the
+ * "Publish failed" banner.
+ */
+async function describeWriteFailure(
+  octokit: Octokit,
+  owner: string,
+  repoName: string,
+): Promise<string> {
+  // Who does GitHub think we are?
+  let actingAs: string | null = null;
+  let scopes: string | null = null;
+  try {
+    const me = await octokit.users.getAuthenticated();
+    actingAs = me.data.login;
+    // Octokit surfaces OAuth scopes on the response headers.
+    const headerScopes = me.headers["x-oauth-scopes"];
+    scopes = typeof headerScopes === "string" ? headerScopes : null;
+  } catch {
+    return "GitHub token is invalid or revoked — reconnect GitHub in Settings.";
+  }
+
+  // Can we see the repo at all?
+  try {
+    const r = await octokit.repos.get({ owner, repo: repoName });
+    // We can see the repo. So failure is either branch missing or write perm.
+    if (!r.data.permissions?.push) {
+      return `Connected as @${actingAs}, but that account has no write access to ${owner}/${repoName}. Either grant push permission to @${actingAs} on the repo, or set a Personal Access Token with 'repo' scope in Settings.`;
+    }
+    return `Connected as @${actingAs} with write access to ${owner}/${repoName}, but the publish still 404'd — most likely the branch doesn't exist. Check the branch name in project settings.`;
+  } catch {
+    // Repo lookup failed → either the repo doesn't exist for this account
+    // or the token can't even see it. Most common: insufficient OAuth scope.
+    const scopeHint = scopes
+      ? scopes.includes("repo")
+        ? ""
+        : ` (current OAuth scopes: \`${scopes}\` — missing \`repo\`)`
+      : " (could not read OAuth scopes from GitHub response)";
+    return `${owner}/${repoName} is not visible to GitHub user @${actingAs}${scopeHint}. Fixes: (a) add \`repo\` scope to your Clerk GitHub OAuth provider config and reconnect GitHub, (b) sign in with the GitHub account that owns this repo, or (c) set a Personal Access Token with \`repo\` scope in Settings.`;
+  }
+}
+
+/**
+ * Resolves the GitHub token for an action. Always goes through
+ * `getGithubToken` so every action sees the same Clerk → vault → legacy
+ * fallback. Throws a friendly message when nothing is available so the
+ * UI can prompt the user to reconnect.
  */
 async function resolveToken(
   ctx: ActionCtx,
   userId: Id<"users">,
-  override?: string,
 ): Promise<string> {
-  if (override) return override;
   const token = await getGithubToken(ctx, userId);
   if (!token) {
-    throw new Error("No GitHub access token available");
+    throw new Error(
+      "No GitHub access token available. Reconnect GitHub in Settings or set a Personal Access Token.",
+    );
   }
   return token;
 }
@@ -109,12 +192,10 @@ async function resolveToken(
  * updates the file in the configured repository via the GitHub Contents API.
  *
  * @param args.documentId - The document to publish.
- * @param args.githubAccessToken - Optional override token (falls back to vault).
  */
 export const publishToGithub = internalAction({
   args: {
     documentId: v.id("documents"),
-    githubAccessToken: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const document = await ctx.runQuery(internal.documents.internalGet, {
@@ -138,7 +219,7 @@ export const publishToGithub = internalAction({
       throw new Error("User not found");
     }
 
-    const token = await resolveToken(ctx, user._id, args.githubAccessToken);
+    const token = await resolveToken(ctx, user._id);
 
     if (!project.githubRepo) {
       throw new Error("GitHub repository not configured for this project");
@@ -146,8 +227,10 @@ export const publishToGithub = internalAction({
 
     const { owner, repo } = parseRepoString(project.githubRepo);
     const branch = project.githubBranch ?? "main";
-    const contentPath = project.contentPath ?? "content";
-    const filePath = `${contentPath}/${document.slug}.md`;
+    const filePath = joinRepoPath(
+      project.contentPath ?? "content",
+      `${document.slug}.md`,
+    );
 
     const octokit = new Octokit({ auth: token });
 
@@ -216,6 +299,13 @@ export const publishToGithub = internalAction({
         throw new Error(
           "GitHub token expired or revoked. Please reconnect GitHub in settings.",
         );
+      }
+      if (err.status === 404) {
+        // 404 on a Contents write is almost never "file not found" — GitHub
+        // uses it to mask permission, scope, and visibility failures. Probe
+        // the auth chain and surface a precise diagnosis.
+        const why = await describeWriteFailure(octokit, owner, repo);
+        throw new Error(`GitHub publish failed: ${why}`);
       }
       throw error;
     }
@@ -293,7 +383,6 @@ export const publishToGithub = internalAction({
 export const publish = action({
   args: {
     documentId: v.id("documents"),
-    githubAccessToken: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<void> => {
     const key = await getRateLimitKey(ctx);
@@ -329,16 +418,9 @@ export const publish = action({
       throw new Error("Unauthorized: you do not own this document");
     }
 
-    const runArgs: {
-      documentId: typeof args.documentId;
-      githubAccessToken?: string;
-    } = {
+    await ctx.runAction(internal.github.publishToGithub, {
       documentId: args.documentId,
-    };
-    if (args.githubAccessToken !== undefined) {
-      runArgs.githubAccessToken = args.githubAccessToken;
-    }
-    await ctx.runAction(internal.github.publishToGithub, runArgs);
+    });
   },
 });
 
@@ -354,7 +436,6 @@ export const bulkPublish = action({
   args: {
     projectId: v.id("projects"),
     documentIds: v.array(v.id("documents")),
-    githubAccessToken: v.optional(v.string()),
   },
   handler: async (
     ctx,
@@ -379,14 +460,14 @@ export const bulkPublish = action({
       throw new Error("Unauthorized");
     }
 
-    const token = await resolveToken(ctx, user._id, args.githubAccessToken);
+    const token = await resolveToken(ctx, user._id);
     if (!project.githubRepo) {
       throw new Error("GitHub repository not configured for this project");
     }
 
     const { owner, repo } = parseRepoString(project.githubRepo);
     const branch = project.githubBranch ?? "main";
-    const contentPath = project.contentPath ?? "content";
+    const contentPath = normalizeRepoPath(project.contentPath ?? "content");
 
     const octokit = new Octokit({ auth: token });
 
@@ -458,7 +539,9 @@ export const bulkPublish = action({
 
     for (const doc of docs) {
       try {
-        const filePath = `${contentPath}/${doc.slug}.md`;
+        const filePath = contentPath
+          ? `${contentPath}/${doc.slug}.md`
+          : `${doc.slug}.md`;
         const isUpdate = Boolean(doc.githubSha);
 
         let frontmatterData: Record<string, unknown> = {
@@ -621,7 +704,6 @@ export const uploadMediaToGithub = action({
     fileName: v.string(),
     base64Content: v.string(),
     contentType: v.string(),
-    githubAccessToken: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<string> => {
     const key = await getRateLimitKey(ctx);
@@ -646,7 +728,7 @@ export const uploadMediaToGithub = action({
       throw new Error("User not found");
     }
 
-    const token = await resolveToken(ctx, user._id, args.githubAccessToken);
+    const token = await resolveToken(ctx, user._id);
 
     if (!project.githubRepo) {
       throw new Error("GitHub repository not configured");
@@ -654,8 +736,8 @@ export const uploadMediaToGithub = action({
 
     const { owner, repo } = parseRepoString(project.githubRepo);
     const branch = project.githubBranch ?? "main";
-    const mediaPath = project.mediaPath ?? "public/images";
-    const filePath = `${mediaPath}/${args.fileName}`;
+    const mediaPath = normalizeRepoPath(project.mediaPath ?? "public/images");
+    const filePath = joinRepoPath(mediaPath, args.fileName);
 
     const octokit = new Octokit({ auth: token });
 
@@ -704,7 +786,7 @@ export const uploadMediaToGithub = action({
  */
 async function resolveGithubImportContext(
   ctx: ActionCtx,
-  args: { projectId: Id<"projects">; githubAccessToken?: string },
+  args: { projectId: Id<"projects"> },
 ): Promise<{
   octokit: Octokit;
   owner: string;
@@ -738,7 +820,7 @@ async function resolveGithubImportContext(
     throw new Error("GitHub repository not configured for this project");
   }
 
-  const token = await resolveToken(ctx, user._id, args.githubAccessToken);
+  const token = await resolveToken(ctx, user._id);
   const { owner, repo } = parseRepoString(project.githubRepo);
   const branch: string = project.githubBranch ?? "main";
   const octokit = new Octokit({ auth: token });
@@ -845,7 +927,6 @@ export const importFileFromGithub = action({
   args: {
     projectId: v.id("projects"),
     filePath: v.string(),
-    githubAccessToken: v.optional(v.string()),
   },
   handler: async (
     ctx,
@@ -854,14 +935,9 @@ export const importFileFromGithub = action({
     const key = await getRateLimitKey(ctx);
     await rateLimiter.limit(ctx, "github:importFile", { key, throws: true });
 
-    const setupArgs: {
-      projectId: typeof args.projectId;
-      githubAccessToken?: string;
-    } = { projectId: args.projectId };
-    if (args.githubAccessToken !== undefined) {
-      setupArgs.githubAccessToken = args.githubAccessToken;
-    }
-    const setup = await resolveGithubImportContext(ctx, setupArgs);
+    const setup = await resolveGithubImportContext(ctx, {
+      projectId: args.projectId,
+    });
 
     return importOneFile(ctx, {
       ...setup,
@@ -886,7 +962,6 @@ export const importFilesFromGithub = action({
   args: {
     projectId: v.id("projects"),
     filePaths: v.array(v.string()),
-    githubAccessToken: v.optional(v.string()),
   },
   handler: async (
     ctx,
@@ -907,14 +982,9 @@ export const importFilesFromGithub = action({
     const key = await getRateLimitKey(ctx);
     await rateLimiter.limit(ctx, "github:importFile", { key, throws: true });
 
-    const setupArgs: {
-      projectId: typeof args.projectId;
-      githubAccessToken?: string;
-    } = { projectId: args.projectId };
-    if (args.githubAccessToken !== undefined) {
-      setupArgs.githubAccessToken = args.githubAccessToken;
-    }
-    const setup = await resolveGithubImportContext(ctx, setupArgs);
+    const setup = await resolveGithubImportContext(ctx, {
+      projectId: args.projectId,
+    });
 
     const succeeded: Array<{
       filePath: string;
@@ -990,7 +1060,6 @@ export const deleteFileFromGithub = action({
     projectId: v.id("projects"),
     filePath: v.string(),
     sha: v.string(),
-    githubAccessToken: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<void> => {
     const key = await getRateLimitKey(ctx);
@@ -1019,7 +1088,7 @@ export const deleteFileFromGithub = action({
       throw new Error("Unauthorized: you do not own this project");
     }
 
-    const token = await resolveToken(ctx, user._id, args.githubAccessToken);
+    const token = await resolveToken(ctx, user._id);
 
     if (!project.githubRepo) {
       throw new Error("GitHub repository not configured for this project");

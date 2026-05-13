@@ -372,4 +372,21 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     rate: 20,
     period: MINUTE,
   },
+
+  /* ------------------------------------------------------------------ */
+  /*  Clerk Backend SDK                                                  */
+  /* ------------------------------------------------------------------ */
+
+  /**
+   * Clerk OAuth token fetches. Every Convex action that needs a GitHub
+   * token calls Clerk fresh, so we protect against a retry loop quietly
+   * DOSing our Clerk dashboard. Generous enough to handle a bulk-publish
+   * fanning out to many files.
+   */
+  "clerk:getOauthToken": {
+    kind: "token bucket",
+    rate: 120,
+    period: MINUTE,
+    capacity: 30,
+  },
 });

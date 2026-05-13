@@ -385,25 +385,10 @@ export default function ProjectDetailPage() {
 
       setImportingPath(item.path);
       try {
-        let githubAccessToken: string | undefined;
-        try {
-          const res = await fetch("/api/github/token");
-          if (res.ok) {
-            const data = (await res.json()) as { token?: string };
-            if (data.token) githubAccessToken = data.token;
-          }
-        } catch {
-          // Fall back to stored PAT
-        }
-
-        const args: {
-          projectId: Id<"projects">;
-          filePath: string;
-          githubAccessToken?: string;
-        } = { projectId, filePath: item.path };
-        if (githubAccessToken) args.githubAccessToken = githubAccessToken;
-
-        const result = (await importWithRetry(args)) as {
+        const result = (await importWithRetry({
+          projectId,
+          filePath: item.path,
+        })) as {
           documentId: string;
           title: string;
         };
@@ -430,26 +415,11 @@ export default function ProjectDetailPage() {
       setIsBatchImporting(true);
       setBatchImportProgress({ done: 0, total: paths.length });
 
-      let githubAccessToken: string | undefined;
       try {
-        const res = await fetch("/api/github/token");
-        if (res.ok) {
-          const data = (await res.json()) as { token?: string };
-          if (data.token) githubAccessToken = data.token;
-        }
-      } catch {
-        // Fall back to stored PAT
-      }
-
-      try {
-        const args: {
-          projectId: Id<"projects">;
-          filePaths: string[];
-          githubAccessToken?: string;
-        } = { projectId, filePaths: paths };
-        if (githubAccessToken) args.githubAccessToken = githubAccessToken;
-
-        const result = (await importFilesBatch(args)) as {
+        const result = (await importFilesBatch({
+          projectId,
+          filePaths: paths,
+        })) as {
           succeeded: Array<{ filePath: string }>;
           failed: Array<{ filePath: string; error: string }>;
         };
@@ -492,28 +462,10 @@ export default function ProjectDetailPage() {
       setBulkPublishProgress({ done: 0, total: docIds.length });
 
       try {
-        let githubAccessToken: string | undefined;
-        try {
-          const res = await fetch("/api/github/token");
-          if (res.ok) {
-            const data = (await res.json()) as { token?: string };
-            if (data.token) githubAccessToken = data.token;
-          }
-        } catch {
-          // Fall back to stored PAT
-        }
-
-        const args: {
-          projectId: Id<"projects">;
-          documentIds: Id<"documents">[];
-          githubAccessToken?: string;
-        } = {
+        const result = (await bulkPublishAction({
           projectId,
           documentIds: docIds as Id<"documents">[],
-        };
-        if (githubAccessToken) args.githubAccessToken = githubAccessToken;
-
-        const result = (await bulkPublishAction(args)) as {
+        })) as {
           success: number;
           failed: number;
           commitUrl?: string;
