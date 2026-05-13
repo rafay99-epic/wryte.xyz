@@ -1,5 +1,13 @@
 import { SignIn } from "@clerk/nextjs";
+import type { Metadata } from "next";
 import Image from "next/image";
+
+export const metadata: Metadata = {
+  title: "Sign in",
+  description: "Sign in to your Wryte workspace.",
+  robots: { index: false, follow: false },
+  alternates: { canonical: "https://wryte.xyz/sign-in" },
+};
 
 export default function SignInPage() {
   return (

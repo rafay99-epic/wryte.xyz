@@ -1,10 +1,20 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { JetBrains_Mono, Poppins } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers/convex-provider";
 import { QueryProvider } from "@/components/providers/query-provider";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
+import {
+  SITE_AUTHOR,
+  SITE_AUTHOR_URL,
+  SITE_DESCRIPTION,
+  SITE_GITHUB,
+  SITE_NAME,
+  SITE_TITLE,
+  SITE_TWITTER,
+  SITE_URL,
+} from "@/lib/seo";
 
 // Primary UI font — variable weights allow granular typographic control
 const poppins = Poppins({
@@ -20,15 +30,6 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 /* ------------------------------------------------------------------ */
-/*  Site-wide constants used in metadata, JSON-LD, and OG tags         */
-/* ------------------------------------------------------------------ */
-const SITE_URL = "https://wryte.xyz";
-const SITE_NAME = "Wryte";
-const SITE_TITLE = "Wryte – Write Now, Publish Later";
-const SITE_DESCRIPTION =
-  "An editor-first content workflow tool for developers. Capture rough ideas, refine them with AI, and publish to GitHub when ready.";
-
-/* ------------------------------------------------------------------ */
 /*  Full Next.js Metadata export — covers SEO, OG, Twitter, icons      */
 /* ------------------------------------------------------------------ */
 export const metadata: Metadata = {
@@ -41,8 +42,8 @@ export const metadata: Metadata = {
   description: SITE_DESCRIPTION,
 
   applicationName: SITE_NAME,
-  authors: [{ name: "Abdul Rafay", url: "https://rafay99.com" }],
-  creator: "Abdul Rafay",
+  authors: [{ name: SITE_AUTHOR, url: SITE_AUTHOR_URL }],
+  creator: SITE_AUTHOR,
   publisher: SITE_NAME,
   generator: "Next.js",
   keywords: [
@@ -106,14 +107,42 @@ export const metadata: Metadata = {
     title: SITE_TITLE,
     description: SITE_DESCRIPTION,
     images: ["/wryte-logos.png"],
-    creator: "@rafay99-epic",
+    creator: SITE_TWITTER,
   },
 
   /* Misc */
   category: "Developer Tools",
   alternates: {
     canonical: SITE_URL,
+    types: {
+      "application/rss+xml": [
+        { url: `${SITE_URL}/rss.xml`, title: `${SITE_NAME} — Updates (RSS)` },
+      ],
+    },
   },
+
+  /*
+    Search-console verification slots. Populate via `NEXT_PUBLIC_*_VERIFICATION`
+    env vars when verifying ownership; left undefined here so they're omitted
+    from the rendered HTML when not configured.
+  */
+  verification: {
+    google: process.env["NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION"],
+    yandex: process.env["NEXT_PUBLIC_YANDEX_VERIFICATION"],
+    ...(process.env["NEXT_PUBLIC_BING_SITE_VERIFICATION"] && {
+      other: {
+        "msvalidate.01": process.env["NEXT_PUBLIC_BING_SITE_VERIFICATION"],
+      },
+    }),
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#09090b" },
+  ],
+  colorScheme: "dark light",
 };
 
 /**
@@ -155,7 +184,15 @@ export default function RootLayout({
           }}
         />
 
-        {/* JSON-LD structured data — Organization + WebSite + SoftwareApplication */}
+        {/* RSS feed autodiscovery link — picked up by feed readers */}
+        <link
+          rel="alternate"
+          type="application/rss+xml"
+          title={`${SITE_NAME} — Updates`}
+          href={`${SITE_URL}/rss.xml`}
+        />
+
+        {/* JSON-LD structured data — Organization + WebSite + SoftwareApplication + FAQPage */}
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
@@ -164,29 +201,29 @@ export default function RootLayout({
               "@graph": [
                 {
                   "@type": "Organization",
-                  "@id": "https://wryte.xyz/#organization",
-                  name: "Wryte",
-                  url: "https://wryte.xyz",
+                  "@id": `${SITE_URL}/#organization`,
+                  name: SITE_NAME,
+                  url: SITE_URL,
                   logo: {
                     "@type": "ImageObject",
-                    url: "https://wryte.xyz/wryte-logos.png",
+                    url: `${SITE_URL}/wryte-logos.png`,
                   },
-                  sameAs: ["https://github.com/rafay99-epic/wryte.xyz"],
+                  sameAs: [SITE_GITHUB],
                 },
                 {
                   "@type": "WebSite",
-                  "@id": "https://wryte.xyz/#website",
-                  url: "https://wryte.xyz",
-                  name: "Wryte",
-                  description:
-                    "An editor-first content workflow tool for developers. Capture rough ideas, refine them with AI, and publish to GitHub when ready.",
-                  publisher: { "@id": "https://wryte.xyz/#organization" },
+                  "@id": `${SITE_URL}/#website`,
+                  url: SITE_URL,
+                  name: SITE_NAME,
+                  description: SITE_DESCRIPTION,
+                  publisher: { "@id": `${SITE_URL}/#organization` },
                   inLanguage: "en-US",
                 },
                 {
                   "@type": "SoftwareApplication",
-                  name: "Wryte",
-                  url: "https://wryte.xyz",
+                  "@id": `${SITE_URL}/#software`,
+                  name: SITE_NAME,
+                  url: SITE_URL,
                   applicationCategory: "DeveloperApplication",
                   operatingSystem: "Web",
                   offers: {
@@ -194,8 +231,45 @@ export default function RootLayout({
                     price: "0",
                     priceCurrency: "USD",
                   },
-                  description:
-                    "An editor-first content workflow tool for developers. Capture rough ideas, refine them with AI, and publish to GitHub when ready.",
+                  description: SITE_DESCRIPTION,
+                },
+                {
+                  "@type": "FAQPage",
+                  "@id": `${SITE_URL}/#faq`,
+                  mainEntity: [
+                    {
+                      "@type": "Question",
+                      name: "What is Wryte?",
+                      acceptedAnswer: {
+                        "@type": "Answer",
+                        text: "Wryte is an editor-first content workflow tool for developers. Capture rough ideas in a markdown/MDX editor, refine drafts with AI, and publish straight to GitHub on a schedule.",
+                      },
+                    },
+                    {
+                      "@type": "Question",
+                      name: "Does Wryte support AI writing assistance?",
+                      acceptedAnswer: {
+                        "@type": "Answer",
+                        text: "Yes. Wryte supports Anthropic, OpenAI, and OpenRouter via user-supplied API keys (BYOK). Keys are encrypted in WorkOS Vault and read per-request.",
+                      },
+                    },
+                    {
+                      "@type": "Question",
+                      name: "Where is content published?",
+                      acceptedAnswer: {
+                        "@type": "Answer",
+                        text: "Content is published as clean commits to a GitHub repository and branch you configure per project. Scheduled publishes run on durable workflows with retries.",
+                      },
+                    },
+                    {
+                      "@type": "Question",
+                      name: "How much does Wryte cost?",
+                      acceptedAnswer: {
+                        "@type": "Answer",
+                        text: "Wryte is free. You bring your own AI and media provider keys, so you pay providers directly — Wryte never proxies usage.",
+                      },
+                    },
+                  ],
                 },
               ],
             }),

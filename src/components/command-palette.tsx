@@ -18,8 +18,8 @@ import {
   Sun,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { KbdGroup } from "@/components/ui/kbd";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { splitShortcutKeys } from "@/lib/shortcuts";
 import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/stores/editor-store";
@@ -48,6 +48,23 @@ interface CommandPaletteProps {
   onOpenChange: (open: boolean) => void;
 }
 
+type Category = CommandItem["category"];
+
+/** Display order of category sections — drives both sorting and labels. */
+const CATEGORY_ORDER: readonly Category[] = [
+  "action",
+  "navigation",
+  "project",
+  "article",
+];
+
+const CATEGORY_LABELS: Record<Category, string> = {
+  action: "Actions",
+  navigation: "Navigation",
+  project: "Projects",
+  article: "Recent Articles",
+};
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -56,11 +73,19 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
 
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
-  // Track whether navigation is via keyboard — suppresses mouse hover interference
-  const isKeyboardNav = useRef(false);
+
+  // Input-modality refs: keep mouse hover from fighting keyboard nav.
+  // - isKeyboardNav stays true until the pointer is *actually* moved.
+  // - lastPointerPos filters synthetic pointermove events that fire when the
+  //   list scrolls under a stationary cursor — without this guard, those
+  //   events would reset the keyboard flag and let a stray mouseenter steal
+  //   the selection out from under the user.
+  const isKeyboardNav = useRef(true);
+  const lastPointerPos = useRef<{ x: number; y: number } | null>(null);
 
   const getKeys = useShortcutsStore((s) => s.getKeys);
   const activeProjectId = useEditorStore((s) => s.activeProjectId);
@@ -235,12 +260,25 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   // ---------------------------------------------------------------------------
 
   const filteredItems = useMemo(() => {
-    if (!query.trim()) return commandItems;
-    const lower = query.toLowerCase();
-    return commandItems.filter(
-      (item) =>
-        item.label.toLowerCase().includes(lower) ||
-        item.description?.toLowerCase().includes(lower),
+    const base = !query.trim()
+      ? commandItems
+      : commandItems.filter((item) => {
+          const lower = query.toLowerCase();
+          return (
+            item.label.toLowerCase().includes(lower) ||
+            item.description?.toLowerCase().includes(lower)
+          );
+        });
+    // Sort by category so the flat-array order matches the grouped render
+    // order. Without this, items rendered under one category can share a
+    // globalIndex with items rendered under another (because the grouped
+    // map starts a new run while filteredItems is still interleaved),
+    // producing two simultaneously-highlighted rows.
+    // Array.sort is stable (ES2019+), so items within the same category
+    // keep their original order.
+    return [...base].sort(
+      (a, b) =>
+        CATEGORY_ORDER.indexOf(a.category) - CATEGORY_ORDER.indexOf(b.category),
     );
   }, [commandItems, query]);
 
@@ -248,38 +286,21 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   // Keyboard navigation
   // ---------------------------------------------------------------------------
 
-  // Refs for native keydown handler (can't close over React state)
+  // Mirror reactive state into refs so the native keydown listener (attached
+  // once when the palette opens) always sees the latest values without
+  // needing to be detached and re-attached on every render.
   const filteredItemsRef = useRef(filteredItems);
+  const selectedIndexRef = useRef(selectedIndex);
   useEffect(() => {
     filteredItemsRef.current = filteredItems;
   }, [filteredItems]);
-
-  const handleSelect = useCallback(
-    (index: number) => {
-      const item = filteredItems[index];
-      if (item) {
-        item.onSelect();
-      }
-    },
-    [filteredItems],
-  );
-
-  // Stable ref for handleSelect so the native listener always calls the latest
-  const selectedIndexRef = useRef(selectedIndex);
   useEffect(() => {
     selectedIndexRef.current = selectedIndex;
   }, [selectedIndex]);
 
-  const handleSelectRef = useRef(() => handleSelect(selectedIndexRef.current));
-  useEffect(() => {
-    handleSelectRef.current = () => handleSelect(selectedIndexRef.current);
-  }, [handleSelect]);
-
-  // Attach a native keydown listener on the wrapper div so we can call
-  // stopImmediatePropagation — this prevents TanStack hotkeys (which
-  // listens on document) from also receiving arrow/enter/escape events.
-  const wrapperRef = useRef<HTMLDivElement>(null);
-
+  // Native capture-phase listener on the wrapper so we can stopImmediatePropagation
+  // and prevent TanStack hotkeys (registered on document) from also firing
+  // on ArrowUp/Down/Enter/Escape while the palette is open.
   useEffect(() => {
     if (!open) return;
     const wrapper = wrapperRef.current;
@@ -293,6 +314,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
           isKeyboardNav.current = true;
           setSelectedIndex((prev) => {
             const len = filteredItemsRef.current.length;
+            if (len === 0) return 0;
             return prev < len - 1 ? prev + 1 : 0;
           });
           break;
@@ -302,14 +324,29 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
           isKeyboardNav.current = true;
           setSelectedIndex((prev) => {
             const len = filteredItemsRef.current.length;
+            if (len === 0) return 0;
             return prev > 0 ? prev - 1 : len - 1;
           });
           break;
-        case "Enter":
+        case "Home":
           e.preventDefault();
           e.stopImmediatePropagation();
-          handleSelectRef.current();
+          isKeyboardNav.current = true;
+          setSelectedIndex(0);
           break;
+        case "End":
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          isKeyboardNav.current = true;
+          setSelectedIndex(Math.max(0, filteredItemsRef.current.length - 1));
+          break;
+        case "Enter": {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          const item = filteredItemsRef.current[selectedIndexRef.current];
+          if (item) item.onSelect();
+          break;
+        }
         case "Escape":
           e.preventDefault();
           e.stopImmediatePropagation();
@@ -318,39 +355,55 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       }
     }
 
-    // Use capture phase to intercept before anything else
     wrapper.addEventListener("keydown", handleKeyDown, true);
     return () => {
       wrapper.removeEventListener("keydown", handleKeyDown, true);
     };
   }, [open, onOpenChange]);
 
-  // Reset state when opening/closing
+  // Reset state every time the palette opens.
   useEffect(() => {
     if (open) {
       setQuery("");
       setSelectedIndex(0);
-      // Focus input after animation
+      isKeyboardNav.current = true;
+      lastPointerPos.current = null;
       requestAnimationFrame(() => {
         inputRef.current?.focus();
       });
     }
   }, [open]);
 
-  // Reset selected index when search results change
+  // Reset selection to the top whenever the search query changes.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: query is the trigger here, not a value read inside the effect
   useEffect(() => {
     setSelectedIndex(0);
-  }, []);
+  }, [query]);
 
-  // Scroll selected item into view
+  // Clamp selection if filtering shrinks the list below the current index.
+  // Uses a functional updater so a list that *grows* (data loads in) doesn't
+  // disturb where the user has navigated.
+  useEffect(() => {
+    setSelectedIndex((prev) => {
+      if (filteredItems.length === 0) return 0;
+      return Math.min(prev, filteredItems.length - 1);
+    });
+  }, [filteredItems.length]);
+
+  // Keep the selected item in view as the user navigates. Instant (not smooth)
+  // so rapid key presses feel responsive — smooth would lag behind input.
   useEffect(() => {
     const list = listRef.current;
     if (!list) return;
-    const selected = list.querySelector("[data-selected='true']");
-    if (selected) {
-      selected.scrollIntoView({ block: "nearest" });
-    }
-  }, []);
+    const selected = list.querySelector<HTMLElement>(
+      `[data-index='${String(selectedIndex)}']`,
+    );
+    if (!selected) return;
+    selected.scrollIntoView({
+      block: "nearest",
+      behavior: "instant" as ScrollBehavior,
+    });
+  }, [selectedIndex]);
 
   // ---------------------------------------------------------------------------
   // Group filtered items by category for display
@@ -358,7 +411,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
 
   const grouped = useMemo(() => {
     const groups = new Map<
-      string,
+      Category,
       { items: CommandItem[]; startIndex: number }
     >();
     let idx = 0;
@@ -373,13 +426,6 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     return groups;
   }, [filteredItems]);
 
-  const categoryLabels: Record<string, string> = {
-    action: "Actions",
-    navigation: "Navigation",
-    project: "Projects",
-    article: "Recent Articles",
-  };
-
   // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
@@ -393,26 +439,26 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-            className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
+            transition={{ duration: 0.12, ease: "easeOut" }}
+            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px]"
             onClick={() => onOpenChange(false)}
           />
 
           {/* Panel */}
           <motion.div
-            initial={{ opacity: 0, scale: 0.96, y: -10 }}
+            initial={{ opacity: 0, scale: 0.97, y: -8 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.96, y: -10 }}
-            transition={{ duration: 0.15, ease: [0.25, 0.1, 0.25, 1] }}
-            className="fixed left-1/2 top-[15%] z-50 w-full max-w-2xl -translate-x-1/2"
+            exit={{ opacity: 0, scale: 0.97, y: -8 }}
+            transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+            className="fixed left-4 right-4 top-[18%] z-50 mx-auto max-w-2xl"
           >
             <div
               ref={wrapperRef}
-              className="overflow-hidden rounded-xl border border-border/60 bg-background shadow-2xl"
+              className="overflow-hidden rounded-xl border border-border/50 bg-background shadow-2xl"
             >
               {/* Search input */}
               <div className="flex items-center gap-3 border-b border-border/40 px-4 py-3">
-                <Search className="size-4 shrink-0 text-muted-foreground" />
+                <Search className="size-4 shrink-0 text-muted-foreground/70" />
                 <input
                   ref={inputRef}
                   type="text"
@@ -423,21 +469,28 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                   autoComplete="off"
                   spellCheck={false}
                 />
-                <kbd className="rounded border border-border/60 bg-muted/60 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-                  Esc
-                </kbd>
+                <Kbd>Esc</Kbd>
               </div>
 
               {/* Results list */}
               <div
                 ref={listRef}
-                className="max-h-[400px] overflow-y-auto overscroll-contain p-1.5"
-                onMouseMove={() => {
+                className="max-h-[min(420px,60vh)] overflow-y-auto overscroll-contain scroll-py-2 p-1.5"
+                onPointerMove={(e) => {
+                  // Only count *real* pointer movement. When the list scrolls
+                  // under a stationary cursor, the browser may fire pointermove
+                  // at identical client coords — ignore those so they don't
+                  // flip us out of keyboard-nav mode.
+                  const last = lastPointerPos.current;
+                  if (last && last.x === e.clientX && last.y === e.clientY) {
+                    return;
+                  }
+                  lastPointerPos.current = { x: e.clientX, y: e.clientY };
                   isKeyboardNav.current = false;
                 }}
               >
                 {filteredItems.length === 0 ? (
-                  <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+                  <div className="px-4 py-10 text-center text-sm text-muted-foreground/70">
                     No results found for &ldquo;{query}&rdquo;
                   </div>
                 ) : (
@@ -445,7 +498,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                     ([category, { items, startIndex }]) => (
                       <div key={category}>
                         <p className="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">
-                          {categoryLabels[category] ?? category}
+                          {CATEGORY_LABELS[category]}
                         </p>
                         {items.map((item, i) => {
                           const globalIndex = startIndex + i;
@@ -459,28 +512,31 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                             <button
                               key={item.id}
                               type="button"
+                              data-index={globalIndex}
                               data-selected={isSelected}
                               className={cn(
-                                "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors",
+                                "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm outline-none transition-colors duration-75",
                                 isSelected
-                                  ? "bg-primary/10 text-foreground"
-                                  : "text-foreground/80 hover:bg-muted/50",
+                                  ? "bg-muted text-foreground"
+                                  : "text-foreground/75 hover:bg-muted/40 hover:text-foreground",
                               )}
-                              onClick={() => handleSelect(globalIndex)}
-                              onMouseEnter={() => {
-                                if (!isKeyboardNav.current) {
-                                  setSelectedIndex(globalIndex);
-                                }
+                              onClick={() => {
+                                const target = filteredItems[globalIndex];
+                                if (target) target.onSelect();
+                              }}
+                              onPointerEnter={() => {
+                                if (isKeyboardNav.current) return;
+                                setSelectedIndex(globalIndex);
                               }}
                             >
                               <Icon
                                 className={cn(
                                   "size-4 shrink-0",
-                                  isSelected
-                                    ? "text-primary"
-                                    : item.iconFilled
-                                      ? "text-amber-400"
-                                      : "text-muted-foreground",
+                                  item.iconFilled
+                                    ? "text-amber-400"
+                                    : isSelected
+                                      ? "text-foreground"
+                                      : "text-muted-foreground/70",
                                 )}
                                 fill={
                                   item.iconFilled ? "currentColor" : undefined
@@ -491,7 +547,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                                   {item.label}
                                 </span>
                                 {item.description && (
-                                  <span className="block truncate text-xs text-muted-foreground">
+                                  <span className="block truncate text-xs text-muted-foreground/70">
                                     {item.description}
                                   </span>
                                 )}
@@ -512,18 +568,15 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
               </div>
 
               {/* Footer hint */}
-              <div className="flex items-center justify-between border-t border-border/30 px-4 py-2 text-[10px] text-muted-foreground/50">
-                <span>
-                  <kbd className="rounded border border-border/40 px-1 py-px text-[9px]">
-                    ↑↓
-                  </kbd>{" "}
-                  Navigate{" "}
-                  <kbd className="ml-1 rounded border border-border/40 px-1 py-px text-[9px]">
-                    ↵
-                  </kbd>{" "}
-                  Select
+              <div className="flex items-center justify-between border-t border-border/40 bg-muted/20 px-4 py-2 text-[11px] text-muted-foreground/70">
+                <span className="flex items-center gap-1.5">
+                  <Kbd>↑</Kbd>
+                  <Kbd>↓</Kbd>
+                  <span>Navigate</span>
+                  <Kbd className="ml-1">↵</Kbd>
+                  <span>Select</span>
                 </span>
-                <span>
+                <span className="tabular-nums">
                   {filteredItems.length} result
                   {filteredItems.length !== 1 ? "s" : ""}
                 </span>
