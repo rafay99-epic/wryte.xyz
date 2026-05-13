@@ -55,6 +55,12 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     rate: 10,
     period: MINUTE,
   },
+  /** Account-wide default for image compression — rare, deliberate. */
+  "users:updateDefaultCompressionSettings": {
+    kind: "fixed window",
+    rate: 10,
+    period: MINUTE,
+  },
   /**
    * Self-destruct (account reset). Intentionally tight — this is a
    * destructive action; nobody should be running it on a loop.

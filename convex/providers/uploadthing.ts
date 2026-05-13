@@ -7,6 +7,12 @@
  * - Single `UPLOADTHING_TOKEN` env / option (base64 JSON containing apiKey/appId/regions).
  * - `getFileUrls` is deprecated; use `generateSignedURL` instead.
  * - `uploadFiles` accepts an array; each result is { data, error } — never throws on a single failure.
+ * - The response object exposes `url`/`appUrl` as Proxy getters that emit a
+ *   "deprecated" `console.warn` the moment they're read; the SDK's own debug
+ *   log subsystem touches them while serializing the result. We never read
+ *   those fields (we use `ufsUrl`), but we still need to stop the SDK from
+ *   reading them — done by setting `logLevel: "Error"` so the SDK's internal
+ *   debug logs never fire.
  */
 "use node";
 
@@ -30,7 +36,10 @@ export interface UTListItem {
 }
 
 function client(token: string): UTApi {
-  return new UTApi({ token });
+  // `logLevel: "Error"` silences the SDK's internal debug/info logs. Side
+  // effect: it prevents the SDK from invoking the deprecation getters on
+  // its own response object when serializing log annotations.
+  return new UTApi({ token, logLevel: "Error" });
 }
 
 /**

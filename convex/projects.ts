@@ -3,6 +3,7 @@ import type { Doc } from "./_generated/dataModel";
 import type { QueryCtx } from "./_generated/server";
 import { internalQuery, mutation, query } from "./_generated/server";
 import { getCurrentUser } from "./auth_helpers";
+import { compressionSettingsValidator } from "./compressionSettings";
 import { getRateLimitKey, rateLimiter } from "./rateLimits";
 
 function sortProjectsForList(projects: Doc<"projects">[]): Doc<"projects">[] {
@@ -298,6 +299,13 @@ export const update = mutation({
     aiModel: v.optional(v.string()),
     isFavorite: v.optional(v.boolean()),
     sortOrder: v.optional(v.number()),
+    /**
+     * Pass an object to set the per-project override, or `null` to clear it
+     * and inherit the user's `defaultCompressionSettings` again.
+     */
+    compressionSettings: v.optional(
+      v.union(compressionSettingsValidator, v.null()),
+    ),
   },
   handler: async (ctx, args) => {
     const key = await getRateLimitKey(ctx);
@@ -317,10 +325,15 @@ export const update = mutation({
     const { projectId, ...updates } = args;
     const fieldsToUpdate: Record<string, unknown> = { updatedAt: Date.now() };
 
-    for (const [key, value] of Object.entries(updates)) {
-      if (value !== undefined) {
-        fieldsToUpdate[key] = value;
+    for (const [k, value] of Object.entries(updates)) {
+      if (value === undefined) continue;
+      // `null` for compressionSettings is the explicit "clear" signal —
+      // patch with `undefined` to remove the optional field from the doc.
+      if (k === "compressionSettings" && value === null) {
+        fieldsToUpdate["compressionSettings"] = undefined;
+        continue;
       }
+      fieldsToUpdate[k] = value;
     }
 
     await ctx.db.patch(projectId, fieldsToUpdate);

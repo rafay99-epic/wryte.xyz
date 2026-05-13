@@ -1,6 +1,7 @@
 "use client";
 
 import { useAction, useQuery } from "convex/react";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowLeft,
   Cloud,
@@ -15,11 +16,12 @@ import {
   Upload,
   UploadCloud,
 } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { CompressionOverrideDisclosure } from "@/components/media/compression-override-disclosure";
+import { MediaImage } from "@/components/media/media-image";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Dialog,
@@ -32,6 +34,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useGithubInvalidation, useGithubMedia } from "@/hooks/use-github";
+import { useImageCompression } from "@/hooks/use-image-compression";
+import {
+  type CompressionSettings,
+  describeSavings,
+} from "@/lib/image-compression";
 import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/stores/editor-store";
 import { api } from "../../../../../../convex/_generated/api";
@@ -75,6 +82,32 @@ export default function MediaPage() {
   const [deleteTarget, setDeleteTarget] = useState<UnifiedMediaItem | null>(
     null,
   );
+  /**
+   * Items whose delete has been confirmed but not yet reflected in `items`.
+   * We hide them optimistically so the exit animation runs the moment the
+   * user clicks Delete instead of after the network round-trip. Cleared on
+   * the next `refresh()` once the server confirms.
+   */
+  const [pendingDeletes, setPendingDeletes] = useState<Set<string>>(
+    () => new Set(),
+  );
+
+  const markPendingDelete = useCallback((externalId: string) => {
+    setPendingDeletes((prev) => {
+      const next = new Set(prev);
+      next.add(externalId);
+      return next;
+    });
+  }, []);
+
+  const restorePendingDelete = useCallback((externalId: string) => {
+    setPendingDeletes((prev) => {
+      if (!prev.has(externalId)) return prev;
+      const next = new Set(prev);
+      next.delete(externalId);
+      return next;
+    });
+  }, []);
 
   // Determine the active provider. Treat the legacy "external" value as github.
   const provider: ActiveProvider = useMemo(() => {
@@ -229,10 +262,31 @@ export default function MediaPage() {
   const errorMessage = isGithub ? null : providerError;
 
   const filteredItems = useMemo(() => {
-    if (!searchQuery.trim()) return items;
+    const base = pendingDeletes.size
+      ? items.filter((it) => !pendingDeletes.has(it.externalId))
+      : items;
+    if (!searchQuery.trim()) return base;
     const q = searchQuery.toLowerCase();
-    return items.filter((it) => it.name.toLowerCase().includes(q));
-  }, [items, searchQuery]);
+    return base.filter((it) => it.name.toLowerCase().includes(q));
+  }, [items, pendingDeletes, searchQuery]);
+
+  // Whenever the source `items` change (e.g. after refresh), any pending
+  // deletes that the server has confirmed away can be dropped.
+  useEffect(() => {
+    if (pendingDeletes.size === 0) return;
+    const live = new Set(items.map((i) => i.externalId));
+    setPendingDeletes((prev) => {
+      let dirty = false;
+      const next = new Set(prev);
+      for (const id of prev) {
+        if (!live.has(id)) {
+          next.delete(id);
+          dirty = true;
+        }
+      }
+      return dirty ? next : prev;
+    });
+  }, [items, pendingDeletes.size]);
 
   const refresh = useCallback(async () => {
     if (isGithub) {
@@ -392,14 +446,16 @@ export default function MediaPage() {
       {/* Grid */}
       {filteredItems.length > 0 ? (
         <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-          {filteredItems.map((item) => (
-            <MediaCard
-              key={`${provider}:${item.externalId}`}
-              item={item}
-              provider={provider}
-              onDelete={() => setDeleteTarget(item)}
-            />
-          ))}
+          <AnimatePresence mode="popLayout" initial={false}>
+            {filteredItems.map((item) => (
+              <MediaCard
+                key={`${provider}:${item.externalId}`}
+                item={item}
+                provider={provider}
+                onDelete={() => setDeleteTarget(item)}
+              />
+            ))}
+          </AnimatePresence>
         </div>
       ) : !isLoading && items.length === 0 ? (
         <EmptyState
@@ -472,6 +528,8 @@ export default function MediaPage() {
         onOpenChange={(open) => {
           if (!open) setDeleteTarget(null);
         }}
+        onOptimisticDelete={markPendingDelete}
+        onRestore={restorePendingDelete}
         onDeleted={handleUploaded}
       />
     </div>
@@ -609,17 +667,25 @@ function MediaCard({
   const showPathCopy = provider === "github";
 
   return (
-    <div className="group overflow-hidden rounded-lg border bg-card transition-colors hover:bg-muted/30">
+    <motion.div
+      layout
+      initial={{ opacity: 0, scale: 0.96, y: 6 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.92, y: -6 }}
+      transition={{
+        layout: { duration: 0.22, ease: [0.22, 0.61, 0.36, 1] },
+        opacity: { duration: 0.18 },
+        scale: { duration: 0.18 },
+        y: { duration: 0.18 },
+      }}
+      className="group overflow-hidden rounded-lg border bg-card transition-colors hover:bg-muted/30"
+    >
       <div className="relative flex h-36 items-center justify-center bg-muted/50">
         {isImage ? (
-          <Image
+          <MediaImage
             src={item.url}
             alt={item.name}
-            fill
-            className="object-contain p-2"
             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
-            loading="eager"
-            unoptimized
           />
         ) : (
           <ImageIcon className="size-10 text-muted-foreground/30" />
@@ -671,7 +737,7 @@ function MediaCard({
           {sizeKB} KB
         </p>
       </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -693,16 +759,20 @@ function UploadMediaDialog({
   onUploaded: () => void;
 }) {
   const uploadMedia = useAction(api.media.upload);
+  const { compress, isCompressing, resolvedSettings } =
+    useImageCompression(projectId);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [override, setOverride] = useState<CompressionSettings | null>(null);
 
   useEffect(() => {
     if (!open) {
       setSelectedFile(null);
       setIsDragging(false);
+      setOverride(null);
     }
   }, [open]);
 
@@ -713,14 +783,19 @@ function UploadMediaDialog({
     }
     setIsUploading(true);
     try {
-      const bytes = await selectedFile.arrayBuffer();
+      const result = await compress(selectedFile, override ?? undefined);
+      const toUpload = result.file;
+      const bytes = await toUpload.arrayBuffer();
       await uploadMedia({
         projectId,
         bytes,
-        mime: selectedFile.type,
-        filename: selectedFile.name,
+        mime: toUpload.type,
+        filename: toUpload.name,
       });
-      toast.success(`Uploaded ${selectedFile.name}`);
+      const savings = describeSavings(result);
+      toast.success(`Uploaded ${toUpload.name}`, {
+        description: savings || undefined,
+      });
       onUploaded();
       onOpenChange(false);
     } catch (err) {
@@ -732,7 +807,15 @@ function UploadMediaDialog({
     } finally {
       setIsUploading(false);
     }
-  }, [onOpenChange, onUploaded, projectId, selectedFile, uploadMedia]);
+  }, [
+    compress,
+    onOpenChange,
+    onUploaded,
+    override,
+    projectId,
+    selectedFile,
+    uploadMedia,
+  ]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -801,13 +884,25 @@ function UploadMediaDialog({
           />
         </div>
 
+        <div className="mt-3">
+          <CompressionOverrideDisclosure
+            resolvedSettings={resolvedSettings}
+            override={override}
+            onOverrideChange={setOverride}
+          />
+        </div>
+
         <DialogFooter>
           <Button
             onClick={handleUpload}
-            disabled={!selectedFile || isUploading}
+            disabled={!selectedFile || isUploading || isCompressing}
           >
-            {isUploading && <Loader2 className="size-4 animate-spin" />}
-            Upload to {PROVIDER_LABEL[provider]}
+            {(isUploading || isCompressing) && (
+              <Loader2 className="size-4 animate-spin" />
+            )}
+            {isCompressing
+              ? "Compressing…"
+              : `Upload to ${PROVIDER_LABEL[provider]}`}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -825,6 +920,8 @@ function DeleteMediaDialog({
   provider,
   open,
   onOpenChange,
+  onOptimisticDelete,
+  onRestore,
   onDeleted,
 }: {
   item: UnifiedMediaItem | null;
@@ -832,37 +929,57 @@ function DeleteMediaDialog({
   provider: ActiveProvider;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Called the moment the user confirms — hides the card before the API call. */
+  onOptimisticDelete: (externalId: string) => void;
+  /** Called if the API call fails so the card can be restored. */
+  onRestore: (externalId: string) => void;
   onDeleted: () => void;
 }) {
   const deleteByRef = useAction(api.media.deleteByRef);
-  const [isDeleting, setIsDeleting] = useState(false);
 
-  const handleDelete = useCallback(async () => {
+  const handleDelete = useCallback(() => {
     if (!item) return;
-    setIsDeleting(true);
-    try {
-      const args: Parameters<typeof deleteByRef>[0] = {
-        projectId,
-        provider,
-        externalId: item.externalId,
-      };
-      if (provider === "github" && item.sha) {
-        args.sha = item.sha;
-      }
-      await deleteByRef(args);
-      toast.success(`Deleted ${item.name}`);
-      onOpenChange(false);
-      onDeleted();
-    } catch (err) {
-      const data = (err as { data?: { message?: string } })?.data;
-      toast.error(
-        data?.message ??
-          (err instanceof Error ? err.message : "Failed to delete"),
-      );
-    } finally {
-      setIsDeleting(false);
+    const args: Parameters<typeof deleteByRef>[0] = {
+      projectId,
+      provider,
+      externalId: item.externalId,
+    };
+    if (provider === "github" && item.sha) {
+      args.sha = item.sha;
     }
-  }, [deleteByRef, item, onDeleted, onOpenChange, projectId, provider]);
+
+    // Close the dialog and hide the card immediately. The network call
+    // continues in the background; if it fails, we restore the card and
+    // surface the error.
+    onOptimisticDelete(item.externalId);
+    onOpenChange(false);
+    const deletedId = item.externalId;
+    const deletedName = item.name;
+
+    (async () => {
+      try {
+        await deleteByRef(args);
+        toast.success(`Deleted ${deletedName}`);
+        onDeleted();
+      } catch (err) {
+        onRestore(deletedId);
+        const data = (err as { data?: { message?: string } })?.data;
+        toast.error(
+          data?.message ??
+            (err instanceof Error ? err.message : "Failed to delete"),
+        );
+      }
+    })();
+  }, [
+    deleteByRef,
+    item,
+    onDeleted,
+    onOpenChange,
+    onOptimisticDelete,
+    onRestore,
+    projectId,
+    provider,
+  ]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -877,19 +994,10 @@ function DeleteMediaDialog({
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={isDeleting}
-          >
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button
-            variant="destructive"
-            onClick={handleDelete}
-            disabled={isDeleting}
-          >
-            {isDeleting && <Loader2 className="size-4 animate-spin" />}
+          <Button variant="destructive" onClick={handleDelete}>
             Delete
           </Button>
         </DialogFooter>

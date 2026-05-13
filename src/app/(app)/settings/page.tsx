@@ -2,7 +2,7 @@
 
 import { useUser } from "@clerk/nextjs";
 import { useHotkeyRecorder } from "@tanstack/react-hotkeys";
-import { useAction, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   AlertCircle,
@@ -13,6 +13,7 @@ import {
   Eye,
   EyeOff,
   GitFork,
+  ImageIcon,
   Keyboard,
   Loader2,
   Monitor,
@@ -28,6 +29,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { CompressionSettingsForm } from "@/components/settings/compression-settings-form";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -44,6 +46,11 @@ import { KbdGroup } from "@/components/ui/kbd";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useGithubToken } from "@/hooks/use-github";
+import {
+  type CompressionSettings,
+  compressionSettingsEqual,
+  DEFAULT_COMPRESSION_SETTINGS,
+} from "@/lib/image-compression";
 import {
   fadeSlideUp,
   smoothTransition,
@@ -66,11 +73,17 @@ import { api } from "../../../../convex/_generated/api";
 /*  Tab definitions                                                    */
 /* ------------------------------------------------------------------ */
 
-type SettingsTab = "account" | "appearance" | "shortcuts" | "self-destruct";
+type SettingsTab =
+  | "account"
+  | "appearance"
+  | "media"
+  | "shortcuts"
+  | "self-destruct";
 
 const TABS: { id: SettingsTab; label: string; icon: React.ElementType }[] = [
   { id: "account", label: "Account", icon: User },
   { id: "appearance", label: "Appearance", icon: Palette },
+  { id: "media", label: "Media", icon: ImageIcon },
   { id: "shortcuts", label: "Shortcuts", icon: Command },
   { id: "self-destruct", label: "Self-Destruct", icon: Skull },
 ];
@@ -183,6 +196,19 @@ export default function SettingsPage() {
                 transition={{ duration: 0.15 }}
               >
                 <AppearanceTab />
+              </motion.div>
+            )}
+            {activeTab === "media" && (
+              <motion.div
+                key="media"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.15 }}
+              >
+                <MediaTab
+                  current={convexUser?.defaultCompressionSettings ?? null}
+                />
               </motion.div>
             )}
             {activeTab === "shortcuts" && (
@@ -603,6 +629,97 @@ function AppearanceTab() {
             );
           })}
         </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Media Tab — account-wide default for image compression             */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Sets the account-wide default that every project inherits. Projects with
+ * their own `compressionSettings` override these. Saving `null` clears the
+ * record and falls back to the library's built-in defaults.
+ */
+function MediaTab({ current }: { current: CompressionSettings | null }) {
+  const save = useMutation(api.users.updateDefaultCompressionSettings);
+
+  const initial: CompressionSettings = useMemo(
+    () => current ?? DEFAULT_COMPRESSION_SETTINGS,
+    [current],
+  );
+
+  const [draft, setDraft] = useState<CompressionSettings>(initial);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    setDraft(initial);
+  }, [initial]);
+
+  const isDirty = !compressionSettingsEqual(draft, initial);
+  const canRestoreDefaults =
+    current !== null &&
+    !compressionSettingsEqual(draft, DEFAULT_COMPRESSION_SETTINGS);
+
+  const handleSave = useCallback(async () => {
+    setIsSaving(true);
+    try {
+      await save({ settings: draft });
+      toast.success("Default compression saved");
+    } catch {
+      toast.error("Failed to save compression");
+    } finally {
+      setIsSaving(false);
+    }
+  }, [draft, save]);
+
+  const handleRestoreLibraryDefaults = useCallback(async () => {
+    setIsSaving(true);
+    try {
+      await save({ settings: null });
+      setDraft(DEFAULT_COMPRESSION_SETTINGS);
+      toast.success("Reverted to built-in defaults");
+    } catch {
+      toast.error("Failed to revert");
+    } finally {
+      setIsSaving(false);
+    }
+  }, [save]);
+
+  return (
+    <motion.div variants={staggerContainer} initial="initial" animate="animate">
+      <SectionHeader
+        icon={ImageIcon}
+        title="Image Compression"
+        description="Default applied to uploads across every project"
+      />
+
+      <motion.div variants={staggerItem} transition={smoothTransition}>
+        <CompressionSettingsForm value={draft} onChange={setDraft} />
+      </motion.div>
+
+      <motion.div
+        variants={staggerItem}
+        transition={smoothTransition}
+        className="mt-5 flex items-center justify-between gap-3"
+      >
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleRestoreLibraryDefaults}
+          disabled={!canRestoreDefaults || isSaving}
+          className="text-xs text-muted-foreground"
+        >
+          <RotateCcw className="size-3" />
+          Restore built-in defaults
+        </Button>
+
+        <Button size="sm" onClick={handleSave} disabled={!isDirty || isSaving}>
+          {isSaving && <Loader2 className="size-3.5 animate-spin" />}
+          Save defaults
+        </Button>
       </motion.div>
     </motion.div>
   );

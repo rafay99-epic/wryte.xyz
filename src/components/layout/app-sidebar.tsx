@@ -167,7 +167,6 @@ export function AppSidebar() {
           width={24}
           height={24}
           className="rounded-md"
-          style={{ width: "auto", height: "auto" }}
         />
         <span className="text-sm font-semibold tracking-tight text-sidebar-foreground">
           wryte

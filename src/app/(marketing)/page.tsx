@@ -330,7 +330,6 @@ export default function LandingPage() {
                 width={28}
                 height={28}
                 className="rounded-md"
-                style={{ width: "auto", height: "auto" }}
               />
               <span className="text-[15px] font-semibold tracking-tight text-white/80">
                 wryte
@@ -371,7 +370,6 @@ export default function LandingPage() {
                         width={28}
                         height={28}
                         className="rounded-full"
-                        style={{ width: "auto", height: "auto" }}
                       />
                     ) : (
                       <div className="flex size-7 items-center justify-center rounded-full bg-amber-500/20 text-[11px] font-semibold text-amber-400">
@@ -453,7 +451,6 @@ export default function LandingPage() {
                     width={100}
                     height={100}
                     className="relative z-10"
-                    style={{ width: "auto", height: "auto" }}
                     priority
                   />
 
@@ -1182,7 +1179,6 @@ export default function LandingPage() {
               width={280}
               height={120}
               className="mx-auto mb-10"
-              style={{ width: "auto", height: "auto" }}
             />
 
             <p className="mb-10 text-lg text-white/30">
@@ -1221,7 +1217,6 @@ export default function LandingPage() {
                 width={18}
                 height={18}
                 className="rounded-[3px] opacity-40"
-                style={{ width: "auto", height: "auto" }}
               />
               <span className="text-[12px] text-white/20">
                 &copy; {new Date().getFullYear()} Wryte

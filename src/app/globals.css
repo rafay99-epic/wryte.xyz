@@ -228,6 +228,39 @@
   background-clip: text;
 }
 
+/* ── Media library shimmer ─────────────────────────────────────────── */
+/*
+ * A muted gradient that slides across an element while images are loading.
+ * Used as a placeholder under media-library thumbnails so the grid never
+ * shows a hard pop-in. Distinct from `.ai-shimmer` below, which is a
+ * gradient on text for streaming responses.
+ */
+@keyframes media-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+.media-shimmer {
+  position: relative;
+  overflow: hidden;
+  background: var(--muted);
+}
+.media-shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in oklch, var(--foreground) 6%, transparent) 50%,
+    transparent 100%
+  );
+  animation: media-shimmer 1.4s ease-in-out infinite;
+}
+
 /* ── AI shimmer animation ──────────────────────────────────────────── */
 @keyframes shimmer {
   0% {

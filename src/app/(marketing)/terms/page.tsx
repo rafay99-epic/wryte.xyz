@@ -67,7 +67,6 @@ export default function TermsPage() {
                 width={28}
                 height={28}
                 className="rounded-md"
-                style={{ width: "auto", height: "auto" }}
               />
               <span className="text-[15px] font-semibold tracking-tight text-white/80">
                 wryte
@@ -387,7 +386,6 @@ export default function TermsPage() {
                 width={18}
                 height={18}
                 className="rounded-[3px] opacity-40"
-                style={{ width: "auto", height: "auto" }}
               />
               <span className="text-[12px] text-white/20">
                 &copy; {new Date().getFullYear()} Wryte

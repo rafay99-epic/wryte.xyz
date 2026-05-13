@@ -2,7 +2,9 @@
 
 import { useAction, useQuery } from "convex/react";
 import { Loader2, Upload } from "lucide-react";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
+import { CompressionOverrideDisclosure } from "@/components/media/compression-override-disclosure";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,6 +18,11 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useImageCompression } from "@/hooks/use-image-compression";
+import {
+  type CompressionSettings,
+  describeSavings,
+} from "@/lib/image-compression";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 
@@ -49,6 +56,16 @@ export function ImageInsertDialog({
     projectId: projectId as Id<"projects">,
   });
   const uploadMedia = useAction(api.media.upload);
+  const { compress, isCompressing, resolvedSettings } = useImageCompression(
+    projectId as Id<"projects">,
+  );
+  const [compressionOverride, setCompressionOverride] =
+    useState<CompressionSettings | null>(null);
+
+  // Reset override when the dialog closes so the next session inherits cleanly.
+  useEffect(() => {
+    if (!open) setCompressionOverride(null);
+  }, [open]);
 
   // Every provider now accepts direct uploads — gating by storage mode is gone.
   const canUpload = Boolean(project);
@@ -73,15 +90,25 @@ export function ImageInsertDialog({
       setUploadError(null);
 
       try {
-        const bytes = await file.arrayBuffer();
+        const compressed = await compress(
+          file,
+          compressionOverride ?? undefined,
+        );
+        const toUpload = compressed.file;
+        const bytes = await toUpload.arrayBuffer();
         const result = await uploadMedia({
           projectId: projectId as Id<"projects">,
           bytes,
-          mime: file.type,
-          filename: file.name,
+          mime: toUpload.type,
+          filename: toUpload.name,
         });
 
-        const alt = altText || file.name;
+        const savings = describeSavings(compressed);
+        if (savings) {
+          toast.success(`Uploaded ${toUpload.name}`, { description: savings });
+        }
+
+        const alt = altText || toUpload.name;
         onInsert(`![${alt}](${result.url})`);
         setImageUrl("");
         setAltText("");
@@ -98,7 +125,15 @@ export function ImageInsertDialog({
         setIsUploading(false);
       }
     },
-    [altText, onInsert, onOpenChange, projectId, uploadMedia],
+    [
+      altText,
+      compress,
+      compressionOverride,
+      onInsert,
+      onOpenChange,
+      projectId,
+      uploadMedia,
+    ],
   );
 
   /** Handle drag-and-drop; only accepts image/* MIME types. */
@@ -196,17 +231,19 @@ export function ImageInsertDialog({
                   onDrop={handleDrop}
                   onDragOver={(e) => e.preventDefault()}
                   onClick={() => fileInputRef.current?.click()}
-                  disabled={!canUpload || isUploading}
+                  disabled={!canUpload || isUploading || isCompressing}
                 >
-                  {isUploading ? (
+                  {isUploading || isCompressing ? (
                     <Loader2 className="size-8 animate-spin text-muted-foreground" />
                   ) : (
                     <Upload className="size-8 text-muted-foreground" />
                   )}
                   <p className="text-sm text-muted-foreground">
-                    {isUploading
-                      ? "Uploading..."
-                      : "Drop an image here or click to browse"}
+                    {isCompressing
+                      ? "Compressing..."
+                      : isUploading
+                        ? "Uploading..."
+                        : "Drop an image here or click to browse"}
                   </p>
                   <input
                     ref={fileInputRef}
@@ -216,6 +253,12 @@ export function ImageInsertDialog({
                     onChange={handleFileChange}
                   />
                 </button>
+
+                <CompressionOverrideDisclosure
+                  resolvedSettings={resolvedSettings}
+                  override={compressionOverride}
+                  onOverrideChange={setCompressionOverride}
+                />
 
                 {uploadError && (
                   <p className="text-sm text-destructive">{uploadError}</p>

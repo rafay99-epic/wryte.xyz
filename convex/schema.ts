@@ -13,6 +13,7 @@
  */
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { compressionSettingsValidator } from "./compressionSettings";
 
 export default defineSchema({
   /**
@@ -33,6 +34,13 @@ export default defineSchema({
     /** Opaque WorkOS Vault id for the user's GitHub PAT. */
     githubVaultSecretId: v.optional(v.string()),
     githubUsername: v.optional(v.string()),
+    /**
+     * Account-wide default for client-side image compression before upload.
+     * Per-project `compressionSettings` overrides this when set; absent =
+     * client falls back to `DEFAULT_COMPRESSION_SETTINGS` in
+     * `src/lib/image-compression/defaults.ts`.
+     */
+    defaultCompressionSettings: v.optional(compressionSettingsValidator),
     createdAt: v.number(),
   }).index("by_tokenIdentifier", ["tokenIdentifier"]),
 
@@ -99,6 +107,12 @@ export default defineSchema({
     isFavorite: v.optional(v.boolean()),
     /** Manual display order; set by reorder mutation (0 = first) */
     sortOrder: v.optional(v.number()),
+    /**
+     * Per-project override for image compression. When absent the client
+     * inherits the user's `defaultCompressionSettings`. When that is also
+     * absent, the built-in defaults apply.
+     */
+    compressionSettings: v.optional(compressionSettingsValidator),
     createdAt: v.number(),
     updatedAt: v.number(),
   }).index("by_userId", ["userId"]),

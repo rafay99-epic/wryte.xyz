@@ -19,6 +19,7 @@ import {
   Orbit,
   Plus,
   Rocket,
+  RotateCcw,
   Settings2,
   Sparkles,
   Trash2,
@@ -35,6 +36,7 @@ import {
   useState,
 } from "react";
 import { toast } from "sonner";
+import { CompressionSettingsForm } from "@/components/settings/compression-settings-form";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -55,6 +57,11 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import {
+  type CompressionSettings,
+  compressionSettingsEqual,
+  DEFAULT_COMPRESSION_SETTINGS,
+} from "@/lib/image-compression";
 import {
   fadeSlideUp,
   smoothTransition,
@@ -104,6 +111,7 @@ interface ProjectData {
   defaultAuthor?: string;
   aiProvider?: "anthropic" | "openai" | "openrouter";
   aiModel?: string;
+  compressionSettings?: CompressionSettings;
 }
 
 const DEFAULT_FIELDS: FrontmatterField[] = [
@@ -1117,6 +1125,144 @@ function MediaSection({
             isSaving={isSaving}
             disabled={!hasChanges}
             onClick={handleSave}
+          />
+        </div>
+      </motion.div>
+
+      <Divider />
+
+      <ProjectCompressionSection projectId={projectId} project={project} />
+    </motion.div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Project Compression Settings                                       */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Per-project override for the user-level default compression preferences.
+ * Stored on `projects.compressionSettings`. Pass `null` to the update
+ * mutation to clear the override and inherit the account default again.
+ */
+function ProjectCompressionSection({
+  projectId,
+  project,
+}: {
+  projectId: Id<"projects">;
+  project: ProjectData;
+}) {
+  const updateProject = useMutation(api.projects.update);
+  const user = useQuery(api.users.get);
+
+  const accountDefault: CompressionSettings = useMemo(
+    () => ({
+      ...DEFAULT_COMPRESSION_SETTINGS,
+      ...(user?.defaultCompressionSettings ?? {}),
+    }),
+    [user?.defaultCompressionSettings],
+  );
+
+  // `true` when the project record actually has an override saved.
+  const hasOverride = project.compressionSettings !== undefined;
+
+  const [overrideEnabled, setOverrideEnabled] = useState(hasOverride);
+  const [draft, setDraft] = useState<CompressionSettings>(
+    project.compressionSettings ?? accountDefault,
+  );
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Re-sync when the underlying records change (e.g. another tab saves).
+  useEffect(() => {
+    setOverrideEnabled(hasOverride);
+    setDraft(project.compressionSettings ?? accountDefault);
+  }, [hasOverride, project.compressionSettings, accountDefault]);
+
+  const isDirty = overrideEnabled
+    ? !project.compressionSettings ||
+      !compressionSettingsEqual(draft, project.compressionSettings)
+    : hasOverride;
+
+  const handleSave = useCallback(async () => {
+    setIsSaving(true);
+    try {
+      await updateProject({
+        projectId,
+        compressionSettings: overrideEnabled ? draft : null,
+      });
+      toast.success(
+        overrideEnabled
+          ? "Compression override saved"
+          : "Reverted to account default",
+      );
+    } catch {
+      toast.error("Failed to save compression settings");
+    } finally {
+      setIsSaving(false);
+    }
+  }, [draft, overrideEnabled, projectId, updateProject]);
+
+  const handleResetDraft = useCallback(() => {
+    setDraft(accountDefault);
+  }, [accountDefault]);
+
+  return (
+    <motion.div variants={staggerContainer} initial="initial" animate="animate">
+      <SectionHeader
+        icon={Sparkles}
+        title="Image Compression"
+        description="Reduce upload size and convert formats before files leave the browser"
+      />
+
+      <motion.div
+        variants={staggerItem}
+        transition={smoothTransition}
+        className="space-y-4"
+      >
+        <div className="flex items-start justify-between gap-3 rounded-lg border border-border/40 bg-card px-3 py-2.5">
+          <div className="min-w-0">
+            <p className="text-sm font-medium">Override account default</p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">
+              {overrideEnabled
+                ? "This project uses the settings below."
+                : "This project inherits your account-wide default."}
+            </p>
+          </div>
+          <Switch
+            checked={overrideEnabled}
+            onCheckedChange={setOverrideEnabled}
+          />
+        </div>
+
+        {overrideEnabled && (
+          <CompressionSettingsForm
+            value={draft}
+            onChange={setDraft}
+            inheritanceBanner={
+              <div className="flex items-center justify-between rounded-lg border border-border/40 bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground">
+                <span>
+                  Starting from your account default. Reset to drop this
+                  override and follow account changes again.
+                </span>
+                <button
+                  type="button"
+                  onClick={handleResetDraft}
+                  className="inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-foreground transition-colors hover:bg-muted"
+                >
+                  <RotateCcw className="size-3" />
+                  Reset
+                </button>
+              </div>
+            }
+          />
+        )}
+
+        <div className="mt-2 flex justify-end">
+          <SaveButton
+            isSaving={isSaving}
+            disabled={!isDirty}
+            onClick={handleSave}
+            label={overrideEnabled ? "Save compression" : "Use account default"}
           />
         </div>
       </motion.div>

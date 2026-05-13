@@ -5,6 +5,7 @@ import { Check, ImageIcon, Loader2, Search, Upload } from "lucide-react";
 import Image from "next/image";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { CompressionOverrideDisclosure } from "@/components/media/compression-override-disclosure";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,6 +20,11 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { MediaFile } from "@/hooks/use-github";
 import { useGithubMedia } from "@/hooks/use-github";
+import { useImageCompression } from "@/hooks/use-image-compression";
+import {
+  type CompressionSettings,
+  describeSavings,
+} from "@/lib/image-compression";
 import { cn } from "@/lib/utils";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
@@ -359,22 +365,31 @@ function UploadTab({
   onUploaded: (url: string) => void;
 }) {
   const uploadMedia = useAction(api.media.upload);
+  const { compress, isCompressing, resolvedSettings } = useImageCompression(
+    projectId as Id<"projects">,
+  );
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [override, setOverride] = useState<CompressionSettings | null>(null);
 
   const handleFileUpload = useCallback(
     async (file: File) => {
       setIsUploading(true);
       try {
-        const bytes = await file.arrayBuffer();
+        const compressed = await compress(file, override ?? undefined);
+        const toUpload = compressed.file;
+        const bytes = await toUpload.arrayBuffer();
         const result = await uploadMedia({
           projectId: projectId as Id<"projects">,
           bytes,
-          mime: file.type,
-          filename: file.name,
+          mime: toUpload.type,
+          filename: toUpload.name,
         });
-        toast.success(`Uploaded ${file.name}`);
+        const savings = describeSavings(compressed);
+        toast.success(`Uploaded ${toUpload.name}`, {
+          description: savings || undefined,
+        });
         onUploaded(result.url);
       } catch (err) {
         const data = (err as { data?: { message?: string } })?.data;
@@ -386,7 +401,7 @@ function UploadTab({
         setIsUploading(false);
       }
     },
-    [uploadMedia, projectId, onUploaded],
+    [compress, override, uploadMedia, projectId, onUploaded],
   );
 
   const handleDrop = useCallback(
@@ -410,7 +425,7 @@ function UploadTab({
   );
 
   return (
-    <div className="pt-2">
+    <div className="space-y-3 pt-2">
       <button
         type="button"
         className={cn(
@@ -430,15 +445,17 @@ function UploadTab({
         }}
         onClick={() => fileInputRef.current?.click()}
       >
-        {isUploading ? (
+        {isUploading || isCompressing ? (
           <Loader2 className="size-8 animate-spin text-muted-foreground" />
         ) : (
           <Upload className="size-8 text-muted-foreground" />
         )}
         <p className="text-sm text-muted-foreground">
-          {isUploading
-            ? "Uploading..."
-            : "Drop an image here or click to browse"}
+          {isCompressing
+            ? "Compressing..."
+            : isUploading
+              ? "Uploading..."
+              : "Drop an image here or click to browse"}
         </p>
         <input
           ref={fileInputRef}
@@ -448,6 +465,12 @@ function UploadTab({
           onChange={handleFileChange}
         />
       </button>
+
+      <CompressionOverrideDisclosure
+        resolvedSettings={resolvedSettings}
+        override={override}
+        onOverrideChange={setOverride}
+      />
     </div>
   );
 }

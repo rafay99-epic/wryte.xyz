@@ -7,6 +7,7 @@ import {
   mutation,
   query,
 } from "./_generated/server";
+import { compressionSettingsValidator } from "./compressionSettings";
 import { getRateLimitKey, rateLimiter } from "./rateLimits";
 
 /**
@@ -142,6 +143,44 @@ export const updateGithubToken = action({
         // Vault entry may already be gone; ignore.
       }
     }
+  },
+});
+
+/**
+ * Saves or clears the account-wide default for client-side image compression.
+ * Pass an object to set it; pass `null` to clear it and let the client fall
+ * back to the built-in defaults.
+ */
+export const updateDefaultCompressionSettings = mutation({
+  args: {
+    settings: v.union(compressionSettingsValidator, v.null()),
+  },
+  handler: async (ctx, args) => {
+    const key = await getRateLimitKey(ctx);
+    await rateLimiter.limit(ctx, "users:updateDefaultCompressionSettings", {
+      key,
+      throws: true,
+    });
+
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_tokenIdentifier", (q) =>
+        q.eq("tokenIdentifier", identity.tokenIdentifier),
+      )
+      .unique();
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    await ctx.db.patch(user._id, {
+      defaultCompressionSettings: args.settings ?? undefined,
+    });
   },
 });
 

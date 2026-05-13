@@ -19,7 +19,6 @@ export default function SignInPage() {
           width={32}
           height={32}
           className="rounded-lg"
-          style={{ width: "auto", height: "auto" }}
         />
         <span className="text-2xl font-bold tracking-tight text-foreground">
           wryte
