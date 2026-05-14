@@ -266,7 +266,12 @@ export const cancel = mutation({
             // Workflow may already be completed/canceled — safe to ignore
           }
         }
-        await ctx.db.delete(sp._id);
+        // Record may have been deleted by the workflow's onComplete callback
+        // (same race the schedule mutation guards against above).
+        const stillExists = await ctx.db.get(sp._id);
+        if (stillExists) {
+          await ctx.db.delete(sp._id);
+        }
       }
     }
 
