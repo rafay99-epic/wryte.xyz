@@ -20,9 +20,10 @@ type FrontmatterImageFieldProps = {
 /**
  * Image field for the frontmatter editor.
  *
- * Renders a text input (for the image path/URL) with a "Browse" button that
- * opens the MediaPickerDrawer, plus a small thumbnail preview when a value
- * is set.
+ * Text input (image path/URL) + Browse button that opens the
+ * MediaPickerDrawer. No thumbnail preview — author avatars and hero images
+ * are picked from a picker that already shows previews, and inline previews
+ * just add visual noise on every render of the frontmatter panel.
  */
 export function FrontmatterImageField({
   id,
@@ -36,10 +37,6 @@ export function FrontmatterImageField({
 }: FrontmatterImageFieldProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const stringValue = typeof value === "string" ? value : "";
-  const isImagePreviewable =
-    stringValue &&
-    (/\.(png|jpe?g|gif|webp|svg|avif|bmp|ico)$/i.test(stringValue) ||
-      /^https?:\/\//i.test(stringValue));
 
   return (
     <>
@@ -50,30 +47,17 @@ export function FrontmatterImageField({
             value={stringValue}
             onChange={(e) => onChange(e.target.value)}
             placeholder={placeholder ?? "/images/hero.jpg"}
-            className="h-8 flex-1"
+            className="h-9 flex-1"
           />
           <button
             type="button"
             onClick={() => setPickerOpen(true)}
-            className="flex h-8 shrink-0 items-center gap-1 rounded-md border border-input bg-muted/30 px-2 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="flex h-9 shrink-0 items-center gap-1.5 rounded-md border border-input bg-muted/30 px-2.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
-            <ImageIcon className="size-3" />
+            <ImageIcon className="size-3.5" />
             Browse
           </button>
         </div>
-        {isImagePreviewable && (
-          <div className="mt-1.5 overflow-hidden rounded-md border bg-muted/30">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={stringValue}
-              alt={label}
-              className="max-h-20 w-full object-contain"
-              onError={(e) => {
-                (e.target as HTMLImageElement).style.display = "none";
-              }}
-            />
-          </div>
-        )}
       </FieldWrapper>
 
       <MediaPickerDrawer

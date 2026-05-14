@@ -6,8 +6,10 @@ import yaml from "js-yaml";
 import {
   AlertCircle,
   Braces,
+  CalendarDays,
   ChevronRight,
   ExternalLink,
+  EyeOff,
   FileText,
   Globe,
   Hash,
@@ -19,6 +21,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { TagChipsInput } from "@/components/forms/tag-chips-input";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -33,6 +36,7 @@ import { Switch } from "@/components/ui/switch";
 import { findPubDateFieldName } from "@/lib/build-initial-frontmatter";
 import { generateSlug } from "@/lib/markdown";
 import { getTagFieldName } from "@/lib/parse-frontmatter";
+import { humanizeFieldName } from "@/lib/utils";
 import type { FrontmatterFieldType } from "@/types/frontmatter";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
@@ -590,35 +594,97 @@ export function FrontmatterEditor({
                         </div>
                       )}
 
-                      {/* Auto-generated slug */}
-                      {fields.some((f) => f.name === "title") &&
-                        !fields.some((f) => f.name === "slug") && (
+                      {/* Auto-injected fallbacks for fields a project's
+                          schema didn't declare but every post needs:
+                          slug (when title exists), pubDate, and draft.
+                          Rendered below the schema-defined fields so they
+                          don't fight for the top slot. */}
+                      {(() => {
+                        const hasTitle = fields.some((f) => f.name === "title");
+                        const hasSlug = fields.some((f) => f.name === "slug");
+                        const hasPubDate = fields.some((f) =>
+                          ["pubDate", "publishDate", "date"].includes(f.name),
+                        );
+                        const hasDraft = fields.some((f) => f.name === "draft");
+                        const needsSlug = hasTitle && !hasSlug;
+                        const needsAny = needsSlug || !hasPubDate || !hasDraft;
+                        if (!needsAny) return null;
+                        return (
                           <div className="mt-4 grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
-                            <div className="space-y-1.5">
-                              <Label
-                                htmlFor="fm-slug"
-                                className="flex items-center gap-1.5 text-xs font-medium text-foreground/80"
-                              >
-                                <Link2 className="size-3.5 text-muted-foreground/70" />
-                                Slug
-                                <Lock className="ml-auto size-3 text-muted-foreground/50" />
-                              </Label>
-                              <Input
-                                id="fm-slug"
-                                value={
-                                  typeof values["slug"] === "string"
-                                    ? values["slug"]
-                                    : ""
-                                }
-                                onChange={(e) =>
-                                  handleFieldChange("slug", e.target.value)
-                                }
-                                placeholder="auto-generated-slug"
-                                className="h-9 font-mono text-xs"
-                              />
-                            </div>
+                            {needsSlug && (
+                              <div className="space-y-1.5">
+                                <Label
+                                  htmlFor="fm-slug"
+                                  className="flex items-center gap-1.5 text-xs font-medium text-foreground/80"
+                                >
+                                  <Link2 className="size-3.5 text-muted-foreground/70" />
+                                  Slug
+                                  <Lock className="ml-auto size-3 text-muted-foreground/50" />
+                                </Label>
+                                <Input
+                                  id="fm-slug"
+                                  value={
+                                    typeof values["slug"] === "string"
+                                      ? values["slug"]
+                                      : ""
+                                  }
+                                  onChange={(e) =>
+                                    handleFieldChange("slug", e.target.value)
+                                  }
+                                  placeholder="auto-generated-slug"
+                                  className="h-9 font-mono text-xs"
+                                />
+                              </div>
+                            )}
+                            {!hasPubDate && (
+                              <div className="space-y-1.5">
+                                <Label
+                                  htmlFor="fm-pubDate"
+                                  className="flex items-center gap-1.5 text-xs font-medium text-foreground/80"
+                                >
+                                  <CalendarDays className="size-3.5 text-muted-foreground/70" />
+                                  Pub Date
+                                </Label>
+                                <Input
+                                  id="fm-pubDate"
+                                  type="datetime-local"
+                                  value={
+                                    typeof values["pubDate"] === "string"
+                                      ? values["pubDate"].slice(0, 16)
+                                      : ""
+                                  }
+                                  onChange={(e) =>
+                                    handleFieldChange("pubDate", e.target.value)
+                                  }
+                                  className="h-9"
+                                />
+                              </div>
+                            )}
+                            {!hasDraft && (
+                              <div className="flex items-center justify-between rounded-lg border border-input/40 bg-muted/20 px-3.5 py-2.5">
+                                <Label
+                                  htmlFor="fm-draft"
+                                  className="flex cursor-pointer items-center gap-1.5 text-xs font-medium text-foreground/80"
+                                >
+                                  <EyeOff className="size-3.5 text-muted-foreground/70" />
+                                  Draft
+                                </Label>
+                                <Switch
+                                  id="fm-draft"
+                                  checked={
+                                    typeof values["draft"] === "boolean"
+                                      ? values["draft"]
+                                      : false
+                                  }
+                                  onCheckedChange={(checked) =>
+                                    handleFieldChange("draft", checked)
+                                  }
+                                />
+                              </div>
+                            )}
                           </div>
-                        )}
+                        );
+                      })()}
                     </div>
                   </motion.div>
                 ) : (
@@ -685,16 +751,59 @@ type FrontmatterFieldControlProps = {
   projectId: string;
 };
 
+/**
+ * Field names that mean "this is an image" even when the schema records the
+ * type as `url` or `string`. Lets us surface the media picker on legacy
+ * projects whose schema was auto-detected before the URL/image heuristic
+ * was tightened.
+ */
+const IMAGE_NAME_HINTS = [
+  "image",
+  "avatar",
+  "cover",
+  "thumbnail",
+  "hero",
+  "photo",
+  "picture",
+];
+function fieldNameSuggestsImage(name: string): boolean {
+  const lower = name.toLowerCase();
+  return IMAGE_NAME_HINTS.some((h) => lower.includes(h));
+}
+
 function FrontmatterFieldControl({
   field,
   value,
   onChange,
   projectId,
 }: FrontmatterFieldControlProps) {
-  const label = field.label ?? field.name;
+  const label = field.label ?? humanizeFieldName(field.name);
   const id = `fm-${field.name}`;
   const icon = fieldIcon(field.type);
   const placeholder = field.placeholder ?? label;
+
+  // Image-name field that the schema mis-types as url/string still gets the
+  // media picker — schemas auto-detected before the URL/image fix may have
+  // heroImage stored as `url`, and forcing the author to retype it in the
+  // schema editor would be obnoxious.
+  if (
+    field.type !== "image" &&
+    (field.type === "url" || field.type === "string") &&
+    fieldNameSuggestsImage(field.name)
+  ) {
+    return (
+      <FrontmatterImageField
+        id={id}
+        label={label}
+        icon={icon}
+        description={field.description}
+        placeholder={field.placeholder}
+        value={value}
+        onChange={(v) => onChange(v)}
+        projectId={projectId}
+      />
+    );
+  }
 
   switch (field.type) {
     case "string":
@@ -768,12 +877,11 @@ function FrontmatterFieldControl({
           icon={icon}
           description={field.description}
         >
-          <Input
+          <TagChipsInput
             id={id}
             value={typeof value === "string" ? value : ""}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder={field.placeholder ?? "tag1, tag2, tag3"}
-            className="h-9"
+            onChange={onChange}
+            placeholder={field.placeholder ?? "Add a tag…"}
           />
         </FieldWrapper>
       );
@@ -1020,12 +1128,7 @@ function FrontmatterFieldControl({
       );
     }
 
-    case "list": {
-      const listValues =
-        typeof value === "string" && value
-          ? value.split(",").map((v) => v.trim())
-          : [];
-
+    case "list":
       return (
         <FieldWrapper
           id={id}
@@ -1033,29 +1136,15 @@ function FrontmatterFieldControl({
           icon={icon}
           description={field.description}
         >
-          <Input
+          <TagChipsInput
             id={id}
             value={typeof value === "string" ? value : ""}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder={field.placeholder ?? "item1, item2, item3"}
-            className="h-9"
+            onChange={onChange}
+            placeholder={field.placeholder ?? "Add an item…"}
+            dedupe={false}
           />
-          {listValues.length > 0 && (
-            <div className="mt-1 flex flex-wrap gap-1">
-              {listValues.filter(Boolean).map((v, i) => (
-                <Badge
-                  key={`${v}-${i}`}
-                  variant="outline"
-                  className="text-[10px]"
-                >
-                  {v}
-                </Badge>
-              ))}
-            </div>
-          )}
         </FieldWrapper>
       );
-    }
 
     case "json":
       return (
