@@ -8,14 +8,14 @@ import { useEditorStore } from "@/stores/editor-store";
 import { useShortcutsStore } from "@/stores/shortcuts-store";
 import { useThemeStore } from "@/stores/theme-store";
 
-interface AppHotkeyHandlers {
+type AppHotkeyHandlers = {
   /** Open the command palette */
   openCommandPalette: () => void;
   /** Close the command palette (if open) */
   closeCommandPalette: () => void;
   /** Whether the command palette is currently open */
   isCommandPaletteOpen: boolean;
-}
+};
 
 /**
  * Registers all global (non-editor) keyboard shortcuts.

@@ -19,7 +19,7 @@ const DEBOUNCE_MS = 3000;
 const FAILURE_THRESHOLD = 3;
 
 /** Options required to wire up autosave for a specific document. */
-interface AutosaveOptions {
+type AutosaveOptions = {
   documentId: string;
   content: string;
   title: string;
@@ -29,9 +29,9 @@ interface AutosaveOptions {
    * changes manually (e.g. via Cmd/Ctrl+S). Defaults to `true`.
    */
   enabled?: boolean;
-}
+};
 
-interface AutosaveReturn {
+type AutosaveReturn = {
   isSaving: boolean;
   lastSavedAt: number | null;
   /**
@@ -40,7 +40,7 @@ interface AutosaveReturn {
    * Resolves once the save round-trip completes (success or failure).
    */
   saveNow: () => Promise<void>;
-}
+};
 
 const updateMutation = api.cms.documents.update;
 

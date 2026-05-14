@@ -25,12 +25,12 @@ const documentsGet = api.cms.documents.get;
 const projectsGet = api.cms.projects.get;
 const publishAction = api.integrations.github.publish;
 
-interface PublishDialogProps {
+type PublishDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   documentId: string;
   projectId: string;
-}
+};
 
 /**
  * Dialog that previews and triggers publishing a document to GitHub.

@@ -18,7 +18,7 @@ import type { ResolvedFormat } from "./types";
  * caller's responsibility (worker closes after postMessage, main-thread
  * fallback closes in `finally`).
  */
-export interface EncodeTask {
+export type EncodeTask = {
   bitmap: ImageBitmap;
   width: number;
   height: number;
@@ -29,14 +29,14 @@ export interface EncodeTask {
   flattenWhite: boolean;
   /** Px; 0 disables. Forces PNG output regardless of `format`. */
   cornerRadius: number;
-}
+};
 
-export interface EncodeResult {
+export type EncodeResult = {
   blob: Blob;
   width: number;
   height: number;
   resolvedFormat: ResolvedFormat;
-}
+};
 
 export async function runEncodePipeline(
   task: EncodeTask,

@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import type { CalendarDoc } from "@/stores/calendar-store";
 import type { BoardColumnDef } from "@/types/board";
 
-interface CalendarDocCardProps {
+type CalendarDocCardProps = {
   document: CalendarDoc;
   columns: BoardColumnDef[];
   projectId: string;
@@ -15,7 +15,7 @@ interface CalendarDocCardProps {
   sourceDate: string | null;
   /** Render as a static overlay clone (no drag hooks). */
   isOverlay?: boolean;
-}
+};
 
 export function CalendarDocCard({
   document,

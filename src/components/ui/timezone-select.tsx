@@ -17,7 +17,7 @@ import {
 } from "@/lib/timezone";
 import { cn } from "@/lib/utils";
 
-interface TimezoneSelectProps {
+type TimezoneSelectProps = {
   value: string | null | undefined;
   onChange: (value: string) => void;
   /** Placeholder shown when no value is set. Defaults to browser TZ hint. */
@@ -25,15 +25,15 @@ interface TimezoneSelectProps {
   /** Disable the picker (e.g. while saving). */
   disabled?: boolean;
   id?: string;
-}
+};
 
-interface TimezoneOption {
+type TimezoneOption = {
   id: string;
   city: string;
   offset: string;
   /** Pre-lowercased searchable haystack to keep filtering cheap. */
   searchHaystack: string;
-}
+};
 
 /**
  * Searchable timezone picker. Lists all IANA zones reported by the runtime

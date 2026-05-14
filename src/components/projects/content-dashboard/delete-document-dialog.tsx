@@ -17,19 +17,19 @@ import { cn } from "@/lib/utils";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
 
-export interface DeleteTarget {
+export type DeleteTarget = {
   documentId: Id<"documents">;
   title: string;
   githubPath?: string;
   githubSha?: string;
-}
+};
 
-interface DeleteDocumentDialogProps {
+type DeleteDocumentDialogProps = {
   target: DeleteTarget;
   projectId: Id<"projects">;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-}
+};
 
 export function DeleteDocumentDialog({
   target,

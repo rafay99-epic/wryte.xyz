@@ -19,11 +19,11 @@ import { useCalendarStore } from "@/stores/calendar-store";
 import type { BoardColumnDef } from "@/types/board";
 import { CalendarCell } from "./calendar-cell";
 
-interface CalendarGridProps {
+type CalendarGridProps = {
   documentsByDate: Map<string, CalendarDoc[]>;
   columns: BoardColumnDef[];
   projectId: string;
-}
+};
 
 export function CalendarGrid({
   documentsByDate,

@@ -7,7 +7,7 @@ import { persist } from "zustand/middleware";
 
 export type ShortcutCategory = "general" | "navigation" | "editor";
 
-export interface ShortcutDef {
+export type ShortcutDef = {
   /** Unique identifier, e.g. "toggleSidebar" */
   id: string;
   /** Human-readable label, e.g. "Toggle Sidebar" */
@@ -18,7 +18,7 @@ export interface ShortcutDef {
   defaultKeys: string;
   /** Short description shown in settings */
   description: string;
-}
+};
 
 // ---------------------------------------------------------------------------
 // Default shortcut definitions — single source of truth
@@ -158,7 +158,7 @@ const DEFAULTS_MAP = new Map(DEFAULT_SHORTCUTS.map((s) => [s.id, s]));
 // Store
 // ---------------------------------------------------------------------------
 
-interface ShortcutsState {
+type ShortcutsState = {
   /** User-overridden key bindings: shortcut ID → keys string */
   bindings: Record<string, string>;
 
@@ -173,7 +173,7 @@ interface ShortcutsState {
 
   /** Reset all shortcuts to defaults */
   resetAll: () => void;
-}
+};
 
 export const useShortcutsStore = create<ShortcutsState>()(
   persist(

@@ -19,10 +19,10 @@ import { type RepoItem, useGithubRepos } from "@/hooks/use-github";
 import { generateSlug } from "@/lib/markdown";
 import { cn } from "@/lib/utils";
 
-interface StepSelectRepoProps {
+type StepSelectRepoProps = {
   state: WizardState;
   onChange: (updates: Partial<WizardState>) => void;
-}
+};
 
 function titleCase(str: string): string {
   return str.replace(/[-_]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());

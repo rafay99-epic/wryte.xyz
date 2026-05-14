@@ -28,14 +28,14 @@ export function listTimezones(): string[] {
   return FALLBACK_TIMEZONES;
 }
 
-interface TzParts {
+type TzParts = {
   year: number;
   month: number;
   day: number;
   hour: number;
   minute: number;
   second: number;
-}
+};
 
 /**
  * Extract the wall-clock parts of a UTC timestamp as observed in the given

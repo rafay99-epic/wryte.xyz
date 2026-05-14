@@ -41,6 +41,7 @@ import {
 } from "@/lib/image-compression";
 import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/stores/editor-store";
+import type { MediaProvider } from "@/types/media";
 import { api } from "../../../../../../convex/_generated/api";
 import type { Id } from "../../../../../../convex/_generated/dataModel";
 
@@ -48,10 +49,10 @@ import type { Id } from "../../../../../../convex/_generated/dataModel";
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
 
-type ActiveProvider = "github" | "uploadthing" | "cloudinary";
+type ActiveProvider = MediaProvider;
 
 /** Provider-agnostic shape used by the card grid. */
-interface UnifiedMediaItem {
+type UnifiedMediaItem = {
   /** Stable identity within the provider — GitHub repo path, UT key, Cloudinary public_id. */
   externalId: string;
   /** Display name (filename). */
@@ -62,7 +63,7 @@ interface UnifiedMediaItem {
   size: number;
   /** GitHub-only blob SHA — used for deletion. */
   sha?: string;
-}
+};
 
 /* ------------------------------------------------------------------ */
 /*  Page                                                               */

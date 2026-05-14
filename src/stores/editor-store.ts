@@ -10,7 +10,7 @@ type ViewMode = "edit" | "preview" | "split";
  * it tracks document content, save status, view layout, and sidebar visibility.
  * Components subscribe to slices of this store to avoid unnecessary re-renders.
  */
-interface EditorState {
+type EditorState = {
   /** Raw markdown content currently in the editor textarea. */
   content: string;
   /** Document title shown in the header / tab. */
@@ -58,7 +58,7 @@ interface EditorState {
   toggleHistoryPanel: () => void;
   /** Reset all editor state back to defaults (e.g. when navigating away from a document). */
   reset: () => void;
-}
+};
 
 /** Default state used on first mount and when resetting the store. */
 const initialState = {

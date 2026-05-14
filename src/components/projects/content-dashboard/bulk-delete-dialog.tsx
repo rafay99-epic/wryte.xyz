@@ -22,23 +22,23 @@ import { cn } from "@/lib/utils";
 
 export type BulkDeleteMode = "local" | "github" | "both";
 
-export interface BulkDeleteCounts {
+export type BulkDeleteCounts = {
   /** How many selected docs live in Wryte and can be removed here. */
   local: number;
   /** How many selected items have a GitHub file we can remove there. */
   github: number;
-}
+};
 
 export type BulkDeletePhase = "confirm" | "progress" | "complete";
 
-export interface BulkDeleteBatch {
+export type BulkDeleteBatch = {
   total: number;
   succeeded: number;
   failed: number;
   errors?: Array<{ label: string; message: string }>;
-}
+};
 
-interface BulkDeleteDialogProps {
+type BulkDeleteDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** What the user is allowed to delete and how many of each. */
@@ -53,7 +53,7 @@ interface BulkDeleteDialogProps {
   onDone: () => void;
   /** Set while the start-action is in flight (between confirm click and batch creation). */
   isStarting: boolean;
-}
+};
 
 /**
  * Three-phase dialog for bulk deletes:

@@ -14,14 +14,14 @@ import { cn } from "@/lib/utils";
 
 export type BulkImportPhase = "progress" | "complete";
 
-export interface BulkImportBatch {
+export type BulkImportBatch = {
   total: number;
   succeeded: number;
   failed: number;
   errors?: Array<{ filePath: string; message: string }>;
-}
+};
 
-interface BulkImportDialogProps {
+type BulkImportDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** Drives which phase the dialog renders. */
@@ -30,7 +30,7 @@ interface BulkImportDialogProps {
   batch: BulkImportBatch | null | undefined;
   /** Fires when the user dismisses the completion summary. */
   onDone: () => void;
-}
+};
 
 /**
  * Two-phase dialog for bulk imports. Unlike delete, there's no confirm

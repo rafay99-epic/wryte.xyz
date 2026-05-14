@@ -31,7 +31,7 @@ import { api } from "../../convex/_generated/api";
 // Types
 // ---------------------------------------------------------------------------
 
-interface CommandItem {
+type CommandItem = {
   id: string;
   label: string;
   description?: string | undefined;
@@ -41,12 +41,12 @@ interface CommandItem {
   shortcutId?: string | undefined;
   category: "action" | "project" | "article" | "navigation";
   onSelect: () => void;
-}
+};
 
-interface CommandPaletteProps {
+type CommandPaletteProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-}
+};
 
 type Category = CommandItem["category"];
 

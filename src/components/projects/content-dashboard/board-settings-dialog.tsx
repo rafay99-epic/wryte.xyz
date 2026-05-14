@@ -33,10 +33,10 @@ import { ColorPicker } from "./color-picker";
 // Types
 // ---------------------------------------------------------------------------
 
-interface BoardSettingsDialogProps {
+type BoardSettingsDialogProps = {
   projectId: Id<"projects">;
   columns: BoardColumnDef[];
-}
+};
 
 type BehaviorOption = "none" | "schedule" | "publish";
 
@@ -50,11 +50,11 @@ const BEHAVIOR_LABELS: Record<BehaviorOption, string> = {
 // Validation helpers
 // ---------------------------------------------------------------------------
 
-interface ValidationErrors {
+type ValidationErrors = {
   duplicateIds: boolean;
   multiplePublish: boolean;
   multipleSchedule: boolean;
-}
+};
 
 function validate(cols: BoardColumnDef[]): ValidationErrors {
   const ids = cols.map((c) => c.id);
@@ -79,7 +79,7 @@ function hasErrors(errors: ValidationErrors): boolean {
 // Column row sub-component
 // ---------------------------------------------------------------------------
 
-interface ColumnRowProps {
+type ColumnRowProps = {
   column: BoardColumnDef;
   isOnly: boolean;
   colorPickerOpenId: string | null;
@@ -88,7 +88,7 @@ interface ColumnRowProps {
   onColorChange: (id: string, color: BoardColor) => void;
   onBehaviorChange: (id: string, behavior: BehaviorOption) => void;
   onDelete: (id: string) => void;
-}
+};
 
 function ColumnRow({
   column,

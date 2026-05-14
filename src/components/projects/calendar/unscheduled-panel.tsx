@@ -19,11 +19,11 @@ import { CalendarDocCard } from "./calendar-doc-card";
 /** Statuses that should appear in the unscheduled panel. */
 const UNSCHEDULED_STATUSES = ["draft", "review", "ready"];
 
-interface UnscheduledPanelProps {
+type UnscheduledPanelProps = {
   documents: CalendarDoc[];
   columns: BoardColumnDef[];
   projectId: string;
-}
+};
 
 export function UnscheduledPanel({
   documents,

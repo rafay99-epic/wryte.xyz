@@ -8,10 +8,10 @@ import { FrontmatterEditor } from "./frontmatter-editor";
 import { MarkdownEditor } from "./markdown-editor";
 import { MarkdownPreview } from "./markdown-preview";
 
-interface EditorLayoutProps {
+type EditorLayoutProps = {
   documentId: string;
   projectId: string;
-}
+};
 
 /**
  * Editor layout matching the Seospace reference:

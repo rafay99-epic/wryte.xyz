@@ -11,7 +11,7 @@
 import { create } from "zustand";
 import type { ContentItem } from "@/components/projects/content-dashboard/content-table-row";
 
-interface BoardState {
+type BoardState = {
   // --- Drag-and-drop ---
   /** The item currently being dragged, or null when idle. */
   activeItem: ContentItem | null;
@@ -65,7 +65,7 @@ interface BoardState {
 
   /** Reset all board state back to defaults. */
   reset: () => void;
-}
+};
 
 const initialState = {
   activeItem: null as ContentItem | null,

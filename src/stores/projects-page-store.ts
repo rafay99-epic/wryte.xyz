@@ -4,13 +4,13 @@ import { create } from "zustand";
  * Client state for the /projects page: optimistic favorite toggles so the UI
  * moves immediately while Convex catches up, without extra subscriptions per card.
  */
-interface ProjectsPageState {
+type ProjectsPageState = {
   /** When set, overrides `project.isFavorite` from Convex until cleared. */
   favoriteOverrides: Record<string, boolean>;
   setFavoriteOptimistic: (projectId: string, isFavorite: boolean) => void;
   clearFavoriteOverride: (projectId: string) => void;
   reset: () => void;
-}
+};
 
 export const useProjectsPageStore = create<ProjectsPageState>((set) => ({
   favoriteOverrides: {},

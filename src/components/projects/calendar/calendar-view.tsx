@@ -28,13 +28,13 @@ import { CalendarGrid } from "./calendar-grid";
 import { ScheduleTimePopover } from "./schedule-time-popover";
 import { UnscheduledPanel } from "./unscheduled-panel";
 
-interface CalendarViewProps {
+type CalendarViewProps = {
   documents: CalendarDoc[];
   columns: BoardColumnDef[];
   projectId: string;
   /** IANA timezone for the project. Falls back to the browser timezone. */
   timezone?: string | null | undefined;
-}
+};
 
 export function CalendarView({
   documents,

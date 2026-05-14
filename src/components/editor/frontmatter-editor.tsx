@@ -39,12 +39,12 @@ import type { Id } from "../../../convex/_generated/dataModel";
 import { FrontmatterAiDrawer } from "./frontmatter-ai-drawer";
 import { FrontmatterImageField } from "./frontmatter-image-field";
 
-interface FrontmatterEditorProps {
+type FrontmatterEditorProps = {
   projectId: string;
   documentId: string;
-}
+};
 
-interface SchemaField {
+type SchemaField = {
   name: string;
   type: FrontmatterFieldType;
   label?: string;
@@ -57,7 +57,7 @@ interface SchemaField {
   group?: string;
   hidden?: boolean;
   step?: number;
-}
+};
 
 const DEFAULT_FIELDS: SchemaField[] = [
   { name: "title", type: "string", label: "Title" },
@@ -678,12 +678,12 @@ export function FrontmatterEditor({
   );
 }
 
-interface FrontmatterFieldControlProps {
+type FrontmatterFieldControlProps = {
   field: SchemaField;
   value: string | boolean | undefined;
   onChange: (value: string | boolean) => void;
   projectId: string;
-}
+};
 
 function FrontmatterFieldControl({
   field,

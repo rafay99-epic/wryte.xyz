@@ -5,12 +5,12 @@ import { persist } from "zustand/middleware";
 type ThemeMode = "light" | "dark" | "system";
 
 /** Theme state — intentionally minimal; only stores the user's preference. */
-interface ThemeState {
+type ThemeState = {
   /** The active theme mode. Defaults to "dark" so first-time users get the branded dark experience. */
   mode: ThemeMode;
   /** Switch to a specific theme mode. The new value is persisted to localStorage automatically. */
   setMode: (mode: ThemeMode) => void;
-}
+};
 
 /**
  * Persisted theme store.

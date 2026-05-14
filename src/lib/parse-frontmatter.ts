@@ -6,12 +6,12 @@
  * with graceful fallbacks for missing or malformed data.
  */
 
-export interface ParsedFrontmatter {
+export type ParsedFrontmatter = {
   tags: string[];
   category: string | null;
   author: string | null;
   [key: string]: unknown;
-}
+};
 
 const EMPTY: ParsedFrontmatter = { tags: [], category: null, author: null };
 

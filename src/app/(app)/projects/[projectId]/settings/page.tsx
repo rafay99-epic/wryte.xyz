@@ -78,30 +78,18 @@ import type { Doc, Id } from "../../../../../../convex/_generated/dataModel";
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
 
-interface FrontmatterField {
-  name: string;
-  type: import("@/types/frontmatter").FrontmatterFieldType;
-  required: boolean;
-  defaultValue: string;
-  options: string;
-  label?: string | undefined;
-  description?: string | undefined;
-  placeholder?: string | undefined;
-  min?: number | undefined;
-  max?: number | undefined;
-  group?: string | undefined;
-  hidden?: boolean | undefined;
-  step?: number | undefined;
-}
+import type { AiProvider } from "@/types/ai";
+import type { FrontmatterField } from "@/types/frontmatter";
+import type { MediaStorageMode } from "@/types/media";
 
-interface ProjectData {
+type ProjectData = {
   name: string;
   slug: string;
   githubRepo?: string;
   githubBranch?: string;
   contentPath?: string;
   mediaPath?: string;
-  mediaStorageMode?: "github" | "uploadthing" | "cloudinary" | "external";
+  mediaStorageMode?: MediaStorageMode;
   frontmatterSchema?: string;
   commitMessageTemplate?: string;
   filenamePattern?: string;
@@ -110,12 +98,12 @@ interface ProjectData {
   deployHookUrl?: string;
   frontmatterFormat?: "yaml" | "toml";
   defaultAuthor?: string;
-  aiProvider?: "anthropic" | "openai" | "openrouter";
+  aiProvider?: AiProvider;
   aiModel?: string;
   timezone?: string;
   autoSaveEnabled?: boolean;
   compressionSettings?: CompressionSettings;
-}
+};
 
 const DEFAULT_FIELDS: FrontmatterField[] = [
   {
@@ -1022,9 +1010,9 @@ function MediaSection({
   const [mediaPath, setMediaPath] = useState(
     project.mediaPath ?? "public/images",
   );
-  const [mediaStorageMode, setMediaStorageMode] = useState<
-    "github" | "uploadthing" | "cloudinary" | "external"
-  >(project.mediaStorageMode ?? "github");
+  const [mediaStorageMode, setMediaStorageMode] = useState<MediaStorageMode>(
+    project.mediaStorageMode ?? "github",
+  );
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {

@@ -27,48 +27,48 @@ import { githubKeys } from "@/lib/query-keys";
 // ---------------------------------------------------------------------------
 
 /** Repo item returned by the repos API. */
-export interface RepoItem {
+export type RepoItem = {
   fullName: string;
   name: string;
   defaultBranch: string;
   description: string | null;
   private: boolean;
   updatedAt: string;
-}
+};
 
 /** A content (markdown) file listing entry. */
-export interface ContentFile {
+export type ContentFile = {
   name: string;
   path: string;
   sha: string;
   size: number;
-}
+};
 
 /** A media file entry from the GitHub media API. */
-export interface MediaFile {
+export type MediaFile = {
   name: string;
   path: string;
   sha: string;
   size: number;
   downloadUrl: string;
-}
+};
 
 /** Parsed file content returned by the content POST endpoint. */
-export interface FileContent {
+export type FileContent = {
   frontmatter: Record<string, unknown> | null;
   content: string | null;
   sha: string | null;
   error?: string;
-}
+};
 
 /** Detected frontmatter field from the detect-frontmatter endpoint. */
-export interface DetectedField {
+export type DetectedField = {
   name: string;
   type: string;
   required: boolean;
   defaultValue: string;
   options: string;
-}
+};
 
 // ---------------------------------------------------------------------------
 // Fetcher helpers (thin wrappers around fetch that throw on error)
@@ -90,9 +90,9 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
 // useGithubToken — check whether GitHub OAuth is connected
 // ---------------------------------------------------------------------------
 
-interface TokenResponse {
+type TokenResponse = {
   token: string;
-}
+};
 
 /**
  * Fetches the user's GitHub OAuth token from Clerk.
@@ -118,9 +118,9 @@ export function useGithubToken(
 // useGithubRepos — list the user's GitHub repositories
 // ---------------------------------------------------------------------------
 
-interface ReposResponse {
+type ReposResponse = {
   repos: RepoItem[];
-}
+};
 
 /**
  * Lists the authenticated user's GitHub repos.
@@ -143,9 +143,9 @@ export function useGithubRepos(
 // useGithubContent — list markdown files in a content directory
 // ---------------------------------------------------------------------------
 
-interface ContentListResponse {
+type ContentListResponse = {
   files: ContentFile[];
-}
+};
 
 /**
  * Lists markdown files in a GitHub repo's content directory.
@@ -211,9 +211,9 @@ export function useGithubFileContent(
 // useGithubMedia — list media files in a GitHub repo
 // ---------------------------------------------------------------------------
 
-interface MediaListResponse {
+type MediaListResponse = {
   files: MediaFile[];
-}
+};
 
 /**
  * Lists media files (images, videos, etc.) in a GitHub repo's media directory.
@@ -245,17 +245,17 @@ export function useGithubMedia(
 // useDetectFrontmatter — mutation to auto-detect frontmatter schema
 // ---------------------------------------------------------------------------
 
-interface DetectFrontmatterParams {
+type DetectFrontmatterParams = {
   repo: string;
   branch: string;
   contentPath: string;
-}
+};
 
-interface DetectFrontmatterResponse {
+type DetectFrontmatterResponse = {
   fields: DetectedField[] | null;
   sourceFile?: string;
   error?: string;
-}
+};
 
 /**
  * Triggers frontmatter detection for a GitHub content directory.

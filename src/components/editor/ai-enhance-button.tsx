@@ -74,11 +74,11 @@ Guidelines:
 /*  Component                                                          */
 /* ------------------------------------------------------------------ */
 
-interface AiEnhancePanelProps {
+type AiEnhancePanelProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   projectId: string;
-}
+};
 
 export function AiEnhanceButton({
   open,

@@ -6,7 +6,7 @@ import type { ParsedFrontmatter } from "@/lib/parse-frontmatter";
 import type { BoardColumnDef } from "@/types/board";
 import { type ContentItem, ContentTableRow } from "./content-table-row";
 
-interface TableViewProps {
+type TableViewProps = {
   items: ContentItem[];
   columns: BoardColumnDef[];
   frontmatterMap: Map<string, ParsedFrontmatter>;
@@ -22,7 +22,7 @@ interface TableViewProps {
   onOpenItem: (item: ContentItem) => void;
   onDeleteLocal: (item: ContentItem) => void;
   onDeleteRemote: (item: ContentItem) => void;
-}
+};
 
 export function TableView({
   items,

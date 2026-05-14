@@ -11,7 +11,7 @@ import {
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 
-interface UseImageCompressionResult {
+type UseImageCompressionResult = {
   /**
    * Compress one File. `override` field-merges on top of the resolved
    * settings (per-upload override → project → user → built-in defaults).
@@ -23,7 +23,7 @@ interface UseImageCompressionResult {
   isCompressing: boolean;
   /** The settings the hook will use unless a per-call override is passed. */
   resolvedSettings: CompressionSettings;
-}
+};
 
 /**
  * Resolves the active compression preferences for a project (per-project

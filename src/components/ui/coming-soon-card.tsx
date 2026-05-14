@@ -7,11 +7,11 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
-interface ComingSoonCardProps {
+type ComingSoonCardProps = {
   title: string;
   description: string;
   icon: LucideIcon;
-}
+};
 
 export function ComingSoonCard({
   title,

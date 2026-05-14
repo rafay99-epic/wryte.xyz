@@ -22,13 +22,13 @@ import { generateSlug } from "@/lib/markdown";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 
-interface CreateDocumentDialogProps {
+type CreateDocumentDialogProps = {
   projectId: Id<"projects">;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** Optional initial status for the new document (e.g., from a board column's "+" button). */
   initialStatus?: string | undefined;
-}
+};
 
 /**
  * Dialog-mode "New article" flow used from within a project. Mirrors the

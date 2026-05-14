@@ -117,11 +117,11 @@ export async function GET(request: Request) {
   }
 }
 
-interface FetchFileRequest {
+type FetchFileRequest = {
   repo: string;
   branch: string;
   path: string;
-}
+};
 
 /**
  * Fetches a single markdown file's content from GitHub and parses it.

@@ -7,7 +7,7 @@
 
 import type { BoardColor } from "@/lib/board-colors";
 
-export interface BoardColumnDef {
+export type BoardColumnDef = {
   /** Slug-like identifier: "idea", "writing", "review" */
   id: string;
   /** Display name shown in the column header */
@@ -18,7 +18,7 @@ export interface BoardColumnDef {
   behavior: "none" | "schedule" | "publish";
   /** Sort order (lower = further left) */
   position: number;
-}
+};
 
 /** Default columns for new projects or projects without custom board config. */
 export const DEFAULT_BOARD_COLUMNS: BoardColumnDef[] = [

@@ -33,14 +33,14 @@ function isMediaFile(name: string): boolean {
   return MEDIA_EXTENSIONS.has(ext);
 }
 
-interface MediaFile {
+type MediaFile = {
   name: string;
   path: string;
   sha: string;
   size: number;
   /** Raw GitHub URL for direct embedding. */
   downloadUrl: string;
-}
+};
 
 export async function GET(request: Request) {
   try {

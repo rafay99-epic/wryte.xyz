@@ -26,7 +26,7 @@ const FIELD_WEIGHTS = {
 /** Bonus multiplier when a token matches at the start of a field value. */
 const PREFIX_BONUS = 1.5;
 
-interface SearchableItem {
+type SearchableItem = {
   item: ContentItem;
   /** Pre-lowered searchable fields for performance. */
   fields: {
@@ -40,7 +40,7 @@ interface SearchableItem {
     /** Flat string of all frontmatter values. */
     frontmatterText: string;
   };
-}
+};
 
 /**
  * Tokenize a search query into lowercase words.

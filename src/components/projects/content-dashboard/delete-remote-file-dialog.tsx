@@ -16,19 +16,19 @@ import {
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
 
-export interface RemoteDeleteTarget {
+export type RemoteDeleteTarget = {
   path: string;
   sha: string;
   title: string;
-}
+};
 
-interface DeleteRemoteFileDialogProps {
+type DeleteRemoteFileDialogProps = {
   target: RemoteDeleteTarget;
   projectId: Id<"projects">;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onDeleted: () => void;
-}
+};
 
 export function DeleteRemoteFileDialog({
   target,

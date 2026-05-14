@@ -2,13 +2,13 @@ import { type RefObject, useEffect, useRef } from "react";
 import { useShortcutsStore } from "@/stores/shortcuts-store";
 
 /** Callback map for notifying the parent component when a shortcut fires. */
-interface KeyboardShortcutCallbacks {
+type KeyboardShortcutCallbacks = {
   onBold: () => void;
   onItalic: () => void;
   onLink: () => void;
   onCodeBlock: () => void;
   onInlineAI?: () => void;
-}
+};
 
 /**
  * Wrap the current text selection in the textarea with `before` and `after` strings.

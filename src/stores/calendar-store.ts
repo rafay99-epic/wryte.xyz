@@ -11,7 +11,7 @@ import type { Id } from "../../convex/_generated/dataModel";
 /** Lightweight document shape used by the calendar view. Mirrors what
  *  `api.cms.documents.listForCalendar` returns so the query result is
  *  assignable without manual casts. */
-export interface CalendarDoc {
+export type CalendarDoc = {
   _id: Id<"documents">;
   title: string;
   slug: string;
@@ -20,16 +20,16 @@ export interface CalendarDoc {
   publishedAt?: number | undefined;
   updatedAt: number;
   createdAt: number;
-}
+};
 
-interface PendingDrop {
+type PendingDrop = {
   documentId: string;
   targetDate: string; // "YYYY-MM-DD"
   existingHour?: number;
   existingMinute?: number;
-}
+};
 
-interface CalendarState {
+type CalendarState = {
   // --- Month navigation ---
   viewYear: number;
   viewMonth: number; // 0-indexed
@@ -54,7 +54,7 @@ interface CalendarState {
   setUnscheduledSearch: (query: string) => void;
   toggleStatusFilter: (status: string) => void;
   reset: () => void;
-}
+};
 
 const now = new Date();
 

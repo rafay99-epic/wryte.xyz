@@ -29,13 +29,13 @@ import { cn } from "@/lib/utils";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 
-interface MediaPickerDrawerProps {
+type MediaPickerDrawerProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   projectId: string;
   /** Called with the selected image URL/path. */
   onSelect: (url: string) => void;
-}
+};
 
 /**
  * Reusable media browser drawer.

@@ -34,7 +34,7 @@ import type { Id } from "../../../../convex/_generated/dataModel";
 import { TagBadges } from "./tag-badges";
 
 /** Unified content row type shared between table and board views. */
-export interface ContentItem {
+export type ContentItem = {
   kind: "local" | "remote";
   id?: string;
   title: string;
@@ -49,9 +49,9 @@ export interface ContentItem {
   sha?: string;
   tags?: string[];
   boardPosition?: number;
-}
+};
 
-interface ContentTableRowProps {
+type ContentTableRowProps = {
   item: ContentItem;
   isImporting: boolean;
   tags: string[];
@@ -64,7 +64,7 @@ interface ContentTableRowProps {
   onOpen: () => void;
   onDelete?: (() => void) | undefined;
   onDeleteRemote?: (() => void) | undefined;
-}
+};
 
 export function ContentTableRow({
   item,

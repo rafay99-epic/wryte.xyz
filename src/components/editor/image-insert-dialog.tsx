@@ -26,12 +26,12 @@ import {
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 
-interface ImageInsertDialogProps {
+type ImageInsertDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onInsert: (markdown: string) => void;
   projectId: string;
-}
+};
 
 /**
  * Drawer for inserting images into the markdown editor.

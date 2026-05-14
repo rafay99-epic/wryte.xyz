@@ -13,13 +13,13 @@ import {
  * Shape of the editor context value shared across all editor sub-components.
  * Provides a shared textarea ref and helper functions for programmatic text manipulation.
  */
-interface SelectionSnapshot {
+type SelectionSnapshot = {
   text: string;
   start: number;
   end: number;
-}
+};
 
-interface EditorContextValue {
+type EditorContextValue = {
   /** Ref to the underlying <textarea> so toolbar/shortcuts can manipulate it directly */
   textareaRef: RefObject<HTMLTextAreaElement | null>;
   insertAtCursor: (text: string) => void;
@@ -29,7 +29,7 @@ interface EditorContextValue {
   getSelection: () => SelectionSnapshot | null;
   /** Replaces a specific character range in the textarea with new text */
   replaceRange: (start: number, end: number, replacement: string) => void;
-}
+};
 
 const EditorContext = createContext<EditorContextValue | null>(null);
 

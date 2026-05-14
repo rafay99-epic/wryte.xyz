@@ -2,12 +2,12 @@
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
-interface TimePickerProps {
+type TimePickerProps = {
   hour: number;
   minute: number;
   onHourChange: (h: number) => void;
   onMinuteChange: (m: number) => void;
-}
+};
 
 export function TimePicker({
   hour,

@@ -6,7 +6,7 @@ import type { ResolvedFormat } from "./types";
  * pulling the worker's runtime code into the main thread.
  */
 
-export interface EncodeRequestMessage {
+export type EncodeRequestMessage = {
   id: number;
   bitmap: ImageBitmap;
   width: number;
@@ -15,21 +15,21 @@ export interface EncodeRequestMessage {
   quality: number;
   flattenWhite: boolean;
   cornerRadius: number;
-}
+};
 
-export interface EncodeSuccessMessage {
+export type EncodeSuccessMessage = {
   id: number;
   ok: true;
   blob: Blob;
   width: number;
   height: number;
   resolvedFormat: ResolvedFormat;
-}
+};
 
-export interface EncodeFailureMessage {
+export type EncodeFailureMessage = {
   id: number;
   ok: false;
   error: string;
-}
+};
 
 export type EncodeResponseMessage = EncodeSuccessMessage | EncodeFailureMessage;

@@ -30,7 +30,7 @@ export const BOARD_COLORS = [
 
 export type BoardColor = (typeof BOARD_COLORS)[number];
 
-export interface ColorClasses {
+export type ColorClasses = {
   /** Column top-border accent: e.g. "border-t-blue-500" */
   accent: string;
   /** Badge/count background: e.g. "bg-blue-500/10 text-blue-600 dark:text-blue-400" */
@@ -41,7 +41,7 @@ export interface ColorClasses {
   dot: string;
   /** Ring for focus/selected state */
   ring: string;
-}
+};
 
 export const COLOR_MAP: Record<BoardColor, ColorClasses> = {
   gray: {

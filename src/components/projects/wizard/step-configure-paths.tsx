@@ -24,10 +24,10 @@ import { useDetectFrontmatter } from "@/hooks/use-github";
 import { cn } from "@/lib/utils";
 import type { FrontmatterField } from "@/types/frontmatter";
 
-interface StepConfigurePathsProps {
+type StepConfigurePathsProps = {
   state: WizardState;
   onChange: (updates: Partial<WizardState>) => void;
-}
+};
 
 const FIELD_TYPES = [
   "string",

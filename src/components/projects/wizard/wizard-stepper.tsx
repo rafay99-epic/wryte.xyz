@@ -4,9 +4,9 @@ import { motion } from "framer-motion";
 import { Check, FileCode, FolderTree, GitBranch } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-interface WizardStepperProps {
+type WizardStepperProps = {
   currentStep: 1 | 2 | 3;
-}
+};
 
 const steps = [
   { number: 1 as const, label: "Repository", icon: GitBranch },

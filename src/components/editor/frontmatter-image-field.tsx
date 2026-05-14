@@ -6,7 +6,7 @@ import { FieldWrapper } from "@/components/editor/frontmatter-editor";
 import { MediaPickerDrawer } from "@/components/editor/media-picker-drawer";
 import { Input } from "@/components/ui/input";
 
-interface FrontmatterImageFieldProps {
+type FrontmatterImageFieldProps = {
   id: string;
   label: string;
   icon: React.ReactNode;
@@ -15,7 +15,7 @@ interface FrontmatterImageFieldProps {
   value: string | boolean | undefined;
   onChange: (value: string) => void;
   projectId: string;
-}
+};
 
 /**
  * Image field for the frontmatter editor.

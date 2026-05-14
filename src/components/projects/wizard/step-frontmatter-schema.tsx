@@ -23,10 +23,10 @@ import {
 import { Switch } from "@/components/ui/switch";
 import type { FrontmatterField } from "@/types/frontmatter";
 
-interface StepFrontmatterSchemaProps {
+type StepFrontmatterSchemaProps = {
   state: WizardState;
   onChange: (updates: Partial<WizardState>) => void;
-}
+};
 
 const FIELD_TYPE_LABELS: Record<FrontmatterField["type"], string> = {
   string: "String",

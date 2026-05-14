@@ -10,11 +10,11 @@ import { Button } from "@/components/ui/button";
  */
 export type ViewFilter = string;
 
-interface ContentEmptyStateProps {
+type ContentEmptyStateProps = {
   viewFilter: ViewFilter;
   searchQuery: string;
   onCreateClick: () => void;
-}
+};
 
 export function ContentEmptyState({
   viewFilter,

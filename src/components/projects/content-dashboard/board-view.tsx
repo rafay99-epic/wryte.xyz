@@ -36,7 +36,7 @@ const REMOTE_COLUMN: BoardColumnDef = {
   position: 9999,
 };
 
-interface BoardViewProps {
+type BoardViewProps = {
   items: ContentItem[];
   columns: BoardColumnDef[];
   frontmatterMap: Map<string, ParsedFrontmatter>;
@@ -49,7 +49,7 @@ interface BoardViewProps {
   onDeleteRemote: (item: ContentItem) => void;
   onCreateClick: (initialStatus?: string) => void;
   onSettingsClick: () => void;
-}
+};
 
 export function BoardView({
   items,

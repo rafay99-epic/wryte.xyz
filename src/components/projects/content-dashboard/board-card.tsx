@@ -39,7 +39,7 @@ import type { Id } from "../../../../convex/_generated/dataModel";
 import type { ContentItem } from "./content-table-row";
 import { TagBadges } from "./tag-badges";
 
-interface BoardCardProps {
+type BoardCardProps = {
   item: ContentItem;
   tags: string[];
   columnId: string;
@@ -53,7 +53,7 @@ interface BoardCardProps {
   onDuplicated?: (() => void) | undefined;
   /** When true, renders as a drag overlay clone (no sortable, no actions). */
   isOverlay?: boolean | undefined;
-}
+};
 
 /** Board card that can be dragged between columns. Remote items are not draggable. */
 export function BoardCard({

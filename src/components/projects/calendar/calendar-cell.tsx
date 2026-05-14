@@ -10,7 +10,7 @@ import { CalendarDocCard } from "./calendar-doc-card";
 
 const MAX_VISIBLE = 3;
 
-interface CalendarCellProps {
+type CalendarCellProps = {
   dateKey: string;
   day: number;
   documents: CalendarDoc[];
@@ -19,7 +19,7 @@ interface CalendarCellProps {
   isToday: boolean;
   isPast: boolean;
   isCurrentMonth: boolean;
-}
+};
 
 export function CalendarCell({
   dateKey,

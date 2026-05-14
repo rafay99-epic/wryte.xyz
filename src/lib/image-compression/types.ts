@@ -3,14 +3,14 @@
  * in `convex/compressionSettings.ts` so a value stored on a user or project
  * record is type-compatible with this client-side library.
  */
-export interface CompressionSettings {
+export type CompressionSettings = {
   enabled: boolean;
   format: CompressionFormat;
   quality: number;
   roundedCorners: boolean;
   cornerRadius: number;
   skipThresholdBytes: number;
-}
+};
 
 /**
  * Settings values that callers can ask for. `"avif"` is kept here for
@@ -34,7 +34,7 @@ export type SkipReason =
   | "encode-failed"
   | "already-optimal";
 
-export interface CompressionStats {
+export type CompressionStats = {
   originalBytes: number;
   outputBytes: number;
   savedBytes: number;
@@ -46,11 +46,11 @@ export interface CompressionStats {
    * PNG overrides. Useful for showing the user what happened to their image.
    */
   resolvedFormat: ResolvedFormat;
-}
+};
 
-export interface CompressionResult {
+export type CompressionResult = {
   /** The compressed File, or the original on skip. Always a `File`. */
   file: File;
   skipped: SkipReason | null;
   stats: CompressionStats | null;
-}
+};

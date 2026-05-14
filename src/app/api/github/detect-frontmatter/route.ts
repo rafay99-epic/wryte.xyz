@@ -19,19 +19,18 @@ import {
   parseRepoString,
 } from "@/lib/github-helpers";
 
-interface DetectRequest {
+type DetectRequest = {
   repo: string;
   branch: string;
   contentPath: string;
-}
+};
 
-interface FrontmatterField {
-  name: string;
-  type: string;
-  required: boolean;
-  defaultValue: string;
-  options: string;
-}
+import type { FrontmatterField } from "@/types/frontmatter";
+
+type DetectedFrontmatterField = Pick<
+  FrontmatterField,
+  "name" | "type" | "required" | "defaultValue" | "options"
+>;
 
 type GitHubItem = { name: string; path: string; type: string };
 
@@ -181,7 +180,7 @@ export async function POST(request: Request) {
         );
         const { data: frontmatter } = matter(fileContent);
 
-        const fields: FrontmatterField[] = Object.entries(
+        const fields: DetectedFrontmatterField[] = Object.entries(
           frontmatter as Record<string, unknown>,
         ).map(([name, value]) => ({
           name,

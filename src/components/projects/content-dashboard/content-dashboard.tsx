@@ -60,11 +60,11 @@ import { ViewModeSwitcher } from "./view-mode-switcher";
 /** Payload the dashboard hands back to the parent when the user confirms
  *  a bulk delete. The parent resolves IDs → full records (with githubSha
  *  etc.) before calling the Convex action. */
-export interface BulkDeleteSelection {
+export type BulkDeleteSelection = {
   mode: BulkDeleteMode;
   localIds: string[];
   remotePaths: string[];
-}
+};
 
 const PAGE_SIZE = 10;
 
@@ -100,7 +100,7 @@ const SORT_OPTIONS: {
   },
 ];
 
-interface ContentDashboardProps {
+type ContentDashboardProps = {
   /** All content items (already filtered by viewFilter + search). */
   items: ContentItem[];
   /** Unfiltered items for computing tab counts. */
@@ -146,7 +146,7 @@ interface ContentDashboardProps {
   onBulkDeleteDone?: (() => void) | undefined;
   projectId: string;
   frontmatterMap: Map<string, ParsedFrontmatter>;
-}
+};
 
 export function ContentDashboard({
   items,

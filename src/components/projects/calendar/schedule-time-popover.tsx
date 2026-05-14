@@ -19,10 +19,10 @@ import { useCalendarStore } from "@/stores/calendar-store";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
 
-interface ScheduleTimePopoverProps {
+type ScheduleTimePopoverProps = {
   /** IANA timezone for the project. Falls back to the browser timezone. */
   timezone?: string | null;
-}
+};
 
 export function ScheduleTimePopover({ timezone }: ScheduleTimePopoverProps) {
   const { pendingDrop, clearPendingDrop } = useCalendarStore();

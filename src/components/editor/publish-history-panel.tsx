@@ -19,11 +19,11 @@ import { useEditorStore } from "@/stores/editor-store";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 
-interface PublishHistoryPanelProps {
+type PublishHistoryPanelProps = {
   documentId: string;
   open: boolean;
   onClose: () => void;
-}
+};
 
 function relativeTime(timestamp: number): string {
   const diff = Date.now() - timestamp;

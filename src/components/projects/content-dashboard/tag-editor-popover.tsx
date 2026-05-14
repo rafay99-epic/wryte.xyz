@@ -42,14 +42,14 @@ function tagColorClass(tag: string): string {
 // Props
 // ---------------------------------------------------------------------------
 
-interface TagEditorPopoverProps {
+type TagEditorPopoverProps = {
   documentId: string;
   currentTags: string[];
   /** All tags used across the project, for autocomplete suggestions */
   allProjectTags: string[];
   /** Trigger element — renders as a small icon button */
   children: React.ReactNode;
-}
+};
 
 // ---------------------------------------------------------------------------
 // Component

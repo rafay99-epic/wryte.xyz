@@ -46,9 +46,9 @@ import { AiEnhanceButton } from "./ai-enhance-button";
 import { useEditorContext } from "./editor-context";
 import { ImageInsertDialog } from "./image-insert-dialog";
 
-interface EditorToolbarProps {
+type EditorToolbarProps = {
   projectId: string;
-}
+};
 
 type ViewMode = "edit" | "split" | "preview";
 

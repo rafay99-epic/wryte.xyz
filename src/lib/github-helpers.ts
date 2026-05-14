@@ -5,6 +5,7 @@
  */
 
 import { auth, clerkClient } from "@clerk/nextjs/server";
+import type { FrontmatterFieldType } from "@/types/frontmatter";
 
 // Matches ISO 8601 dates: "2024-01-15" or "2024-01-15T10:30:00Z" etc.
 const ISO_DATE_RE =
@@ -63,7 +64,10 @@ export async function getGithubToken(): Promise<
  * - long strings (100+ chars) -> "text" (textarea in UI)
  * - everything else -> "string" (single-line input)
  */
-export function inferFieldType(value: unknown, key?: string): string {
+export function inferFieldType(
+  value: unknown,
+  key?: string,
+): FrontmatterFieldType {
   if (typeof value === "boolean") {
     return "boolean";
   }

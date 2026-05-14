@@ -1,10 +1,10 @@
 import type { FrontmatterFieldType } from "@/types/frontmatter";
 
-interface SchemaField {
+type SchemaField = {
   name: string;
   type: FrontmatterFieldType;
   defaultValue?: string | boolean;
-}
+};
 
 const DEFAULT_FIELDS: SchemaField[] = [
   { name: "title", type: "string" },

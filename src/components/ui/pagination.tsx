@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
 
-interface PaginationProps {
+type PaginationProps = {
   /** Current 1-based page number. */
   currentPage: number;
   /** Total number of pages. */
@@ -17,7 +17,7 @@ interface PaginationProps {
   siblingCount?: number;
   /** Optional class name for the wrapper. */
   className?: string;
-}
+};
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
@@ -152,13 +152,13 @@ export function Pagination({
 /*  Per-page selector (optional companion)                             */
 /* ------------------------------------------------------------------ */
 
-interface PaginationInfoProps {
+type PaginationInfoProps = {
   currentPage: number;
   totalPages: number;
   totalItems: number;
   pageSize: number;
   className?: string;
-}
+};
 
 /**
  * Displays "Showing X-Y of Z" text alongside the pagination controls.

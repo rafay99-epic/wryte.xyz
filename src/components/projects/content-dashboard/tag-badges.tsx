@@ -26,11 +26,11 @@ function hashTag(tag: string): number {
   return Math.abs(hash);
 }
 
-interface TagBadgesProps {
+type TagBadgesProps = {
   tags: string[];
   /** Maximum number of tags to show before showing "+N" overflow. Default: 3 */
   max?: number;
-}
+};
 
 export function TagBadges({ tags, max = 3 }: TagBadgesProps) {
   if (!tags.length) return null;

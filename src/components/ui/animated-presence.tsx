@@ -21,9 +21,9 @@ import {
 /*  PageTransition                                                     */
 /* ------------------------------------------------------------------ */
 
-interface PageTransitionProps {
+type PageTransitionProps = {
   children: ReactNode;
-}
+};
 
 /**
  * Wraps route content with a fadeSlideUp on enter and a
@@ -54,13 +54,13 @@ export function PageTransition({ children }: PageTransitionProps) {
 /*  ContentReveal                                                      */
 /* ------------------------------------------------------------------ */
 
-interface ContentRevealProps {
+type ContentRevealProps = {
   /** While true the fallback (skeleton) is shown; when false children fade in. */
   isLoading: boolean;
   /** Skeleton / placeholder UI. */
   fallback: ReactNode;
   children: ReactNode;
-}
+};
 
 /**
  * Crossfades between a loading skeleton and the real content.
@@ -103,10 +103,10 @@ export function ContentReveal({
 /*  StaggerList                                                        */
 /* ------------------------------------------------------------------ */
 
-interface StaggerListProps {
+type StaggerListProps = {
   children: ReactNode;
   className?: string;
-}
+};
 
 /**
  * Wraps a list of children so they animate in one-by-one
@@ -126,10 +126,10 @@ export function StaggerList({ children, className }: StaggerListProps) {
   );
 }
 
-interface StaggerItemProps {
+type StaggerItemProps = {
   children: ReactNode;
   className?: string;
-}
+};
 
 /** A single item inside a `StaggerList`. */
 export function StaggerItem({ children, className }: StaggerItemProps) {

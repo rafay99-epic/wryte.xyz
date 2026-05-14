@@ -1,9 +1,9 @@
 import { cn } from "@/lib/utils";
 
-interface KbdProps {
+type KbdProps = {
   children: React.ReactNode;
   className?: string | undefined;
-}
+};
 
 /**
  * A keyboard key badge for displaying shortcut keys.

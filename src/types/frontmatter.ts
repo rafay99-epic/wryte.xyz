@@ -81,7 +81,7 @@ export const FIELD_TYPE_OPTIONS: {
   { value: "json", label: "JSON", description: "Raw JSON value" },
 ];
 
-export interface FrontmatterField {
+export type FrontmatterField = {
   /** The YAML key name (e.g., "title", "date", "draft") */
   name: string;
   /** Determines which form control the editor renders for this field */
@@ -108,7 +108,7 @@ export interface FrontmatterField {
   hidden?: boolean | undefined;
   /** Step increment for number fields (e.g., 1 for integers, 0.1 for decimals) */
   step?: number | undefined;
-}
+};
 
 /**
  * Sensible defaults for a typical blog/content site.

@@ -8,9 +8,9 @@ import type { ResolvedFormat } from "./types";
  * Detection runs once per session and is memoized; subsequent calls reuse
  * the same Promise.
  */
-export interface FormatSupport {
+export type FormatSupport = {
   webp: boolean;
-}
+};
 
 let cached: Promise<FormatSupport> | null = null;
 

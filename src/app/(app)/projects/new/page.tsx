@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/stores/editor-store";
 import type { FrontmatterField } from "@/types/frontmatter";
 import { DEFAULT_FRONTMATTER_FIELDS } from "@/types/frontmatter";
+import type { MediaStorageMode as FullMediaStorageMode } from "@/types/media";
 import { api } from "../../../../../convex/_generated/api";
 
 /**
@@ -30,10 +31,13 @@ import { api } from "../../../../../convex/_generated/api";
  *
  * All three steps share a single state object so values entered in earlier
  * steps are preserved when navigating back and forth.
+ *
+ * The wizard can pick any media mode except "external" (which is
+ * reserved for projects that bring their own pre-uploaded URLs).
  */
-export type MediaStorageMode = "github" | "uploadthing" | "cloudinary";
+export type MediaStorageMode = Exclude<FullMediaStorageMode, "external">;
 
-export interface WizardState {
+export type WizardState = {
   step: 1 | 2 | 3;
   // Step 1 — repo selection & project identity
   selectedRepo: {
@@ -63,7 +67,7 @@ export interface WizardState {
   frontmatterFields: FrontmatterField[];
   /** If frontmatter fields were auto-detected from an existing file, its name is stored here. */
   detectedFromFile: string | null;
-}
+};
 
 /** Sensible defaults so the wizard is usable without touching every field. */
 const INITIAL_STATE: WizardState = {

@@ -5,10 +5,10 @@ import { Badge } from "@/components/ui/badge";
 import { getColorClasses } from "@/lib/board-colors";
 import type { BoardColumnDef } from "@/types/board";
 
-interface DocumentStatusBadgeProps {
+type DocumentStatusBadgeProps = {
   status: string;
   columns?: BoardColumnDef[] | undefined;
-}
+};
 
 export function DocumentStatusBadge({
   status,

@@ -11,10 +11,10 @@ import {
 import type { DashboardViewMode } from "@/hooks/use-view-preferences";
 import { cn } from "@/lib/utils";
 
-interface ViewModeSwitcherProps {
+type ViewModeSwitcherProps = {
   viewMode: DashboardViewMode;
   onViewModeChange: (mode: DashboardViewMode) => void;
-}
+};
 
 export function ViewModeSwitcher({
   viewMode,

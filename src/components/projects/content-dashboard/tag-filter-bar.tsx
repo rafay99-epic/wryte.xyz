@@ -60,10 +60,10 @@ function hashTag(tag: string): number {
   return Math.abs(hash);
 }
 
-interface TagFilterBarProps {
+type TagFilterBarProps = {
   /** All unique tags across all content items */
   allTags: string[];
-}
+};
 
 export function TagFilterBar({ allTags }: TagFilterBarProps) {
   const { activeTagFilters, toggleTagFilter, clearTagFilters } =

@@ -11,14 +11,14 @@ import { persist } from "zustand/middleware";
 export type SortOrder = "newest" | "oldest" | "a-z" | "z-a" | "relevance";
 export type KindFilter = "all" | "local" | "remote";
 
-interface SearchPerProject {
+type SearchPerProject = {
   sortOrder: SortOrder;
   kindFilter: KindFilter;
   tagFilters: string[];
   statusFilter: string | null;
-}
+};
 
-interface SearchState {
+type SearchState = {
   /** Current search query (transient — never persisted). */
   query: string;
 
@@ -46,7 +46,7 @@ interface SearchState {
 
   /** Count of active filters for a project (excluding search query). */
   getActiveFilterCount: (projectId: string) => number;
-}
+};
 
 const DEFAULT_PROJECT: SearchPerProject = {
   sortOrder: "newest",

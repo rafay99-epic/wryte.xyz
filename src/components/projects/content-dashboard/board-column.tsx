@@ -22,7 +22,7 @@ import type { ContentItem } from "./content-table-row";
 /** Number of cards shown per page in a single column. */
 const COLUMN_PAGE_SIZE = 8;
 
-interface BoardColumnProps {
+type BoardColumnProps = {
   column: BoardColumnDef;
   items: ContentItem[];
   columns: BoardColumnDef[];
@@ -36,7 +36,7 @@ interface BoardColumnProps {
   onCreateClick: (initialStatus: string) => void;
   /** When true, this column is read-only (e.g. remote column). */
   readOnly?: boolean | undefined;
-}
+};
 
 export function BoardColumn({
   column,

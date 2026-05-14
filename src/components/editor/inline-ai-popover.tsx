@@ -21,18 +21,18 @@ import type { Id } from "../../../convex/_generated/dataModel";
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
 
-interface SelectionSnapshot {
+type SelectionSnapshot = {
   text: string;
   start: number;
   end: number;
-}
+};
 
-interface InlineAiPopoverProps {
+type InlineAiPopoverProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   selection: SelectionSnapshot | null;
   onAccept: (start: number, end: number, replacement: string) => void;
-}
+};
 
 /* ------------------------------------------------------------------ */
 /*  Component                                                          */

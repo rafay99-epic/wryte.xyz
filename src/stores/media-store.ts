@@ -1,20 +1,20 @@
 import { create } from "zustand";
 
 /** A media file entry from the GitHub API. */
-export interface MediaFile {
+export type MediaFile = {
   name: string;
   path: string;
   sha: string;
   size: number;
   downloadUrl: string;
-}
+};
 
 /** Cached media data for a single project. */
-interface ProjectMediaCache {
+type ProjectMediaCache = {
   files: MediaFile[];
   /** Unix-ms timestamp of last successful fetch. */
   fetchedAt: number;
-}
+};
 
 /**
  * Media store state and actions managed via Zustand.
@@ -25,7 +25,7 @@ interface ProjectMediaCache {
  *  - A file is uploaded or deleted (optimistic + refetch)
  *  - The cache for that project has never been populated
  */
-interface MediaState {
+type MediaState = {
   /** Media file cache keyed by project ID. */
   cache: Record<string, ProjectMediaCache>;
   /** Set of project IDs currently being fetched (stored as Record for Zustand compatibility). */
@@ -41,7 +41,7 @@ interface MediaState {
   addFile: (projectId: string, file: MediaFile) => void;
   /** Clear cache for a specific project. */
   invalidate: (projectId: string) => void;
-}
+};
 
 /** Empty array constant to avoid creating new references. */
 const EMPTY_FILES: MediaFile[] = [];

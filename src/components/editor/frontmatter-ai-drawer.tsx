@@ -28,15 +28,15 @@ import { cn } from "@/lib/utils";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 
-interface Suggestion {
+type Suggestion = {
   title?: string;
   description?: string;
   tags?: string[];
   keywords?: string;
   excerpt?: string;
-}
+};
 
-interface FrontmatterAiDrawerProps {
+type FrontmatterAiDrawerProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   projectId: string;
@@ -44,7 +44,7 @@ interface FrontmatterAiDrawerProps {
   currentFrontmatter: string;
   /** Merge accepted suggestions into the frontmatter values. */
   onAccept: (values: Record<string, string>) => void;
-}
+};
 
 const SUGGESTION_FIELDS = [
   { key: "title", label: "Title", icon: "T" },
