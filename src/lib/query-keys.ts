@@ -21,6 +21,9 @@ export const githubKeys = {
   // --- Repos ---
   repos: () => [...githubKeys.all, "repos"] as const,
 
+  // --- Branches ---
+  branches: (repo: string) => [...githubKeys.all, "branches", repo] as const,
+
   // --- Content (markdown file listings) ---
   contentLists: () => [...githubKeys.all, "content"] as const,
   contentList: (repo: string, branch: string, path: string) =>

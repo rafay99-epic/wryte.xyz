@@ -140,6 +140,40 @@ export function useGithubRepos(
 }
 
 // ---------------------------------------------------------------------------
+// useGithubBranches — list branches for a repo + return the default
+// ---------------------------------------------------------------------------
+
+type BranchesResponse = {
+  branches: string[];
+  defaultBranch: string;
+};
+
+/**
+ * Lists the branches for a given repo. Used by the project settings UI to
+ * populate a branch dropdown — users pick from a list instead of typing
+ * the branch name, and the repo's actual default is auto-selected on
+ * first connect.
+ *
+ * Pass `repo` as `null`/`undefined` to skip the request — useful when the
+ * user hasn't picked a repo yet.
+ */
+export function useGithubBranches(
+  repo: string | null | undefined,
+  options?: Partial<UseQueryOptions<BranchesResponse>>,
+) {
+  return useQuery<BranchesResponse>({
+    queryKey: githubKeys.branches(repo ?? ""),
+    queryFn: () =>
+      fetchJson<BranchesResponse>(
+        `/api/github/branches?repo=${encodeURIComponent(repo ?? "")}`,
+      ),
+    enabled: Boolean(repo),
+    staleTime: 2 * 60 * 1000,
+    ...options,
+  });
+}
+
+// ---------------------------------------------------------------------------
 // useGithubContent — list markdown files in a content directory
 // ---------------------------------------------------------------------------
 

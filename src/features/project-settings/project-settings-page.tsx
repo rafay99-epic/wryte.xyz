@@ -58,6 +58,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { TimezoneSelect } from "@/components/ui/timezone-select";
+import { useGithubBranches } from "@/hooks/use-github";
 import {
   type CompressionSettings,
   compressionSettingsEqual,
@@ -568,6 +569,30 @@ function GitHubSection({
   const [branch, setBranch] = useState(project.githubBranch ?? "main");
   const [isSavingRepo, setIsSavingRepo] = useState(false);
 
+  // Branch dropdown sourced from /api/github/branches. We only query when
+  // the repo string looks valid ("owner/name"), so a half-typed repo doesn't
+  // spam the API. The hook returns the repo's actual `defaultBranch` so we
+  // can auto-pick it when the user picks a new repo and the previously-set
+  // branch doesn't exist on the new one.
+  const repoLooksValid = /^[^/]+\/[^/]+$/.test(repo.trim());
+  const {
+    data: branchesData,
+    isLoading: isLoadingBranches,
+    error: branchesError,
+  } = useGithubBranches(repoLooksValid ? repo.trim() : null);
+  const availableBranches = branchesData?.branches ?? [];
+  const defaultBranch = branchesData?.defaultBranch;
+
+  // If the configured branch isn't in the live list (e.g. it was renamed
+  // on GitHub, or the user switched repos), fall back to the real default.
+  useEffect(() => {
+    if (!defaultBranch) return;
+    if (availableBranches.length === 0) return;
+    if (!availableBranches.includes(branch)) {
+      setBranch(defaultBranch);
+    }
+  }, [defaultBranch, availableBranches, branch]);
+
   const [verifyStatus, setVerifyStatus] = useState<VerifyStatus>(
     project.githubRepo ? "connected" : "idle",
   );
@@ -820,15 +845,64 @@ function GitHubSection({
             <FieldGroup
               label="Branch"
               htmlFor="gh-branch"
-              hint="The branch to commit content to."
+              hint={
+                branchesError
+                  ? "Couldn't load branches — check the repo above is correct."
+                  : isLoadingBranches
+                    ? "Loading branches from GitHub…"
+                    : availableBranches.length > 0
+                      ? `${availableBranches.length} branch${availableBranches.length === 1 ? "" : "es"} available${
+                          defaultBranch ? ` · default: ${defaultBranch}` : ""
+                        }`
+                      : "The branch to commit content to."
+              }
             >
-              <Input
-                id="gh-branch"
-                value={branch}
-                onChange={(e) => setBranch(e.target.value)}
-                placeholder="main"
-                className="font-mono text-sm"
-              />
+              {availableBranches.length > 0 ? (
+                <Select
+                  value={branch}
+                  onValueChange={(v) => {
+                    if (v) setBranch(v);
+                  }}
+                >
+                  <SelectTrigger
+                    id="gh-branch"
+                    className="w-full font-mono text-sm"
+                  >
+                    <SelectValue placeholder="Select a branch" />
+                  </SelectTrigger>
+                  <SelectContent
+                    align="start"
+                    alignItemWithTrigger={false}
+                    className="max-h-60 w-(--anchor-width) min-w-[280px]"
+                  >
+                    {availableBranches.map((b) => (
+                      <SelectItem
+                        key={b}
+                        value={b}
+                        className="font-mono text-sm"
+                      >
+                        <span className="truncate">{b}</span>
+                        {b === defaultBranch ? (
+                          <span className="ml-2 shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-sans font-medium text-muted-foreground">
+                            default
+                          </span>
+                        ) : null}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                /* Fallback: free-text input when the API hasn't returned
+                   branches yet, the repo is invalid, or the API errored.
+                   Lets the user save a branch by typing even without a list. */
+                <Input
+                  id="gh-branch"
+                  value={branch}
+                  onChange={(e) => setBranch(e.target.value)}
+                  placeholder="main"
+                  className="font-mono text-sm"
+                />
+              )}
             </FieldGroup>
           </div>
 

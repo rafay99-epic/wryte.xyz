@@ -131,6 +131,76 @@ function joinRepoPath(prefix: string, filename: string): string {
  * caller-friendly message; callers throw it so it surfaces in the
  * "Publish failed" banner.
  */
+/**
+ * Stronger diagnostic for 404-on-PUT: checks whether the branch exists,
+ * whether the branch is protected, and what scopes the token actually
+ * has. Logged to the console only; not surfaced to the user.
+ */
+async function diagnoseBranchAndRepo(
+  octokit: Octokit,
+  owner: string,
+  repoName: string,
+  branch: string,
+): Promise<{
+  branchExists: boolean;
+  defaultBranch: string | null;
+  availableBranches: string[];
+  branchProtected: boolean | "unknown";
+  tokenScopes: string | null;
+  acceptedScopes: string | null;
+  authenticatedAs: string | null;
+}> {
+  let defaultBranch: string | null = null;
+  let availableBranches: string[] = [];
+  let branchExists = false;
+  let branchProtected: boolean | "unknown" = "unknown";
+  let tokenScopes: string | null = null;
+  let acceptedScopes: string | null = null;
+  let authenticatedAs: string | null = null;
+
+  try {
+    const me = await octokit.users.getAuthenticated();
+    authenticatedAs = me.data.login;
+    const xs = me.headers["x-oauth-scopes"];
+    const xa = me.headers["x-accepted-oauth-scopes"];
+    tokenScopes = typeof xs === "string" ? xs : null;
+    acceptedScopes = typeof xa === "string" ? xa : null;
+  } catch {
+    // ignore
+  }
+
+  try {
+    const r = await octokit.repos.get({ owner, repo: repoName });
+    defaultBranch = r.data.default_branch;
+  } catch {
+    // ignore
+  }
+
+  try {
+    const b = await octokit.repos.listBranches({
+      owner,
+      repo: repoName,
+      per_page: 100,
+    });
+    availableBranches = b.data.map((x) => x.name);
+    branchExists = availableBranches.includes(branch);
+    const branchInfo = b.data.find((x) => x.name === branch);
+    branchProtected = branchInfo?.protected ?? "unknown";
+  } catch {
+    // ignore
+  }
+
+  return {
+    branchExists,
+    defaultBranch,
+    availableBranches,
+    branchProtected,
+    tokenScopes,
+    acceptedScopes,
+    authenticatedAs,
+  };
+}
+
 async function describeWriteFailure(
   octokit: Octokit,
   owner: string,
@@ -282,6 +352,13 @@ export const publishToGithub = internalAction({
       ? `Update ${document.title}`
       : `Add ${document.title}`;
 
+    // Diagnostic: log the exact values we're about to send so when GitHub
+    // 404s we have one log line telling us whether the bug is in branch,
+    // path, repo, or SHA.
+    console.info(
+      `[publishToGithub] PUT owner=${owner} repo=${repo} branch=${JSON.stringify(branch)} path=${JSON.stringify(filePath)} existingSha=${existingSha ? "<set>" : "<none>"} contentBytes=${base64Content.length}`,
+    );
+
     let response: Awaited<
       ReturnType<typeof octokit.repos.createOrUpdateFileContents>
     >;
@@ -297,6 +374,9 @@ export const publishToGithub = internalAction({
       });
     } catch (error: unknown) {
       const err = error as { status?: number; message?: string };
+      console.error(
+        `[publishToGithub] error status=${err.status ?? "?"} message=${JSON.stringify(err.message ?? "?")}`,
+      );
       if (err.status === 401) {
         throw new Error(
           "GitHub token expired or revoked. Please reconnect GitHub in settings.",
@@ -306,8 +386,12 @@ export const publishToGithub = internalAction({
         // 404 on a Contents write is almost never "file not found" — GitHub
         // uses it to mask permission, scope, and visibility failures. Probe
         // the auth chain and surface a precise diagnosis.
+        const diag = await diagnoseBranchAndRepo(octokit, owner, repo, branch);
+        console.error(`[publishToGithub] post-404 diagnosis:`, diag);
         const why = await describeWriteFailure(octokit, owner, repo);
-        throw new Error(`GitHub publish failed: ${why}`);
+        throw new Error(
+          `GitHub publish failed: ${why} (branch="${branch}", path="${filePath}")`,
+        );
       }
       throw error;
     }

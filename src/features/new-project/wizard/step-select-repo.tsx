@@ -9,13 +9,24 @@ import {
   Search,
   Settings2,
 } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { WizardState } from "@/features/new-project/new-project-page";
-import { type RepoItem, useGithubRepos } from "@/hooks/use-github";
+import {
+  type RepoItem,
+  useGithubBranches,
+  useGithubRepos,
+} from "@/hooks/use-github";
 import { generateSlug } from "@/lib/markdown";
 import { cn } from "@/lib/utils";
 
@@ -116,6 +127,48 @@ export function StepSelectRepo({ state, onChange }: StepSelectRepoProps) {
     );
   }, [repos, searchQuery]);
 
+  // Manual-mode branch detection. When the user types a valid `owner/repo`
+  // and we can reach GitHub with their token, swap the free-text branch
+  // input for a dropdown sourced from /api/github/branches. Also auto-pick
+  // the repo's real default branch the first time it loads.
+  const manualRepoString = state.selectedRepo?.fullName ?? "";
+  const manualRepoLooksValid = /^[^/]+\/[^/]+$/.test(manualRepoString.trim());
+  const {
+    data: manualBranchesData,
+    isLoading: manualBranchesLoading,
+    error: manualBranchesError,
+  } = useGithubBranches(
+    state.useManualSetup && manualRepoLooksValid
+      ? manualRepoString.trim()
+      : null,
+  );
+  const manualBranches = manualBranchesData?.branches ?? [];
+  const manualDefaultBranch = manualBranchesData?.defaultBranch;
+
+  // Once GitHub tells us the real default, snap to it (unless the user has
+  // already picked something else that exists in the list).
+  useEffect(() => {
+    if (!state.useManualSetup) return;
+    if (!state.selectedRepo) return;
+    if (!manualDefaultBranch) return;
+    if (manualBranches.length === 0) return;
+    const current = state.selectedRepo.defaultBranch;
+    if (!manualBranches.includes(current)) {
+      onChange({
+        selectedRepo: {
+          ...state.selectedRepo,
+          defaultBranch: manualDefaultBranch,
+        },
+      });
+    }
+  }, [
+    state.useManualSetup,
+    state.selectedRepo,
+    manualDefaultBranch,
+    manualBranches,
+    onChange,
+  ]);
+
   /* ---------------------------------------------------------------- */
   /*  Manual setup mode                                                */
   /* ---------------------------------------------------------------- */
@@ -201,22 +254,73 @@ export function StepSelectRepo({ state, onChange }: StepSelectRepoProps) {
             >
               Branch
             </Label>
-            <Input
-              id="manual-branch"
-              placeholder="main"
-              value={state.selectedRepo?.defaultBranch ?? "main"}
-              onChange={(e) => {
-                const branch = (e.target as HTMLInputElement).value;
-                if (state.selectedRepo) {
+            {manualBranches.length > 0 && state.selectedRepo ? (
+              <Select
+                value={state.selectedRepo.defaultBranch}
+                onValueChange={(v) => {
+                  if (!v || !state.selectedRepo) return;
                   onChange({
                     selectedRepo: {
                       ...state.selectedRepo,
-                      defaultBranch: branch || "main",
+                      defaultBranch: v,
                     },
                   });
-                }
-              }}
-            />
+                }}
+              >
+                <SelectTrigger
+                  id="manual-branch"
+                  className="w-full font-mono text-sm"
+                >
+                  <SelectValue placeholder="Select a branch" />
+                </SelectTrigger>
+                <SelectContent
+                  align="start"
+                  alignItemWithTrigger={false}
+                  className="max-h-60 w-(--anchor-width) min-w-[280px]"
+                >
+                  {manualBranches.map((b) => (
+                    <SelectItem key={b} value={b} className="font-mono text-sm">
+                      <span className="truncate">{b}</span>
+                      {b === manualDefaultBranch ? (
+                        <span className="ml-2 shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-sans font-medium text-muted-foreground">
+                          default
+                        </span>
+                      ) : null}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <Input
+                id="manual-branch"
+                placeholder="main"
+                value={state.selectedRepo?.defaultBranch ?? "main"}
+                onChange={(e) => {
+                  const branch = (e.target as HTMLInputElement).value;
+                  if (state.selectedRepo) {
+                    onChange({
+                      selectedRepo: {
+                        ...state.selectedRepo,
+                        defaultBranch: branch || "main",
+                      },
+                    });
+                  }
+                }}
+              />
+            )}
+            <p className="text-xs text-muted-foreground/70">
+              {manualBranchesLoading
+                ? "Detecting branches from GitHub…"
+                : manualBranchesError
+                  ? "Couldn't reach GitHub — type the branch name manually."
+                  : manualBranches.length > 0
+                    ? `${String(manualBranches.length)} branch${manualBranches.length === 1 ? "" : "es"} detected${
+                        manualDefaultBranch
+                          ? ` · default is ${manualDefaultBranch}`
+                          : ""
+                      }`
+                    : "Defaults to main if you skip this."}
+            </p>
           </div>
         </div>
 
