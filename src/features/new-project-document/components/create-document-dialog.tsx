@@ -107,6 +107,11 @@ export function CreateDocumentDialog({
         project?.frontmatterSchema,
         trimmedTitle,
         trimmedSlug,
+        {
+          defaultAuthor: project?.defaultAuthor,
+          defaultAuthorAvatar: project?.defaultAuthorAvatar,
+          siteUrl: project?.siteUrl,
+        },
       );
       const args: {
         projectId: Id<"projects">;
@@ -137,6 +142,9 @@ export function CreateDocumentDialog({
     slug,
     projectId,
     project?.frontmatterSchema,
+    project?.defaultAuthor,
+    project?.defaultAuthorAvatar,
+    project?.siteUrl,
     createDocument,
     onOpenChange,
     router,

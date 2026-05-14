@@ -90,6 +90,11 @@ export function NewProjectDocumentPage() {
         project?.frontmatterSchema,
         trimmedTitle,
         trimmedSlug,
+        {
+          defaultAuthor: project?.defaultAuthor,
+          defaultAuthorAvatar: project?.defaultAuthorAvatar,
+          siteUrl: project?.siteUrl,
+        },
       );
       const documentId = await createDocument({
         projectId,
@@ -109,6 +114,9 @@ export function NewProjectDocumentPage() {
     slug,
     projectId,
     project?.frontmatterSchema,
+    project?.defaultAuthor,
+    project?.defaultAuthorAvatar,
+    project?.siteUrl,
     createDocument,
     router,
   ]);

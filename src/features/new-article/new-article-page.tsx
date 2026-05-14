@@ -112,6 +112,11 @@ export function NewArticlePage() {
         selectedProject?.frontmatterSchema,
         trimmedTitle,
         trimmedSlug,
+        {
+          defaultAuthor: selectedProject?.defaultAuthor,
+          defaultAuthorAvatar: selectedProject?.defaultAuthorAvatar,
+          siteUrl: selectedProject?.siteUrl,
+        },
       );
       const documentId = await createDocument({
         projectId: selectedProjectId,
@@ -131,6 +136,9 @@ export function NewArticlePage() {
     slug,
     selectedProjectId,
     selectedProject?.frontmatterSchema,
+    selectedProject?.defaultAuthor,
+    selectedProject?.defaultAuthorAvatar,
+    selectedProject?.siteUrl,
     createDocument,
     router,
   ]);
