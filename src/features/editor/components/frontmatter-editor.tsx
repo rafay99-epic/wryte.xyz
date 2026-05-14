@@ -80,16 +80,16 @@ function fieldIcon(type: FrontmatterFieldType) {
     case "tags":
     case "list":
     case "multiselect":
-      return <Hash className="size-3 text-muted-foreground/50" />;
+      return <Hash className="size-3.5 text-muted-foreground/70" />;
     case "text":
     case "json":
-      return <FileText className="size-3 text-muted-foreground/50" />;
+      return <FileText className="size-3.5 text-muted-foreground/70" />;
     case "url":
-      return <Globe className="size-3 text-muted-foreground/50" />;
+      return <Globe className="size-3.5 text-muted-foreground/70" />;
     case "image":
-      return <Image className="size-3 text-muted-foreground/50" />;
+      return <Image className="size-3.5 text-muted-foreground/70" />;
     case "color":
-      return <Palette className="size-3 text-muted-foreground/50" />;
+      return <Palette className="size-3.5 text-muted-foreground/70" />;
     default:
       return null;
   }
@@ -546,18 +546,18 @@ export function FrontmatterEditor({
                     transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
                   >
                     {/* Visual mode — form fields */}
-                    <div className="px-4 py-3">
+                    <div className="px-5 py-4">
                       {hasGroups ? (
-                        <div className="space-y-4">
+                        <div className="space-y-6">
                           {Array.from(groupedFields.entries()).map(
                             ([group, groupFields]) => (
                               <div key={group || "__default"}>
                                 {group && (
-                                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">
+                                  <p className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70">
                                     {group}
                                   </p>
                                 )}
-                                <div className="grid grid-cols-1 gap-x-5 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
+                                <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
                                   {groupFields.map((field) => (
                                     <FrontmatterFieldControl
                                       key={field.name}
@@ -575,7 +575,7 @@ export function FrontmatterEditor({
                           )}
                         </div>
                       ) : (
-                        <div className="grid grid-cols-1 gap-x-5 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
+                        <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
                           {fields.map((field) => (
                             <FrontmatterFieldControl
                               key={field.name}
@@ -593,15 +593,15 @@ export function FrontmatterEditor({
                       {/* Auto-generated slug */}
                       {fields.some((f) => f.name === "title") &&
                         !fields.some((f) => f.name === "slug") && (
-                          <div className="mt-3 grid grid-cols-1 gap-x-5 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
-                            <div className="space-y-1">
+                          <div className="mt-4 grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
+                            <div className="space-y-1.5">
                               <Label
                                 htmlFor="fm-slug"
-                                className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground/70"
+                                className="flex items-center gap-1.5 text-xs font-medium text-foreground/80"
                               >
-                                <Link2 className="size-3 text-muted-foreground/40" />
+                                <Link2 className="size-3.5 text-muted-foreground/70" />
                                 Slug
-                                <Lock className="ml-auto size-2.5 text-muted-foreground/30" />
+                                <Lock className="ml-auto size-3 text-muted-foreground/50" />
                               </Label>
                               <Input
                                 id="fm-slug"
@@ -614,7 +614,7 @@ export function FrontmatterEditor({
                                   handleFieldChange("slug", e.target.value)
                                 }
                                 placeholder="auto-generated-slug"
-                                className="h-8 font-mono text-xs"
+                                className="h-9 font-mono text-xs"
                               />
                             </div>
                           </div>
@@ -630,7 +630,7 @@ export function FrontmatterEditor({
                     transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
                   >
                     {/* Code mode — YAML editor */}
-                    <div className="px-4 py-3">
+                    <div className="px-5 py-4">
                       <div className="relative">
                         <textarea
                           value={codeValue}
@@ -711,7 +711,7 @@ function FrontmatterFieldControl({
             onChange={(e) => onChange(e.target.value)}
             placeholder={placeholder}
             maxLength={field.max}
-            className="h-8"
+            className="h-9"
           />
         </FieldWrapper>
       );
@@ -738,16 +738,16 @@ function FrontmatterFieldControl({
 
     case "boolean":
       return (
-        <div className="flex items-center justify-between rounded-lg border border-input/40 bg-muted/20 px-3 py-2">
-          <div>
+        <div className="flex items-center justify-between rounded-lg border border-input/40 bg-muted/20 px-3.5 py-2.5">
+          <div className="min-w-0">
             <Label
               htmlFor={id}
-              className="text-[11px] font-medium text-muted-foreground/70 cursor-pointer"
+              className="cursor-pointer text-xs font-medium text-foreground/80"
             >
               {label}
             </Label>
             {field.description && (
-              <p className="text-[10px] text-muted-foreground/50">
+              <p className="text-[11px] text-muted-foreground/60">
                 {field.description}
               </p>
             )}
@@ -773,7 +773,7 @@ function FrontmatterFieldControl({
             value={typeof value === "string" ? value : ""}
             onChange={(e) => onChange(e.target.value)}
             placeholder={field.placeholder ?? "tag1, tag2, tag3"}
-            className="h-8"
+            className="h-9"
           />
         </FieldWrapper>
       );
@@ -791,7 +791,7 @@ function FrontmatterFieldControl({
             type="date"
             value={typeof value === "string" ? value : ""}
             onChange={(e) => onChange(e.target.value)}
-            className="h-8"
+            className="h-9"
           />
         </FieldWrapper>
       );
@@ -809,7 +809,7 @@ function FrontmatterFieldControl({
             type="datetime-local"
             value={typeof value === "string" ? value : ""}
             onChange={(e) => onChange(e.target.value)}
-            className="h-8"
+            className="h-9"
           />
         </FieldWrapper>
       );
@@ -831,7 +831,7 @@ function FrontmatterFieldControl({
             min={field.min}
             max={field.max}
             step={field.step}
-            className="h-8"
+            className="h-9"
           />
         </FieldWrapper>
       );
@@ -851,7 +851,7 @@ function FrontmatterFieldControl({
               value={typeof value === "string" ? value : ""}
               onChange={(e) => onChange(e.target.value)}
               placeholder={field.placeholder ?? "https://..."}
-              className="h-8 pr-8"
+              className="h-9 pr-9"
             />
             {typeof value === "string" && value && (
               <a
@@ -895,7 +895,7 @@ function FrontmatterFieldControl({
             value={typeof value === "string" ? value : ""}
             onChange={(e) => onChange(e.target.value)}
             placeholder={field.placeholder ?? "auto-generated-slug"}
-            className="h-8 font-mono text-xs"
+            className="h-9 font-mono text-xs"
           />
         </FieldWrapper>
       );
@@ -914,13 +914,13 @@ function FrontmatterFieldControl({
               id={id}
               value={typeof value === "string" && value ? value : "#000000"}
               onChange={(e) => onChange(e.target.value)}
-              className="h-8 w-10 cursor-pointer rounded border border-input bg-transparent p-0.5"
+              className="h-9 w-12 cursor-pointer rounded border border-input bg-transparent p-0.5"
             />
             <Input
               value={typeof value === "string" ? value : ""}
               onChange={(e) => onChange(e.target.value)}
               placeholder="#000000"
-              className="h-8 flex-1 font-mono text-xs"
+              className="h-9 flex-1 font-mono text-xs"
             />
           </div>
         </FieldWrapper>
@@ -940,7 +940,7 @@ function FrontmatterFieldControl({
               if (val !== null) onChange(val);
             }}
           >
-            <SelectTrigger className="w-full h-8">
+            <SelectTrigger className="h-9 w-full">
               <SelectValue placeholder={`Select ${label.toLowerCase()}`} />
             </SelectTrigger>
             <SelectContent>
@@ -1002,7 +1002,7 @@ function FrontmatterFieldControl({
                 }
               }}
             >
-              <SelectTrigger className="w-full h-8">
+              <SelectTrigger className="h-9 w-full">
                 <SelectValue placeholder={`Add ${label.toLowerCase()}...`} />
               </SelectTrigger>
               <SelectContent>
@@ -1038,7 +1038,7 @@ function FrontmatterFieldControl({
             value={typeof value === "string" ? value : ""}
             onChange={(e) => onChange(e.target.value)}
             placeholder={field.placeholder ?? "item1, item2, item3"}
-            className="h-8"
+            className="h-9"
           />
           {listValues.length > 0 && (
             <div className="mt-1 flex flex-wrap gap-1">
@@ -1096,17 +1096,17 @@ export function FieldWrapper({
   children: React.ReactNode;
 }) {
   return (
-    <div className="space-y-1">
+    <div className="space-y-1.5">
       <Label
         htmlFor={id}
-        className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground/70"
+        className="flex items-center gap-1.5 text-xs font-medium text-foreground/80"
       >
         {icon}
         {label}
       </Label>
       {children}
       {description && (
-        <p className="text-[10px] text-muted-foreground/40">{description}</p>
+        <p className="text-[11px] text-muted-foreground/60">{description}</p>
       )}
     </div>
   );
