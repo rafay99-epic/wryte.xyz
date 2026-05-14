@@ -36,7 +36,7 @@ import {
   useState,
 } from "react";
 import { toast } from "sonner";
-import { CompressionSettingsForm } from "@/components/settings/compression-settings-form";
+import { CompressionSettingsForm } from "@/components/forms/compression-settings-form";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,

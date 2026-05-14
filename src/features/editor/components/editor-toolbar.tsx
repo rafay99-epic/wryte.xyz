@@ -40,8 +40,8 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/stores/editor-store";
-import { api } from "../../../convex/_generated/api";
-import type { Id } from "../../../convex/_generated/dataModel";
+import { api } from "../../../../convex/_generated/api";
+import type { Id } from "../../../../convex/_generated/dataModel";
 import { AiEnhanceButton } from "./ai-enhance-button";
 import { useEditorContext } from "./editor-context";
 import { ImageInsertDialog } from "./image-insert-dialog";

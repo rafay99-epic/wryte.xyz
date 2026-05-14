@@ -20,8 +20,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { CompressionOverrideDisclosure } from "@/components/media/compression-override-disclosure";
-import { MediaImage } from "@/components/media/media-image";
+import { CompressionOverrideDisclosure } from "@/components/forms/compression-override-disclosure";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Dialog,
@@ -33,6 +32,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { MediaImage } from "@/features/media-library/components/media-image";
 import { usePendingDeletes } from "@/features/media-library/hooks/use-pending-deletes";
 import { useGithubInvalidation, useGithubMedia } from "@/hooks/use-github";
 import { useImageCompression } from "@/hooks/use-image-compression";

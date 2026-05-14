@@ -25,8 +25,8 @@ import {
 } from "@/components/ui/sheet";
 import { smoothTransition } from "@/lib/motion";
 import { cn } from "@/lib/utils";
-import { api } from "../../../convex/_generated/api";
-import type { Id } from "../../../convex/_generated/dataModel";
+import { api } from "../../../../convex/_generated/api";
+import type { Id } from "../../../../convex/_generated/dataModel";
 
 type Suggestion = {
   title?: string;

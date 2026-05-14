@@ -8,8 +8,8 @@ import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { splitShortcutKeys } from "@/lib/shortcuts";
 import { useEditorStore } from "@/stores/editor-store";
 import { useShortcutsStore } from "@/stores/shortcuts-store";
-import { api } from "../../../convex/_generated/api";
-import type { Id } from "../../../convex/_generated/dataModel";
+import { api } from "../../../../convex/_generated/api";
+import type { Id } from "../../../../convex/_generated/dataModel";
 import { useEditorContext } from "./editor-context";
 import { InlineAiPopover } from "./inline-ai-popover";
 

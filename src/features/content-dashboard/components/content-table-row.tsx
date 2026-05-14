@@ -14,8 +14,8 @@ import {
 } from "lucide-react";
 import { useCallback } from "react";
 import { toast } from "sonner";
-import { DocumentStatusBadge } from "@/components/documents/document-status-badge";
 import { Button } from "@/components/ui/button";
+import { DocumentStatusBadge } from "@/components/ui/document-status-badge";
 import {
   DropdownMenu,
   DropdownMenuContent,

@@ -34,8 +34,8 @@ import { findPubDateFieldName } from "@/lib/build-initial-frontmatter";
 import { generateSlug } from "@/lib/markdown";
 import { getTagFieldName } from "@/lib/parse-frontmatter";
 import type { FrontmatterFieldType } from "@/types/frontmatter";
-import { api } from "../../../convex/_generated/api";
-import type { Id } from "../../../convex/_generated/dataModel";
+import { api } from "../../../../convex/_generated/api";
+import type { Id } from "../../../../convex/_generated/dataModel";
 import { FrontmatterAiDrawer } from "./frontmatter-ai-drawer";
 import { FrontmatterImageField } from "./frontmatter-image-field";
 

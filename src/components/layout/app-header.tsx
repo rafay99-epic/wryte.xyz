@@ -21,8 +21,6 @@ import { usePathname, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useShallow } from "zustand/react/shallow";
-import { PublishDialog } from "@/components/editor/publish-dialog";
-import { ScheduleDialog } from "@/components/editor/schedule-dialog";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -36,6 +34,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { PublishDialog } from "@/features/editor/components/publish-dialog";
+import { ScheduleDialog } from "@/features/editor/components/schedule-dialog";
 import { getColorClasses } from "@/lib/board-colors";
 import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/stores/editor-store";

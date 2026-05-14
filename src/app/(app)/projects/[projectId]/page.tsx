@@ -7,24 +7,24 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { ScheduleDialog } from "@/components/editor/schedule-dialog";
-import { BoardSettingsDialog } from "@/components/projects/content-dashboard/board-settings-dialog";
-import { ContentDashboard } from "@/components/projects/content-dashboard/content-dashboard";
-import type { ViewFilter } from "@/components/projects/content-dashboard/content-empty-state";
-import type { ContentItem } from "@/components/projects/content-dashboard/content-table-row";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { BoardSettingsDialog } from "@/features/content-dashboard/components/board-settings-dialog";
+import { ContentDashboard } from "@/features/content-dashboard/components/content-dashboard";
+import type { ViewFilter } from "@/features/content-dashboard/components/content-empty-state";
+import type { ContentItem } from "@/features/content-dashboard/components/content-table-row";
 import {
   DeleteDocumentDialog,
   type DeleteTarget,
-} from "@/components/projects/content-dashboard/delete-document-dialog";
+} from "@/features/content-dashboard/components/delete-document-dialog";
 import {
   DeleteRemoteFileDialog,
   type RemoteDeleteTarget,
-} from "@/components/projects/content-dashboard/delete-remote-file-dialog";
-import { CreateDocumentDialog } from "@/components/projects/create-document-dialog";
-import { Button, buttonVariants } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
+} from "@/features/content-dashboard/components/delete-remote-file-dialog";
 import { useBulkDelete } from "@/features/content-dashboard/hooks/use-bulk-delete";
 import { useBulkImport } from "@/features/content-dashboard/hooks/use-bulk-import";
+import { ScheduleDialog } from "@/features/editor/components/schedule-dialog";
+import { CreateDocumentDialog } from "@/features/new-project-document/components/create-document-dialog";
 import {
   type ContentFile,
   useGithubContentList,

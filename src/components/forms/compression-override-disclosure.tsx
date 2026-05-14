@@ -2,7 +2,7 @@
 
 import { ChevronDown, Wand2 } from "lucide-react";
 import { useState } from "react";
-import { CompressionSettingsForm } from "@/components/settings/compression-settings-form";
+import { CompressionSettingsForm } from "@/components/forms/compression-settings-form";
 import type { CompressionSettings } from "@/lib/image-compression";
 import { cn } from "@/lib/utils";
 

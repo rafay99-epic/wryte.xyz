@@ -4,7 +4,7 @@ import { useAction, useQuery } from "convex/react";
 import { Loader2, Upload } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { CompressionOverrideDisclosure } from "@/components/media/compression-override-disclosure";
+import { CompressionOverrideDisclosure } from "@/components/forms/compression-override-disclosure";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,8 +23,8 @@ import {
   type CompressionSettings,
   describeSavings,
 } from "@/lib/image-compression";
-import { api } from "../../../convex/_generated/api";
-import type { Id } from "../../../convex/_generated/dataModel";
+import { api } from "../../../../convex/_generated/api";
+import type { Id } from "../../../../convex/_generated/dataModel";
 
 type ImageInsertDialogProps = {
   open: boolean;

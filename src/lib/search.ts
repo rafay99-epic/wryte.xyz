@@ -8,7 +8,7 @@
  * - Case-insensitive matching
  */
 
-import type { ContentItem } from "@/components/projects/content-dashboard/content-table-row";
+import type { ContentItem } from "@/features/content-dashboard/components/content-table-row";
 import type { ParsedFrontmatter } from "@/lib/parse-frontmatter";
 
 /** Weights for field-level relevance scoring. Higher = more relevant. */

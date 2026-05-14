@@ -29,7 +29,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { CompressionSettingsForm } from "@/components/settings/compression-settings-form";
+import { CompressionSettingsForm } from "@/components/forms/compression-settings-form";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";

@@ -5,7 +5,7 @@ import { Check, ImageIcon, Loader2, Search, Upload } from "lucide-react";
 import Image from "next/image";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { CompressionOverrideDisclosure } from "@/components/media/compression-override-disclosure";
+import { CompressionOverrideDisclosure } from "@/components/forms/compression-override-disclosure";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -26,8 +26,8 @@ import {
   describeSavings,
 } from "@/lib/image-compression";
 import { cn } from "@/lib/utils";
-import { api } from "../../../convex/_generated/api";
-import type { Id } from "../../../convex/_generated/dataModel";
+import { api } from "../../../../convex/_generated/api";
+import type { Id } from "../../../../convex/_generated/dataModel";
 
 type MediaPickerDrawerProps = {
   open: boolean;

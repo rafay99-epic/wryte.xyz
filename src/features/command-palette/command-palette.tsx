@@ -25,7 +25,7 @@ import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/stores/editor-store";
 import { useShortcutsStore } from "@/stores/shortcuts-store";
 import { useThemeStore } from "@/stores/theme-store";
-import { api } from "../../convex/_generated/api";
+import { api } from "../../../convex/_generated/api";
 
 // ---------------------------------------------------------------------------
 // Types

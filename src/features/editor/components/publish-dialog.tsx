@@ -18,8 +18,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { buildFrontmatter } from "@/lib/markdown";
 import { useEditorStore } from "@/stores/editor-store";
-import { api } from "../../../convex/_generated/api";
-import type { Id } from "../../../convex/_generated/dataModel";
+import { api } from "../../../../convex/_generated/api";
+import type { Id } from "../../../../convex/_generated/dataModel";
 
 const documentsGet = api.cms.documents.get;
 const projectsGet = api.cms.projects.get;

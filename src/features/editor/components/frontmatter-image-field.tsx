@@ -2,9 +2,9 @@
 
 import { ImageIcon } from "lucide-react";
 import { useState } from "react";
-import { FieldWrapper } from "@/components/editor/frontmatter-editor";
-import { MediaPickerDrawer } from "@/components/editor/media-picker-drawer";
 import { Input } from "@/components/ui/input";
+import { FieldWrapper } from "@/features/editor/components/frontmatter-editor";
+import { MediaPickerDrawer } from "@/features/editor/components/media-picker-drawer";
 
 type FrontmatterImageFieldProps = {
   id: string;

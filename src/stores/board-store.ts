@@ -9,7 +9,7 @@
  * Call `reset()` when navigating away from the project page.
  */
 import { create } from "zustand";
-import type { ContentItem } from "@/components/projects/content-dashboard/content-table-row";
+import type { ContentItem } from "@/features/content-dashboard/components/content-table-row";
 
 type BoardState = {
   // --- Drag-and-drop ---
