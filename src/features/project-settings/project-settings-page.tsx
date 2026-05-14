@@ -2169,6 +2169,16 @@ function FrontmatterSection({
     [],
   );
 
+  const clearAllDefaults = useCallback(() => {
+    setFields((prev) => prev.map((field) => ({ ...field, defaultValue: "" })));
+    toast.info("Cleared all default values — click Save Schema to apply");
+  }, []);
+
+  const hasAnyDefaults = useMemo(
+    () => fields.some((f) => f.defaultValue !== ""),
+    [fields],
+  );
+
   const moveField = useCallback((index: number, direction: "up" | "down") => {
     setFields((prev) => {
       const newFields = [...prev];
@@ -2265,6 +2275,17 @@ function FrontmatterSection({
               ? "Edit schema as JSON — supports all field properties"
               : `${fields.length} field${fields.length !== 1 ? "s" : ""} defined`}
           </span>
+          {hasAnyDefaults && editorMode === "visual" ? (
+            <button
+              type="button"
+              onClick={clearAllDefaults}
+              className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-border/60 bg-muted/30 px-2 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:border-destructive/40 hover:bg-destructive/5 hover:text-destructive"
+              title="Wipe every field's default value — useful for cleaning up values that auto-detect copied from an existing post"
+            >
+              <RotateCcw className="size-3" />
+              Clear default values
+            </button>
+          ) : null}
         </div>
       </motion.div>
 
