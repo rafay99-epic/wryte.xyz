@@ -45,6 +45,14 @@ export function AppSidebar() {
   );
 
   function handleBack() {
+    // From the editor, step back to the project's main page first — the
+    // user's mental model is "editor → project → dashboard", not "editor →
+    // dashboard". From any non-editor project sub-page, drop the active
+    // project and head to the dashboard.
+    if (pathname.startsWith("/editor/") && activeProjectId) {
+      router.push(`/projects/${activeProjectId}`);
+      return;
+    }
     setActiveProjectId(null);
     router.push("/dashboard");
   }
