@@ -1,0 +1,201 @@
+"use client";
+
+import { useQuery } from "convex/react";
+import { motion } from "framer-motion";
+import { ArrowLeft, FileQuestion, LayoutDashboard } from "lucide-react";
+import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
+import { useCallback, useEffect, useRef } from "react";
+import { toast } from "sonner";
+import { useShallow } from "zustand/react/shallow";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { EditorLayout } from "@/features/editor/components/editor-layout";
+import { PublishHistoryPanel } from "@/features/editor/components/publish-history-panel";
+import { useAutosave } from "@/hooks/use-autosave";
+import { useSaveShortcut } from "@/hooks/use-save-shortcut";
+import { fadeSlideUp, smoothTransition } from "@/lib/motion";
+import { cn } from "@/lib/utils";
+import { useEditorStore } from "@/stores/editor-store";
+import { api } from "../../../convex/_generated/api";
+import type { Id } from "../../../convex/_generated/dataModel";
+
+export function EditorPage() {
+  const params = useParams();
+  const documentId = params["documentId"] as string;
+
+  const document = useQuery(api.cms.documents.get, {
+    documentId: documentId as Id<"documents">,
+  });
+  const project = useQuery(
+    api.cms.projects.get,
+    document ? { projectId: document.projectId } : "skip",
+  );
+
+  const { content, title, isDirty, initDocument, reset } = useEditorStore(
+    useShallow((state) => ({
+      content: state.content,
+      title: state.title,
+      isDirty: state.isDirty,
+      initDocument: state.initDocument,
+      reset: state.reset,
+    })),
+  );
+
+  const hasInitialized = useRef(false);
+  /** Track which documentId we initialised for, so we re-init on navigation. */
+  const initializedDocId = useRef<string | null>(null);
+
+  // Initialize the editor store when document loads — uses a single atomic
+  // update that does NOT mark the store dirty, preventing spurious autosaves.
+  useEffect(() => {
+    if (
+      document &&
+      (!hasInitialized.current || initializedDocId.current !== documentId)
+    ) {
+      hasInitialized.current = true;
+      initializedDocId.current = documentId;
+      initDocument(
+        document.title,
+        document.content,
+        document.projectId as string,
+      );
+    }
+  }, [document, documentId, initDocument]);
+
+  // Reset store on unmount
+  useEffect(() => {
+    return () => {
+      reset();
+      hasInitialized.current = false;
+      initializedDocId.current = null;
+    };
+  }, [reset]);
+
+  // Update store if document changes externally (and user hasn't made edits).
+  // Uses atomic initDocument to avoid marking dirty between setTitle/setContent.
+  useEffect(() => {
+    if (document && hasInitialized.current && !isDirty) {
+      if (document.content !== content || document.title !== title) {
+        initDocument(
+          document.title,
+          document.content,
+          document.projectId as string,
+        );
+      }
+    }
+  }, [document, isDirty, content, title, initDocument]);
+
+  // Wire up autosave. `autoSaveEnabled` is per-project, defaults to true
+  // when the field is absent on the document/project.
+  const autoSaveEnabled = project?.autoSaveEnabled ?? true;
+  const { saveNow } = useAutosave({
+    documentId,
+    content,
+    title,
+    enabled: autoSaveEnabled,
+  });
+
+  // Manual save via Cmd/Ctrl+S — works regardless of auto-save setting so
+  // authors who disable auto-save still have a fast keyboard path.
+  const handleManualSave = useCallback(() => {
+    if (!useEditorStore.getState().isDirty) {
+      toast.info("Nothing to save", { id: "manual-save" });
+      return;
+    }
+    void saveNow()
+      .then(() => {
+        toast.success("Saved", { id: "manual-save", duration: 1500 });
+      })
+      .catch(() => {
+        // useAutosave already surfaces persistent failures; this toast covers
+        // the immediate one-off case so the user gets feedback right away.
+        toast.error("Save failed", { id: "manual-save" });
+      });
+  }, [saveNow]);
+  useSaveShortcut(handleManualSave);
+
+  const historyPanelOpen = useEditorStore((s) => s.historyPanelOpen);
+  const toggleHistoryPanel = useEditorStore((s) => s.toggleHistoryPanel);
+
+  if (document === undefined || project === undefined) {
+    return (
+      <div className="flex h-full flex-col gap-4 p-6">
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-8 w-64" />
+          <div className="ml-auto flex gap-2">
+            <Skeleton className="h-8 w-20" />
+            <Skeleton className="h-8 w-20" />
+          </div>
+        </div>
+        <Skeleton className="h-10 w-full" />
+        <Skeleton className="flex-1 w-full" />
+      </div>
+    );
+  }
+
+  if (document === null || project === null) {
+    return <DocumentNotFound />;
+  }
+
+  return (
+    <div className="relative h-full overflow-hidden">
+      <EditorLayout
+        documentId={documentId}
+        projectId={document.projectId as string}
+      />
+      <PublishHistoryPanel
+        documentId={documentId}
+        open={historyPanelOpen}
+        onClose={toggleHistoryPanel}
+      />
+    </div>
+  );
+}
+
+/**
+ * Friendly not-found state shown when the document or its parent project
+ * no longer exists (e.g. deleted, bad URL).
+ */
+function DocumentNotFound() {
+  const router = useRouter();
+
+  return (
+    <div className="flex h-full items-center justify-center p-6">
+      <motion.div
+        variants={fadeSlideUp}
+        initial="initial"
+        animate="animate"
+        transition={smoothTransition}
+        className="mx-auto max-w-sm text-center"
+      >
+        <div className="mx-auto mb-5 flex size-16 items-center justify-center rounded-2xl bg-muted/60">
+          <FileQuestion className="size-8 text-muted-foreground" />
+        </div>
+
+        <h2 className="mb-2 text-xl font-bold tracking-tight text-foreground">
+          Document not found
+        </h2>
+        <p className="mb-6 text-sm text-muted-foreground">
+          This document doesn&apos;t exist or may have been deleted. Check the
+          URL or head back to your projects.
+        </p>
+
+        <div className="flex items-center justify-center gap-3">
+          <Button
+            variant="outline"
+            onClick={() => router.back()}
+            className="gap-2"
+          >
+            <ArrowLeft className="size-4" />
+            Go back
+          </Button>
+          <Link href="/dashboard" className={cn(buttonVariants(), "gap-2")}>
+            <LayoutDashboard className="size-4" />
+            Dashboard
+          </Link>
+        </div>
+      </motion.div>
+    </div>
+  );
+}

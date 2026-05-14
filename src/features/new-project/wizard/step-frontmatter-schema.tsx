@@ -9,7 +9,6 @@ import {
   Trash2,
 } from "lucide-react";
 import { useCallback, useMemo } from "react";
-import type { WizardState } from "@/app/(app)/projects/new/page";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import type { WizardState } from "@/features/new-project/new-project-page";
 import type { FrontmatterField } from "@/types/frontmatter";
 
 type StepFrontmatterSchemaProps = {

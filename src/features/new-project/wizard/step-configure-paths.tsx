@@ -13,13 +13,13 @@ import {
 } from "lucide-react";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
-import type {
-  MediaStorageMode,
-  WizardState,
-} from "@/app/(app)/projects/new/page";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import type {
+  MediaStorageMode,
+  WizardState,
+} from "@/features/new-project/new-project-page";
 import { useDetectFrontmatter } from "@/hooks/use-github";
 import { cn } from "@/lib/utils";
 import type { FrontmatterField } from "@/types/frontmatter";

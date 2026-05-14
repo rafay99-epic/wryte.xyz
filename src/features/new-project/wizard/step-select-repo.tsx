@@ -10,11 +10,11 @@ import {
   Settings2,
 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
-import type { WizardState } from "@/app/(app)/projects/new/page";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import type { WizardState } from "@/features/new-project/new-project-page";
 import { type RepoItem, useGithubRepos } from "@/hooks/use-github";
 import { generateSlug } from "@/lib/markdown";
 import { cn } from "@/lib/utils";
