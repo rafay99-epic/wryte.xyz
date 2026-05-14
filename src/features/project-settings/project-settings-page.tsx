@@ -559,7 +559,6 @@ function GeneralSection({
             onChange={setDefaultAuthorAvatar}
             projectId={projectId}
             placeholder="/author.webp"
-            withPreview
           />
         </FieldGroup>
 
