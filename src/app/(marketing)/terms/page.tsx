@@ -1,40 +1,15 @@
-"use client";
-
-import { motion, useInView } from "framer-motion";
 import { ArrowLeft, Scale } from "lucide-react";
+import type { Metadata } from "next";
 import Link from "next/link";
-import { useRef } from "react";
 import { BrandIcon } from "@/components/branding/brand-icon";
 import { MarketingThemeToggle } from "@/components/layout/marketing-theme-toggle";
+import { AnimatedSection as Section } from "@/features/marketing/components/animated-section";
 
-/* ------------------------------------------------------------------ */
-/*  Animated section wrapper — fades in when scrolled into view        */
-/* ------------------------------------------------------------------ */
-function Section({
-  children,
-  delay = 0,
-}: {
-  children: React.ReactNode;
-  delay?: number;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  const isInView = useInView(ref, { once: true, margin: "-60px" });
+export const metadata: Metadata = {
+  title: "Terms & Conditions — Wryte",
+  description: "The terms governing your use of Wryte.",
+};
 
-  return (
-    <motion.div
-      ref={ref}
-      initial={{ opacity: 0, y: 20 }}
-      animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
-      transition={{ duration: 0.6, delay, ease: [0.22, 1, 0.36, 1] }}
-    >
-      {children}
-    </motion.div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/*  Terms & Conditions                                                 */
-/* ------------------------------------------------------------------ */
 export default function TermsPage() {
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-background text-foreground">
@@ -54,12 +29,7 @@ export default function TermsPage() {
 
       <div className="relative z-10">
         {/* ── Header ─────────────────────────────────────────────── */}
-        <motion.header
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 1, delay: 0.2 }}
-          className="fixed top-0 right-0 left-0 z-50"
-        >
+        <header className="fixed top-0 right-0 left-0 z-50">
           <div className="mx-auto flex h-16 max-w-[1200px] items-center justify-between px-6">
             <Link href="/" className="flex items-center gap-2.5">
               <BrandIcon width={28} height={28} className="rounded-md" />
@@ -79,16 +49,11 @@ export default function TermsPage() {
               </Link>
             </div>
           </div>
-        </motion.header>
+        </header>
 
         {/* ── Hero ───────────────────────────────────────────────── */}
         <section className="flex flex-col items-center px-6 pt-32 pb-16">
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-            className="text-center"
-          >
+          <div className="text-center">
             <div className="mx-auto mb-6 flex size-14 items-center justify-center rounded-2xl border border-foreground/[0.15] dark:border-foreground/[0.06] bg-foreground/[0.02]">
               <Scale className="size-6 text-amber-400" />
             </div>
@@ -101,7 +66,7 @@ export default function TermsPage() {
             <p className="mt-4 text-[15px] text-foreground/65 dark:text-foreground/30">
               Last updated: April 9, 2026
             </p>
-          </motion.div>
+          </div>
         </section>
 
         {/* ── Divider ────────────────────────────────────────────── */}
