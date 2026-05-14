@@ -2,6 +2,7 @@
 
 import { useAction, useMutation, useQuery } from "convex/react";
 import { AnimatePresence, motion } from "framer-motion";
+import yaml from "js-yaml";
 import {
   AlertTriangle,
   BookText,
@@ -10,6 +11,7 @@ import {
   Eye,
   EyeOff,
   FileCode,
+  FileText,
   FolderTree,
   GitBranch,
   Globe,
@@ -81,7 +83,11 @@ import type { Doc, Id } from "../../../convex/_generated/dataModel";
 /* ------------------------------------------------------------------ */
 
 import type { AiProvider } from "@/types/ai";
-import type { FrontmatterField } from "@/types/frontmatter";
+import {
+  FIELD_TYPE_OPTIONS,
+  type FrontmatterField,
+  type FrontmatterFieldType,
+} from "@/types/frontmatter";
 import type { MediaStorageMode } from "@/types/media";
 
 type ProjectData = {
@@ -2103,9 +2109,13 @@ function FrontmatterSection({
 
   const [fields, setFields] = useState<FrontmatterField[]>(initialFields);
   const [isSaving, setIsSaving] = useState(false);
-  const [editorMode, setEditorMode] = useState<"visual" | "code">("visual");
+  const [editorMode, setEditorMode] = useState<"visual" | "code" | "yaml">(
+    "visual",
+  );
   const [codeValue, setCodeValue] = useState("");
   const [codeError, setCodeError] = useState<string | null>(null);
+  const [yamlValue, setYamlValue] = useState("");
+  const [yamlError, setYamlError] = useState<string | null>(null);
 
   useEffect(() => {
     setFields(initialFields);
@@ -2118,6 +2128,22 @@ function FrontmatterSection({
       setCodeError(null);
     }
   }, [editorMode, fields]); // intentionally only on mode switch
+
+  // Sync YAML editor when switching to yaml mode. The YAML view is a
+  // condensed `name: type` representation that mirrors how a field would
+  // look in actual markdown frontmatter — lossy (drops required/default/
+  // options/etc.) but the round trip preserves those props for any field
+  // whose name still exists after the YAML edit.
+  useEffect(() => {
+    if (editorMode === "yaml") {
+      const lines = fields
+        .filter((f) => f.name.trim())
+        .map((f) => `${f.name}: ${f.type}`)
+        .join("\n");
+      setYamlValue(`---\n${lines}\n---`);
+      setYamlError(null);
+    }
+  }, [editorMode, fields]);
 
   // Parse code editor changes
   const handleCodeChange = useCallback((value: string) => {
@@ -2140,6 +2166,65 @@ function FrontmatterSection({
       setCodeError(err instanceof SyntaxError ? err.message : "Invalid JSON");
     }
   }, []);
+
+  // Parse YAML editor changes. Each YAML entry is `name: type`; we merge
+  // the result with the existing fields so a user who only retypes the
+  // YAML view doesn't lose props (required/defaultValue/options/etc.)
+  // they configured in Visual mode for fields whose names are unchanged.
+  const handleYamlChange = useCallback(
+    (value: string) => {
+      setYamlValue(value);
+      const body = value
+        .split("\n")
+        .filter((line) => line.trim() !== "---")
+        .join("\n");
+      let parsed: unknown;
+      try {
+        parsed = yaml.load(body);
+      } catch (err) {
+        setYamlError(
+          err instanceof yaml.YAMLException ? err.message : "Invalid YAML",
+        );
+        return;
+      }
+      if (
+        parsed == null ||
+        typeof parsed !== "object" ||
+        Array.isArray(parsed)
+      ) {
+        setYamlError("Schema must be a mapping of `name: type` pairs");
+        return;
+      }
+      const entries = Object.entries(parsed as Record<string, unknown>);
+      const invalidType = entries.find(
+        ([, v]) =>
+          typeof v !== "string" ||
+          !FIELD_TYPE_OPTIONS.some((opt) => opt.value === v),
+      );
+      if (invalidType) {
+        setYamlError(
+          `Unknown type for "${invalidType[0]}". Valid types: ${FIELD_TYPE_OPTIONS.map((o) => o.value).join(", ")}`,
+        );
+        return;
+      }
+      const existingByName = new Map(fields.map((f) => [f.name, f]));
+      const nextFields: FrontmatterField[] = entries.map(([name, type]) => {
+        const existing = existingByName.get(name);
+        const fieldType = type as FrontmatterFieldType;
+        if (existing) return { ...existing, type: fieldType };
+        return {
+          name,
+          type: fieldType,
+          required: false,
+          defaultValue: "",
+          options: "",
+        };
+      });
+      setYamlError(null);
+      setFields(nextFields);
+    },
+    [fields],
+  );
 
   const addField = useCallback(() => {
     setFields((prev) => [
@@ -2198,6 +2283,10 @@ function FrontmatterSection({
       toast.error("Fix JSON errors before saving");
       return;
     }
+    if (editorMode === "yaml" && yamlError) {
+      toast.error("Fix YAML errors before saving");
+      return;
+    }
     const invalidField = fields.find((f) => !f.name.trim());
     if (invalidField) {
       toast.error("All fields must have a name");
@@ -2215,7 +2304,7 @@ function FrontmatterSection({
     } finally {
       setIsSaving(false);
     }
-  }, [fields, projectId, updateProject, editorMode, codeError]);
+  }, [fields, projectId, updateProject, editorMode, codeError, yamlError]);
 
   const yamlPreview = useMemo(() => {
     const lines = fields
@@ -2258,6 +2347,19 @@ function FrontmatterSection({
             </button>
             <button
               type="button"
+              onClick={() => setEditorMode("yaml")}
+              className={cn(
+                "rounded-md px-3 py-1 text-xs font-medium transition-colors",
+                editorMode === "yaml"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <FileText className="mr-1.5 inline-block size-3" />
+              YAML
+            </button>
+            <button
+              type="button"
               onClick={() => setEditorMode("code")}
               className={cn(
                 "rounded-md px-3 py-1 text-xs font-medium transition-colors",
@@ -2267,13 +2369,15 @@ function FrontmatterSection({
               )}
             >
               <Code2 className="mr-1.5 inline-block size-3" />
-              Code
+              JSON
             </button>
           </div>
           <span className="text-[11px] text-muted-foreground/60">
             {editorMode === "code"
               ? "Edit schema as JSON — supports all field properties"
-              : `${fields.length} field${fields.length !== 1 ? "s" : ""} defined`}
+              : editorMode === "yaml"
+                ? "Edit schema as YAML — `name: type` pairs, like real frontmatter"
+                : `${fields.length} field${fields.length !== 1 ? "s" : ""} defined`}
           </span>
           {hasAnyDefaults && editorMode === "visual" ? (
             <button
@@ -2332,8 +2436,52 @@ function FrontmatterSection({
               </Button>
             </div>
           )
+        ) : editorMode === "yaml" ? (
+          // --- YAML editor ---
+          <div className="space-y-2">
+            <textarea
+              value={yamlValue}
+              onChange={(e) => handleYamlChange(e.target.value)}
+              spellCheck={false}
+              className={cn(
+                "w-full rounded-xl border bg-[#0d1117] p-4 font-mono text-xs leading-relaxed text-amber-200 outline-none transition-colors",
+                "focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30",
+                "placeholder:text-amber-900",
+                "min-h-[300px] resize-y",
+                yamlError &&
+                  "border-destructive focus-visible:ring-destructive/30",
+              )}
+              placeholder={`---\ntitle: string\ndescription: text\ndate: date\ntags: tags\ndraft: boolean\n---`}
+            />
+            {yamlError && (
+              <div className="flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+                <AlertTriangle className="mt-0.5 size-3 shrink-0" />
+                <span>{yamlError}</span>
+              </div>
+            )}
+            <div className="rounded-lg border bg-muted/20 px-3 py-2 text-[11px] text-muted-foreground">
+              <p className="font-medium">YAML schema format:</p>
+              <p className="mt-1">
+                One <code className="rounded bg-muted/60 px-1">name: type</code>{" "}
+                pair per line, optionally wrapped in{" "}
+                <code className="rounded bg-muted/60 px-1">---</code> fences so
+                it looks just like real markdown frontmatter. Field order is
+                preserved.
+              </p>
+              <p className="mt-2 font-medium">Valid types:</p>
+              <p className="mt-1 font-mono">
+                string · text · url · image · slug · number · date · datetime ·
+                boolean · tags · list · select · multiselect · color · json
+              </p>
+              <p className="mt-2 text-muted-foreground/70">
+                YAML mode only edits name + type. Required, default values,
+                options, and other per-field settings stay where you left them
+                in Visual mode; switch back there to edit those.
+              </p>
+            </div>
+          </div>
         ) : (
-          // --- Code editor ---
+          // --- Code editor (JSON) ---
           <div className="space-y-2">
             <textarea
               value={codeValue}
