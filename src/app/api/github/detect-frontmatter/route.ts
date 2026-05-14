@@ -186,7 +186,13 @@ export async function POST(request: Request) {
           name,
           type: inferFieldType(value, name),
           required: true,
-          defaultValue: value != null ? String(value) : "",
+          // Auto-detect inspects ONE existing post to learn the schema's
+          // shape; the actual values are per-post content. Copying them
+          // into defaultValue used to leak that post's excerpt/keywords/
+          // hero image into every subsequent post created from the
+          // schema. Defaults are now a user-set field in the schema
+          // editor, not a side effect of detection.
+          defaultValue: "",
           options: "",
         }));
 
@@ -276,13 +282,15 @@ export async function POST(request: Request) {
 
     // Step 5: Convert each frontmatter key into a typed field definition.
     // All detected fields default to required; the user can adjust in the UI.
+    // defaultValue is intentionally empty — see the comment in the single-
+    // file branch above for why we don't copy the sampled post's values.
     const fields: FrontmatterField[] = Object.entries(
       frontmatter as Record<string, unknown>,
     ).map(([name, value]) => ({
       name,
       type: inferFieldType(value, name),
       required: true,
-      defaultValue: value != null ? String(value) : "",
+      defaultValue: "",
       options: "",
     }));
 
