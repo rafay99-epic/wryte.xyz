@@ -97,21 +97,27 @@ export function inferFieldType(
     if (/^#[0-9a-fA-F]{3,8}$/.test(value)) {
       return "color";
     }
-    // URLs
-    if (/^https?:\/\//i.test(value)) {
-      return "url";
-    }
-    // Image paths (common extensions or key name hints)
+    // Image paths first — a key named heroImage / authorAvatar / cover
+    // should be typed "image" even when the value is a full URL like
+    // "https://cdn.example.com/hero.jpg". Without this ordering the URL
+    // check below would steal the field and downstream code would render
+    // a plain URL input instead of the media picker.
     const lowerKey = key?.toLowerCase() ?? "";
-    if (
+    const keyHintsImage =
       lowerKey.includes("image") ||
       lowerKey.includes("avatar") ||
       lowerKey.includes("cover") ||
       lowerKey.includes("thumbnail") ||
       lowerKey.includes("hero") ||
-      /\.(jpe?g|png|gif|webp|svg|avif)$/i.test(value)
-    ) {
+      lowerKey.includes("photo") ||
+      lowerKey.includes("picture") ||
+      lowerKey.endsWith("pic");
+    if (keyHintsImage || /\.(jpe?g|png|gif|webp|svg|avif)$/i.test(value)) {
       return "image";
+    }
+    // URLs (after image-specific URLs have been claimed)
+    if (/^https?:\/\//i.test(value)) {
+      return "url";
     }
     // Slug-like keys
     if (lowerKey === "slug" || lowerKey === "permalink") {
