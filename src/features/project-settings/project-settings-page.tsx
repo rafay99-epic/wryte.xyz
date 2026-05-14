@@ -37,6 +37,7 @@ import {
 } from "react";
 import { toast } from "sonner";
 import { CompressionSettingsForm } from "@/components/forms/compression-settings-form";
+import { MediaPickerInput } from "@/components/forms/media-picker-input";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -99,6 +100,7 @@ type ProjectData = {
   deployHookUrl?: string;
   frontmatterFormat?: "yaml" | "toml";
   defaultAuthor?: string;
+  defaultAuthorAvatar?: string;
   aiProvider?: AiProvider;
   aiModel?: string;
   timezone?: string;
@@ -424,18 +426,28 @@ function GeneralSection({
   const [defaultAuthor, setDefaultAuthor] = useState(
     project.defaultAuthor ?? "",
   );
+  const [defaultAuthorAvatar, setDefaultAuthorAvatar] = useState(
+    project.defaultAuthorAvatar ?? "",
+  );
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     setName(project.name);
     setSiteUrl(project.siteUrl ?? "");
     setDefaultAuthor(project.defaultAuthor ?? "");
-  }, [project.name, project.siteUrl, project.defaultAuthor]);
+    setDefaultAuthorAvatar(project.defaultAuthorAvatar ?? "");
+  }, [
+    project.name,
+    project.siteUrl,
+    project.defaultAuthor,
+    project.defaultAuthorAvatar,
+  ]);
 
   const hasChanges =
     name.trim() !== project.name ||
     siteUrl.trim() !== (project.siteUrl ?? "") ||
-    defaultAuthor.trim() !== (project.defaultAuthor ?? "");
+    defaultAuthor.trim() !== (project.defaultAuthor ?? "") ||
+    defaultAuthorAvatar.trim() !== (project.defaultAuthorAvatar ?? "");
 
   const handleSave = useCallback(async () => {
     const trimmed = name.trim();
@@ -451,6 +463,8 @@ function GeneralSection({
       };
       if (siteUrl.trim()) args.siteUrl = siteUrl.trim();
       if (defaultAuthor.trim()) args.defaultAuthor = defaultAuthor.trim();
+      if (defaultAuthorAvatar.trim())
+        args.defaultAuthorAvatar = defaultAuthorAvatar.trim();
       await updateProject(args);
       toast.success("Settings saved");
     } catch {
@@ -458,7 +472,14 @@ function GeneralSection({
     } finally {
       setIsSaving(false);
     }
-  }, [name, siteUrl, defaultAuthor, projectId, updateProject]);
+  }, [
+    name,
+    siteUrl,
+    defaultAuthor,
+    defaultAuthorAvatar,
+    projectId,
+    updateProject,
+  ]);
 
   return (
     <motion.div variants={staggerContainer} initial="initial" animate="animate">
@@ -520,6 +541,21 @@ function GeneralSection({
             </div>
           </FieldGroup>
         </div>
+
+        <FieldGroup
+          label="Default Author Avatar"
+          htmlFor="s-author-avatar"
+          hint="Pre-fills the authorAvatar frontmatter field for new posts. Pick from your media library or paste a URL."
+        >
+          <MediaPickerInput
+            id="s-author-avatar"
+            value={defaultAuthorAvatar}
+            onChange={setDefaultAuthorAvatar}
+            projectId={projectId}
+            placeholder="/author.webp"
+            withPreview
+          />
+        </FieldGroup>
 
         <div className="flex items-center justify-between pt-2">
           <p className="text-[11px] text-muted-foreground/50">

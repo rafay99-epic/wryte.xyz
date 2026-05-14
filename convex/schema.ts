@@ -97,8 +97,14 @@ export default defineSchema({
     frontmatterFormat: v.optional(
       v.union(v.literal("yaml"), v.literal("toml")),
     ),
-    /** Default author name injected into frontmatter */
+    /** Default author name injected into frontmatter for new posts. */
     defaultAuthor: v.optional(v.string()),
+    /**
+     * Default author avatar URL or media path injected into frontmatter for
+     * new posts. Paired with `defaultAuthor` so the editor doesn't have to
+     * re-derive these from the most-recently-detected post on every create.
+     */
+    defaultAuthorAvatar: v.optional(v.string()),
     /** JSON-serialized BoardColumnDef[] for custom kanban columns */
     boardColumns: v.optional(v.string()),
     /** AI provider for content enhancement: "anthropic" | "openai" | "openrouter" */
