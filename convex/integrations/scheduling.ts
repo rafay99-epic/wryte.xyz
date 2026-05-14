@@ -57,10 +57,12 @@ export const scheduledPublishWorkflow = publishWorkflowManager.define({
     // Step 2: Publish to GitHub. The action resolves the GitHub token
     // server-side at fire-time (Clerk OAuth → vault PAT → legacy plaintext),
     // so workflows fire correctly regardless of how long after scheduling
-    // they wake up.
+    // they wake up. publishedAtMs is the user's *intended* publish time —
+    // we pass it so the resulting frontmatter's pubDate reflects the time
+    // the user picked, not the (often few-second-later) workflow fire time.
     await step.runAction(
       internal.integrations.github.publishToGithub,
-      { documentId: args.documentId },
+      { documentId: args.documentId, publishedAtMs: args.scheduledAt },
       {
         retry: {
           maxAttempts: 3,

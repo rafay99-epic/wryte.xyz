@@ -77,6 +77,45 @@ function buildMarkdownFile(
 }
 
 /**
+ * Field names a project may use for the publish date. Order matters — the
+ * first match wins, so `pubDate` is preferred over the generic `date`. Mirrors
+ * the lookup in `src/lib/build-initial-frontmatter.ts` so the editor and the
+ * publish action stay in sync.
+ */
+const PUB_DATE_FIELD_CANDIDATES = ["pubDate", "publishDate", "date"] as const;
+
+/**
+ * Finds the publish-date field in a project's frontmatter schema, if any.
+ * Returns the field's `name` (which becomes the YAML key) and `type` (so the
+ * caller can format the value as YYYY-MM-DD vs full ISO datetime). Returns
+ * null when the schema can't be parsed or has no matching field — in that
+ * case the publish action leaves whatever value the user already has.
+ */
+function findPubDateField(
+  schemaJson: string | null | undefined,
+): { name: string; type: "date" | "datetime" } | null {
+  if (!schemaJson) return null;
+  try {
+    const fields = JSON.parse(schemaJson) as Array<{
+      name: string;
+      type: string;
+    }>;
+    if (!Array.isArray(fields)) return null;
+    for (const candidate of PUB_DATE_FIELD_CANDIDATES) {
+      const match = fields.find(
+        (f) =>
+          f.name === candidate && (f.type === "date" || f.type === "datetime"),
+      );
+      if (match)
+        return { name: match.name, type: match.type as "date" | "datetime" };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Parses an "owner/repo" string into its two components.
  * Throws a descriptive error if the format is invalid, since this is a common
  * user-input mistake that would otherwise cause cryptic GitHub API errors.
@@ -268,6 +307,14 @@ async function resolveToken(
 export const publishToGithub = internalAction({
   args: {
     documentId: v.id("documents"),
+    /**
+     * Override the publish moment used to stamp the document's pubDate
+     * field. The scheduling workflow passes the user's `scheduledAt` here
+     * so the published frontmatter records when the user *wanted* the
+     * post live, not when the workflow happened to fire (which can drift
+     * a few seconds). When omitted, "now" is used.
+     */
+    publishedAtMs: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const document = await ctx.runQuery(internal.cms.documents.internalGet, {
@@ -320,6 +367,22 @@ export const publishToGithub = internalAction({
         // If frontmatter JSON is invalid, use defaults only
       }
     }
+
+    // The user's frontmatter spread above wins by design, but two fields
+    // are publish-time side effects that must reflect *this* publish:
+    //   - the schema's pubDate field (whatever it's named) becomes the
+    //     publish moment so future-scheduled posts don't ship with the
+    //     date the author drafted them on
+    //   - draft flips to false because, well, we're publishing
+    const publishMoment = new Date(args.publishedAtMs ?? Date.now());
+    const pubDateField = findPubDateField(project.frontmatterSchema);
+    if (pubDateField) {
+      frontmatterData[pubDateField.name] =
+        pubDateField.type === "date"
+          ? publishMoment.toISOString().slice(0, 10)
+          : publishMoment.toISOString();
+    }
+    frontmatterData["draft"] = false;
 
     const fileContent = buildMarkdownFile(frontmatterData, document.content);
     const base64Content = Buffer.from(fileContent).toString("base64");
@@ -645,6 +708,17 @@ export const bulkPublish = action({
             // Use defaults
           }
         }
+
+        // Same pubDate/draft side-effect as the single-doc publish path.
+        const bulkPublishMoment = new Date();
+        const bulkPubDateField = findPubDateField(project.frontmatterSchema);
+        if (bulkPubDateField) {
+          frontmatterData[bulkPubDateField.name] =
+            bulkPubDateField.type === "date"
+              ? bulkPublishMoment.toISOString().slice(0, 10)
+              : bulkPublishMoment.toISOString();
+        }
+        frontmatterData["draft"] = false;
 
         const fileContent = buildMarkdownFile(frontmatterData, doc.content);
 
