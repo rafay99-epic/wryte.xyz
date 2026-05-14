@@ -4,8 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "concurrently -n NEXT,CONVEX -c blue,green \"next dev\" \"convex dev\"",
+    "dev:local": "concurrently -n NEXT,CONVEX -c blue,green \"next dev\" \"convex dev --local\"",
     "dev:next": "next dev",
     "dev:convex": "convex dev",
+    "dev:convex:local": "convex dev --local",
     "build": "next build",
     "start": "next start",
     "lint": "biome check",
