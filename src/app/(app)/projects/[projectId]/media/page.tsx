@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { usePendingDeletes } from "@/features/media-library/hooks/use-pending-deletes";
 import { useGithubInvalidation, useGithubMedia } from "@/hooks/use-github";
 import { useImageCompression } from "@/hooks/use-image-compression";
 import {
@@ -83,32 +84,14 @@ export default function MediaPage() {
   const [deleteTarget, setDeleteTarget] = useState<UnifiedMediaItem | null>(
     null,
   );
-  /**
-   * Items whose delete has been confirmed but not yet reflected in `items`.
-   * We hide them optimistically so the exit animation runs the moment the
-   * user clicks Delete instead of after the network round-trip. Cleared on
-   * the next `refresh()` once the server confirms.
-   */
-  const [pendingDeletes, setPendingDeletes] = useState<Set<string>>(
-    () => new Set(),
-  );
-
-  const markPendingDelete = useCallback((externalId: string) => {
-    setPendingDeletes((prev) => {
-      const next = new Set(prev);
-      next.add(externalId);
-      return next;
-    });
-  }, []);
-
-  const restorePendingDelete = useCallback((externalId: string) => {
-    setPendingDeletes((prev) => {
-      if (!prev.has(externalId)) return prev;
-      const next = new Set(prev);
-      next.delete(externalId);
-      return next;
-    });
-  }, []);
+  // Pessimistic delete state — exit animation runs on click rather than
+  // after the network round-trip. See `usePendingDeletes` for the rules.
+  const {
+    pendingDeletes,
+    markPendingDelete,
+    restorePendingDelete,
+    pruneAgainst,
+  } = usePendingDeletes();
 
   // Determine the active provider. Treat the legacy "external" value as github.
   const provider: ActiveProvider = useMemo(() => {
@@ -275,19 +258,8 @@ export default function MediaPage() {
   // deletes that the server has confirmed away can be dropped.
   useEffect(() => {
     if (pendingDeletes.size === 0) return;
-    const live = new Set(items.map((i) => i.externalId));
-    setPendingDeletes((prev) => {
-      let dirty = false;
-      const next = new Set(prev);
-      for (const id of prev) {
-        if (!live.has(id)) {
-          next.delete(id);
-          dirty = true;
-        }
-      }
-      return dirty ? next : prev;
-    });
-  }, [items, pendingDeletes.size]);
+    pruneAgainst(new Set(items.map((i) => i.externalId)));
+  }, [items, pendingDeletes.size, pruneAgainst]);
 
   const refresh = useCallback(async () => {
     if (isGithub) {

@@ -23,6 +23,8 @@ import {
 import { CreateDocumentDialog } from "@/components/projects/create-document-dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useBulkDelete } from "@/features/content-dashboard/hooks/use-bulk-delete";
+import { useBulkImport } from "@/features/content-dashboard/hooks/use-bulk-import";
 import {
   type ContentFile,
   useGithubContentList,
@@ -316,32 +318,15 @@ export default function ProjectDetailPage() {
 
   // --- Auto-import + navigate for remote files ---
   const importFile = useAction(api.integrations.github.importFileFromGithub);
-  const startBulkImport = useAction(api.integrations.github.startBulkImport);
   const [importingPath, setImportingPath] = useState<string | null>(null);
 
-  // Bulk import progress is now driven by a reactive Convex query
-  // against `import_batches`. The workpool updates the row as each file
-  // finishes; the BulkImportDialog subscribes through this prop chain.
-  // `isStartingImport` is true between the click and the action returning
-  // a batchId (~1 round-trip) — the dialog shows a "Starting…" header
-  // during that window so the user sees something immediately.
-  const [batchId, setBatchId] = useState<Id<"import_batches"> | null>(null);
-  const [isStartingImport, setIsStartingImport] = useState(false);
-  const batch = useQuery(
-    api.cms.documents.getImportBatch,
-    batchId ? { batchId } : "skip",
-  ) as
-    | {
-        total: number;
-        succeeded: number;
-        failed: number;
-        errors?: Array<{ filePath: string; message: string }>;
-      }
-    | null
-    | undefined;
-  const handleBulkImportDone = useCallback(() => {
-    setBatchId(null);
-  }, []);
+  // Bulk import lifecycle — owns batchId, isStarting, reactive batch query.
+  const {
+    batch,
+    isStarting: isStartingImport,
+    start: startBulkImportFlow,
+    done: handleBulkImportDone,
+  } = useBulkImport(projectId);
 
   /**
    * Wraps the Convex `importFileFromGithub` action with automatic retries on
@@ -416,34 +401,10 @@ export default function ProjectDetailPage() {
     [projectId, importWithRetry, router],
   );
 
-  // --- Batch import for multi-select ---
-  /**
-   * Hands the whole list to the workpool-backed `startBulkImport` action,
-   * which enqueues one job per file and returns immediately with a
-   * batchId. The reactive `useQuery(getImportBatch, …)` above then ticks
-   * the progress UI file-by-file as each job finishes — no client-side
-   * polling, no rate-limit fragility.
-   */
+  // Bulk import handler — thin pass-through to the hook.
   const handleBatchImport = useCallback(
-    async (paths: string[]) => {
-      if (paths.length === 0) return;
-      setIsStartingImport(true);
-      try {
-        const { batchId: newBatchId } = (await startBulkImport({
-          projectId,
-          filePaths: paths,
-        })) as { batchId: Id<"import_batches"> };
-        setBatchId(newBatchId);
-      } catch (err) {
-        toast.error(
-          err instanceof Error ? err.message : "Failed to start import",
-        );
-        throw err;
-      } finally {
-        setIsStartingImport(false);
-      }
-    },
-    [projectId, startBulkImport],
+    (paths: string[]) => startBulkImportFlow(paths),
+    [startBulkImportFlow],
   );
 
   // --- Bulk publish handler ---
@@ -497,108 +458,20 @@ export default function ProjectDetailPage() {
   );
 
   // --- Bulk delete ---
-  // Same shape as bulk import: the dialog is the source of truth for
-  // progress + completion, so the parent's only job is to thread the
-  // reactive batch state and surface a `isStartingDelete` flag for the
-  // brief window between the user confirming and the workpool getting
-  // its jobs.
-  const startBulkDelete = useAction(api.integrations.github.startBulkDelete);
-  const [deleteBatchId, setDeleteBatchId] =
-    useState<Id<"delete_batches"> | null>(null);
-  const [isStartingDelete, setIsStartingDelete] = useState(false);
-  const deleteBatch = useQuery(
-    api.cms.documents.getDeleteBatch,
-    deleteBatchId ? { batchId: deleteBatchId } : "skip",
-  ) as
-    | {
-        total: number;
-        succeeded: number;
-        failed: number;
-        errors?: Array<{ label: string; message: string }>;
-      }
-    | null
-    | undefined;
-
-  const handleBulkDeleteDone = useCallback(() => {
-    setDeleteBatchId(null);
-    // Remote file list might be stale after a github/both delete; refresh
-    // when the user dismisses the dialog so re-opening shows current state.
-    void fetchRemoteFiles();
-  }, [fetchRemoteFiles]);
-
-  const handleBulkDelete = useCallback(
-    async (selection: {
-      mode: "local" | "github" | "both";
-      localIds: string[];
-      remotePaths: string[];
-    }) => {
-      // Resolve raw IDs/paths into the item shape `startBulkDelete` expects.
-      // The local-doc lookup pulls `githubPath`/`githubSha` from the local
-      // documents query so the workpool job has everything it needs without
-      // a follow-up DB read.
-      const docMap = new Map((documents ?? []).map((d) => [d._id, d]));
-      const fileMap = new Map(remoteFiles.map((f) => [f.path, f]));
-
-      const items: Array<{
-        documentId?: Id<"documents">;
-        filePath?: string;
-        githubSha?: string;
-        label: string;
-      }> = [];
-
-      for (const id of selection.localIds) {
-        const doc = docMap.get(id as Id<"documents">);
-        if (!doc) continue;
-        const entry: {
-          documentId?: Id<"documents">;
-          filePath?: string;
-          githubSha?: string;
-          label: string;
-        } = {
-          documentId: doc._id,
-          label: doc.title || doc.slug || id,
-        };
-        if (doc.githubPath) entry.filePath = doc.githubPath;
-        if (doc.githubSha) entry.githubSha = doc.githubSha;
-        items.push(entry);
-      }
-
-      for (const path of selection.remotePaths) {
-        const file = fileMap.get(path);
-        if (!file) continue;
-        items.push({
-          filePath: file.path,
-          githubSha: file.sha,
-          label: file.name || file.path,
-        });
-      }
-
-      if (items.length === 0) {
-        toast.error("Nothing to delete");
-        return;
-      }
-
-      setIsStartingDelete(true);
-      try {
-        const { batchId: newBatchId } = (await startBulkDelete({
-          projectId,
-          mode: selection.mode,
-          items,
-        })) as { batchId: Id<"delete_batches"> };
-        setDeleteBatchId(newBatchId);
-      } catch (err) {
-        toast.error(
-          err instanceof Error ? err.message : "Failed to start delete",
-        );
-        // Re-throw so the dashboard's confirm handler can keep the
-        // confirm phase open and the user can retry without re-picking.
-        throw err;
-      } finally {
-        setIsStartingDelete(false);
-      }
-    },
-    [projectId, documents, remoteFiles, startBulkDelete],
-  );
+  // Same shape as bulk import: dialog owns progress UI; parent threads
+  // the reactive batch state through. Hook also re-runs the remote file
+  // refresh in `done` because a github/both delete makes that list stale.
+  const {
+    batch: deleteBatch,
+    isStarting: isStartingDelete,
+    start: handleBulkDelete,
+    done: handleBulkDeleteDone,
+  } = useBulkDelete({
+    projectId,
+    documents,
+    remoteFiles,
+    onDone: fetchRemoteFiles,
+  });
 
   // --- Delete handlers ---
   const handleDeleteLocal = useCallback(
