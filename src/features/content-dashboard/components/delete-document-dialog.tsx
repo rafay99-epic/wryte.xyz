@@ -29,6 +29,12 @@ type DeleteDocumentDialogProps = {
   projectId: Id<"projects">;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /**
+   * Fired after a successful delete (any mode). Lets callers running
+   * inside the editor route navigate away before the reactive `get`
+   * query returns null and renders the 404 state.
+   */
+  onDeleted?: () => void;
 };
 
 export function DeleteDocumentDialog({
@@ -36,6 +42,7 @@ export function DeleteDocumentDialog({
   projectId,
   open,
   onOpenChange,
+  onDeleted,
 }: DeleteDocumentDialogProps) {
   const removeDocument = useMutation(api.cms.documents.remove);
   const deleteFromGithub = useAction(
@@ -68,11 +75,12 @@ export function DeleteDocumentDialog({
       }
 
       const messages: Record<string, string> = {
-        local: "Local copy deleted",
+        local: "Moved to trash",
         github: "Deleted from GitHub",
-        both: "Deleted from both local and GitHub",
+        both: "Moved to trash and deleted from GitHub",
       };
       toast.success(messages[deleteMode]);
+      onDeleted?.();
       onOpenChange(false);
     } catch {
       toast.error("Failed to delete document");
@@ -85,6 +93,7 @@ export function DeleteDocumentDialog({
     projectId,
     removeDocument,
     deleteFromGithub,
+    onDeleted,
     onOpenChange,
   ]);
 

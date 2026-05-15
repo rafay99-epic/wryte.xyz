@@ -290,6 +290,12 @@ export const update = mutation({
     compressionSettings: v.optional(
       v.union(compressionSettingsValidator, v.null()),
     ),
+    /**
+     * How many days soft-deleted docs sit in trash before the daily
+     * cleanup cron hard-deletes them. Setting to a very large number
+     * (e.g. 36500 for "100 years") is the UX for "Never auto-cleanup".
+     */
+    trashRetentionDays: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const key = await getRateLimitKey(ctx);

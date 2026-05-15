@@ -50,9 +50,15 @@ type UseBulkDeleteOptions = {
 };
 
 /**
- * Bulk-delete lifecycle as a single hook. Mirrors `useBulkImport` but
- * resolves raw IDs/paths into the workpool's full `items` shape using
- * the caller's `documents` and `remoteFiles` lookups.
+ * Bulk-delete lifecycle as a single hook. Two paths:
+ *
+ *  - **mode === "local"** — server returns `{ batchId: null,
+ *    inlineSummary }`. We feed `inlineSummary` directly into `batch`
+ *    state so the completion dialog renders immediately. No workpool
+ *    subscription.
+ *  - **mode includes github** — server returns `{ batchId }`. We
+ *    subscribe to `getDeleteBatch` and the dialog drives off the
+ *    reactive row.
  */
 export function useBulkDelete({
   projectId,
@@ -62,9 +68,12 @@ export function useBulkDelete({
 }: UseBulkDeleteOptions): UseBulkDeleteReturn {
   const startBulkDelete = useAction(api.integrations.github.startBulkDelete);
   const [batchId, setBatchId] = useState<Id<"delete_batches"> | null>(null);
+  const [inlineBatch, setInlineBatch] = useState<BulkDeleteBatchState | null>(
+    null,
+  );
   const [isStarting, setIsStarting] = useState(false);
 
-  const batch = useQuery(
+  const reactiveBatch = useQuery(
     api.cms.documents.getDeleteBatch,
     batchId ? { batchId } : "skip",
   );
@@ -115,12 +124,23 @@ export function useBulkDelete({
 
       setIsStarting(true);
       try {
-        const { batchId: newBatchId } = await startBulkDelete({
+        const result = await startBulkDelete({
           projectId,
           mode: selection.mode,
           items,
         });
-        setBatchId(newBatchId);
+        if (result.batchId) {
+          setBatchId(result.batchId);
+          setInlineBatch(null);
+        } else if (result.inlineSummary) {
+          setBatchId(null);
+          setInlineBatch(result.inlineSummary);
+          if (result.inlineSummary.succeeded > 0) {
+            toast.success(
+              `Moved ${result.inlineSummary.succeeded} ${result.inlineSummary.succeeded === 1 ? "item" : "items"} to trash.`,
+            );
+          }
+        }
       } catch (err) {
         toast.error(
           err instanceof Error ? err.message : "Failed to start delete",
@@ -135,11 +155,18 @@ export function useBulkDelete({
 
   const done = useCallback(() => {
     setBatchId(null);
+    setInlineBatch(null);
     void onDone?.();
   }, [onDone]);
 
+  // The dialog accepts either source — when batchId is set we hand
+  // back the reactive row; otherwise the inline summary if present.
+  const batch: BulkDeleteBatchState | null | undefined = batchId
+    ? (reactiveBatch as BulkDeleteBatchState | null | undefined)
+    : inlineBatch;
+
   return {
-    batch: batch as BulkDeleteBatchState | null | undefined,
+    batch,
     isStarting,
     batchId,
     start,

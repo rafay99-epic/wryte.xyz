@@ -140,6 +140,13 @@ export default defineSchema({
      * absent, the built-in defaults apply.
      */
     compressionSettings: v.optional(compressionSettingsValidator),
+    /**
+     * How many days a soft-deleted document lingers in the project trash
+     * before the cleanup cron hard-deletes it. Absent → 30 (the default
+     * is read-side; we don't backfill). Set to a very large number to
+     * effectively disable auto-cleanup ("Never").
+     */
+    trashRetentionDays: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   }).index("by_userId", ["userId"]),
@@ -166,6 +173,14 @@ export default defineSchema({
     githubPath: v.optional(v.string()),
     githubSha: v.optional(v.string()),
     githubSyncedAt: v.optional(v.number()),
+    /**
+     * Soft-delete timestamp. When set, the document is in the project
+     * trash — hidden from every user-facing query but retrievable until a
+     * daily cleanup cron hard-deletes it after the project's
+     * `trashRetentionDays`. Reuse `_lib/trash:isTrashed` instead of
+     * comparing this field inline so the convention stays consistent.
+     */
+    trashedAt: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -178,7 +193,11 @@ export default defineSchema({
     // every document in the project to find a single match — a full
     // table scan per imported file. With the index it's an O(log n)
     // `.unique()` lookup.
-    .index("by_projectId_and_githubPath", ["projectId", "githubPath"]),
+    .index("by_projectId_and_githubPath", ["projectId", "githubPath"])
+    // Powers the trash list view and the daily cleanup cron. Filtering
+    // `trashedAt` server-side on the indexed range avoids a full project
+    // scan for projects with thousands of active docs.
+    .index("by_projectId_and_trashedAt", ["projectId", "trashedAt"]),
 
   /**
    * Publish history table — tracks every publish to GitHub for a document.
@@ -447,6 +466,38 @@ export default defineSchema({
     errorMessage: v.optional(v.string()),
     createdAt: v.number(),
   }).index("by_batchId", ["batchId"]),
+
+  /**
+   * Sync conflicts — one row per file where the diff-before-enqueue logic
+   * in `startBulkImport` finds that GitHub's SHA has changed AND the local
+   * doc has been edited since the last sync. Both versions are snapshotted
+   * so the conflict UI shows a stable diff even if the user edits the
+   * Convex doc after the conflict is raised.
+   *
+   * Resolution mutations in `convex/cms/conflicts.ts` patch
+   * `documents.{content,frontmatter,githubSha,githubSyncedAt}` and mark
+   * the row resolved. Resolved rows are kept for audit, hidden by the
+   * `by_projectId_unresolved` index used by the banner / list queries.
+   */
+  sync_conflicts: defineTable({
+    projectId: v.id("projects"),
+    documentId: v.id("documents"),
+    userId: v.id("users"),
+    githubPath: v.string(),
+    remoteSha: v.string(),
+    remoteContent: v.string(),
+    remoteFrontmatter: v.optional(v.string()),
+    localContentSnapshot: v.string(),
+    localFrontmatterSnapshot: v.optional(v.string()),
+    detectedAt: v.number(),
+    resolvedAt: v.optional(v.number()),
+    resolution: v.optional(
+      v.union(v.literal("github"), v.literal("convex"), v.literal("merge")),
+    ),
+  })
+    .index("by_projectId", ["projectId"])
+    .index("by_documentId", ["documentId"])
+    .index("by_projectId_unresolved", ["projectId", "resolvedAt"]),
 
   /**
    * Scheduled publishes table — lightweight job queue for deferred publishing.

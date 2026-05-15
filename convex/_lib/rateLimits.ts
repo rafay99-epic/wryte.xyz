@@ -183,6 +183,34 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     rate: 10,
     period: MINUTE,
   },
+  /**
+   * Sync-conflict resolution. The user can plough through a stack of
+   * conflicts (use github / keep convex / merge), but each resolution
+   * is a deliberate click, not a loop — generous bucket keeps the UI
+   * responsive while protecting against runaway scripts.
+   */
+  "conflicts:resolve": {
+    kind: "token bucket",
+    rate: 60,
+    period: MINUTE,
+    capacity: 10,
+  },
+  "documents:restoreFromTrash": {
+    kind: "token bucket",
+    rate: 60,
+    period: MINUTE,
+    capacity: 10,
+  },
+  "documents:permanentDelete": {
+    kind: "fixed window",
+    rate: 30,
+    period: MINUTE,
+  },
+  "documents:emptyTrash": {
+    kind: "fixed window",
+    rate: 5,
+    period: HOUR,
+  },
 
   /* ------------------------------------------------------------------ */
   /*  Board columns                                                      */

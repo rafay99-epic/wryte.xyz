@@ -8,6 +8,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { useShallow } from "zustand/react/shallow";
+import { ConflictLockView } from "@/components/editor/conflict-lock-view";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EditorLayout } from "@/features/editor/components/editor-layout";
@@ -31,6 +32,13 @@ export function EditorPage() {
     api.cms.projects.get,
     document ? { projectId: document.projectId } : "skip",
   );
+  // Pending sync conflict (if any) for this document. While set, the
+  // editor renders a locked view and autosave is suppressed —
+  // `documents.update` also refuses to write, so a stale tab can't
+  // race past the lock.
+  const openConflict = useQuery(api.cms.conflicts.getOpenByDocument, {
+    documentId: documentId as Id<"documents">,
+  });
 
   const { content, title, isDirty, initDocument, reset } = useEditorStore(
     useShallow((state) => ({
@@ -87,8 +95,12 @@ export function EditorPage() {
   }, [document, isDirty, content, title, initDocument]);
 
   // Wire up autosave. `autoSaveEnabled` is per-project, defaults to true
-  // when the field is absent on the document/project.
-  const autoSaveEnabled = project?.autoSaveEnabled ?? true;
+  // when the field is absent on the document/project. Locked docs (open
+  // sync conflict) suppress autosave entirely; the server-side check
+  // in `documents.update` is the source of truth, this just avoids
+  // sending guaranteed-to-fail writes.
+  const autoSaveEnabled =
+    (project?.autoSaveEnabled ?? true) && openConflict == null;
   const { saveNow } = useAutosave({
     documentId,
     content,
@@ -136,6 +148,17 @@ export function EditorPage() {
 
   if (document === null || project === null) {
     return <DocumentNotFound />;
+  }
+
+  if (openConflict) {
+    return (
+      <ConflictLockView
+        projectId={openConflict.projectId}
+        conflictId={openConflict._id}
+        githubPath={openConflict.githubPath}
+        title={document.title}
+      />
+    );
   }
 
   return (

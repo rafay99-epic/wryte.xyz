@@ -6,7 +6,24 @@
  * (see scheduling.ts) — no cron polling needed.
  */
 import { cronJobs } from "convex/server";
+import { internal } from "./_generated/api";
 
 const crons = cronJobs();
+
+/**
+ * Daily sweep of soft-deleted documents. Hard-deletes anything in
+ * project trash older than the project's `trashRetentionDays`
+ * (default 30). Runs at 03:00 UTC — off-peak for most users; tight
+ * enough that an "Empty trash in 30 days" UX promise is accurate.
+ *
+ * The internal mutation handles the per-project retention math and
+ * caps deletions per run; if the system ever has more expired trash
+ * than the cap, the remainder drains on subsequent days.
+ */
+crons.daily(
+  "trash:cleanup-expired",
+  { hourUTC: 3, minuteUTC: 0 },
+  internal.cms.trash._cleanupExpired,
+);
 
 export default crons;

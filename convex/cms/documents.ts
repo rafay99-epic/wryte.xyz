@@ -77,7 +77,9 @@ export const list = query({
         .collect();
     }
 
-    return documents.sort((a, b) => b.updatedAt - a.updatedAt);
+    return documents
+      .filter((d) => d.trashedAt === undefined)
+      .sort((a, b) => b.updatedAt - a.updatedAt);
   },
 });
 
@@ -97,7 +99,10 @@ export const listRecent = query({
       .withIndex("by_userId", (q) => q.eq("userId", user._id))
       .collect();
 
-    return documents.sort((a, b) => b.updatedAt - a.updatedAt).slice(0, limit);
+    return documents
+      .filter((d) => d.trashedAt === undefined)
+      .sort((a, b) => b.updatedAt - a.updatedAt)
+      .slice(0, limit);
   },
 });
 
@@ -117,6 +122,7 @@ export const listAllForUser = query({
       .collect();
 
     return documents
+      .filter((d) => d.trashedAt === undefined)
       .sort((a, b) => b.updatedAt - a.updatedAt)
       .map((d) => ({
         _id: d._id,
@@ -146,6 +152,11 @@ export const get = query({
       args.documentId,
       user._id,
     );
+    // Trashed docs are invisible to the editor / dashboard. The trash
+    // view fetches them through `trash.listByProject` instead.
+    if (document.trashedAt !== undefined) {
+      return null;
+    }
     return document;
   },
 });
@@ -230,6 +241,20 @@ export const update = mutation({
 
     const user = await getCurrentUser(ctx);
     await verifyDocumentOwnership(ctx, args.documentId, user._id);
+
+    // Defense-in-depth lock: if the doc has an unresolved sync
+    // conflict, edits are not allowed. The editor UI also blocks the
+    // flow, but autosave fires from background timers and stale tabs,
+    // so we re-check here to keep the divergence from compounding.
+    const openConflict = await ctx.db
+      .query("sync_conflicts")
+      .withIndex("by_documentId", (q) => q.eq("documentId", args.documentId))
+      .collect();
+    if (openConflict.some((c) => c.resolvedAt === undefined)) {
+      throw new Error(
+        "This document has a pending sync conflict. Resolve it before making changes.",
+      );
+    }
 
     const { documentId, ...updates } = args;
     const fieldsToUpdate: Record<string, unknown> = { updatedAt: Date.now() };
@@ -320,12 +345,18 @@ export const updateStatus = mutation({
 });
 
 /**
- * Deletes a document and all its associated scheduled publish records.
- * The cascade to scheduled_publishes prevents orphaned jobs from firing
- * after the document is gone.
+ * Soft-deletes a document by setting `trashedAt` and cancelling any
+ * pending scheduled publishes. The doc disappears from every
+ * user-facing query and surfaces in the project trash instead, where
+ * the user can restore it or hard-delete. A daily cron drains items
+ * older than the project's `trashRetentionDays` (default 30) — see
+ * `convex/cms/trash.ts:_cleanupExpired`.
+ *
+ * Cancelling scheduled publishes prevents the workflow from firing
+ * against a soft-deleted target. Users re-schedule manually on
+ * restore.
  *
  * @requires Authentication + document ownership
- * @param args.documentId - The document to delete.
  */
 export const remove = mutation({
   args: { documentId: v.id("documents") },
@@ -337,7 +368,7 @@ export const remove = mutation({
     await verifyDocumentOwnership(ctx, args.documentId, user._id);
 
     await cascadeDeleteScheduledPublishesForDoc(ctx, args.documentId);
-    await ctx.db.delete(args.documentId);
+    await ctx.db.patch(args.documentId, { trashedAt: Date.now() });
   },
 });
 
@@ -531,7 +562,11 @@ export const getBySlug = query({
       .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
       .collect();
 
-    return documents.find((d) => d.slug === args.slug) ?? null;
+    return (
+      documents.find(
+        (d) => d.slug === args.slug && d.trashedAt === undefined,
+      ) ?? null
+    );
   },
 });
 
@@ -595,7 +630,9 @@ export const _listByIdsForProject = internalQuery({
     const docs = await Promise.all(args.ids.map((id) => ctx.db.get(id)));
     return docs.filter(
       (d): d is NonNullable<typeof d> =>
-        d !== null && d.projectId === args.projectId,
+        d !== null &&
+        d.projectId === args.projectId &&
+        d.trashedAt === undefined,
     );
   },
 });
@@ -870,16 +907,18 @@ export const listForCalendar = query({
       .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
       .collect();
 
-    return documents.map((d) => ({
-      _id: d._id,
-      title: d.title,
-      slug: d.slug,
-      status: d.status,
-      scheduledAt: d.scheduledAt,
-      publishedAt: d.publishedAt,
-      updatedAt: d.updatedAt,
-      createdAt: d.createdAt,
-    }));
+    return documents
+      .filter((d) => d.trashedAt === undefined)
+      .map((d) => ({
+        _id: d._id,
+        title: d.title,
+        slug: d.slug,
+        status: d.status,
+        scheduledAt: d.scheduledAt,
+        publishedAt: d.publishedAt,
+        updatedAt: d.updatedAt,
+        createdAt: d.createdAt,
+      }));
   },
 });
 
@@ -1056,9 +1095,45 @@ export const _removeInternal = internalMutation({
       // and one bad id shouldn't halt the whole batch.
       return;
     }
+    if (doc.trashedAt !== undefined) {
+      // Already trashed — idempotent no-op so retries don't error.
+      return;
+    }
 
     await cascadeDeleteScheduledPublishesForDoc(ctx, args.documentId);
-    await ctx.db.delete(args.documentId);
+    await ctx.db.patch(args.documentId, { trashedAt: Date.now() });
+  },
+});
+
+/**
+ * Bulk soft-delete for "local only" mode in `startBulkDelete`. Skips
+ * the workpool entirely — a 50-doc local delete now takes one
+ * function call instead of ~250. Caps the batch at 50 ids per call
+ * so the mutation stays comfortably under Convex's per-transaction
+ * limits; the action layer iterates if more were requested.
+ *
+ * The caller has already verified that `args.documentIds` all belong
+ * to `args.projectId`; we still check each doc defensively so a stale
+ * id can't slip past.
+ */
+export const _bulkSoftDeleteLocal = internalMutation({
+  args: {
+    projectId: v.id("projects"),
+    documentIds: v.array(v.id("documents")),
+  },
+  handler: async (ctx, args): Promise<{ trashed: number }> => {
+    const now = Date.now();
+    let trashed = 0;
+    for (const id of args.documentIds) {
+      const doc = await ctx.db.get(id);
+      if (!doc) continue;
+      if (doc.projectId !== args.projectId) continue;
+      if (doc.trashedAt !== undefined) continue;
+      await cascadeDeleteScheduledPublishesForDoc(ctx, id);
+      await ctx.db.patch(id, { trashedAt: now });
+      trashed += 1;
+    }
+    return { trashed };
   },
 });
 
@@ -1199,5 +1274,194 @@ export const getDeleteBatch = query({
       failed,
       errors,
     };
+  },
+});
+
+/* ------------------------------------------------------------------ */
+/*  Smart sync — diff-before-enqueue support                            */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Returns the existing Convex docs (lite shape) for a set of GitHub
+ * paths within a project, used by `startBulkImport` to classify each
+ * requested path as new / unchanged / fast-forward / conflict.
+ *
+ * Trashed docs are excluded — re-importing a path that points to a
+ * doc currently in the trash treats it as `new` (the import will
+ * create a fresh row, the trashed row stays put until its retention
+ * expires). That's deliberate: a user who deleted then re-imported
+ * almost certainly wants a clean slate.
+ *
+ * Per-path indexed lookup so projects with many docs don't pay the
+ * cost of a full project scan. Convex's `unique()` on the
+ * `by_projectId_and_githubPath` index returns null when no match,
+ * which we elide from the result.
+ */
+export const _getExistingGithubFilesByPaths = internalQuery({
+  args: {
+    projectId: v.id("projects"),
+    paths: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const results: Array<{
+      documentId: Id<"documents">;
+      githubPath: string;
+      githubSha: string | undefined;
+      updatedAt: number;
+      githubSyncedAt: number | undefined;
+      content: string;
+      frontmatter: string | undefined;
+    }> = [];
+    for (const path of args.paths) {
+      const doc = await ctx.db
+        .query("documents")
+        .withIndex("by_projectId_and_githubPath", (q) =>
+          q.eq("projectId", args.projectId).eq("githubPath", path),
+        )
+        .unique();
+      if (!doc || doc.trashedAt !== undefined) continue;
+      results.push({
+        documentId: doc._id,
+        githubPath: path,
+        githubSha: doc.githubSha,
+        updatedAt: doc.updatedAt,
+        githubSyncedAt: doc.githubSyncedAt,
+        content: doc.content,
+        frontmatter: doc.frontmatter,
+      });
+    }
+    return results;
+  },
+});
+
+/**
+ * Internal upsert used by `_importOneFromGithubJob` after the action's
+ * diff-before-enqueue logic has classified the path as `new` or
+ * `fast-forward`. Unlike the older `_importFromGithubInternal` it does
+ * not dedup-and-return — by this point the caller already knows it
+ * wants the doc written. Stamps `githubSyncedAt` so the next sync
+ * starts from a clean baseline.
+ */
+export const _upsertImportedDocument = internalMutation({
+  args: {
+    projectId: v.id("projects"),
+    title: v.string(),
+    slug: v.string(),
+    content: v.string(),
+    frontmatter: v.optional(v.string()),
+    githubPath: v.string(),
+    githubSha: v.string(),
+    githubSyncedAt: v.number(),
+    /**
+     * The classifier in `startBulkImport` resolves this. `new` inserts,
+     * `fastForward` patches the existing row. Passed explicitly so
+     * this mutation has no side-channel — it can't accidentally create
+     * duplicate rows for a known path.
+     */
+    mode: v.union(v.literal("new"), v.literal("fastForward")),
+  },
+  handler: async (ctx, args): Promise<Id<"documents">> => {
+    const project = await ctx.db.get(args.projectId);
+    if (!project) throw new Error("Project not found");
+
+    const existing = await ctx.db
+      .query("documents")
+      .withIndex("by_projectId_and_githubPath", (q) =>
+        q.eq("projectId", args.projectId).eq("githubPath", args.githubPath),
+      )
+      .unique();
+
+    const now = Date.now();
+
+    if (args.mode === "fastForward" && existing) {
+      const patch: Record<string, unknown> = {
+        title: args.title,
+        slug: args.slug,
+        content: args.content,
+        githubSha: args.githubSha,
+        githubSyncedAt: args.githubSyncedAt,
+        updatedAt: now,
+      };
+      if (args.frontmatter !== undefined) {
+        patch["frontmatter"] = args.frontmatter;
+      }
+      await ctx.db.patch(existing._id, patch);
+      return existing._id;
+    }
+
+    if (existing) {
+      // `new` mode but the doc actually exists — the classifier raced
+      // with another sync. Patch instead of inserting a duplicate so
+      // we don't violate the (projectId, githubPath) implicit
+      // uniqueness expected by the rest of the codebase.
+      const patch: Record<string, unknown> = {
+        content: args.content,
+        githubSha: args.githubSha,
+        githubSyncedAt: args.githubSyncedAt,
+        updatedAt: now,
+      };
+      if (args.frontmatter !== undefined) {
+        patch["frontmatter"] = args.frontmatter;
+      }
+      await ctx.db.patch(existing._id, patch);
+      return existing._id;
+    }
+
+    const insertData: {
+      projectId: typeof args.projectId;
+      userId: Id<"users">;
+      title: string;
+      slug: string;
+      content: string;
+      status: string;
+      githubPath: string;
+      githubSha: string;
+      githubSyncedAt: number;
+      publishedAt: number;
+      createdAt: number;
+      updatedAt: number;
+      frontmatter?: string;
+    } = {
+      projectId: args.projectId,
+      userId: project.userId,
+      title: args.title,
+      slug: args.slug,
+      content: args.content,
+      status: "published",
+      githubPath: args.githubPath,
+      githubSha: args.githubSha,
+      githubSyncedAt: args.githubSyncedAt,
+      publishedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    };
+    if (args.frontmatter !== undefined) {
+      insertData.frontmatter = args.frontmatter;
+    }
+    return await ctx.db.insert("documents", insertData);
+  },
+});
+
+/**
+ * One-shot backfill: any doc that has a `githubSha` set but no
+ * `githubSyncedAt` is assumed to be in sync with GitHub as of right
+ * now, so the next sync doesn't flag it as a conflict.
+ *
+ * Run from the Convex dashboard once after deploying the smart-sync
+ * change; idempotent so re-running is safe.
+ */
+export const _backfillGithubSyncedAt = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const now = Date.now();
+    let patched = 0;
+    const docs = await ctx.db.query("documents").collect();
+    for (const doc of docs) {
+      if (doc.githubSha && doc.githubSyncedAt === undefined) {
+        await ctx.db.patch(doc._id, { githubSyncedAt: now });
+        patched += 1;
+      }
+    }
+    return { patched, scanned: docs.length };
   },
 });

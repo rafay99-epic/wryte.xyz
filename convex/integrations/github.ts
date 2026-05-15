@@ -989,36 +989,16 @@ async function resolveGithubImportContext(
 }
 
 /**
- * Fetches a single markdown file from GitHub, parses frontmatter, and
- * inserts it as a document. Throws on parse / fetch failures so the
- * caller can decide whether to abort or aggregate.
+ * Parses a markdown blob into { title, slug, content, frontmatter }.
+ * Extracted so the bulk-import classifier (which fetches GitHub
+ * content for conflicts) can produce the same shape that the workpool
+ * job uses.
  */
-async function importOneFile(
-  ctx: ActionCtx,
-  args: {
-    octokit: Octokit;
-    owner: string;
-    repo: string;
-    branch: string;
-    projectId: Id<"projects">;
-    filePath: string;
-  },
-): Promise<{ documentId: string; title: string; slug: string }> {
-  const { data } = await args.octokit.repos.getContent({
-    owner: args.owner,
-    repo: args.repo,
-    path: args.filePath,
-    ref: args.branch,
-  });
-
-  if (Array.isArray(data) || data.type !== "file") {
-    throw new Error(`Path "${args.filePath}" is not a file`);
-  }
-
-  const fileContent = Buffer.from(data.content, "base64").toString("utf-8");
-  const githubSha = data.sha;
-
-  let title: string = data.name.replace(/\.mdx?$/, "");
+function parseMarkdownFile(
+  fileContent: string,
+  filename: string,
+): { title: string; slug: string; content: string; frontmatter?: string } {
+  let title: string = filename.replace(/\.mdx?$/, "");
   let content: string = fileContent;
   let frontmatter: string | undefined;
 
@@ -1049,7 +1029,84 @@ async function importOneFile(
     frontmatter = JSON.stringify(fmObj);
   }
 
-  const slug = data.name.replace(/\.mdx?$/, "");
+  const slug = filename.replace(/\.mdx?$/, "");
+  const result: {
+    title: string;
+    slug: string;
+    content: string;
+    frontmatter?: string;
+  } = { title, slug, content };
+  if (frontmatter !== undefined) result.frontmatter = frontmatter;
+  return result;
+}
+
+/**
+ * Fetches a single markdown file from GitHub, parses frontmatter, and
+ * inserts it as a document. Throws on parse / fetch failures so the
+ * caller can decide whether to abort or aggregate.
+ *
+ * `mode` is optional for backwards compatibility: when present the
+ * caller is a smart-sync job (knows whether it's a `new` insert or a
+ * `fastForward` overwrite) and we go through `_upsertImportedDocument`.
+ * When absent we keep the legacy single-file path that dedups on
+ * `githubPath` via `_importFromGithubInternal`.
+ */
+async function importOneFile(
+  ctx: ActionCtx,
+  args: {
+    octokit: Octokit;
+    owner: string;
+    repo: string;
+    branch: string;
+    projectId: Id<"projects">;
+    filePath: string;
+    mode?: "new" | "fastForward";
+  },
+): Promise<{ documentId: string; title: string; slug: string }> {
+  const { data } = await args.octokit.repos.getContent({
+    owner: args.owner,
+    repo: args.repo,
+    path: args.filePath,
+    ref: args.branch,
+  });
+
+  if (Array.isArray(data) || data.type !== "file") {
+    throw new Error(`Path "${args.filePath}" is not a file`);
+  }
+
+  const fileContent = Buffer.from(data.content, "base64").toString("utf-8");
+  const githubSha = data.sha;
+  const parsed = parseMarkdownFile(fileContent, data.name);
+
+  if (args.mode) {
+    const upsertArgs: {
+      projectId: Id<"projects">;
+      title: string;
+      slug: string;
+      content: string;
+      githubPath: string;
+      githubSha: string;
+      githubSyncedAt: number;
+      mode: "new" | "fastForward";
+      frontmatter?: string;
+    } = {
+      projectId: args.projectId,
+      title: parsed.title,
+      slug: parsed.slug,
+      content: parsed.content,
+      githubPath: args.filePath,
+      githubSha,
+      githubSyncedAt: Date.now(),
+      mode: args.mode,
+    };
+    if (parsed.frontmatter !== undefined)
+      upsertArgs.frontmatter = parsed.frontmatter;
+    const documentId = await ctx.runMutation(
+      internal.cms.documents._upsertImportedDocument,
+      upsertArgs,
+    );
+    return { documentId, title: parsed.title, slug: parsed.slug };
+  }
 
   const mutationArgs: {
     projectId: Id<"projects">;
@@ -1061,27 +1118,21 @@ async function importOneFile(
     frontmatter?: string;
   } = {
     projectId: args.projectId,
-    title,
-    slug,
-    content,
+    title: parsed.title,
+    slug: parsed.slug,
+    content: parsed.content,
     githubPath: args.filePath,
-    githubSha: githubSha,
+    githubSha,
   };
+  if (parsed.frontmatter !== undefined)
+    mutationArgs.frontmatter = parsed.frontmatter;
 
-  if (frontmatter !== undefined) {
-    mutationArgs.frontmatter = frontmatter;
-  }
-
-  // Use the auth-skipped internal mutation so this works from both the
-  // public `importFileFromGithub` action (which has user identity) AND
-  // the workpool job (which doesn't). Ownership was verified upstream
-  // either way via `resolveGithubImportContext` / `startBulkImport`.
   const documentId = await ctx.runMutation(
     internal.cms.documents._importFromGithubInternal,
     mutationArgs,
   );
 
-  return { documentId, title, slug };
+  return { documentId, title: parsed.title, slug: parsed.slug };
 }
 
 /**
@@ -1126,6 +1177,12 @@ export const importFileFromGithub = action({
  * through each job. That trades a tiny bit of workpool-state visibility
  * for a meaningful reduction in Clerk-SDK round-trips (200 files would
  * otherwise be 200 Clerk calls).
+ *
+ * `mode` is set by `startBulkImport` after diff-classification — `new`
+ * for files not yet in Convex, `fastForward` for files where only
+ * GitHub changed. The job passes it through to
+ * `_upsertImportedDocument` so the write is explicit rather than
+ * inferred from a path lookup that could race with another sync.
  */
 export const _importOneFromGithubJob = internalAction({
   args: {
@@ -1136,6 +1193,7 @@ export const _importOneFromGithubJob = internalAction({
     owner: v.string(),
     repo: v.string(),
     branch: v.string(),
+    mode: v.union(v.literal("new"), v.literal("fastForward")),
   },
   handler: async (
     ctx,
@@ -1149,40 +1207,74 @@ export const _importOneFromGithubJob = internalAction({
       branch: args.branch,
       projectId: args.projectId,
       filePath: args.filePath,
+      mode: args.mode,
     });
   },
 });
 
 /**
- * Public entry point for bulk import. Replaces the previous server-side
- * `importFilesFromGithub` loop (which hit the per-document rate limit
- * after 60 files). Validates ownership, creates an `import_batches` row,
- * and enqueues one workpool job per file. Returns the batchId so the UI
- * can subscribe to `documents.getImportBatch` for live progress.
+ * Result of `startBulkImport`. `batchId` is `null` when no workpool
+ * jobs were enqueued — i.e. every requested path was unchanged, a
+ * conflict, or missing on GitHub. The UI uses `results` to render a
+ * completion summary in either case.
+ *
+ * Counts and per-path bucket lists are deliberately split: counts are
+ * small and always rendered (banner / dialog), bucket lists feed
+ * detail views (conflicts route, "view skipped" expander) and may be
+ * long.
+ */
+export type BulkImportResult = {
+  batchId: Id<"import_batches"> | null;
+  counts: {
+    new: number;
+    fastForward: number;
+    unchanged: number;
+    conflict: number;
+    missing: number;
+  };
+  conflicts: Array<{
+    path: string;
+    documentId: Id<"documents">;
+    conflictId: Id<"sync_conflicts">;
+  }>;
+  missing: string[];
+};
+
+/**
+ * Public entry point for bulk import. Compares the requested files
+ * against what's already in Convex *before* spinning up the workpool,
+ * so a re-sync of an unchanged repo costs ~2 function calls instead
+ * of ~5N. Outcomes per file:
+ *
+ *  - `new`          → not in Convex, enqueue (workpool insert)
+ *  - `fastForward`  → SHA changed on GitHub, no local edits since
+ *                     last sync, enqueue (workpool overwrite)
+ *  - `unchanged`    → SHA matches Convex, skip (zero cost)
+ *  - `conflict`     → both sides changed since last sync; we fetch the
+ *                     GitHub content and write a `sync_conflicts` row
+ *                     for the user to resolve. The doc itself is NOT
+ *                     touched here.
+ *  - `missing`      → file exists in Convex but is no longer in the
+ *                     GitHub tree at this path. Reported back so the
+ *                     UI can prompt the user to soft-delete.
+ *
+ * Returns `{ batchId: null, counts, conflicts, missing }` when there's
+ * nothing to import; otherwise `batchId` points at the live progress
+ * row.
  *
  * Runs as an action (not a mutation) because it needs to resolve the
- * GitHub token before enqueuing — that's a vault/Clerk call, which is
- * Node-only.
+ * GitHub token and fetch the tree before enqueuing — both Node-only.
  */
 export const startBulkImport = action({
   args: {
     projectId: v.id("projects"),
     filePaths: v.array(v.string()),
   },
-  handler: async (ctx, args): Promise<{ batchId: Id<"import_batches"> }> => {
+  handler: async (ctx, args): Promise<BulkImportResult> => {
     if (args.filePaths.length === 0) {
       throw new Error("No files to import");
     }
-    // Dedup paths: if the same file appears twice, the second job hits
-    // the idempotent `_importFromGithubInternal` dedup-by-githubPath
-    // branch and returns the same documentId — but the batch counter
-    // would tick twice as "succeeded" while only one document exists,
-    // giving the user an inflated success count. De-dup upfront so
-    // total matches reality.
     const filePaths = Array.from(new Set(args.filePaths));
-    // Workpool happily handles any size, but a single-batch cap keeps the
-    // UI responsive (progress is meaningful at this scale) and bounds
-    // enqueue cost. 200 is plenty for a typical Astro/Hugo blog migration.
     if (filePaths.length > 200) {
       throw new Error("Cannot import more than 200 files in a single batch");
     }
@@ -1193,7 +1285,6 @@ export const startBulkImport = action({
       throws: true,
     });
 
-    // Auth + project resolution + token in one go.
     const setup = await resolveGithubImportContext(ctx, {
       projectId: args.projectId,
     });
@@ -1203,46 +1294,256 @@ export const startBulkImport = action({
       tokenIdentifier: identity.tokenIdentifier,
     });
     if (!user) throw new Error("User not found");
-
-    // We need the token for the workpool jobs — re-resolve cleanly via
-    // the canonical resolver so we get the same Clerk → vault → legacy
-    // fallback every other action gets.
     const token = await resolveToken(ctx, user._id);
+    const octokitWithToken = new Octokit({ auth: token });
 
-    // Create the tracking row up front so the UI can subscribe to it
-    // immediately, even before the first job runs.
+    // 1. Fetch the GitHub tree once and build a path→sha map for the
+    //    requested files. Two API calls: get the branch's tip commit
+    //    (so we know the root tree SHA) then walk the tree recursively.
+    //    This replaces N per-file Contents calls during the
+    //    classification step — only conflict-content fetches remain
+    //    inline (one per conflict, run in parallel below).
+    const refData = await setup.octokit.git.getRef({
+      owner: setup.owner,
+      repo: setup.repo,
+      ref: `heads/${setup.branch}`,
+    });
+    const commitData = await setup.octokit.git.getCommit({
+      owner: setup.owner,
+      repo: setup.repo,
+      commit_sha: refData.data.object.sha,
+    });
+    const treeData = await setup.octokit.git.getTree({
+      owner: setup.owner,
+      repo: setup.repo,
+      tree_sha: commitData.data.tree.sha,
+      recursive: "true",
+    });
+
+    const remoteShaByPath = new Map<string, string>();
+    const requestedSet = new Set(filePaths);
+    for (const entry of treeData.data.tree) {
+      if (entry.type === "blob" && entry.path && entry.sha) {
+        if (requestedSet.has(entry.path)) {
+          remoteShaByPath.set(entry.path, entry.sha);
+        }
+      }
+    }
+
+    // 2. Fetch local state for the same paths.
+    const localByPath = new Map<
+      string,
+      {
+        documentId: Id<"documents">;
+        githubSha: string | undefined;
+        updatedAt: number;
+        githubSyncedAt: number | undefined;
+        content: string;
+        frontmatter: string | undefined;
+      }
+    >();
+    const localRows = await ctx.runQuery(
+      internal.cms.documents._getExistingGithubFilesByPaths,
+      { projectId: args.projectId, paths: filePaths },
+    );
+    for (const r of localRows) {
+      localByPath.set(r.githubPath, {
+        documentId: r.documentId,
+        githubSha: r.githubSha,
+        updatedAt: r.updatedAt,
+        githubSyncedAt: r.githubSyncedAt,
+        content: r.content,
+        frontmatter: r.frontmatter,
+      });
+    }
+
+    // 3. Classify each path. Hold conflicts in a separate list so we
+    //    can fetch their content in parallel after the classification
+    //    pass — keeps the classifier itself synchronous and cheap.
+    const toEnqueue: Array<{
+      path: string;
+      mode: "new" | "fastForward";
+    }> = [];
+    const unchanged: string[] = [];
+    const conflictCandidates: Array<{
+      path: string;
+      documentId: Id<"documents">;
+      remoteSha: string;
+      localContentSnapshot: string;
+      localFrontmatterSnapshot: string | undefined;
+    }> = [];
+    const missing: string[] = [];
+
+    for (const path of filePaths) {
+      const remoteSha = remoteShaByPath.get(path);
+      const local = localByPath.get(path);
+
+      if (!remoteSha && !local) {
+        // Requested path doesn't exist on GitHub *and* not in Convex.
+        // Could be a typo from the caller; surface as missing.
+        missing.push(path);
+        continue;
+      }
+      if (!remoteSha && local) {
+        missing.push(path);
+        continue;
+      }
+      if (!local) {
+        toEnqueue.push({ path, mode: "new" });
+        continue;
+      }
+      if (local.githubSha === remoteSha) {
+        unchanged.push(path);
+        continue;
+      }
+      // Remote SHA differs from local. If the local doc hasn't been
+      // edited since its last sync, this is a clean fast-forward.
+      // Otherwise both sides have diverged → conflict.
+      const lastSync = local.githubSyncedAt ?? local.updatedAt;
+      if (local.updatedAt <= lastSync) {
+        toEnqueue.push({ path, mode: "fastForward" });
+      } else {
+        conflictCandidates.push({
+          path,
+          documentId: local.documentId,
+          // biome-ignore lint/style/noNonNullAssertion: presence checked above
+          remoteSha: remoteSha!,
+          localContentSnapshot: local.content,
+          localFrontmatterSnapshot: local.frontmatter,
+        });
+      }
+    }
+
+    // 4. For each conflict, fetch the GitHub content so the conflict
+    //    row carries a stable snapshot for the diff UI. Parallel
+    //    fetches with `Promise.all` are fine — GitHub allows 5000
+    //    Contents API calls per hour, and the per-batch cap is 200.
+    //    If any fetch fails we skip writing that conflict (the next
+    //    sync will retry); rest of the batch proceeds.
+    const conflicts: Array<{
+      path: string;
+      documentId: Id<"documents">;
+      conflictId: Id<"sync_conflicts">;
+    }> = [];
+    if (conflictCandidates.length > 0) {
+      const fetched = await Promise.all(
+        conflictCandidates.map(async (c) => {
+          try {
+            const { data } = await octokitWithToken.repos.getContent({
+              owner: setup.owner,
+              repo: setup.repo,
+              path: c.path,
+              ref: setup.branch,
+            });
+            if (Array.isArray(data) || data.type !== "file") return null;
+            const remoteText = Buffer.from(data.content, "base64").toString(
+              "utf-8",
+            );
+            const parsed = parseMarkdownFile(remoteText, data.name);
+            return { candidate: c, parsed };
+          } catch (err) {
+            console.warn(
+              `[startBulkImport] failed to fetch conflict snapshot for ${c.path}`,
+              err,
+            );
+            return null;
+          }
+        }),
+      );
+      for (const item of fetched) {
+        if (!item) continue;
+        const { candidate, parsed } = item;
+        const createArgs: {
+          projectId: Id<"projects">;
+          documentId: Id<"documents">;
+          userId: Id<"users">;
+          githubPath: string;
+          remoteSha: string;
+          remoteContent: string;
+          remoteFrontmatter?: string;
+          localContentSnapshot: string;
+          localFrontmatterSnapshot?: string;
+        } = {
+          projectId: args.projectId,
+          documentId: candidate.documentId,
+          userId: user._id,
+          githubPath: candidate.path,
+          remoteSha: candidate.remoteSha,
+          remoteContent: parsed.content,
+          localContentSnapshot: candidate.localContentSnapshot,
+        };
+        if (parsed.frontmatter !== undefined) {
+          createArgs.remoteFrontmatter = parsed.frontmatter;
+        }
+        if (candidate.localFrontmatterSnapshot !== undefined) {
+          createArgs.localFrontmatterSnapshot =
+            candidate.localFrontmatterSnapshot;
+        }
+        const conflictId = await ctx.runMutation(
+          internal.cms.conflicts._create,
+          createArgs,
+        );
+        conflicts.push({
+          path: candidate.path,
+          documentId: candidate.documentId,
+          conflictId,
+        });
+      }
+    }
+
+    const counts = {
+      new: toEnqueue.filter((j) => j.mode === "new").length,
+      fastForward: toEnqueue.filter((j) => j.mode === "fastForward").length,
+      unchanged: unchanged.length,
+      conflict: conflicts.length,
+      missing: missing.length,
+    };
+
+    // 5. If nothing needs the workpool, skip the batch row entirely.
+    //    The UI uses the counts + conflicts to render its summary; no
+    //    progress bar to subscribe to.
+    if (toEnqueue.length === 0) {
+      return {
+        batchId: null,
+        counts,
+        conflicts,
+        missing,
+      };
+    }
+
+    // 6. Otherwise create the tracking row and enqueue only the paths
+    //    that actually need a write.
     const batchId: Id<"import_batches"> = await ctx.runMutation(
       internal.cms.documents._createImportBatch,
       {
         projectId: args.projectId,
         userId: user._id,
-        total: filePaths.length,
+        total: toEnqueue.length,
       },
     );
 
-    // Enqueue all jobs in a single batch call to avoid N round-trips
-    // between the action and the workpool component.
-    for (const filePath of filePaths) {
+    for (const job of toEnqueue) {
       await importPool.enqueueAction(
         ctx,
         internal.integrations.github._importOneFromGithubJob,
         {
           batchId,
           projectId: args.projectId,
-          filePath,
+          filePath: job.path,
           token,
           owner: setup.owner,
           repo: setup.repo,
           branch: setup.branch,
+          mode: job.mode,
         },
         {
           onComplete: internal.cms.documents._onImportFileComplete,
-          context: { batchId, filePath },
+          context: { batchId, filePath: job.path },
         },
       );
     }
 
-    return { batchId };
+    return { batchId, counts, conflicts, missing };
   },
 });
 
@@ -1422,11 +1723,34 @@ export const _deleteOneJob = internalAction({
   },
 });
 
+export type BulkDeleteResult = {
+  /**
+   * Present when the workpool was actually engaged. Null when the
+   * operation completed inline (local-only mode) and the UI should
+   * render `inlineSummary` directly instead of subscribing to a batch
+   * row.
+   */
+  batchId: Id<"delete_batches"> | null;
+  /** Set when the action handled the delete inline. */
+  inlineSummary?: {
+    total: number;
+    succeeded: number;
+    failed: number;
+    errors: Array<{ label: string; message: string }>;
+  };
+};
+
 /**
- * Public entry point for bulk delete. Same workpool pattern as
- * `startBulkImport`: validate, create a tracking row, enqueue one job
- * per item, return a `batchId`. UI subscribes to
- * `documents.getDeleteBatch` for live progress.
+ * Public entry point for bulk delete. Routes by mode to keep the
+ * workpool out of cheap operations:
+ *
+ *  - **mode === "local"** — soft-delete the docs inline via a
+ *    single internal mutation. Zero workpool jobs. The UI shows the
+ *    summary immediately. A 50-doc local delete is 1 function call
+ *    here vs ~250 through the old pool.
+ *  - **mode includes github** — keep the workpool flow. Each file
+ *    needs a GitHub API call + auth context; the workpool's bounded
+ *    concurrency + retry policy are the right primitive.
  *
  * Item shape mirrors what the selection toolbar already collects so the
  * caller doesn't have to do schema gymnastics.
@@ -1445,7 +1769,7 @@ export const startBulkDelete = action({
       }),
     ),
   },
-  handler: async (ctx, args): Promise<{ batchId: Id<"delete_batches"> }> => {
+  handler: async (ctx, args): Promise<BulkDeleteResult> => {
     if (args.items.length === 0) {
       throw new Error("Nothing to delete");
     }
@@ -1476,26 +1800,11 @@ export const startBulkDelete = action({
       throw new Error("Unauthorized: you do not own this project");
     }
 
-    let token: string | undefined;
-    let owner: string | undefined;
-    let repo: string | undefined;
-    let branch: string | undefined;
-    if (args.mode !== "local") {
-      if (!project.githubRepo) {
-        throw new Error("GitHub repository not configured for this project");
-      }
-      token = await resolveToken(ctx, user._id);
-      const parsed = parseRepoString(project.githubRepo);
-      owner = parsed.owner;
-      repo = parsed.repo;
-      branch = project.githubBranch ?? "main";
-    }
-
     // SECURITY: pre-flight check that every documentId in the payload
-    // actually belongs to `args.projectId`. The workpool job also
-    // re-checks this inside `_removeInternal` for defense in depth, but
-    // failing fast here keeps a malicious or buggy caller from even
-    // creating a batch row + N enqueued jobs that would have no-ops'd.
+    // actually belongs to `args.projectId`. The workpool job (and the
+    // inline mutation) re-check this for defense in depth, but failing
+    // fast here keeps a malicious or buggy caller from even creating
+    // a batch row + N enqueued jobs that would have no-opped.
     const documentIdsInPayload = args.items
       .map((it) => it.documentId)
       .filter((id): id is Id<"documents"> => id !== undefined);
@@ -1513,6 +1822,47 @@ export const startBulkDelete = action({
         );
       }
     }
+
+    // ── Inline fast path: local-only delete ────────────────────────
+    // No GitHub calls, no workpool needed. Chunk the doc list into
+    // groups of 50 so each internal mutation stays comfortably under
+    // Convex's per-transaction limits.
+    if (args.mode === "local") {
+      const docIds = documentIdsInPayload;
+      const labelByDocId = new Map<Id<"documents">, string>();
+      for (const item of args.items) {
+        if (item.documentId) labelByDocId.set(item.documentId, item.label);
+      }
+
+      let trashed = 0;
+      const CHUNK = 50;
+      for (let i = 0; i < docIds.length; i += CHUNK) {
+        const slice = docIds.slice(i, i + CHUNK);
+        const { trashed: count } = await ctx.runMutation(
+          internal.cms.documents._bulkSoftDeleteLocal,
+          { projectId: args.projectId, documentIds: slice },
+        );
+        trashed += count;
+      }
+
+      return {
+        batchId: null,
+        inlineSummary: {
+          total: args.items.length,
+          succeeded: trashed,
+          failed: args.items.length - trashed,
+          errors: [],
+        },
+      };
+    }
+
+    // ── Workpool path: github or both modes ───────────────────────
+    if (!project.githubRepo) {
+      throw new Error("GitHub repository not configured for this project");
+    }
+    const token = await resolveToken(ctx, user._id);
+    const { owner, repo } = parseRepoString(project.githubRepo);
+    const branch = project.githubBranch ?? "main";
 
     const batchId: Id<"delete_batches"> = await ctx.runMutation(
       internal.cms.documents._createDeleteBatch,
@@ -1536,14 +1886,18 @@ export const startBulkDelete = action({
         owner?: string;
         repo?: string;
         branch?: string;
-      } = { batchId, projectId: args.projectId, mode: args.mode };
+      } = {
+        batchId,
+        projectId: args.projectId,
+        mode: args.mode,
+        token,
+        owner,
+        repo,
+        branch,
+      };
       if (item.documentId) jobArgs.documentId = item.documentId;
       if (item.filePath) jobArgs.filePath = item.filePath;
       if (item.githubSha) jobArgs.githubSha = item.githubSha;
-      if (token) jobArgs.token = token;
-      if (owner) jobArgs.owner = owner;
-      if (repo) jobArgs.repo = repo;
-      if (branch) jobArgs.branch = branch;
 
       await importPool.enqueueAction(
         ctx,

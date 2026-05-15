@@ -2,11 +2,12 @@
 
 import { useAction, useMutation, useQuery } from "convex/react";
 import { motion } from "framer-motion";
-import { Cloud, Plus, Settings } from "lucide-react";
+import { Cloud, Plus, Settings, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { SyncConflictsBanner } from "@/components/editor/sync-conflicts-banner";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BoardSettingsDialog } from "@/features/content-dashboard/components/board-settings-dialog";
@@ -326,7 +327,15 @@ export function ProjectDetailPage() {
     isStarting: isStartingImport,
     start: startBulkImportFlow,
     done: handleBulkImportDone,
+    lastResult: importLastResult,
   } = useBulkImport(projectId);
+
+  const handleResolveConflicts = useCallback(
+    (conflictId: Id<"sync_conflicts">) => {
+      router.push(`/projects/${projectId}/conflicts/${conflictId}`);
+    },
+    [projectId, router],
+  );
 
   /**
    * Wraps the Convex `importFileFromGithub` action with automatic retries on
@@ -401,11 +410,32 @@ export function ProjectDetailPage() {
     [projectId, importWithRetry, router],
   );
 
-  // Bulk import handler — thin pass-through to the hook.
+  // Bulk import handler — thin pass-through to the hook. Returns the
+  // hook's result so callers (like the Sync button) can await the
+  // classification before showing UI.
   const handleBatchImport = useCallback(
     (paths: string[]) => startBulkImportFlow(paths),
     [startBulkImportFlow],
   );
+
+  /**
+   * Smart Sync — refresh the GitHub file list, then diff-import any
+   * changed files. Skips unchanged files entirely (no workpool jobs)
+   * and surfaces conflicts via the bulk-import dialog. This replaces
+   * the old "just invalidate the TanStack cache" behavior of the Sync
+   * button so a click means "bring Convex into agreement with GitHub"
+   * instead of "show me the file picker again."
+   */
+  const handleSyncFromGithub = useCallback(async () => {
+    const refetched = await refetchRemoteFiles();
+    const files = refetched.data?.files ?? remoteFiles;
+    const allPaths = files.map((f) => f.path);
+    if (allPaths.length === 0) {
+      toast.info("No files in the configured content path.");
+      return;
+    }
+    await startBulkImportFlow(allPaths);
+  }, [refetchRemoteFiles, remoteFiles, startBulkImportFlow]);
 
   // --- Bulk publish handler ---
   const handleBulkPublish = useCallback(
@@ -527,6 +557,13 @@ export function ProjectDetailPage() {
         </div>
         <div className="flex items-center gap-2">
           <Link
+            href={`/projects/${projectId}/trash`}
+            className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
+          >
+            <Trash2 className="size-4" />
+            Trash
+          </Link>
+          <Link
             href={`/projects/${projectId}/settings`}
             className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
           >
@@ -539,6 +576,9 @@ export function ProjectDetailPage() {
           </Button>
         </div>
       </motion.div>
+
+      {/* Pending sync conflicts banner */}
+      <SyncConflictsBanner projectId={projectId} />
 
       {/* Content Dashboard */}
       <ContentDashboard
@@ -553,7 +593,7 @@ export function ProjectDetailPage() {
         hasGithub={hasGithub}
         isLoadingRemote={isLoadingRemote}
         hasLoadedRemote={hasLoadedRemote}
-        onRefreshRemote={() => void refetchRemoteFiles()}
+        onRefreshRemote={() => void handleSyncFromGithub()}
         onOpenItem={(item) => void handleOpenItem(item)}
         onDeleteLocal={handleDeleteLocal}
         onDeleteRemote={handleDeleteRemote}
@@ -565,7 +605,9 @@ export function ProjectDetailPage() {
         onBatchImport={handleBatchImport}
         isStartingImport={isStartingImport}
         importBatch={batch}
+        importLastResult={importLastResult}
         onBulkImportDone={handleBulkImportDone}
+        onResolveConflicts={handleResolveConflicts}
         onBulkPublish={hasGithub ? handleBulkPublish : undefined}
         isBulkPublishing={isBulkPublishing}
         bulkPublishProgress={bulkPublishProgress}

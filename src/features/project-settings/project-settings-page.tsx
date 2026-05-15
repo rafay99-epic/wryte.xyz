@@ -112,6 +112,7 @@ type ProjectData = {
   timezone?: string;
   autoSaveEnabled?: boolean;
   compressionSettings?: CompressionSettings;
+  trashRetentionDays?: number;
 };
 
 const DEFAULT_FIELDS: FrontmatterField[] = [
@@ -1892,6 +1893,9 @@ function PublishingSection({
   const [autoSaveEnabled, setAutoSaveEnabled] = useState(
     project.autoSaveEnabled ?? true,
   );
+  const [trashRetentionDays, setTrashRetentionDays] = useState<number>(
+    project.trashRetentionDays ?? 30,
+  );
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -1903,6 +1907,7 @@ function PublishingSection({
     setFrontmatterFormat(project.frontmatterFormat ?? "yaml");
     setTimezone(project.timezone ?? "");
     setAutoSaveEnabled(project.autoSaveEnabled ?? true);
+    setTrashRetentionDays(project.trashRetentionDays ?? 30);
   }, [
     project.commitMessageTemplate,
     project.defaultDraft,
@@ -1910,6 +1915,7 @@ function PublishingSection({
     project.frontmatterFormat,
     project.timezone,
     project.autoSaveEnabled,
+    project.trashRetentionDays,
   ]);
 
   const hasChanges =
@@ -1919,7 +1925,8 @@ function PublishingSection({
     deployHookUrl.trim() !== (project.deployHookUrl ?? "") ||
     frontmatterFormat !== (project.frontmatterFormat ?? "yaml") ||
     timezone !== (project.timezone ?? "") ||
-    autoSaveEnabled !== (project.autoSaveEnabled ?? true);
+    autoSaveEnabled !== (project.autoSaveEnabled ?? true) ||
+    trashRetentionDays !== (project.trashRetentionDays ?? 30);
 
   const handleSave = useCallback(async () => {
     setIsSaving(true);
@@ -1931,6 +1938,7 @@ function PublishingSection({
         frontmatterFormat,
         timezone,
         autoSaveEnabled,
+        trashRetentionDays,
       };
       if (deployHookUrl.trim()) args.deployHookUrl = deployHookUrl.trim();
       await updateProject(args);
@@ -1947,6 +1955,7 @@ function PublishingSection({
     frontmatterFormat,
     timezone,
     autoSaveEnabled,
+    trashRetentionDays,
     projectId,
     updateProject,
   ]);
@@ -2044,6 +2053,38 @@ function PublishingSection({
             value={timezone}
             onChange={setTimezone}
           />
+        </FieldGroup>
+
+        <FieldGroup
+          label="Trash retention"
+          hint="How long deleted documents stay in this project's trash before being permanently removed. Restorable any time before then."
+        >
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <MediaModeOption
+              active={trashRetentionDays === 7}
+              onClick={() => setTrashRetentionDays(7)}
+              title="7 days"
+              description="Quick cleanup"
+            />
+            <MediaModeOption
+              active={trashRetentionDays === 30}
+              onClick={() => setTrashRetentionDays(30)}
+              title="30 days"
+              description="Recommended"
+            />
+            <MediaModeOption
+              active={trashRetentionDays === 90}
+              onClick={() => setTrashRetentionDays(90)}
+              title="90 days"
+              description="Long memory"
+            />
+            <MediaModeOption
+              active={trashRetentionDays >= 36500}
+              onClick={() => setTrashRetentionDays(36500)}
+              title="Forever"
+              description="Manual only"
+            />
+          </div>
         </FieldGroup>
       </motion.div>
 

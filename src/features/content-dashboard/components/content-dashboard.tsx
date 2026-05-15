@@ -43,6 +43,7 @@ import { cn } from "@/lib/utils";
 import { useBoardStore } from "@/stores/board-store";
 import { type SortOrder, useSearchStore } from "@/stores/search-store";
 import type { BoardColumnDef } from "@/types/board";
+import type { Id } from "../../../../convex/_generated/dataModel";
 import { BoardView } from "./board-view";
 import {
   type BulkDeleteBatch,
@@ -50,7 +51,11 @@ import {
   BulkDeleteDialog,
   type BulkDeleteMode,
 } from "./bulk-delete-dialog";
-import { type BulkImportBatch, BulkImportDialog } from "./bulk-import-dialog";
+import {
+  type BulkImportBatch,
+  BulkImportDialog,
+  type BulkImportResultLite,
+} from "./bulk-import-dialog";
 import { ContentEmptyState, type ViewFilter } from "./content-empty-state";
 import type { ContentItem } from "./content-table-row";
 import { TableView } from "./table-view";
@@ -123,13 +128,22 @@ type ContentDashboardProps = {
   importingPath: string | null;
   onCreateClick: (initialStatus?: string) => void;
   // ── Bulk import (reactive batch + lifecycle hooks) ─────────────
-  onBatchImport: (paths: string[]) => Promise<void>;
+  onBatchImport: (paths: string[]) => Promise<unknown>;
   /** Set while the start-action is in flight (parent triggers, batch hasn't been created yet). */
   isStartingImport: boolean;
   /** Reactive import_batches row, or null if no active import. */
   importBatch: BulkImportBatch | null | undefined;
+  /** Classification summary returned by the most recent start-action. */
+  importLastResult: BulkImportResultLite | null;
   /** Called when the user clicks Done on the completion screen — parent clears its batchId. */
   onBulkImportDone: () => void;
+  /**
+   * Triggered by the "Resolve conflicts" CTA in the completion dialog.
+   * Parent navigates to the conflict resolution route. Optional so
+   * pages that don't yet have the route mounted can still render the
+   * dashboard.
+   */
+  onResolveConflicts?: ((conflictId: Id<"sync_conflicts">) => void) | undefined;
   // ── Bulk publish (legacy floating-toolbar flow) ────────────────
   onBulkPublish?: ((docIds: string[]) => Promise<void>) | undefined;
   isBulkPublishing?: boolean | undefined;
@@ -169,7 +183,9 @@ export function ContentDashboard({
   onBatchImport,
   isStartingImport,
   importBatch,
+  importLastResult,
   onBulkImportDone,
+  onResolveConflicts,
   onBulkPublish,
   isBulkPublishing,
   bulkPublishProgress,
@@ -280,13 +296,25 @@ export function ContentDashboard({
     }
   }, [selectedPaths, onBatchImport]);
 
-  const importDialogOpen = Boolean(importBatch) || isStartingImport;
+  // Always open the dialog from the click. Sequence inside the dialog:
+  //   "Checking…" while the action is in flight (no batch yet) →
+  //   "Syncing…" once a workpool batch starts (if any) →
+  //   "Complete" with the summary cards (always, including unchanged).
+  // The user sees one cohesive flow instead of a click → silence →
+  // toast.
+  const importDialogOpen =
+    isStartingImport || Boolean(importBatch) || Boolean(importLastResult);
+
   const importPhase = useMemo(() => {
-    if (!importBatch) return "progress" as const;
-    return importBatch.succeeded + importBatch.failed >= importBatch.total
-      ? ("complete" as const)
-      : ("progress" as const);
-  }, [importBatch]);
+    if (isStartingImport) return "progress" as const;
+    if (
+      importBatch &&
+      importBatch.succeeded + importBatch.failed < importBatch.total
+    ) {
+      return "progress" as const;
+    }
+    return "complete" as const;
+  }, [isStartingImport, importBatch]);
 
   const handleImportDialogOpenChange = useCallback(
     (next: boolean) => {
@@ -923,7 +951,9 @@ export function ContentDashboard({
         onOpenChange={handleImportDialogOpenChange}
         phase={importPhase}
         batch={importBatch}
+        result={importLastResult}
         onDone={handleBulkImportDone}
+        onResolveConflicts={onResolveConflicts}
       />
     </div>
   );

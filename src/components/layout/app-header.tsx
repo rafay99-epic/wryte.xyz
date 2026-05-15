@@ -15,6 +15,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Star,
+  Trash2,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -34,6 +35,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { DeleteDocumentDialog } from "@/features/content-dashboard/components/delete-document-dialog";
 import { PublishDialog } from "@/features/editor/components/publish-dialog";
 import { ScheduleDialog } from "@/features/editor/components/schedule-dialog";
 import { getColorClasses } from "@/lib/board-colors";
@@ -55,6 +57,7 @@ export function AppHeader() {
 
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const {
     title,
@@ -524,6 +527,26 @@ export function AppHeader() {
               <TooltipContent side="bottom">Schedule publish</TooltipContent>
             </Tooltip>
 
+            {/* Delete — soft-deletes to project trash. Disabled until the
+                document query loads so we don't open the dialog without
+                title/github coordinates. */}
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    disabled={!document}
+                    onClick={() => setDeleteOpen(true)}
+                    className="text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                  />
+                }
+              >
+                <Trash2 className="size-3.5" />
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Move to trash</TooltipContent>
+            </Tooltip>
+
             {/* Publish button — prominent */}
             <Button
               size="sm"
@@ -544,6 +567,32 @@ export function AppHeader() {
               documentId={documentId}
               projectId={activeProjectId ?? ""}
             />
+            {document && activeProjectId && (
+              <DeleteDocumentDialog
+                target={(() => {
+                  const t: {
+                    documentId: Id<"documents">;
+                    title: string;
+                    githubPath?: string;
+                    githubSha?: string;
+                  } = {
+                    documentId: documentId as Id<"documents">,
+                    title: document.title,
+                  };
+                  if (document.githubPath) t.githubPath = document.githubPath;
+                  if (document.githubSha) t.githubSha = document.githubSha;
+                  return t;
+                })()}
+                projectId={activeProjectId as Id<"projects">}
+                open={deleteOpen}
+                onOpenChange={setDeleteOpen}
+                onDeleted={() => {
+                  // Navigate back to the project before the reactive `get`
+                  // query returns null and the editor flashes its 404.
+                  router.push(`/projects/${activeProjectId}`);
+                }}
+              />
+            )}
           </div>
         ) : null}
       </header>
