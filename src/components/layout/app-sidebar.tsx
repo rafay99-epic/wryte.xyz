@@ -375,6 +375,17 @@ export function AppSidebar() {
             }}
           />
         </div>
+        <p className="mt-2 text-center text-[9px] leading-tight text-muted-foreground/30">
+          v0.5.0 · build 70 ·{" "}
+          <a
+            href="https://syntaxlabtechnology.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-muted-foreground/50 transition-colors"
+          >
+            Syntax Lab Technology
+          </a>
+        </p>
       </div>
     </div>
   );
