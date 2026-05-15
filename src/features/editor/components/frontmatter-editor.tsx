@@ -40,7 +40,10 @@ import { humanizeFieldName } from "@/lib/utils";
 import type { FrontmatterFieldType } from "@/types/frontmatter";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
-import { FrontmatterAiDrawer } from "./frontmatter-ai-drawer";
+import {
+  FrontmatterAiDrawer,
+  isAiEligibleField,
+} from "./frontmatter-ai-drawer";
 import { FrontmatterImageField } from "./frontmatter-image-field";
 
 type FrontmatterEditorProps = {
@@ -362,7 +365,7 @@ export function FrontmatterEditor({
 
   /** Merge AI-suggested values into the current frontmatter. */
   const handleAiAccept = useCallback(
-    (suggested: Record<string, string>) => {
+    (suggested: Record<string, string | boolean>) => {
       const newValues = { ...values };
       for (const [key, val] of Object.entries(suggested)) {
         newValues[key] = val;
@@ -371,6 +374,21 @@ export function FrontmatterEditor({
       saveValues(newValues);
     },
     [values, saveValues],
+  );
+
+  /** Fields the AI is allowed to propose values for. */
+  const aiEligibleFields = useMemo(
+    () =>
+      fields
+        .filter((f) =>
+          isAiEligibleField({ name: f.name, type: f.type, hidden: f.hidden }),
+        )
+        .map((f) => ({
+          name: f.name,
+          type: f.type,
+          ...(f.label ? { label: f.label } : {}),
+        })),
+    [fields],
   );
 
   // Switch between visual and code modes
@@ -737,6 +755,7 @@ export function FrontmatterEditor({
           projectId={projectId}
           documentContent={document?.content ?? ""}
           currentFrontmatter={JSON.stringify(values)}
+          eligibleFields={aiEligibleFields}
           onAccept={handleAiAccept}
         />
       )}

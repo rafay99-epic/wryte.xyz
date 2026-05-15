@@ -41,23 +41,37 @@ Rules:
 - If the instruction is unclear, make your best interpretation
 - Keep the same language unless asked to translate`;
 
-const FRONTMATTER_SYSTEM_PROMPT = `You are an expert SEO and content strategist. Analyse the provided markdown article and suggest frontmatter metadata that maximises discoverability and reader engagement.
+/**
+ * System prompt for schema-driven frontmatter suggestions. Field types and
+ * a brief expectation are interpolated in below so the model returns one
+ * JSON object whose shape exactly matches the project's schema. Fields the
+ * author owns (slug, pubDate, draft, hero image) are filtered out before
+ * the prompt is built — the model never sees them.
+ */
+const FRONTMATTER_SYSTEM_PROMPT_PREFIX = `You are an expert SEO and content strategist. Read the provided markdown article and propose values for its frontmatter fields.
 
-Return ONLY valid JSON (no markdown fences, no explanation) with these keys:
-- "title": a compelling, SEO-friendly title (50-70 characters ideal)
-- "description": a meta-description optimised for search (120-160 characters)
-- "tags": an array of 3-6 relevant topic tags (lowercase, single words or short phrases)
-- "keywords": a comma-separated string of 5-10 SEO keywords/phrases
-- "excerpt": a 1-2 sentence teaser that hooks the reader (max 200 characters)
+Hard rules:
+- Return ONE JSON object. No markdown fences, no commentary, nothing outside the object.
+- Use the exact field names listed below — case-sensitive.
+- Match each value's JSON type to the field's declared type (see "Type reference" below).
+- Omit any field where the article gives no clear signal for a useful value. An omitted key is better than a generic invented one.
+- Never invent facts that aren't in the article. Don't propose canonical URLs, author info, series numbers, or anything you can't derive from the text itself.
+- For string fields, write copy that reads naturally and human. No "Discover the secrets of…" framing, no clickbait, no emoji.
+- For tag/keyword arrays, prefer specific multi-word phrases over single generic words. 3–6 items is a healthy range.
 
-Guidelines:
-- Base suggestions on the actual content, not guesses
-- Prefer specific, long-tail keywords over generic ones
-- Tags should reflect the article's main topics
-- The title should be click-worthy but not clickbait
-- The description should summarise the value proposition for searchers
-- If the content is short or empty, do your best with what's available
-- Only return keys listed above — no extra fields`;
+Type reference:
+- string | text | url     → JSON string
+- tags | list | multiselect → JSON array of strings
+- boolean                  → JSON true or false
+- number                   → JSON number
+- select                   → JSON string equal to one of the listed options (case-sensitive)
+- color                    → JSON string like "#3b82f6"
+
+Field-specific hints when the schema includes them:
+- title       → 50–70 characters, click-worthy without being clickbait
+- description → 120–160 characters, meta-description that summarises the value
+- excerpt     → 1–2 sentences, max ~200 characters, a teaser that hooks the reader
+- keywords    → array of 5–10 SEO phrases — long-tail beats generic`;
 
 const OPENROUTER_HEADERS = {
   "HTTP-Referer": "https://wryte.xyz",
@@ -319,6 +333,88 @@ export const runInlineEnhancement = internalAction({
 /*  Internal action: frontmatter suggestions (JSON output)             */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Field types the AI is never asked to fill — these are owned by the
+ * author or by publish-time side effects. The hero image is a URL the
+ * user uploads; dates depend on publish/schedule actions; slug derives
+ * from the title.
+ */
+const AI_EXCLUDED_TYPES = new Set(["image", "date", "datetime", "slug"]);
+
+/**
+ * Field names that are publish-lifecycle controls, not metadata the
+ * author writes. These never go to the AI even when the schema mis-types
+ * them (e.g., draft stored as a string).
+ */
+const AI_EXCLUDED_NAMES = new Set([
+  "draft",
+  "pubDate",
+  "publishDate",
+  "date",
+  "slug",
+  "publishedAt",
+  "updatedAt",
+]);
+
+type SchemaField = {
+  name: string;
+  type: string;
+  label?: string;
+  description?: string;
+  options?: string;
+  hidden?: boolean;
+};
+
+/**
+ * Filters the project's frontmatter schema down to the fields the AI is
+ * allowed to propose values for, then formats them as a compact prompt
+ * fragment listing each field's name, type, optional description, and
+ * (for select fields) its allowed options.
+ */
+function buildSchemaPromptFragment(schemaJson: string): {
+  fragment: string;
+  eligibleNames: string[];
+} {
+  if (!schemaJson) return { fragment: "", eligibleNames: [] };
+  let parsed: SchemaField[];
+  try {
+    parsed = JSON.parse(schemaJson) as SchemaField[];
+  } catch {
+    return { fragment: "", eligibleNames: [] };
+  }
+  if (!Array.isArray(parsed)) return { fragment: "", eligibleNames: [] };
+
+  const eligible = parsed.filter(
+    (f) =>
+      !!f.name &&
+      !!f.type &&
+      !f.hidden &&
+      !AI_EXCLUDED_TYPES.has(f.type) &&
+      !AI_EXCLUDED_NAMES.has(f.name),
+  );
+
+  if (eligible.length === 0) return { fragment: "", eligibleNames: [] };
+
+  const lines = eligible.map((f) => {
+    const bits: string[] = [`- "${f.name}" (${f.type})`];
+    if (f.label && f.label !== f.name) bits.push(`labelled "${f.label}"`);
+    if (f.description) bits.push(`— ${f.description}`);
+    if (f.type === "select" && f.options) {
+      const opts = f.options
+        .split(",")
+        .map((o) => o.trim())
+        .filter(Boolean);
+      if (opts.length > 0) bits.push(`(one of: ${opts.join(", ")})`);
+    }
+    return bits.join(" ");
+  });
+
+  return {
+    fragment: `\n\nFields to propose values for:\n${lines.join("\n")}`,
+    eligibleNames: eligible.map((f) => f.name),
+  };
+}
+
 export const runFrontmatterSuggestion = internalAction({
   args: {
     streamId: StreamIdValidator,
@@ -340,13 +436,55 @@ export const runFrontmatterSuggestion = internalAction({
     const streamId = args.streamId;
     let pending = "";
 
-    const schemaContext = args.frontmatterSchema
-      ? `\nProject schema fields: ${args.frontmatterSchema}`
-      : "";
-    const currentContext = args.currentFrontmatter
-      ? `\nCurrent frontmatter: ${args.currentFrontmatter}`
-      : "";
-    const userMessage = `Analyse this article and suggest frontmatter metadata.${schemaContext}${currentContext}\n\nArticle content:\n${args.content}`;
+    const { fragment, eligibleNames } = buildSchemaPromptFragment(
+      args.frontmatterSchema,
+    );
+
+    if (eligibleNames.length === 0) {
+      // No AI-eligible fields — short-circuit with an empty object so the
+      // drawer can show a friendly "nothing to suggest" state instead of
+      // making a paid call that returns nothing useful.
+      await ctx.runMutation(components.persistentTextStreaming.lib.addChunk, {
+        streamId,
+        text: "{}",
+        final: true,
+      });
+      return;
+    }
+
+    const systemPrompt = `${FRONTMATTER_SYSTEM_PROMPT_PREFIX}${fragment}`;
+
+    // Trim current frontmatter to just the AI-eligible fields so we don't
+    // spend tokens on slug, draft, dates, etc. that the model isn't
+    // allowed to touch anyway.
+    let currentForPrompt = "";
+    if (args.currentFrontmatter) {
+      try {
+        const parsed = JSON.parse(args.currentFrontmatter) as Record<
+          string,
+          unknown
+        >;
+        const eligibleSet = new Set(eligibleNames);
+        const trimmed: Record<string, unknown> = {};
+        for (const [k, val] of Object.entries(parsed)) {
+          if (eligibleSet.has(k) && val !== "" && val != null) {
+            trimmed[k] = val;
+          }
+        }
+        if (Object.keys(trimmed).length > 0) {
+          currentForPrompt = `\n\nValues the author already wrote (avoid trivial paraphrases):\n${JSON.stringify(
+            trimmed,
+            null,
+            2,
+          )}`;
+        }
+      } catch {
+        // Ignore malformed current frontmatter — the model can still
+        // propose from the article alone.
+      }
+    }
+
+    const userMessage = `Article:\n${args.content}${currentForPrompt}`;
 
     const writer = {
       addChunk: async (text: string) => {
@@ -370,7 +508,7 @@ export const runFrontmatterSuggestion = internalAction({
         apiKey,
         args.model,
         userMessage,
-        FRONTMATTER_SYSTEM_PROMPT,
+        systemPrompt,
         writer,
       );
 
