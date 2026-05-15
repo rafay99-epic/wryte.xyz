@@ -1,0 +1,175 @@
+# Contributing to Wryte
+
+Thanks for your interest in contributing to Wryte! This guide will help you get started.
+
+---
+
+## Table of Contents
+
+- [Code of Conduct](#code-of-conduct)
+- [Getting Started](#getting-started)
+- [Development Workflow](#development-workflow)
+- [Pull Request Process](#pull-request-process)
+- [Code Style](#code-style)
+- [Commit Messages](#commit-messages)
+- [Reporting Bugs](#reporting-bugs)
+- [Requesting Features](#requesting-features)
+
+---
+
+## Code of Conduct
+
+Be respectful, constructive, and inclusive. We're building something useful together — keep discussions focused on the work.
+
+---
+
+## Getting Started
+
+1. **Fork** the repository on GitHub
+2. **Clone** your fork locally:
+   ```bash
+   git clone https://github.com/<your-username>/wryte.xyz.git
+   cd wryte.xyz
+   ```
+3. **Install dependencies:**
+   ```bash
+   bun install
+   ```
+4. **Set up environment variables** — see the [README](README.md#3-configure-environment-variables) for details
+5. **Start the dev server:**
+   ```bash
+   bun run dev
+   ```
+
+---
+
+## Development Workflow
+
+### Branching
+
+- Create a feature branch from `main`:
+  ```bash
+  git checkout -b feat/your-feature-name
+  ```
+- Use prefixes: `feat/`, `fix/`, `refactor/`, `docs/`, `chore/`
+
+### Running checks
+
+Before submitting a PR, make sure all checks pass:
+
+```bash
+bun run lint      # Biome lint check
+bun run format    # Biome format (auto-fix)
+bun run type      # TypeScript type check (tsc --noEmit)
+```
+
+All three must pass cleanly. CI will reject PRs with lint, format, or type errors.
+
+### Tooling
+
+- **Package manager:** Bun only. Do not use npm, yarn, or pnpm.
+- **Lint / format:** [Biome](https://biomejs.dev) — configured in `biome.json`
+- **TypeScript:** Strict mode with `exactOptionalPropertyTypes` enabled
+
+---
+
+## Pull Request Process
+
+1. **One concern per PR** — keep PRs focused. A bug fix should not include unrelated refactoring.
+2. **Write a clear description** — explain what changed and why. Link to any related issues.
+3. **All checks must pass** — lint, format, type check, and CI build.
+4. **No secrets** — never commit `.env.local`, API keys, or credentials. Use `.env.local.example` for documenting new env vars.
+5. **Test your changes** — verify the golden path and edge cases in the browser before submitting.
+
+### PR title format
+
+Use conventional commit style:
+
+```
+feat: add calendar week view
+fix: resolve publish race condition
+refactor: extract shared auth hook
+docs: update env variable table
+```
+
+---
+
+## Code Style
+
+### General
+
+- Write clean, focused modules. Keep boundaries obvious between data layer, UI, and utilities.
+- Prefer small functions over large ones. Extract shared logic — don't duplicate across files.
+- No unnecessary comments. Code should be self-documenting. Only comment the **why** when it's non-obvious.
+
+### Frontend
+
+- **Components** go in `src/components/` — use `ui/` for primitives, `layout/` for shell pieces, feature folders for domain UI.
+- **Hooks** go in `src/hooks/` — reusable stateful logic, subscriptions, and side effects.
+- **Pages** stay thin — compose from components and hooks, don't dump large trees into `page.tsx`.
+- **Animations** use Framer Motion consistently. No ad-hoc CSS animation globals.
+
+### Backend (Convex)
+
+- Read `convex/_generated/ai/guidelines.md` before writing Convex code — it has rules that override training data.
+- Domain folders: `cms/`, `media/`, `ai/`, `integrations/`, `account/`, `support/`
+- Shared utilities live in `convex/_lib/`
+- Always bound query results with `.take(n)` — never return unbounded lists.
+
+---
+
+## Commit Messages
+
+Use [Conventional Commits](https://www.conventionalcommits.org/):
+
+```
+<type>(<scope>): <description>
+
+[optional body]
+```
+
+**Types:** `feat`, `fix`, `refactor`, `docs`, `chore`, `test`, `perf`, `ci`
+
+**Scope** is optional but helpful: `editor`, `board`, `sync`, `ai`, `auth`, `sidebar`, etc.
+
+**Examples:**
+
+```
+feat(editor): add word count to status bar
+fix(sync): guard against race when cancelling scheduled publish
+refactor(board): extract drag-and-drop into shared hook
+docs: update contributing guidelines
+```
+
+---
+
+## Reporting Bugs
+
+Open an issue with:
+
+1. **What happened** — describe the unexpected behavior
+2. **What you expected** — describe the correct behavior
+3. **Steps to reproduce** — minimal steps to trigger the bug
+4. **Environment** — browser, OS, and any relevant config
+
+Or use the in-app support form at **Settings > Support**.
+
+---
+
+## Requesting Features
+
+Open an issue with:
+
+1. **Problem** — what pain point are you solving?
+2. **Proposed solution** — how would you approach it?
+3. **Alternatives considered** — what else did you think about?
+
+Keep feature requests focused. "Add X" is better than "redesign the entire Y system."
+
+---
+
+## Questions?
+
+Reach out via the [contact form](https://wryte.xyz/contact) or open a discussion on GitHub.
+
+Thanks for contributing!

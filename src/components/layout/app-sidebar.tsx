@@ -376,7 +376,7 @@ export function AppSidebar() {
           />
         </div>
         <p className="mt-2 text-center text-[9px] leading-tight text-muted-foreground/30">
-          v0.5.0 · build 70 ·{" "}
+          v0.5.1 · build 72 ·{" "}
           <a
             href="https://syntaxlabtechnology.com"
             target="_blank"
