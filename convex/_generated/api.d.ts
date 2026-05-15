@@ -42,6 +42,7 @@ import type * as providers_github from "../providers/github.js";
 import type * as providers_index from "../providers/index.js";
 import type * as providers_shared from "../providers/shared.js";
 import type * as providers_uploadthing from "../providers/uploadthing.js";
+import type * as support_tickets from "../support/tickets.js";
 import type * as workflows_rotateCredential from "../workflows/rotateCredential.js";
 import type * as workflows_rotateCredentialActions from "../workflows/rotateCredentialActions.js";
 
@@ -86,6 +87,7 @@ declare const fullApi: ApiFromModules<{
   "providers/index": typeof providers_index;
   "providers/shared": typeof providers_shared;
   "providers/uploadthing": typeof providers_uploadthing;
+  "support/tickets": typeof support_tickets;
   "workflows/rotateCredential": typeof workflows_rotateCredential;
   "workflows/rotateCredentialActions": typeof workflows_rotateCredentialActions;
 }>;

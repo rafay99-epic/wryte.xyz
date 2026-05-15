@@ -8,18 +8,22 @@ import {
   AlertCircle,
   AlertTriangle,
   CheckCircle2,
+  Clock,
   Command,
   ExternalLink,
   Eye,
   EyeOff,
   GitFork,
+  HelpCircle,
   ImageIcon,
   Keyboard,
   Loader2,
+  MessageSquare,
   Monitor,
   Moon,
   Palette,
   RotateCcw,
+  Send,
   Shield,
   Skull,
   Sun,
@@ -45,6 +49,7 @@ import { Input } from "@/components/ui/input";
 import { KbdGroup } from "@/components/ui/kbd";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
 import { useGithubToken } from "@/hooks/use-github";
 import {
   type CompressionSettings,
@@ -78,6 +83,7 @@ type SettingsTab =
   | "appearance"
   | "media"
   | "shortcuts"
+  | "support"
   | "self-destruct";
 
 const TABS: { id: SettingsTab; label: string; icon: React.ElementType }[] = [
@@ -85,6 +91,7 @@ const TABS: { id: SettingsTab; label: string; icon: React.ElementType }[] = [
   { id: "appearance", label: "Appearance", icon: Palette },
   { id: "media", label: "Media", icon: ImageIcon },
   { id: "shortcuts", label: "Shortcuts", icon: Command },
+  { id: "support", label: "Support", icon: HelpCircle },
   { id: "self-destruct", label: "Self-Destruct", icon: Skull },
 ];
 
@@ -220,6 +227,17 @@ export function AccountSettingsPage() {
                 transition={{ duration: 0.15 }}
               >
                 <ShortcutsTab />
+              </motion.div>
+            )}
+            {activeTab === "support" && (
+              <motion.div
+                key="support"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.15 }}
+              >
+                <SupportTab />
               </motion.div>
             )}
             {activeTab === "self-destruct" && (
@@ -958,6 +976,191 @@ function ShortcutsTab() {
           </Button>
         </motion.div>
       )}
+    </motion.div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Support Tab                                                        */
+/* ------------------------------------------------------------------ */
+
+const STATUS_STYLES: Record<
+  string,
+  { label: string; className: string; icon: React.ElementType }
+> = {
+  open: {
+    label: "Open",
+    className:
+      "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800",
+    icon: MessageSquare,
+  },
+  in_progress: {
+    label: "In Progress",
+    className:
+      "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800",
+    icon: Clock,
+  },
+  resolved: {
+    label: "Resolved",
+    className:
+      "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800",
+    icon: CheckCircle2,
+  },
+  closed: {
+    label: "Closed",
+    className: "bg-foreground/5 text-muted-foreground border-border",
+    icon: XCircle,
+  },
+};
+
+function SupportTab() {
+  const submitTicket = useMutation(api.support.tickets.submitFromDashboard);
+  const tickets = useQuery(api.support.tickets.listByUser);
+
+  const [subject, setSubject] = useState("");
+  const [message, setMessage] = useState("");
+  const [isSending, setIsSending] = useState(false);
+
+  const canSubmit = subject.trim().length > 0 && message.trim().length > 0;
+
+  const handleSubmit = useCallback(async () => {
+    if (!canSubmit) return;
+    setIsSending(true);
+    try {
+      await submitTicket({
+        subject: subject.trim(),
+        message: message.trim(),
+      });
+      toast.success("Support ticket submitted");
+      setSubject("");
+      setMessage("");
+    } catch {
+      toast.error("Failed to submit ticket");
+    } finally {
+      setIsSending(false);
+    }
+  }, [canSubmit, subject, message, submitTicket]);
+
+  return (
+    <motion.div variants={staggerContainer} initial="initial" animate="animate">
+      <SectionHeader
+        icon={HelpCircle}
+        title="Support"
+        description="Submit a ticket or check on previous requests"
+      />
+
+      {/* Submit form — flat layout, no card wrapper */}
+      <motion.div
+        variants={staggerItem}
+        transition={smoothTransition}
+        className="space-y-4"
+      >
+        <div>
+          <Label
+            htmlFor="support-subject"
+            className="mb-1.5 text-xs text-muted-foreground"
+          >
+            Subject
+          </Label>
+          <Input
+            id="support-subject"
+            value={subject}
+            onChange={(e) => setSubject(e.target.value)}
+            placeholder="What do you need help with?"
+            disabled={isSending}
+          />
+        </div>
+
+        <div>
+          <Label
+            htmlFor="support-message"
+            className="mb-1.5 text-xs text-muted-foreground"
+          >
+            Message
+          </Label>
+          <Textarea
+            id="support-message"
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="Describe your issue or question in detail..."
+            disabled={isSending}
+            className="min-h-28"
+          />
+        </div>
+
+        <div className="flex justify-end">
+          <Button
+            size="sm"
+            onClick={handleSubmit}
+            disabled={!canSubmit || isSending}
+          >
+            {isSending ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <Send className="size-3.5" />
+            )}
+            Send ticket
+          </Button>
+        </div>
+      </motion.div>
+
+      <Divider />
+
+      {/* Past tickets — flat list */}
+      <motion.div variants={staggerItem} transition={smoothTransition}>
+        <p className="mb-3 text-xs font-medium text-muted-foreground/60">
+          Your tickets
+        </p>
+
+        {tickets === undefined ? (
+          <div className="space-y-3">
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+          </div>
+        ) : tickets.length === 0 ? (
+          <p className="py-6 text-center text-sm text-muted-foreground/40">
+            No tickets yet. Submit one above.
+          </p>
+        ) : (
+          <div className="divide-y divide-border/30">
+            {tickets.map((ticket) => {
+              const style =
+                STATUS_STYLES[ticket.status] ?? STATUS_STYLES["open"];
+              const StatusIcon = style?.icon ?? MessageSquare;
+              return (
+                <div
+                  key={ticket._id}
+                  className="flex items-start justify-between gap-3 py-3.5 first:pt-0"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[13px] font-medium">{ticket.subject}</p>
+                    <p className="mt-0.5 line-clamp-1 text-[11px] text-muted-foreground/50">
+                      {ticket.message}
+                    </p>
+                    <p className="mt-1 text-[10px] text-muted-foreground/35">
+                      {new Date(ticket.createdAt).toLocaleDateString(
+                        undefined,
+                        {
+                          dateStyle: "medium",
+                        },
+                      )}
+                    </p>
+                  </div>
+                  <span
+                    className={cn(
+                      "mt-0.5 inline-flex shrink-0 items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-medium",
+                      style?.className,
+                    )}
+                  >
+                    <StatusIcon className="size-2.5" />
+                    {style?.label ?? ticket.status}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </motion.div>
     </motion.div>
   );
 }

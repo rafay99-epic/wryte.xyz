@@ -12,12 +12,15 @@ import {
 import {
   ArrowRight,
   ArrowUpRight,
+  CheckCircle2,
   Clock,
   Command,
   Eye,
+  GalleryVerticalEnd,
   GitBranch,
   Keyboard,
   Layers,
+  MousePointerClick,
   Save,
   Sparkles,
 } from "lucide-react";
@@ -28,7 +31,7 @@ import { BrandIcon } from "@/components/branding/brand-icon";
 import { MarketingThemeToggle } from "@/components/layout/marketing-theme-toggle";
 
 /* ------------------------------------------------------------------ */
-/*  Typewriter hook — types out content character by character          */
+/*  Typewriter hook                                                     */
 /* ------------------------------------------------------------------ */
 
 function useTypewriter(
@@ -66,7 +69,6 @@ function useTypewriter(
       return () => clearTimeout(t);
     }
 
-    // Move to next line
     const t = setTimeout(() => {
       setCursorLine((l) => l + 1);
       setCursorChar(0);
@@ -79,7 +81,7 @@ function useTypewriter(
 }
 
 /* ------------------------------------------------------------------ */
-/*  Magnetic button — follows cursor subtly                            */
+/*  Magnetic button                                                     */
 /* ------------------------------------------------------------------ */
 
 function MagneticButton({
@@ -130,7 +132,7 @@ function MagneticButton({
 }
 
 /* ------------------------------------------------------------------ */
-/*  Marquee — infinite horizontal scroll                               */
+/*  Marquee                                                             */
 /* ------------------------------------------------------------------ */
 
 function Marquee({
@@ -173,7 +175,7 @@ function Marquee({
 }
 
 /* ------------------------------------------------------------------ */
-/*  Orbital ring around logo                                           */
+/*  Orbital ring                                                        */
 /* ------------------------------------------------------------------ */
 
 function OrbitalRing({
@@ -214,7 +216,7 @@ function OrbitalRing({
 }
 
 /* ------------------------------------------------------------------ */
-/*  Bento card wrapper                                                 */
+/*  Bento card                                                          */
 /* ------------------------------------------------------------------ */
 
 function BentoCard({
@@ -247,7 +249,7 @@ function BentoCard({
 }
 
 /* ------------------------------------------------------------------ */
-/*  Editor line component for the live demo                            */
+/*  Editor lines for typewriter demo                                    */
 /* ------------------------------------------------------------------ */
 
 const editorLines = [
@@ -269,7 +271,61 @@ const editorLines = [
 ];
 
 /* ------------------------------------------------------------------ */
-/*  Main landing page                                                  */
+/*  Board card mock                                                     */
+/* ------------------------------------------------------------------ */
+
+function BoardCardMock({
+  title,
+  slug,
+  words,
+  age,
+  ageColor,
+  tags,
+  isDragging,
+  className,
+}: {
+  title: string;
+  slug: string;
+  words: string;
+  age: string;
+  ageColor: string;
+  tags: string[];
+  isDragging?: boolean;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`rounded-lg border border-foreground/[0.12] dark:border-foreground/[0.06] bg-card px-3 py-2.5 transition-all ${isDragging ? "rotate-2 scale-105 shadow-xl shadow-amber-500/10 border-amber-400/30" : ""} ${className ?? ""}`}
+    >
+      <p className="text-[12px] font-medium text-foreground/85 dark:text-foreground/70">
+        {title}
+      </p>
+      <p className="mt-0.5 truncate font-mono text-[10px] text-foreground/50 dark:text-foreground/20">
+        /{slug}
+      </p>
+      <div className="mt-2 flex items-center gap-2 text-[9px] text-foreground/50 dark:text-foreground/30">
+        <span>{words} words</span>
+        <span className="text-foreground/20">·</span>
+        <span className={ageColor}>{age}</span>
+      </div>
+      {tags.length > 0 && (
+        <div className="mt-1.5 flex gap-1">
+          {tags.map((tag) => (
+            <span
+              key={tag}
+              className="rounded-full bg-foreground/[0.04] dark:bg-foreground/[0.06] px-1.5 py-0.5 text-[8px] font-medium text-foreground/50 dark:text-foreground/30"
+            >
+              {tag}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Main landing page                                                   */
 /* ------------------------------------------------------------------ */
 
 export default function LandingPage() {
@@ -296,7 +352,6 @@ export default function LandingPage() {
     editorInView,
   );
 
-  // Smooth scroll handler
   const scrollToSection = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
   };
@@ -306,7 +361,7 @@ export default function LandingPage() {
       ref={containerRef}
       className="relative min-h-screen overflow-x-hidden bg-background text-foreground"
     >
-      {/* ── Subtle noise texture ─────────────────────────────────────── */}
+      {/* Noise texture */}
       <div
         className="pointer-events-none fixed inset-0 z-[1] hidden opacity-[0.025] dark:block"
         style={{
@@ -322,7 +377,7 @@ export default function LandingPage() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 1, delay: 0.5 }}
-          className="fixed top-0 right-0 left-0 z-50"
+          className="fixed top-0 right-0 left-0 z-50 border-b border-foreground/[0.06] bg-background/80 backdrop-blur-xl"
         >
           <div className="mx-auto flex h-16 max-w-[1200px] items-center justify-between px-6">
             <Link href="/" className="flex items-center gap-2.5">
@@ -332,8 +387,8 @@ export default function LandingPage() {
               </span>
             </Link>
 
-            <nav className="hidden items-center gap-1 md:flex">
-              {["Features", "Editor", "Workflow"].map((item) => (
+            <nav className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-1 md:flex">
+              {["Features", "Editor", "Board"].map((item) => (
                 <button
                   key={item}
                   type="button"
@@ -343,6 +398,12 @@ export default function LandingPage() {
                   {item}
                 </button>
               ))}
+              <Link
+                href="/how-it-works"
+                className="rounded-lg px-3.5 py-1.5 text-[13px] text-foreground/65 dark:text-foreground/35 transition-colors hover:bg-foreground/5 hover:text-foreground/70"
+              >
+                How it Works
+              </Link>
             </nav>
 
             <div className="flex items-center gap-2">
@@ -400,13 +461,12 @@ export default function LandingPage() {
         </motion.header>
 
         {/* ══════════════════════════════════════════════════════════════ */}
-        {/*  HERO — Cinematic logo reveal + bold statement                */}
+        {/*  HERO                                                         */}
         {/* ══════════════════════════════════════════════════════════════ */}
         <section
           ref={heroRef}
           className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-6"
         >
-          {/* Ambient gradients */}
           <div className="pointer-events-none absolute inset-0">
             <div className="absolute left-1/2 top-1/3 h-[600px] w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-amber-500/[0.07] blur-[100px]" />
             <div className="absolute right-1/4 top-2/3 h-[400px] w-[400px] rounded-full bg-purple-600/[0.04] blur-[100px]" />
@@ -419,7 +479,6 @@ export default function LandingPage() {
             }}
             className="relative flex flex-col items-center"
           >
-            {/* Logo with orbital rings */}
             <motion.div
               initial={{ opacity: 0, scale: 0.5 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -441,21 +500,17 @@ export default function LandingPage() {
                     opacity={0.02}
                     delay={5}
                   />
-
                   <BrandIcon
                     width={100}
                     height={100}
                     className="relative z-10"
                     priority
                   />
-
-                  {/* Logo glow */}
                   <div className="absolute inset-0 z-0 scale-[2] rounded-full bg-amber-500/20 blur-3xl" />
                 </div>
               </motion.div>
             </motion.div>
 
-            {/* Headline — bold, clean, no gradient cliches */}
             <div className="relative text-center">
               <motion.h1
                 initial={{ opacity: 0, y: 40 }}
@@ -465,13 +520,12 @@ export default function LandingPage() {
                   delay: 0.4,
                   ease: [0.22, 1, 0.36, 1],
                 }}
-                className="text-[clamp(2.5rem,7vw,5.5rem)] font-bold leading-[0.95] tracking-[-0.03em]"
+                className="text-[clamp(2.5rem,7vw,5.5rem)] font-bold leading-[1.08] tracking-[-0.03em]"
               >
                 <span className="block text-foreground/90">Write.</span>
-                <span className="block text-foreground/90">Refine.</span>
+                <span className="block text-foreground/90">Manage.</span>
                 <span className="relative block">
                   <span className="text-amber-400">Publish.</span>
-                  {/* Animated underline */}
                   <motion.span
                     className="absolute -bottom-2 left-0 h-[3px] rounded-full bg-gradient-to-r from-amber-400 to-purple-500"
                     initial={{ width: 0 }}
@@ -489,14 +543,15 @@ export default function LandingPage() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.8, delay: 0.9 }}
-                className="mx-auto mt-8 max-w-md text-[17px] leading-relaxed text-foreground/65 dark:text-foreground/30"
+                className="mx-auto mt-8 max-w-lg text-[17px] leading-relaxed text-foreground/65 dark:text-foreground/30"
               >
-                A markdown editor that publishes to GitHub.
+                A complete content workspace for developers.
                 <br />
-                Built for developers who ship content.
+                Write in markdown. Manage on a kanban board.
+                <br />
+                Publish to GitHub with one click.
               </motion.p>
 
-              {/* CTA */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -521,7 +576,6 @@ export default function LandingPage() {
             </div>
           </motion.div>
 
-          {/* Scroll indicator */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -546,27 +600,30 @@ export default function LandingPage() {
         </section>
 
         {/* ══════════════════════════════════════════════════════════════ */}
-        {/*  MARQUEE — Visual rhythm breaker                              */}
+        {/*  MARQUEE                                                      */}
         {/* ══════════════════════════════════════════════════════════════ */}
         <div className="border-y border-foreground/[0.12] dark:border-foreground/[0.04] py-5">
           <Marquee
             items={[
-              "Markdown",
+              "Markdown Editor",
+              "Kanban Board",
               "GitHub Publishing",
               "Live Preview",
-              "Frontmatter",
+              "Drag & Drop",
               "Auto-Save",
               "Scheduling",
-              "Split View",
               "Keyboard Shortcuts",
+              "Smart Frontmatter",
+              "Inline Editing",
+              "Multi-Select",
               "Dark Mode",
-              "Real-time Sync",
+              "AI Polish",
             ]}
           />
         </div>
 
         {/* ══════════════════════════════════════════════════════════════ */}
-        {/*  STATEMENT — A single powerful line                           */}
+        {/*  STATEMENT                                                    */}
         {/* ══════════════════════════════════════════════════════════════ */}
         <section className="py-32 sm:py-40">
           <motion.div
@@ -579,13 +636,13 @@ export default function LandingPage() {
             <p className="text-center text-[clamp(1.25rem,3vw,2rem)] font-light leading-[1.5] tracking-[-0.01em] text-foreground/75 dark:text-foreground/50">
               We built Wryte because{" "}
               <span className="text-foreground/90">
-                publishing content as a developer
+                managing content as a developer
               </span>{" "}
-              shouldn&apos;t require a deploy pipeline.{" "}
+              shouldn&apos;t mean juggling files and deploy scripts.{" "}
               <span className="text-foreground/90">
-                Write in markdown, preview live,{" "}
+                Write in a real editor, drag cards across a board,{" "}
               </span>
-              and push to GitHub with{" "}
+              and ship to GitHub with{" "}
               <span className="relative inline-block text-amber-400">
                 one click
                 <svg
@@ -611,11 +668,10 @@ export default function LandingPage() {
         </section>
 
         {/* ══════════════════════════════════════════════════════════════ */}
-        {/*  LIVE EDITOR — The centerpiece. Show, don't tell.             */}
+        {/*  LIVE EDITOR                                                  */}
         {/* ══════════════════════════════════════════════════════════════ */}
         <section id="editor" className="relative py-24 sm:py-32">
           <div className="mx-auto max-w-[1100px] px-6">
-            {/* Section intro */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -629,9 +685,12 @@ export default function LandingPage() {
               <h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">
                 Where your words come alive
               </h2>
+              <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-foreground/55 dark:text-foreground/25">
+                A distraction-free markdown editor with split preview, syntax
+                highlighting, and keyboard shortcuts you already know.
+              </p>
             </motion.div>
 
-            {/* Editor frame */}
             <motion.div
               ref={editorRef}
               initial={{ opacity: 0, y: 50 }}
@@ -640,11 +699,10 @@ export default function LandingPage() {
               transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
               className="relative"
             >
-              {/* Glow behind editor */}
               <div className="absolute -inset-px rounded-2xl bg-gradient-to-b from-amber-500/20 via-transparent to-purple-500/10 blur-sm" />
 
               <div className="relative overflow-hidden rounded-2xl border border-foreground/[0.2] dark:border-foreground/[0.08] bg-card shadow-2xl shadow-black/60">
-                {/* ── Title bar ────────────────────────────────── */}
+                {/* Title bar */}
                 <div className="flex items-center justify-between border-b border-foreground/[0.15] dark:border-foreground/[0.06] px-4 py-2.5">
                   <div className="flex items-center gap-2">
                     <div className="flex gap-1.5">
@@ -681,7 +739,7 @@ export default function LandingPage() {
                   </div>
                 </div>
 
-                {/* ── Editor + sidebar layout ─────────────────── */}
+                {/* Editor + sidebar */}
                 <div className="flex">
                   {/* Frontmatter sidebar */}
                   <div className="hidden w-56 shrink-0 border-r border-foreground/[0.12] dark:border-foreground/[0.04] p-4 lg:block">
@@ -720,12 +778,10 @@ export default function LandingPage() {
                     <div className="font-mono text-[13px] leading-[1.8] sm:text-sm">
                       {output.map((line, i) => (
                         <div key={i} className="flex">
-                          {/* Line number */}
                           <span className="mr-4 inline-block w-5 shrink-0 text-right text-foreground/65 dark:text-foreground/10 select-none">
                             {i + 1}
                           </span>
                           <span>
-                            {/* Color the lines based on content */}
                             {line.startsWith("---") ? (
                               <span className="text-foreground/70 dark:text-foreground/15">
                                 {line}
@@ -766,7 +822,6 @@ export default function LandingPage() {
                                 {line}
                               </span>
                             )}
-                            {/* Blinking cursor at current position */}
                             {i === cursorLine && (
                               <motion.span
                                 animate={{ opacity: [1, 0] }}
@@ -785,7 +840,7 @@ export default function LandingPage() {
                   </div>
                 </div>
 
-                {/* ── Status bar ──────────────────────────────── */}
+                {/* Status bar */}
                 <div className="flex items-center justify-between border-t border-foreground/[0.12] dark:border-foreground/[0.04] px-4 py-1.5">
                   <div className="flex items-center gap-3">
                     <span className="text-[10px] text-foreground/70 dark:text-foreground/15">
@@ -802,7 +857,7 @@ export default function LandingPage() {
                 </div>
               </div>
 
-              {/* ── Floating annotation cards ────────────────── */}
+              {/* Floating annotations */}
               <motion.div
                 initial={{ opacity: 0, x: 20 }}
                 whileInView={{ opacity: 1, x: 0 }}
@@ -851,7 +906,227 @@ export default function LandingPage() {
         </section>
 
         {/* ══════════════════════════════════════════════════════════════ */}
-        {/*  BENTO GRID — Asymmetric, each cell is unique                 */}
+        {/*  KANBAN BOARD — Visual board mockup                           */}
+        {/* ══════════════════════════════════════════════════════════════ */}
+        <section id="board" className="relative py-24 sm:py-32">
+          <div className="absolute left-1/2 top-0 h-px w-3/4 -translate-x-1/2 bg-gradient-to-r from-transparent via-foreground/[0.06] to-transparent" />
+
+          <div className="mx-auto max-w-[1100px] px-6">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-100px" }}
+              transition={{ duration: 0.6 }}
+              className="mb-12"
+            >
+              <p className="text-[13px] font-medium tracking-[0.15em] text-purple-400/60 uppercase">
+                The Board
+              </p>
+              <h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">
+                Your content pipeline, visualized
+              </h2>
+              <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-foreground/55 dark:text-foreground/25">
+                Drag articles between columns. See word counts, age indicators,
+                and tags at a glance. Navigate with vim keys. Bulk-move with
+                multi-select.
+              </p>
+            </motion.div>
+
+            {/* Board mockup */}
+            <motion.div
+              initial={{ opacity: 0, y: 50 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-100px" }}
+              transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+              className="relative"
+            >
+              <div className="absolute -inset-px rounded-2xl bg-gradient-to-b from-purple-500/15 via-transparent to-amber-500/10 blur-sm" />
+
+              <div className="relative overflow-hidden rounded-2xl border border-foreground/[0.2] dark:border-foreground/[0.08] bg-card shadow-2xl shadow-black/60">
+                {/* Board title bar */}
+                <div className="flex items-center justify-between border-b border-foreground/[0.15] dark:border-foreground/[0.06] px-4 py-2.5">
+                  <div className="flex items-center gap-2">
+                    <div className="flex gap-1.5">
+                      <div className="size-[10px] rounded-full bg-[#ff5f57]" />
+                      <div className="size-[10px] rounded-full bg-[#febc2e]" />
+                      <div className="size-[10px] rounded-full bg-[#28c840]" />
+                    </div>
+                    <div className="ml-3 flex items-center gap-1.5 rounded-md bg-foreground/[0.04] px-2.5 py-1">
+                      <GalleryVerticalEnd className="size-3 text-foreground/75 dark:text-foreground/20" />
+                      <span className="text-[11px] text-foreground/70 dark:text-foreground/40">
+                        Content Board
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {["Board", "Table"].map((view, i) => (
+                      <div
+                        key={view}
+                        className={`rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                          i === 0
+                            ? "bg-purple-500/15 text-purple-400"
+                            : "text-foreground/75 dark:text-foreground/20"
+                        }`}
+                      >
+                        {view}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Board columns */}
+                <div className="flex gap-3 overflow-x-auto p-4">
+                  {/* Draft column */}
+                  <div className="min-w-[220px] flex-1 rounded-xl border border-amber-500/10 border-t-amber-500/30 border-t-[3px] bg-foreground/[0.01]">
+                    <div className="flex items-center gap-2 px-3 py-2.5">
+                      <span className="text-[12px] font-semibold text-foreground/80 dark:text-foreground/60">
+                        Draft
+                      </span>
+                      <span className="rounded-full bg-amber-500/10 px-1.5 py-0 text-[10px] font-semibold text-amber-400">
+                        3
+                      </span>
+                    </div>
+                    <div className="space-y-2 px-2 pb-2">
+                      <BoardCardMock
+                        title="Getting Started Guide"
+                        slug="getting-started"
+                        words="1.2k"
+                        age="2h"
+                        ageColor="text-emerald-400"
+                        tags={["docs"]}
+                      />
+                      <BoardCardMock
+                        title="API Reference v2"
+                        slug="api-reference-v2"
+                        words="3.4k"
+                        age="1d"
+                        ageColor="text-amber-400"
+                        tags={["api", "docs"]}
+                        isDragging
+                      />
+                      <BoardCardMock
+                        title="Migration Guide"
+                        slug="migration-guide"
+                        words="890"
+                        age="3d"
+                        ageColor="text-red-400"
+                        tags={["guide"]}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Review column */}
+                  <div className="min-w-[220px] flex-1 rounded-xl border border-purple-500/10 border-t-purple-500/30 border-t-[3px] bg-foreground/[0.01]">
+                    <div className="flex items-center gap-2 px-3 py-2.5">
+                      <span className="text-[12px] font-semibold text-foreground/80 dark:text-foreground/60">
+                        Review
+                      </span>
+                      <span className="rounded-full bg-purple-500/10 px-1.5 py-0 text-[10px] font-semibold text-purple-400">
+                        2
+                      </span>
+                    </div>
+                    <div className="space-y-2 px-2 pb-2">
+                      <BoardCardMock
+                        title="Shipping Faster with Wryte"
+                        slug="shipping-faster"
+                        words="2.1k"
+                        age="4h"
+                        ageColor="text-emerald-400"
+                        tags={["blog", "devtools"]}
+                      />
+                      <BoardCardMock
+                        title="Content Strategy 2026"
+                        slug="content-strategy"
+                        words="1.8k"
+                        age="12h"
+                        ageColor="text-amber-400"
+                        tags={["strategy"]}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Published column */}
+                  <div className="min-w-[220px] flex-1 rounded-xl border border-emerald-500/10 border-t-emerald-500/30 border-t-[3px] bg-foreground/[0.01]">
+                    <div className="flex items-center gap-2 px-3 py-2.5">
+                      <span className="text-[12px] font-semibold text-foreground/80 dark:text-foreground/60">
+                        Published
+                      </span>
+                      <span className="rounded-full bg-emerald-500/10 px-1.5 py-0 text-[10px] font-semibold text-emerald-400">
+                        4
+                      </span>
+                    </div>
+                    <div className="space-y-2 px-2 pb-2">
+                      <BoardCardMock
+                        title="Why We Built Wryte"
+                        slug="why-we-built-wryte"
+                        words="1.5k"
+                        age="2d"
+                        ageColor="text-amber-400"
+                        tags={["blog"]}
+                      />
+                      <BoardCardMock
+                        title="Markdown Best Practices"
+                        slug="markdown-best-practices"
+                        words="2.8k"
+                        age="5d"
+                        ageColor="text-red-400"
+                        tags={["guide", "markdown"]}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Floating annotations */}
+              <motion.div
+                initial={{ opacity: 0, x: 20 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: 0.8, duration: 0.6 }}
+                className="absolute -right-3 top-1/4 hidden xl:block"
+              >
+                <div className="rounded-xl border border-foreground/[0.15] dark:border-foreground/[0.06] bg-card/90 p-3 shadow-xl backdrop-blur-sm">
+                  <div className="flex items-center gap-2">
+                    <MousePointerClick className="size-3.5 text-amber-400" />
+                    <span className="text-[11px] font-medium text-foreground/75 dark:text-foreground/50">
+                      Drag & Drop
+                    </span>
+                  </div>
+                  <p className="mt-1 text-[10px] text-foreground/55 dark:text-foreground/25">
+                    Grab any card and move
+                    <br />
+                    it to another column
+                  </p>
+                </div>
+              </motion.div>
+
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: 1.1, duration: 0.6 }}
+                className="absolute -left-3 bottom-1/4 hidden xl:block"
+              >
+                <div className="rounded-xl border border-foreground/[0.15] dark:border-foreground/[0.06] bg-card/90 p-3 shadow-xl backdrop-blur-sm">
+                  <div className="flex items-center gap-2">
+                    <Keyboard className="size-3.5 text-purple-400" />
+                    <span className="text-[11px] font-medium text-foreground/75 dark:text-foreground/50">
+                      Vim Navigation
+                    </span>
+                  </div>
+                  <p className="mt-1 text-[10px] text-foreground/55 dark:text-foreground/25">
+                    j/k to move, m+1-9
+                    <br />
+                    to move cards between columns
+                  </p>
+                </div>
+              </motion.div>
+            </motion.div>
+          </div>
+        </section>
+
+        {/* ══════════════════════════════════════════════════════════════ */}
+        {/*  BENTO GRID                                                   */}
         {/* ══════════════════════════════════════════════════════════════ */}
         <section id="features" className="py-24 sm:py-32">
           <div className="mx-auto max-w-[1100px] px-6">
@@ -870,9 +1145,8 @@ export default function LandingPage() {
               </h2>
             </motion.div>
 
-            {/* Bento layout — asymmetric grid */}
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 lg:grid-rows-[260px_260px]">
-              {/* ── Card 1: GitHub Publishing (large, spans 2 rows) ── */}
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 lg:grid-rows-[260px_260px_260px]">
+              {/* Card 1: GitHub Publishing (large, spans 2 rows) */}
               <BentoCard className="lg:row-span-2" delay={0}>
                 <div className="flex h-full flex-col p-6">
                   <GitBranch className="mb-4 size-5 text-amber-400" />
@@ -882,10 +1156,10 @@ export default function LandingPage() {
                   <p className="mb-6 text-[13px] leading-relaxed text-foreground/65 dark:text-foreground/30">
                     Connect any repo, configure content paths, and publish.
                     Wryte generates clean commits and tracks file SHAs for smart
-                    create-or-update logic.
+                    create-or-update logic. Diff-before-sync ensures no wasted
+                    operations.
                   </p>
 
-                  {/* Mini commit log visualization */}
                   <div className="mt-auto space-y-2.5">
                     {[
                       {
@@ -930,10 +1204,40 @@ export default function LandingPage() {
                 </div>
               </BentoCard>
 
-              {/* ── Card 2: Smart Scheduling ────────────────────── */}
+              {/* Card 2: Kanban Board */}
               <BentoCard delay={0.08}>
                 <div className="flex h-full flex-col p-6">
-                  <Clock className="mb-4 size-5 text-purple-400" />
+                  <GalleryVerticalEnd className="mb-4 size-5 text-purple-400" />
+                  <h3 className="mb-2 text-lg font-semibold text-foreground/90">
+                    Kanban Board
+                  </h3>
+                  <p className="text-[13px] leading-relaxed text-foreground/65 dark:text-foreground/30">
+                    Drag cards between columns. Rename inline, edit tags,
+                    preview on hover. Collapsible columns keep things tidy.
+                  </p>
+
+                  <div className="mt-auto flex gap-2">
+                    {["Draft", "Review", "Live"].map((col, i) => (
+                      <div
+                        key={col}
+                        className="flex-1 rounded-md bg-foreground/[0.03] px-2 py-1.5 text-center"
+                      >
+                        <div className="text-[9px] font-semibold text-foreground/50 dark:text-foreground/25">
+                          {col}
+                        </div>
+                        <div className="mt-1 text-[16px] font-bold text-foreground/70 dark:text-foreground/40">
+                          {[3, 2, 4][i]}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </BentoCard>
+
+              {/* Card 3: Schedule & Forget */}
+              <BentoCard delay={0.16}>
+                <div className="flex h-full flex-col p-6">
+                  <Clock className="mb-4 size-5 text-emerald-400" />
                   <h3 className="mb-2 text-lg font-semibold text-foreground/90">
                     Schedule & Forget
                   </h3>
@@ -942,7 +1246,6 @@ export default function LandingPage() {
                     rest — your content goes live while you sleep.
                   </p>
 
-                  {/* Mini calendar visualization */}
                   <div className="mt-auto grid grid-cols-7 gap-1">
                     {Array.from({ length: 14 }, (_, i) => {
                       const isScheduled = i === 5 || i === 11;
@@ -966,8 +1269,46 @@ export default function LandingPage() {
                 </div>
               </BentoCard>
 
-              {/* ── Card 3: Auto-Save ───────────────────────────── */}
-              <BentoCard delay={0.16}>
+              {/* Card 4: Keyboard First (large, spans 2 cols) */}
+              <BentoCard className="sm:col-span-2" delay={0.12}>
+                <div className="flex h-full flex-col p-6">
+                  <Keyboard className="mb-4 size-5 text-amber-400" />
+                  <h3 className="mb-2 text-lg font-semibold text-foreground/90">
+                    Keyboard First
+                  </h3>
+                  <p className="mb-4 text-[13px] leading-relaxed text-foreground/65 dark:text-foreground/30">
+                    Every action has a shortcut. Navigate the board with vim
+                    keys, format text with familiar combos, move cards without
+                    touching the mouse.
+                  </p>
+
+                  <div className="mt-auto grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3">
+                    {[
+                      { keys: "j / k", action: "Navigate cards" },
+                      { keys: "h / l", action: "Switch columns" },
+                      { keys: "m + 1-9", action: "Move to column" },
+                      { keys: "Ctrl+B", action: "Bold text" },
+                      { keys: "Ctrl+K", action: "Insert link" },
+                      { keys: "Ctrl+S", action: "Force save" },
+                    ].map((shortcut) => (
+                      <div
+                        key={shortcut.keys}
+                        className="flex items-center gap-2"
+                      >
+                        <kbd className="rounded bg-foreground/[0.05] dark:bg-foreground/[0.08] px-1.5 py-0.5 font-mono text-[10px] font-medium text-foreground/60 dark:text-foreground/40">
+                          {shortcut.keys}
+                        </kbd>
+                        <span className="text-[11px] text-foreground/50 dark:text-foreground/25">
+                          {shortcut.action}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </BentoCard>
+
+              {/* Card 5: Auto-Save */}
+              <BentoCard delay={0.2}>
                 <div className="flex h-full flex-col p-6">
                   <Save className="mb-4 size-5 text-emerald-400" />
                   <h3 className="mb-2 text-lg font-semibold text-foreground/90">
@@ -978,7 +1319,6 @@ export default function LandingPage() {
                     up exactly where you left off, on any device.
                   </p>
 
-                  {/* Save pulse animation */}
                   <div className="mt-auto flex items-center gap-3">
                     <div className="relative flex items-center justify-center">
                       <motion.div
@@ -998,19 +1338,18 @@ export default function LandingPage() {
                 </div>
               </BentoCard>
 
-              {/* ── Card 4: Frontmatter Schema ──────────────────── */}
-              <BentoCard delay={0.12}>
+              {/* Card 6: Smart Frontmatter */}
+              <BentoCard delay={0.24}>
                 <div className="flex h-full flex-col p-6">
                   <Command className="mb-4 size-5 text-blue-400" />
                   <h3 className="mb-2 text-lg font-semibold text-foreground/90">
                     Smart Frontmatter
                   </h3>
                   <p className="mb-4 text-[13px] leading-relaxed text-foreground/65 dark:text-foreground/30">
-                    Auto-detects schema from your repo. Define custom fields —
-                    strings, dates, tags, selects — and Wryte builds the form.
+                    Auto-detects schema from your repo. Define custom fields and
+                    Wryte builds the form.
                   </p>
 
-                  {/* Mini schema visualization */}
                   <div className="mt-auto space-y-1.5">
                     {[
                       { key: "title", type: "string", required: true },
@@ -1038,19 +1377,48 @@ export default function LandingPage() {
                 </div>
               </BentoCard>
 
-              {/* ── Card 5: AI Enhancement (coming soon) ────────── */}
-              <BentoCard delay={0.2}>
+              {/* Card 7: Multi-Select & Bulk Actions */}
+              <BentoCard delay={0.28}>
+                <div className="flex h-full flex-col p-6">
+                  <CheckCircle2 className="mb-4 size-5 text-purple-400" />
+                  <h3 className="mb-2 text-lg font-semibold text-foreground/90">
+                    Bulk Actions
+                  </h3>
+                  <p className="text-[13px] leading-relaxed text-foreground/65 dark:text-foreground/30">
+                    Select multiple articles with checkboxes. Move, publish, or
+                    delete in batch — across both board and table views.
+                  </p>
+
+                  <div className="mt-auto space-y-1.5">
+                    {[
+                      "Move 3 articles to Review",
+                      "Publish 5 to GitHub",
+                      "Delete 2 drafts",
+                    ].map((action) => (
+                      <div
+                        key={action}
+                        className="flex items-center gap-2 rounded bg-foreground/[0.03] px-2 py-1.5 text-[10px] text-foreground/50 dark:text-foreground/30"
+                      >
+                        <CheckCircle2 className="size-3 text-purple-400/50" />
+                        {action}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </BentoCard>
+
+              {/* Card 8: AI Enhancement (coming soon) */}
+              <BentoCard delay={0.32}>
                 <div className="relative flex h-full flex-col p-6">
                   <Sparkles className="mb-4 size-5 text-pink-400" />
                   <h3 className="mb-2 text-lg font-semibold text-foreground/90">
                     AI-Powered Polish
                   </h3>
                   <p className="text-[13px] leading-relaxed text-foreground/65 dark:text-foreground/30">
-                    Tone shifts, SEO suggestions, and content improvements. Your
-                    voice, amplified by AI.
+                    Tone shifts, SEO suggestions, frontmatter generation, and
+                    content improvements. Your voice, amplified by AI.
                   </p>
 
-                  {/* Coming soon badge */}
                   <div className="mt-auto">
                     <span className="inline-flex items-center gap-1.5 rounded-full border border-pink-500/15 bg-pink-500/5 px-2.5 py-1 text-[10px] font-medium text-pink-400/60">
                       <motion.span
@@ -1071,13 +1439,12 @@ export default function LandingPage() {
         </section>
 
         {/* ══════════════════════════════════════════════════════════════ */}
-        {/*  WORKFLOW — Horizontal flow, not a numbered list              */}
+        {/*  WORKFLOW                                                     */}
         {/* ══════════════════════════════════════════════════════════════ */}
         <section
           id="workflow"
           className="relative overflow-hidden py-24 sm:py-32"
         >
-          {/* Top rule */}
           <div className="absolute left-1/2 top-0 h-px w-3/4 -translate-x-1/2 bg-gradient-to-r from-transparent via-foreground/[0.06] to-transparent" />
 
           <div className="mx-auto max-w-[1100px] px-6">
@@ -1096,9 +1463,7 @@ export default function LandingPage() {
               </h2>
             </motion.div>
 
-            {/* Horizontal flow */}
             <div className="relative">
-              {/* Connecting line */}
               <div className="absolute left-0 right-0 top-12 hidden h-px bg-gradient-to-r from-amber-400/30 via-purple-400/30 to-emerald-400/30 lg:block" />
 
               <div className="grid gap-8 lg:grid-cols-3 lg:gap-4">
@@ -1106,15 +1471,15 @@ export default function LandingPage() {
                   {
                     num: "01",
                     title: "Capture",
-                    desc: "Open the editor. Start typing markdown. No config, no setup. Auto-save catches every thought.",
+                    desc: "Open the editor. Start typing markdown. Auto-save catches every keystroke. Frontmatter fields build themselves from your schema.",
                     color: "text-amber-400",
                     dotColor: "bg-amber-400",
                     glowColor: "bg-amber-400/20",
                   },
                   {
                     num: "02",
-                    title: "Refine",
-                    desc: "Toggle split view. Preview renders live. Edit frontmatter through the form panel. Polish until it shines.",
+                    title: "Organize",
+                    desc: "Drag cards across your kanban board. Tag, rename, and preview inline. Use keyboard shortcuts to move fast without touching the mouse.",
                     color: "text-purple-400",
                     dotColor: "bg-purple-400",
                     glowColor: "bg-purple-400/20",
@@ -1122,7 +1487,7 @@ export default function LandingPage() {
                   {
                     num: "03",
                     title: "Ship",
-                    desc: "Hit publish. Wryte commits to your GitHub repo, generates the file path, and your content is live.",
+                    desc: "Hit publish or schedule for later. Wryte commits to your GitHub repo, and your content is live. Bulk-publish when you're ready to ship a batch.",
                     color: "text-emerald-400",
                     dotColor: "bg-emerald-400",
                     glowColor: "bg-emerald-400/20",
@@ -1136,7 +1501,6 @@ export default function LandingPage() {
                     transition={{ duration: 0.6, delay: i * 0.15 }}
                     className="relative text-center lg:text-left"
                   >
-                    {/* Dot on the line */}
                     <div className="mx-auto mb-6 flex size-24 items-center justify-center lg:mx-0">
                       <div className="relative">
                         <div
@@ -1167,12 +1531,11 @@ export default function LandingPage() {
         </section>
 
         {/* ══════════════════════════════════════════════════════════════ */}
-        {/*  CTA — Dramatic, minimal                                      */}
+        {/*  CTA                                                          */}
         {/* ══════════════════════════════════════════════════════════════ */}
         <section className="relative py-32 sm:py-40">
           <div className="absolute left-1/2 top-0 h-px w-3/4 -translate-x-1/2 bg-gradient-to-r from-transparent via-foreground/[0.06] to-transparent" />
 
-          {/* Ambient CTA glow */}
           <div className="pointer-events-none absolute inset-0">
             <div className="absolute left-1/2 top-1/2 h-[500px] w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-amber-500/[0.04] blur-[100px]" />
           </div>
@@ -1216,9 +1579,9 @@ export default function LandingPage() {
         </section>
 
         {/* ══════════════════════════════════════════════════════════════ */}
-        {/*  FOOTER — Clean and minimal                                   */}
+        {/*  FOOTER                                                       */}
         {/* ══════════════════════════════════════════════════════════════ */}
-        <footer className="border-t border-foreground/[0.12] dark:border-foreground/[0.04] py-8">
+        <footer className="border-t border-foreground/[0.08] dark:border-foreground/[0.04] py-8">
           <div className="mx-auto flex max-w-[1100px] items-center justify-between px-6">
             <div className="flex items-center gap-2">
               <BrandIcon
@@ -1226,41 +1589,32 @@ export default function LandingPage() {
                 height={18}
                 className="rounded-[3px] opacity-40"
               />
-              <span className="text-[12px] text-foreground/75 dark:text-foreground/20">
+              <span className="text-[12px] text-foreground/40 dark:text-foreground/20">
                 &copy; {new Date().getFullYear()} Wryte
               </span>
             </div>
-            <div className="flex items-center gap-5 text-[12px] text-foreground/75 dark:text-foreground/20">
-              <button
-                type="button"
-                onClick={() => scrollToSection("editor")}
-                className="transition-colors hover:text-foreground dark:hover:text-foreground/40"
+            <div className="flex items-center gap-5 text-[12px] text-foreground/40 dark:text-foreground/20">
+              <Link
+                href="/how-it-works"
+                className="transition-colors hover:text-foreground/70"
               >
-                Editor
-              </button>
-              <button
-                type="button"
-                onClick={() => scrollToSection("features")}
-                className="transition-colors hover:text-foreground dark:hover:text-foreground/40"
+                How it Works
+              </Link>
+              <Link
+                href="/contact"
+                className="transition-colors hover:text-foreground/70"
               >
-                Features
-              </button>
-              <button
-                type="button"
-                onClick={() => scrollToSection("workflow")}
-                className="transition-colors hover:text-foreground dark:hover:text-foreground/40"
-              >
-                Workflow
-              </button>
+                Contact
+              </Link>
               <Link
                 href="/terms"
-                className="transition-colors hover:text-foreground dark:hover:text-foreground/40"
+                className="transition-colors hover:text-foreground/70"
               >
                 Terms
               </Link>
               <Link
                 href="/privacy"
-                className="transition-colors hover:text-foreground dark:hover:text-foreground/40"
+                className="transition-colors hover:text-foreground/70"
               >
                 Privacy
               </Link>

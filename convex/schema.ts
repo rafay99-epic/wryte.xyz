@@ -510,6 +510,37 @@ export default defineSchema({
    * Scheduled publishes table — lightweight job queue for deferred publishing.
    * Pending → processing → completed | failed.
    */
+  /**
+   * Support tickets — user-submitted feedback, bug reports, or questions.
+   *
+   * `source` distinguishes where the ticket originated:
+   *  - "dashboard": authenticated user from Settings → Support
+   *  - "marketing": anonymous visitor from /contact
+   *
+   * Anonymous submissions populate `email` / `name` from the form.
+   * Authenticated submissions populate them from the user record +
+   * store the foreign key so past tickets are queryable per-user.
+   */
+  support_tickets: defineTable({
+    userId: v.optional(v.id("users")),
+    name: v.string(),
+    email: v.string(),
+    subject: v.string(),
+    message: v.string(),
+    status: v.union(
+      v.literal("open"),
+      v.literal("in_progress"),
+      v.literal("resolved"),
+      v.literal("closed"),
+    ),
+    source: v.union(v.literal("dashboard"), v.literal("marketing")),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_status", ["status"])
+    .index("by_createdAt", ["createdAt"]),
+
   scheduled_publishes: defineTable({
     documentId: v.id("documents"),
     scheduledAt: v.number(),
