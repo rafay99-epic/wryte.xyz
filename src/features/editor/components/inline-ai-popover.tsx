@@ -158,7 +158,7 @@ export function InlineAiPopover({
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: -8, scale: 0.98 }}
           transition={{ duration: 0.15, ease: "easeOut" }}
-          className="absolute left-1/2 top-2 z-50 w-[min(36rem,calc(100%-2rem))] -translate-x-1/2"
+          className="fixed left-1/2 top-20 z-50 w-[min(36rem,calc(100%-2rem))] -translate-x-1/2"
         >
           <div className="rounded-xl border border-border/60 bg-popover shadow-xl ring-1 ring-black/5">
             {/* ── Prompt input phase ── */}

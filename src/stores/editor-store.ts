@@ -31,6 +31,8 @@ type EditorState = {
   focusMode: boolean;
   /** When true, shows the publish history side panel in the editor. */
   historyPanelOpen: boolean;
+  /** Sidebar state saved before entering focus mode, restored on exit. */
+  _preFocusSidebarOpen: boolean | null;
 
   /** Update markdown content and mark the document as dirty (unsaved changes). */
   setContent: (content: string) => void;
@@ -72,6 +74,7 @@ const initialState = {
   activeProjectId: null as string | null,
   focusMode: false,
   historyPanelOpen: false,
+  _preFocusSidebarOpen: null as boolean | null,
 };
 
 /**
@@ -119,13 +122,21 @@ export const useEditorStore = create<EditorState>()((set) => ({
 
   setActiveProjectId: (id) => set({ activeProjectId: id }),
 
-  // Toggle focus mode — hides sidebar, header, toolbar for clean writing
   toggleFocusMode: () =>
-    set((state) => ({
-      focusMode: !state.focusMode,
-      // Close sidebar when entering focus mode
-      sidebarOpen: !!state.focusMode,
-    })),
+    set((state) => {
+      if (state.focusMode) {
+        return {
+          focusMode: false,
+          sidebarOpen: state._preFocusSidebarOpen ?? true,
+          _preFocusSidebarOpen: null,
+        };
+      }
+      return {
+        focusMode: true,
+        _preFocusSidebarOpen: state.sidebarOpen,
+        sidebarOpen: false,
+      };
+    }),
 
   // Toggle publish history panel
   toggleHistoryPanel: () =>

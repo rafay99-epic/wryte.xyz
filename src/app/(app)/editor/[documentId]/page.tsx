@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { EditorPage } from "@/features/editor/editor-page";
 
 export const metadata: Metadata = {
-  title: "Editor — Wryte",
+  title: "Editor",
 };
 
 export default function Page() {

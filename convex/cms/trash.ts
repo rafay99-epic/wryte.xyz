@@ -18,6 +18,7 @@ import { v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import { internalMutation, mutation, query } from "../_generated/server";
 import { getAuthedUserOrNull, getCurrentUser } from "../_lib/auth";
+import { adjustDocumentCount } from "../_lib/documentCount";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
 
 const DEFAULT_RETENTION_DAYS = 30;
@@ -38,13 +39,13 @@ export const listByProject = query({
     const project = await ctx.db.get(args.projectId);
     if (!project || project.userId !== user._id) return null;
 
-    const docs = await ctx.db
+    const trashed = await ctx.db
       .query("documents")
-      .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
-      .collect();
-
-    const trashed = docs.filter((d) => d.trashedAt !== undefined);
-    trashed.sort((a, b) => (b.trashedAt ?? 0) - (a.trashedAt ?? 0));
+      .withIndex("by_projectId_and_trashedAt", (q) =>
+        q.eq("projectId", args.projectId).gt("trashedAt", 0),
+      )
+      .order("desc")
+      .take(200);
 
     return {
       retentionDays: project.trashRetentionDays ?? DEFAULT_RETENTION_DAYS,
@@ -107,6 +108,8 @@ export const restore = mutation({
       trashedAt: undefined,
       updatedAt: Date.now(),
     });
+
+    await adjustDocumentCount(ctx, doc.projectId, 1);
   },
 });
 
@@ -150,12 +153,12 @@ export const emptyTrash = mutation({
       throw new Error("Unauthorized: you do not own this project");
     }
 
-    const docs = await ctx.db
+    const trashed = await ctx.db
       .query("documents")
-      .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
-      .collect();
-
-    const trashed = docs.filter((d) => d.trashedAt !== undefined).slice(0, 200);
+      .withIndex("by_projectId_and_trashedAt", (q) =>
+        q.eq("projectId", args.projectId).gt("trashedAt", 0),
+      )
+      .take(200);
     for (const d of trashed) {
       await ctx.db.delete(d._id);
     }

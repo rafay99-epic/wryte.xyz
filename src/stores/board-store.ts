@@ -129,5 +129,15 @@ export const useBoardStore = create<BoardState>()((set) => ({
       pendingSchedulePrevStatus: null,
     }),
 
-  reset: () => set(initialState),
+  reset: () =>
+    set({
+      activeItem: null,
+      overColumnId: null,
+      optimisticMoves: new Map(),
+      activeTagFilters: new Set(),
+      editingColumnId: null,
+      settingsDialogOpen: false,
+      pendingScheduleDocId: null,
+      pendingSchedulePrevStatus: null,
+    }),
 }));

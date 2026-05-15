@@ -1,8 +1,8 @@
 "use client";
 
-import { useAction, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import { Loader2, Send } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useShallow } from "zustand/react/shallow";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,7 @@ import { useEditorStore } from "@/stores/editor-store";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
 
+const documentsUpdate = api.cms.documents.update;
 const documentsGet = api.cms.documents.get;
 const projectsGet = api.cms.projects.get;
 const publishAction = api.integrations.github.publish;
@@ -65,6 +66,7 @@ export function PublishDialog({
   );
 
   const publishToGithub = useAction(publishAction);
+  const updateDocument = useMutation(documentsUpdate);
 
   // If the document already has a GitHub SHA, this is an update (not a first publish)
   const isUpdate = Boolean(document?.githubSha);
@@ -73,6 +75,17 @@ export function PublishDialog({
     : `Add ${title || "document"}`;
 
   const [commitMessage, setCommitMessage] = useState(defaultCommitMessage);
+
+  // Reset commit message to the current default each time the dialog opens
+  useEffect(() => {
+    if (open) {
+      setCommitMessage(
+        isUpdate
+          ? `Update ${title || "document"}`
+          : `Add ${title || "document"}`,
+      );
+    }
+  }, [open, isUpdate, title]);
 
   // Compute the target file path in the repo for display purposes
   const contentPath = project?.contentPath ?? "content";
@@ -118,7 +131,19 @@ export function PublishDialog({
   async function handlePublish() {
     setIsPublishing(true);
     try {
-      await publishToGithub({ documentId: documentId as Id<"documents"> });
+      if (useEditorStore.getState().isDirty) {
+        await updateDocument({
+          documentId: documentId as Id<"documents">,
+          content,
+          title,
+        });
+        useEditorStore.getState().markSaved();
+      }
+      const trimmedMessage = commitMessage.trim();
+      await publishToGithub({
+        documentId: documentId as Id<"documents">,
+        ...(trimmedMessage && { commitMessage: trimmedMessage }),
+      });
       toast.success("Published successfully!", {
         description: `${title} has been published to GitHub.`,
       });

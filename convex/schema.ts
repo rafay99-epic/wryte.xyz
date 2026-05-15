@@ -147,6 +147,13 @@ export default defineSchema({
      * effectively disable auto-cleanup ("Never").
      */
     trashRetentionDays: v.optional(v.number()),
+    /**
+     * Denormalized count of non-trashed documents in this project.
+     * Maintained by document create/delete/trash/restore mutations so
+     * `listWithDocumentCounts` avoids an O(N) scan per project.
+     * Optional for backwards compat — absent means "not yet backfilled".
+     */
+    documentCount: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   }).index("by_userId", ["userId"]),

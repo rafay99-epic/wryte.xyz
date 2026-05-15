@@ -106,6 +106,16 @@ async function resolveProjectAndCredential(
       "The saved API key was rejected by the provider. Rotate it in Project Settings → AI.",
     );
   }
+  if (credential.status === "verifying") {
+    throw new Error(
+      "The API key is still being verified. Please wait a moment and try again.",
+    );
+  }
+  if (credential.status === "rotating") {
+    throw new Error(
+      "The API key is currently being rotated. Please wait a moment and try again.",
+    );
+  }
 
   return {
     project,
@@ -152,6 +162,8 @@ export const createEnhanceStream = mutation({
 export const getStreamBody = query({
   args: { streamId: StreamIdValidator },
   handler: async (ctx, args) => {
+    const user = await getAuthedUserOrNull(ctx);
+    if (!user) return null;
     return await streaming.getStreamBody(ctx, args.streamId as StreamId);
   },
 });

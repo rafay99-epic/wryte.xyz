@@ -13,7 +13,7 @@
 
 import { createClerkClient } from "@clerk/backend";
 import { v } from "convex/values";
-import { action, internalAction } from "../_generated/server";
+import { internalAction } from "../_generated/server";
 import { parseClerkUserId } from "../_lib/auth";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
 
@@ -110,7 +110,7 @@ export const _getGithubOauthToken = internalAction({
  * secret key belong to different Clerk apps. The smoke test will tell
  * you whether the secret key is valid at all.
  */
-export const debugAuth = action({
+export const debugAuth = internalAction({
   args: {},
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();

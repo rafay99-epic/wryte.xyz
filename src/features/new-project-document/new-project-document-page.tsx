@@ -267,7 +267,7 @@ export function NewProjectDocumentPage() {
             <Button
               size="lg"
               onClick={() => void handleSubmit()}
-              disabled={isSubmitting || !title.trim()}
+              disabled={isSubmitting || !title.trim() || !project}
               className="gap-2 px-6"
             >
               {isSubmitting ? (

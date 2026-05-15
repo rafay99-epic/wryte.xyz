@@ -8,6 +8,7 @@ import {
   query,
 } from "../_generated/server";
 import { getAuthedUserOrNull, getCurrentUser } from "../_lib/auth";
+import { adjustDocumentCount } from "../_lib/documentCount";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
 
 /**
@@ -69,12 +70,12 @@ export const list = query({
         .withIndex("by_projectId_and_status", (q) =>
           q.eq("projectId", args.projectId).eq("status", status),
         )
-        .collect();
+        .take(500);
     } else {
       documents = await ctx.db
         .query("documents")
         .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
-        .collect();
+        .take(500);
     }
 
     return documents
@@ -97,7 +98,7 @@ export const listRecent = query({
     const documents = await ctx.db
       .query("documents")
       .withIndex("by_userId", (q) => q.eq("userId", user._id))
-      .collect();
+      .take(200);
 
     return documents
       .filter((d) => d.trashedAt === undefined)
@@ -119,7 +120,7 @@ export const listAllForUser = query({
     const documents = await ctx.db
       .query("documents")
       .withIndex("by_userId", (q) => q.eq("userId", user._id))
-      .collect();
+      .take(1000);
 
     return documents
       .filter((d) => d.trashedAt === undefined)
@@ -211,6 +212,7 @@ export const create = mutation({
         ? { frontmatter: args.frontmatter }
         : {}),
     });
+    await adjustDocumentCount(ctx, args.projectId, 1);
 
     return documentId;
   },
@@ -249,7 +251,7 @@ export const update = mutation({
     const openConflict = await ctx.db
       .query("sync_conflicts")
       .withIndex("by_documentId", (q) => q.eq("documentId", args.documentId))
-      .collect();
+      .take(10);
     if (openConflict.some((c) => c.resolvedAt === undefined)) {
       throw new Error(
         "This document has a pending sync conflict. Resolve it before making changes.",
@@ -331,13 +333,19 @@ export const updateStatus = mutation({
     const user = await getCurrentUser(ctx);
     await verifyDocumentOwnership(ctx, args.documentId, user._id);
 
+    const now = Date.now();
+    const doc = await ctx.db.get(args.documentId);
     const updates: Record<string, unknown> = {
       status: args.status,
-      updatedAt: Date.now(),
+      updatedAt: now,
     };
 
     if (args.status === "published") {
-      updates["publishedAt"] = Date.now();
+      updates["publishedAt"] = now;
+    }
+
+    if (doc?.status === "scheduled" && args.status !== "scheduled") {
+      updates["scheduledAt"] = undefined;
     }
 
     await ctx.db.patch(args.documentId, updates);
@@ -365,10 +373,15 @@ export const remove = mutation({
     await rateLimiter.limit(ctx, "documents:remove", { key, throws: true });
 
     const user = await getCurrentUser(ctx);
-    await verifyDocumentOwnership(ctx, args.documentId, user._id);
+    const document = await verifyDocumentOwnership(
+      ctx,
+      args.documentId,
+      user._id,
+    );
 
     await cascadeDeleteScheduledPublishesForDoc(ctx, args.documentId);
     await ctx.db.patch(args.documentId, { trashedAt: Date.now() });
+    await adjustDocumentCount(ctx, document.projectId, -1);
   },
 });
 
@@ -459,6 +472,7 @@ export const importFromGithub = mutation({
     }
 
     const documentId = await ctx.db.insert("documents", insertData);
+    await adjustDocumentCount(ctx, args.projectId, 1);
     return documentId;
   },
 });
@@ -530,7 +544,9 @@ export const _importFromGithubInternal = internalMutation({
       insertData.frontmatter = args.frontmatter;
     }
 
-    return await ctx.db.insert("documents", insertData);
+    const id = await ctx.db.insert("documents", insertData);
+    await adjustDocumentCount(ctx, args.projectId, 1);
+    return id;
   },
 });
 
@@ -560,7 +576,7 @@ export const getBySlug = query({
     const documents = await ctx.db
       .query("documents")
       .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
-      .collect();
+      .take(500);
 
     return (
       documents.find(
@@ -767,19 +783,22 @@ export const internalUpdateAfterPublish = internalMutation({
   args: {
     documentId: v.id("documents"),
     githubPath: v.string(),
-    githubSha: v.string(),
+    githubSha: v.optional(v.string()),
     status: v.string(),
     publishedAt: v.number(),
   },
   handler: async (ctx, args) => {
-    await ctx.db.patch(args.documentId, {
+    const patch: Record<string, unknown> = {
       githubPath: args.githubPath,
-      githubSha: args.githubSha,
       githubSyncedAt: Date.now(),
       status: args.status,
       publishedAt: args.publishedAt,
       updatedAt: Date.now(),
-    });
+    };
+    if (args.githubSha !== undefined) {
+      patch["githubSha"] = args.githubSha;
+    }
+    await ctx.db.patch(args.documentId, patch);
   },
 });
 
@@ -835,7 +854,7 @@ export const getPublishHistory = query({
       .query("publish_history")
       .withIndex("by_documentId", (q) => q.eq("documentId", args.documentId))
       .order("desc")
-      .collect();
+      .take(100);
 
     return history;
   },
@@ -905,7 +924,7 @@ export const listForCalendar = query({
     const documents = await ctx.db
       .query("documents")
       .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
-      .collect();
+      .take(500);
 
     return documents
       .filter((d) => d.trashedAt === undefined)
@@ -1102,6 +1121,7 @@ export const _removeInternal = internalMutation({
 
     await cascadeDeleteScheduledPublishesForDoc(ctx, args.documentId);
     await ctx.db.patch(args.documentId, { trashedAt: Date.now() });
+    await adjustDocumentCount(ctx, args.projectId, -1);
   },
 });
 
@@ -1131,6 +1151,7 @@ export const _bulkSoftDeleteLocal = internalMutation({
       if (doc.trashedAt !== undefined) continue;
       await cascadeDeleteScheduledPublishesForDoc(ctx, id);
       await ctx.db.patch(id, { trashedAt: now });
+      await adjustDocumentCount(ctx, args.projectId, -1);
       trashed += 1;
     }
     return { trashed };
@@ -1438,7 +1459,9 @@ export const _upsertImportedDocument = internalMutation({
     if (args.frontmatter !== undefined) {
       insertData.frontmatter = args.frontmatter;
     }
-    return await ctx.db.insert("documents", insertData);
+    const id = await ctx.db.insert("documents", insertData);
+    await adjustDocumentCount(ctx, args.projectId, 1);
+    return id;
   },
 });
 
@@ -1455,13 +1478,24 @@ export const _backfillGithubSyncedAt = internalMutation({
   handler: async (ctx) => {
     const now = Date.now();
     let patched = 0;
-    const docs = await ctx.db.query("documents").collect();
-    for (const doc of docs) {
-      if (doc.githubSha && doc.githubSyncedAt === undefined) {
-        await ctx.db.patch(doc._id, { githubSyncedAt: now });
-        patched += 1;
+    let scanned = 0;
+    const batchSize = 100;
+    let cursor: string | null = null;
+    let done = false;
+    while (!done) {
+      const result = await ctx.db
+        .query("documents")
+        .paginate({ numItems: batchSize, cursor });
+      for (const doc of result.page) {
+        scanned++;
+        if (doc.githubSha && doc.githubSyncedAt === undefined) {
+          await ctx.db.patch(doc._id, { githubSyncedAt: now });
+          patched += 1;
+        }
       }
+      done = result.isDone;
+      cursor = result.continueCursor;
     }
-    return { patched, scanned: docs.length };
+    return { patched, scanned };
   },
 });

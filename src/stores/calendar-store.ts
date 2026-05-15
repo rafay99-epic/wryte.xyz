@@ -113,5 +113,16 @@ export const useCalendarStore = create<CalendarState>()((set) => ({
       return { unscheduledStatusFilter: next };
     }),
 
-  reset: () => set(initialState),
+  reset: () => {
+    const today = new Date();
+    set({
+      viewYear: today.getFullYear(),
+      viewMonth: today.getMonth(),
+      activeDocument: null,
+      pendingDrop: null,
+      unscheduledPanelOpen: true,
+      unscheduledSearch: "",
+      unscheduledStatusFilter: new Set(),
+    });
+  },
 }));

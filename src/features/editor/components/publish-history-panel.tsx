@@ -72,9 +72,9 @@ export function PublishHistoryPanel({
           historyId: historyId as Id<"publish_history">,
         });
 
-        // Update the editor store with restored content
-        const store = useEditorStore.getState();
-        store.setTitle(result.title);
+        // Clear dirty flag so the reactive subscription delivers the
+        // restored title + content into the editor via the sync effect.
+        useEditorStore.getState().markSaved();
 
         toast.success("Rolled back successfully", {
           description: `Restored to version from ${relativeTime(result.restoredFrom)}`,

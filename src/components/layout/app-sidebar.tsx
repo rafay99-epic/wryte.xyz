@@ -332,7 +332,7 @@ export function AppSidebar() {
                 ) : (
                   <div className="space-y-0.5">
                     {documents.map((doc, index) => {
-                      const isActive = pathname.includes(doc._id);
+                      const isActive = pathname === `/editor/${doc._id}`;
 
                       return (
                         <motion.div

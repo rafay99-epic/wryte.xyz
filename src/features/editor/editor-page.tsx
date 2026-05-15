@@ -127,6 +127,16 @@ export function EditorPage() {
   }, [saveNow]);
   useSaveShortcut(handleManualSave);
 
+  useEffect(() => {
+    function handleBeforeUnload(e: BeforeUnloadEvent) {
+      if (useEditorStore.getState().isDirty) {
+        e.preventDefault();
+      }
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, []);
+
   const historyPanelOpen = useEditorStore((s) => s.historyPanelOpen);
   const toggleHistoryPanel = useEditorStore((s) => s.toggleHistoryPanel);
 

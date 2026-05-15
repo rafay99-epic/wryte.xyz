@@ -6,7 +6,7 @@ import { MarketingThemeToggle } from "@/components/layout/marketing-theme-toggle
 import { AnimatedSection as Section } from "@/features/marketing/components/animated-section";
 
 export const metadata: Metadata = {
-  title: "Terms & Conditions — Wryte",
+  title: "Terms & Conditions",
   description: "The terms governing your use of Wryte.",
 };
 

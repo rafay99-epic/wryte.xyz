@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { TrashPage } from "@/features/trash/trash-page";
 
 export const metadata: Metadata = {
-  title: "Trash — Wryte",
+  title: "Trash",
 };
 
 export default function Page() {

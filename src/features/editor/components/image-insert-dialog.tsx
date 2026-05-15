@@ -95,6 +95,13 @@ export function ImageInsertDialog({
           compressionOverride ?? undefined,
         );
         const toUpload = compressed.file;
+        if (toUpload.size > 1_000_000) {
+          setUploadError(
+            `File is ${(toUpload.size / 1_000_000).toFixed(1)} MB — exceeds the 1 MB limit. Try a smaller image or increase compression.`,
+          );
+          setIsUploading(false);
+          return;
+        }
         const bytes = await toUpload.arrayBuffer();
         const result = await uploadMedia({
           projectId: projectId as Id<"projects">,

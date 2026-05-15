@@ -20,9 +20,9 @@ const crons = cronJobs();
  * caps deletions per run; if the system ever has more expired trash
  * than the cap, the remainder drains on subsequent days.
  */
-crons.daily(
+crons.cron(
   "trash:cleanup-expired",
-  { hourUTC: 3, minuteUTC: 0 },
+  "0 3 * * *",
   internal.cms.trash._cleanupExpired,
 );
 

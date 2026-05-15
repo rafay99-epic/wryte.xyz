@@ -6,7 +6,7 @@ import { MarketingThemeToggle } from "@/components/layout/marketing-theme-toggle
 import { AnimatedSection as Section } from "@/features/marketing/components/animated-section";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy — Wryte",
+  title: "Privacy Policy",
   description:
     "How Wryte collects, uses, and protects your personal information.",
 };

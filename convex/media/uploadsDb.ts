@@ -41,9 +41,12 @@ export const listForProject = query({
     const size = Math.min(args.pageSize ?? 50, 100);
     const q = ctx.db
       .query("media")
-      .withIndex("by_projectId_and_createdAt", (qb) =>
-        qb.eq("projectId", args.projectId),
-      )
+      .withIndex("by_projectId_and_createdAt", (qb) => {
+        const idx = qb.eq("projectId", args.projectId);
+        return args.cursor !== undefined
+          ? idx.lt("createdAt", args.cursor)
+          : idx;
+      })
       .order("desc");
     const rows = await q.take(size + 1);
     const hasMore = rows.length > size;
@@ -82,12 +85,21 @@ export const legacyCount = query({
     const project = await ctx.db.get(args.projectId);
     if (!project || project.userId !== user._id) return 0;
 
-    const rows = await ctx.db
-      .query("media")
-      .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
-      .collect();
-    return rows.filter((r) => r.provider === "convex_legacy" || !!r.storageId)
-      .length;
+    let count = 0;
+    let cursor: string | null = null;
+    let done = false;
+    while (!done) {
+      const result = await ctx.db
+        .query("media")
+        .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
+        .paginate({ numItems: 200, cursor });
+      for (const r of result.page) {
+        if (r.provider === "convex_legacy" || r.storageId) count++;
+      }
+      done = result.isDone;
+      cursor = result.continueCursor;
+    }
+    return count;
   },
 });
 

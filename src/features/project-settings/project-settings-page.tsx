@@ -35,6 +35,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { toast } from "sonner";
@@ -437,8 +438,11 @@ function GeneralSection({
     project.defaultAuthorAvatar ?? "",
   );
   const [isSaving, setIsSaving] = useState(false);
+  const initializedRef = useRef(false);
 
   useEffect(() => {
+    if (initializedRef.current) return;
+    initializedRef.current = true;
     setName(project.name);
     setSiteUrl(project.siteUrl ?? "");
     setDefaultAuthor(project.defaultAuthor ?? "");

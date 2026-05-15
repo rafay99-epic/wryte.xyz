@@ -33,13 +33,17 @@ export function CalendarGrid({
   const { viewYear, viewMonth, goNextMonth, goPrevMonth, goToToday } =
     useCalendarStore();
 
-  const today = useMemo(() => new Date(), []);
+  const todayStr = new Date().toDateString();
 
-  const isCurrentMonthView =
-    viewYear === today.getFullYear() && viewMonth === today.getMonth();
+  const isCurrentMonthView = (() => {
+    const now = new Date();
+    return viewYear === now.getFullYear() && viewMonth === now.getMonth();
+  })();
 
   // Build the cell data for the current month view
+  // biome-ignore lint/correctness/useExhaustiveDependencies: todayStr is an intentional invalidation signal so "today" stays fresh past midnight
   const cells = useMemo(() => {
+    const today = new Date();
     const daysInMonth = getDaysInMonth(viewYear, viewMonth);
     const firstDay = getFirstDayOfMonth(viewYear, viewMonth);
 
@@ -106,7 +110,7 @@ export function CalendarGrid({
     }
 
     return result;
-  }, [viewYear, viewMonth, today]);
+  }, [viewYear, viewMonth, todayStr]);
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden rounded-lg border">

@@ -62,6 +62,7 @@ function matchesBinding(event: KeyboardEvent, binding: string): boolean {
   if (needsShift && !event.shiftKey) return false;
   if (!needsShift && event.shiftKey) return false;
   if (needsAlt && !event.altKey) return false;
+  if (!needsAlt && event.altKey) return false;
 
   return event.key.toLowerCase() === key;
 }
@@ -120,7 +121,7 @@ export function useKeyboardShortcuts(
       const isCtrl = event.ctrlKey || event.metaKey;
 
       // --- Ctrl+B: Bold ---
-      if (isCtrl && !event.shiftKey && event.key === "b") {
+      if (isCtrl && !event.shiftKey && !event.altKey && event.key === "b") {
         event.preventDefault();
         wrapSelection(target, "**", "**");
         cb.onBold();
@@ -128,7 +129,7 @@ export function useKeyboardShortcuts(
       }
 
       // --- Ctrl+I: Italic ---
-      if (isCtrl && !event.shiftKey && event.key === "i") {
+      if (isCtrl && !event.shiftKey && !event.altKey && event.key === "i") {
         event.preventDefault();
         wrapSelection(target, "*", "*");
         cb.onItalic();
@@ -136,7 +137,7 @@ export function useKeyboardShortcuts(
       }
 
       // --- Ctrl+K: Insert markdown link ---
-      if (isCtrl && !event.shiftKey && event.key === "k") {
+      if (isCtrl && !event.shiftKey && !event.altKey && event.key === "k") {
         event.preventDefault();
         const { selectionStart, selectionEnd, value } = target;
         const selected = value.slice(selectionStart, selectionEnd);
@@ -155,7 +156,7 @@ export function useKeyboardShortcuts(
       }
 
       // --- Ctrl+Shift+K: Fenced code block ---
-      if (isCtrl && event.shiftKey && event.key === "K") {
+      if (isCtrl && event.shiftKey && !event.altKey && event.key === "K") {
         event.preventDefault();
         const { selectionStart, selectionEnd, value } = target;
         const selected = value.slice(selectionStart, selectionEnd);

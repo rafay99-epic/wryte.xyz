@@ -186,21 +186,17 @@ export function BoardView({
 
       if (!draggedItem.id) return;
 
+      if (targetColumnId === "remote") return;
+
       // Compute new board position via fractional indexing
       const targetItems = grouped[targetColumnId] ?? [];
       const overItemId = over.id as string;
 
       let newPosition: number;
 
-      if (targetColumnId !== sourceColumnId || targetItems.length === 0) {
-        // Moving to different column or empty column — place at end
-        const lastPos =
-          targetItems.length > 0
-            ? (targetItems[targetItems.length - 1]?.boardPosition ?? 0)
-            : 0;
-        newPosition = lastPos + 1000;
-      } else {
-        // Reordering within same column
+      if (targetItems.length === 0) {
+        newPosition = 1000;
+      } else if (overItemId && overItemId !== String(active.id)) {
         const overIndex = targetItems.findIndex((i) => i.id === overItemId);
         if (overIndex === -1) {
           newPosition =
@@ -212,6 +208,12 @@ export function BoardView({
           const curr = targetItems[overIndex]?.boardPosition ?? 0;
           newPosition = (prev + curr) / 2;
         }
+      } else {
+        const lastPos =
+          targetItems.length > 0
+            ? (targetItems[targetItems.length - 1]?.boardPosition ?? 0)
+            : 0;
+        newPosition = lastPos + 1000;
       }
 
       // Apply optimistic move
@@ -235,6 +237,15 @@ export function BoardView({
             });
             toast.success(`Published "${draggedItem.title}" to GitHub`);
           } catch (err) {
+            try {
+              await moveCard({
+                documentId: draggedItem.id as Id<"documents">,
+                targetStatus: sourceColumnId,
+                boardPosition: draggedItem.boardPosition ?? 0,
+              });
+            } catch {
+              // Best-effort revert
+            }
             toast.error(
               err instanceof Error ? err.message : "Failed to publish",
             );

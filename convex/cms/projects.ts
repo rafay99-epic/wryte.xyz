@@ -1,7 +1,12 @@
 import { v } from "convex/values";
 import type { Doc } from "../_generated/dataModel";
 import type { QueryCtx } from "../_generated/server";
-import { internalQuery, mutation, query } from "../_generated/server";
+import {
+  internalMutation,
+  internalQuery,
+  mutation,
+  query,
+} from "../_generated/server";
 import { getAuthedUserOrNull, getCurrentUser } from "../_lib/auth";
 import { compressionSettingsValidator } from "../_lib/compression";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
@@ -61,15 +66,10 @@ export const listWithDocumentCounts = query({
   args: {},
   handler: async (ctx) => {
     const sorted = await projectsForCurrentUserOrEmpty(ctx);
-    const out: Array<Doc<"projects"> & { documentCount: number }> = [];
-    for (const p of sorted) {
-      const docs = await ctx.db
-        .query("documents")
-        .withIndex("by_projectId", (q) => q.eq("projectId", p._id))
-        .collect();
-      out.push({ ...p, documentCount: docs.length });
-    }
-    return out;
+    return sorted.map((p) => ({
+      ...p,
+      documentCount: p.documentCount ?? 0,
+    }));
   },
 });
 
@@ -378,5 +378,30 @@ export const internalGet = internalQuery({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
     return await ctx.db.get(args.projectId);
+  },
+});
+
+/**
+ * One-shot backfill: computes and sets `documentCount` for every project.
+ * Run from the Convex dashboard after deploying the schema change.
+ * Idempotent — safe to re-run.
+ */
+export const _backfillDocumentCounts = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const projects = await ctx.db.query("projects").collect();
+    let updated = 0;
+    for (const p of projects) {
+      const docs = await ctx.db
+        .query("documents")
+        .withIndex("by_projectId", (q) => q.eq("projectId", p._id))
+        .take(1000);
+      const count = docs.filter((d) => d.trashedAt === undefined).length;
+      if (p.documentCount !== count) {
+        await ctx.db.patch(p._id, { documentCount: count });
+        updated += 1;
+      }
+    }
+    return { total: projects.length, updated };
   },
 });

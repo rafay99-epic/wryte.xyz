@@ -108,9 +108,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           animate={{ opacity: 1, y: 0 }}
           className="text-center"
         >
-          <p className="text-lg text-muted-foreground">
+          <p className="mb-4 text-lg text-muted-foreground">
             Please sign in to continue.
           </p>
+          <a
+            href="/sign-in"
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          >
+            Sign in
+          </a>
         </motion.div>
       </div>
     );

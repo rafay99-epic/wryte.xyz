@@ -379,6 +379,13 @@ function UploadTab({
       try {
         const compressed = await compress(file, override ?? undefined);
         const toUpload = compressed.file;
+        if (toUpload.size > 1_000_000) {
+          toast.error("File too large", {
+            description: `${(toUpload.size / 1_000_000).toFixed(1)} MB exceeds the 1 MB limit (even after compression). Try a smaller image or increase compression.`,
+          });
+          setIsUploading(false);
+          return;
+        }
         const bytes = await toUpload.arrayBuffer();
         const result = await uploadMedia({
           projectId: projectId as Id<"projects">,

@@ -37,6 +37,15 @@ export function useAppHotkeys(handlers: AppHotkeyHandlers) {
     else setMode("dark");
   }, []);
 
+  const isInputFocused = useCallback(() => {
+    const el = document.activeElement;
+    if (!el) return false;
+    if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)
+      return true;
+    if (el instanceof HTMLElement && el.isContentEditable) return true;
+    return false;
+  }, []);
+
   /** Helper to cast string keys from the store to the branded Hotkey type. */
   const k = useCallback((id: string) => getKeys(id) as Hotkey, [getKeys]);
 
@@ -62,6 +71,7 @@ export function useAppHotkeys(handlers: AppHotkeyHandlers) {
       {
         hotkey: k("toggleSidebar"),
         callback: (e) => {
+          if (isInputFocused()) return;
           e.preventDefault();
           toggleSidebar();
         },
@@ -70,6 +80,7 @@ export function useAppHotkeys(handlers: AppHotkeyHandlers) {
       {
         hotkey: k("toggleFocusMode"),
         callback: (e) => {
+          if (isInputFocused()) return;
           e.preventDefault();
           toggleFocusMode();
         },
@@ -78,6 +89,7 @@ export function useAppHotkeys(handlers: AppHotkeyHandlers) {
       {
         hotkey: k("toggleTheme"),
         callback: (e) => {
+          if (isInputFocused()) return;
           e.preventDefault();
           cycleTheme();
         },
@@ -100,6 +112,7 @@ export function useAppHotkeys(handlers: AppHotkeyHandlers) {
       {
         hotkey: k("newArticle"),
         callback: (e) => {
+          if (isInputFocused()) return;
           e.preventDefault();
           if (activeProjectId) {
             router.push(`/projects/${activeProjectId}/documents/new`);
@@ -112,6 +125,7 @@ export function useAppHotkeys(handlers: AppHotkeyHandlers) {
       {
         hotkey: k("switchProject"),
         callback: (e) => {
+          if (isInputFocused()) return;
           e.preventDefault();
           handlers.openCommandPalette();
         },
@@ -120,6 +134,7 @@ export function useAppHotkeys(handlers: AppHotkeyHandlers) {
       {
         hotkey: k("switchLayout"),
         callback: (e) => {
+          if (isInputFocused()) return;
           e.preventDefault();
           window.dispatchEvent(new CustomEvent("wryte:switch-layout"));
         },
@@ -128,6 +143,7 @@ export function useAppHotkeys(handlers: AppHotkeyHandlers) {
       {
         hotkey: k("goToDashboard"),
         callback: (e) => {
+          if (isInputFocused()) return;
           e.preventDefault();
           router.push("/dashboard");
         },
@@ -136,6 +152,7 @@ export function useAppHotkeys(handlers: AppHotkeyHandlers) {
       {
         hotkey: k("goToSettings"),
         callback: (e) => {
+          if (isInputFocused()) return;
           e.preventDefault();
           router.push("/settings");
         },
@@ -144,6 +161,7 @@ export function useAppHotkeys(handlers: AppHotkeyHandlers) {
       {
         hotkey: k("scheduleArticle"),
         callback: (e) => {
+          if (isInputFocused()) return;
           e.preventDefault();
           window.dispatchEvent(new CustomEvent("wryte:schedule-article"));
         },
@@ -152,6 +170,7 @@ export function useAppHotkeys(handlers: AppHotkeyHandlers) {
       {
         hotkey: k("publishArticle"),
         callback: (e) => {
+          if (isInputFocused()) return;
           e.preventDefault();
           window.dispatchEvent(new CustomEvent("wryte:publish-article"));
         },
@@ -163,6 +182,7 @@ export function useAppHotkeys(handlers: AppHotkeyHandlers) {
       toggleSidebar,
       toggleFocusMode,
       cycleTheme,
+      isInputFocused,
       activeProjectId,
       router,
     ],

@@ -30,6 +30,85 @@ import { importPool } from "../_pools/import";
  * Handles quoting for strings that contain YAML-special characters, and supports
  * nested objects and arrays in the frontmatter values.
  */
+function quoteYamlScalar(value: unknown): string {
+  const s = String(value);
+  if (
+    s === "" ||
+    s.includes("\n") ||
+    s.includes(":") ||
+    s.includes("#") ||
+    s.includes("'") ||
+    s.includes('"') ||
+    s.startsWith(" ") ||
+    s.endsWith(" ") ||
+    s.startsWith("{") ||
+    s.startsWith("[") ||
+    /^(true|false|null|yes|no|\d[\d.eE+-]*)$/i.test(s)
+  ) {
+    if (s.includes("\n")) {
+      return `|\n${s
+        .split("\n")
+        .map((line) => `  ${line}`)
+        .join("\n")}`;
+    }
+    return `"${s.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+  }
+  return s;
+}
+
+function serializeYamlEntry(
+  key: string,
+  value: unknown,
+  indent: number,
+): string[] {
+  const prefix = "  ".repeat(indent);
+  if (value === null || value === undefined) return [];
+
+  if (typeof value === "boolean" || typeof value === "number") {
+    return [`${prefix}${key}: ${value}`];
+  }
+  if (typeof value === "string") {
+    const quoted = quoteYamlScalar(value);
+    if (quoted.startsWith("|\n")) {
+      const lines = quoted.split("\n");
+      return [
+        `${prefix}${key}: ${lines[0]}`,
+        ...lines.slice(1).map((l) => `${prefix}${l}`),
+      ];
+    }
+    return [`${prefix}${key}: ${quoted}`];
+  }
+  if (Array.isArray(value)) {
+    const result = [`${prefix}${key}:`];
+    for (const item of value) {
+      if (typeof item === "object" && item !== null && !Array.isArray(item)) {
+        const entries = Object.entries(item as Record<string, unknown>);
+        const first = entries[0];
+        if (first) {
+          const [firstKey, firstVal] = first;
+          result.push(`${prefix}  - ${firstKey}: ${quoteYamlScalar(firstVal)}`);
+          for (const [k, v] of entries.slice(1)) {
+            result.push(`${prefix}    ${k}: ${quoteYamlScalar(v)}`);
+          }
+        }
+      } else {
+        result.push(`${prefix}  - ${quoteYamlScalar(item)}`);
+      }
+    }
+    return result;
+  }
+  if (typeof value === "object") {
+    const result = [`${prefix}${key}:`];
+    for (const [subKey, subValue] of Object.entries(
+      value as Record<string, unknown>,
+    )) {
+      result.push(...serializeYamlEntry(subKey, subValue, indent + 1));
+    }
+    return result;
+  }
+  return [`${prefix}${key}: ${quoteYamlScalar(value)}`];
+}
+
 function buildMarkdownFile(
   frontmatter: Record<string, unknown>,
   content: string,
@@ -41,35 +120,7 @@ function buildMarkdownFile(
       continue;
     }
 
-    if (typeof value === "string") {
-      if (
-        value.includes(":") ||
-        value.includes("#") ||
-        value.includes("'") ||
-        value.includes('"') ||
-        value.includes("\n") ||
-        value.startsWith(" ") ||
-        value.endsWith(" ")
-      ) {
-        yamlLines.push(`${key}: "${value.replace(/"/g, '\\"')}"`);
-      } else {
-        yamlLines.push(`${key}: ${value}`);
-      }
-    } else if (typeof value === "boolean" || typeof value === "number") {
-      yamlLines.push(`${key}: ${value}`);
-    } else if (Array.isArray(value)) {
-      yamlLines.push(`${key}:`);
-      for (const item of value) {
-        yamlLines.push(`  - ${item}`);
-      }
-    } else if (typeof value === "object") {
-      yamlLines.push(`${key}:`);
-      for (const [subKey, subValue] of Object.entries(
-        value as Record<string, unknown>,
-      )) {
-        yamlLines.push(`  ${subKey}: ${subValue}`);
-      }
-    }
+    yamlLines.push(...serializeYamlEntry(key, value, 0));
   }
 
   const yamlBlock = yamlLines.join("\n");
@@ -307,6 +358,7 @@ async function resolveToken(
 export const publishToGithub = internalAction({
   args: {
     documentId: v.id("documents"),
+    commitMessage: v.optional(v.string()),
     /**
      * Override the publish moment used to stamp the document's pubDate
      * field. The scheduling workflow passes the user's `scheduledAt` here
@@ -411,9 +463,9 @@ export const publishToGithub = internalAction({
     }
 
     const isUpdate = Boolean(existingSha);
-    const commitMessage = isUpdate
-      ? `Update ${document.title}`
-      : `Add ${document.title}`;
+    const commitMessage =
+      args.commitMessage ||
+      (isUpdate ? `Update ${document.title}` : `Add ${document.title}`);
 
     // Diagnostic: log the exact values we're about to send so when GitHub
     // 404s we have one log line telling us whether the bug is in branch,
@@ -532,6 +584,7 @@ export const publishToGithub = internalAction({
 export const publish = action({
   args: {
     documentId: v.id("documents"),
+    commitMessage: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<void> => {
     const key = await getRateLimitKey(ctx);
@@ -569,6 +622,9 @@ export const publish = action({
 
     await ctx.runAction(internal.integrations.github.publishToGithub, {
       documentId: args.documentId,
+      ...(args.commitMessage !== undefined && {
+        commitMessage: args.commitMessage,
+      }),
     });
   },
 });
@@ -795,15 +851,27 @@ export const bulkPublish = action({
 
     for (const entry of docFileMap) {
       const blobEntry = treeEntries.find((t) => t.path === entry.filePath);
-      const newFileSha = blobEntry?.sha ?? newCommit.sha;
+      const newFileSha = blobEntry?.sha;
 
-      await ctx.runMutation(internal.cms.documents.internalUpdateAfterPublish, {
+      const updateArgs: {
+        documentId: typeof entry.doc.id;
+        githubPath: string;
+        githubSha?: string;
+        status: string;
+        publishedAt: number;
+      } = {
         documentId: entry.doc.id,
         githubPath: entry.filePath,
-        githubSha: newFileSha,
         status: publishStatus,
         publishedAt,
-      });
+      };
+      if (newFileSha !== undefined) {
+        updateArgs.githubSha = newFileSha;
+      }
+      await ctx.runMutation(
+        internal.cms.documents.internalUpdateAfterPublish,
+        updateArgs,
+      );
 
       const bulkHistoryArgs: {
         documentId: typeof entry.doc.id;
@@ -1009,20 +1077,48 @@ function parseMarkdownFile(
     const rawFrontmatter = frontmatterMatch[1] ?? "";
     content = (frontmatterMatch[2] ?? "").trim();
 
-    const fmObj: Record<string, string> = {};
-    for (const line of rawFrontmatter.split("\n")) {
+    const fmObj: Record<string, unknown> = {};
+    const lines = rawFrontmatter.split("\n");
+    let i = 0;
+    while (i < lines.length) {
+      const line = lines[i] ?? "";
       const colonIdx = line.indexOf(":");
-      if (colonIdx > 0) {
-        const key = line.slice(0, colonIdx).trim();
-        const value = line
-          .slice(colonIdx + 1)
-          .trim()
-          .replace(/^["']|["']$/g, "");
-        fmObj[key] = value;
+      if (colonIdx <= 0 || line.startsWith("  ") || line.startsWith("\t")) {
+        i++;
+        continue;
       }
+      const key = line.slice(0, colonIdx).trim();
+      const rawValue = line.slice(colonIdx + 1).trim();
+
+      const nextLine = lines[i + 1] ?? "";
+      if (rawValue === "" && i + 1 < lines.length && /^\s+-\s/.test(nextLine)) {
+        const arr: string[] = [];
+        i++;
+        let arrLine = lines[i] ?? "";
+        while (i < lines.length && /^\s+-\s/.test(arrLine)) {
+          arr.push(arrLine.replace(/^\s+-\s*/, "").replace(/^["']|["']$/g, ""));
+          i++;
+          arrLine = lines[i] ?? "";
+        }
+        fmObj[key] = arr;
+        continue;
+      }
+
+      let value: unknown = rawValue.replace(/^["']|["']$/g, "");
+      if (value === "true") value = true;
+      else if (value === "false") value = false;
+      else if (
+        rawValue !== "" &&
+        !Number.isNaN(Number(rawValue)) &&
+        !/^["']/.test(rawValue)
+      ) {
+        value = Number(rawValue);
+      }
+      fmObj[key] = value;
+      i++;
     }
 
-    if (fmObj["title"]) {
+    if (typeof fmObj["title"] === "string" && fmObj["title"]) {
       title = fmObj["title"];
     }
 

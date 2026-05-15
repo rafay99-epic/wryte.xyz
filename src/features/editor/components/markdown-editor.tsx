@@ -120,9 +120,22 @@ export function MarkdownEditor() {
 
   const handleAcceptInline = useCallback(
     (start: number, end: number, replacement: string) => {
+      const current = useEditorStore.getState().content;
+      if (
+        inlineAiSelection &&
+        current.slice(start, end) !== inlineAiSelection.text
+      ) {
+        const idx = current.indexOf(inlineAiSelection.text);
+        if (idx !== -1) {
+          replaceRange(idx, idx + inlineAiSelection.text.length, replacement);
+          return;
+        }
+        toast.error("Original text was modified — couldn't apply changes");
+        return;
+      }
       replaceRange(start, end, replacement);
     },
-    [replaceRange],
+    [replaceRange, inlineAiSelection],
   );
 
   return (
@@ -144,6 +157,7 @@ export function MarkdownEditor() {
         autoComplete="off"
         autoCorrect="off"
         data-gramm="false"
+        data-editor="true"
       />
     </div>
   );

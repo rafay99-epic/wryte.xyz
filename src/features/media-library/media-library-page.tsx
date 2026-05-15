@@ -274,16 +274,26 @@ export function MediaLibraryPage() {
   }, [fetchProvider, invalidateMedia, isGithub, refetchGithub]);
 
   // Auto-load more when a search has zero matches but there are more pages
-  // to fetch — the user is presumably looking for something past page 1.
+  // to fetch. Cap at 5 extra fetches per search to avoid excessive API calls.
+  const autoFetchCountRef = useRef(0);
+  const lastSearchRef = useRef("");
+
   useEffect(() => {
     if (isGithub) return;
-    if (!searchQuery.trim()) return;
+    const q = searchQuery.trim();
+    if (!q) return;
+    if (q !== lastSearchRef.current) {
+      autoFetchCountRef.current = 0;
+      lastSearchRef.current = q;
+    }
     if (!providerHasMore) return;
     if (isProviderLoading || isLoadingMore) return;
+    if (autoFetchCountRef.current >= 5) return;
     const hasMatch = providerItems.some((it) =>
-      it.name.toLowerCase().includes(searchQuery.toLowerCase()),
+      it.name.toLowerCase().includes(q.toLowerCase()),
     );
     if (!hasMatch) {
+      autoFetchCountRef.current++;
       void fetchProvider({ append: true });
     }
   }, [
@@ -758,6 +768,13 @@ function UploadMediaDialog({
     try {
       const result = await compress(selectedFile, override ?? undefined);
       const toUpload = result.file;
+      if (toUpload.size > 1_000_000) {
+        toast.error("File too large", {
+          description: `${(toUpload.size / 1_000_000).toFixed(1)} MB exceeds the 1 MB limit (even after compression). Try a smaller image or increase compression.`,
+        });
+        setIsUploading(false);
+        return;
+      }
       const bytes = await toUpload.arrayBuffer();
       await uploadMedia({
         projectId,

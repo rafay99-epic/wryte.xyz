@@ -10,6 +10,7 @@
 
 import type * as _lib_auth from "../_lib/auth.js";
 import type * as _lib_compression from "../_lib/compression.js";
+import type * as _lib_documentCount from "../_lib/documentCount.js";
 import type * as _lib_quotas from "../_lib/quotas.js";
 import type * as _lib_rateLimits from "../_lib/rateLimits.js";
 import type * as _pools_import from "../_pools/import.js";
@@ -53,6 +54,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   "_lib/auth": typeof _lib_auth;
   "_lib/compression": typeof _lib_compression;
+  "_lib/documentCount": typeof _lib_documentCount;
   "_lib/quotas": typeof _lib_quotas;
   "_lib/rateLimits": typeof _lib_rateLimits;
   "_pools/import": typeof _pools_import;

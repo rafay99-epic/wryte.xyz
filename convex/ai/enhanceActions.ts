@@ -14,23 +14,11 @@ import { v } from "convex/values";
 import OpenAI from "openai";
 import { components, internal } from "../_generated/api";
 import { internalAction } from "../_generated/server";
+import { ENHANCE_SYSTEM_PROMPT } from "./enhance";
 
 /* ------------------------------------------------------------------ */
 /*  System prompts                                                     */
 /* ------------------------------------------------------------------ */
-
-const ENHANCE_SYSTEM_PROMPT = `You are an expert writing editor. Improve the provided markdown content while preserving the author's voice, intent, and meaning.
-
-Guidelines:
-- Fix grammar, spelling, and punctuation errors
-- Improve sentence structure and flow
-- Enhance clarity and readability
-- Maintain the original tone and style
-- Preserve all markdown formatting (headings, links, lists, code blocks, etc.)
-- Do not add new sections or substantially change the content's meaning
-- Do not add commentary, explanations, or meta-text
-- Return ONLY the improved markdown content, nothing else
-- If the content is already well-written, make minimal changes`;
 
 const INLINE_SYSTEM_PROMPT = `You are a writing assistant. Transform the provided text according to the user's instruction.
 
@@ -209,12 +197,17 @@ export const runEnhancement = internalAction({
     vaultSecretId: v.string(),
   },
   handler: async (ctx, args) => {
-    const apiKey: string = await ctx.runAction(
+    const apiKey = await ctx.runAction(
       internal.integrations.secretStore._read,
       {
         id: args.vaultSecretId,
       },
     );
+    if (!apiKey) {
+      throw new Error(
+        "API key not found in vault — it may have been deleted during a key rotation. Please try again.",
+      );
+    }
 
     const streamId = args.streamId;
     let pending = "";
@@ -275,12 +268,17 @@ export const runInlineEnhancement = internalAction({
     vaultSecretId: v.string(),
   },
   handler: async (ctx, args) => {
-    const apiKey: string = await ctx.runAction(
+    const apiKey = await ctx.runAction(
       internal.integrations.secretStore._read,
       {
         id: args.vaultSecretId,
       },
     );
+    if (!apiKey) {
+      throw new Error(
+        "API key not found in vault — it may have been deleted during a key rotation. Please try again.",
+      );
+    }
 
     const streamId = args.streamId;
     let pending = "";
@@ -426,12 +424,17 @@ export const runFrontmatterSuggestion = internalAction({
     vaultSecretId: v.string(),
   },
   handler: async (ctx, args) => {
-    const apiKey: string = await ctx.runAction(
+    const apiKey = await ctx.runAction(
       internal.integrations.secretStore._read,
       {
         id: args.vaultSecretId,
       },
     );
+    if (!apiKey) {
+      throw new Error(
+        "API key not found in vault — it may have been deleted during a key rotation. Please try again.",
+      );
+    }
 
     const streamId = args.streamId;
     let pending = "";

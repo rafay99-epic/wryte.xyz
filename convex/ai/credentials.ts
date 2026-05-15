@@ -254,10 +254,9 @@ export const rotate = action({
       return { credentialId: cred._id, ok: false, message: verify.message };
     }
 
-    // Create the new vault entry, swap the pointer, then delete the old one.
-    const created = await ctx.runAction(
-      internal.integrations.secretStore._create,
-      {
+    let created: { id: string; versionId?: string };
+    try {
+      created = await ctx.runAction(internal.integrations.secretStore._create, {
         value: newSecret,
         meta: {
           userId: cred.userId,
@@ -265,8 +264,14 @@ export const rotate = action({
           provider: args.provider,
           label: `${args.provider}-ai-key-rotated`,
         },
-      },
-    );
+      });
+    } catch (err) {
+      await ctx.runMutation(internal.ai.credentialsDb._setStatus, {
+        credentialId: cred._id,
+        status: "active" as const,
+      });
+      throw err;
+    }
     const markArgs: {
       credentialId: Id<"aiCredentials">;
       newVaultSecretId: string;

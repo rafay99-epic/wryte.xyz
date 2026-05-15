@@ -53,19 +53,20 @@ export const selfDestructPreview = query({
       .withIndex("by_userId", (q) => q.eq("userId", user._id))
       .collect();
 
-    const mediaCount = (
-      await ctx.db
-        .query("media")
-        .withIndex("by_userId", (q) => q.eq("userId", user._id))
-        .collect()
-    ).length;
+    const mediaUsageRows = await ctx.db
+      .query("mediaUsage")
+      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .collect();
+    let mediaCount = 0;
+    for (const usage of mediaUsageRows) {
+      mediaCount += usage.fileCount;
+    }
 
-    const mediaErrorCount = (
-      await ctx.db
-        .query("mediaErrorLog")
-        .withIndex("by_userId_and_createdAt", (q) => q.eq("userId", user._id))
-        .collect()
-    ).length;
+    const mediaErrorSample = await ctx.db
+      .query("mediaErrorLog")
+      .withIndex("by_userId_and_createdAt", (q) => q.eq("userId", user._id))
+      .take(1);
+    const mediaErrorCount = mediaErrorSample.length > 0 ? 1 : 0;
 
     // Walk every user document and collect pending/processing scheduled publishes.
     const scheduled: Array<{
@@ -97,12 +98,17 @@ export const selfDestructPreview = query({
       .withIndex("by_userId_and_provider", (q) => q.eq("userId", user._id))
       .collect();
 
+    const aiCredentialRows = await ctx.db
+      .query("aiCredentials")
+      .withIndex("by_userId_and_provider", (q) => q.eq("userId", user._id))
+      .collect();
+
     return {
       projectCount: projects.length,
       documentCount: documents.length,
       mediaCount,
       mediaErrorCount,
-      vaultCredentialCount: credentialRows.length,
+      vaultCredentialCount: credentialRows.length + aiCredentialRows.length,
       hasGithubVault: Boolean(user.githubVaultSecretId),
       hasGithubLegacyToken: Boolean(user.githubAccessToken),
       scheduled,
@@ -295,11 +301,19 @@ export const _listVaultIds = internalQuery({
     const user = await ctx.db.get(args.userId);
     if (user?.githubVaultSecretId) ids.push(user.githubVaultSecretId);
 
-    const creds = await ctx.db
+    const mediaCreds = await ctx.db
       .query("mediaCredentials")
       .withIndex("by_userId_and_provider", (q) => q.eq("userId", args.userId))
       .collect();
-    for (const c of creds) {
+    for (const c of mediaCreds) {
+      if (c.vaultSecretId) ids.push(c.vaultSecretId);
+    }
+
+    const aiCreds = await ctx.db
+      .query("aiCredentials")
+      .withIndex("by_userId_and_provider", (q) => q.eq("userId", args.userId))
+      .collect();
+    for (const c of aiCreds) {
       if (c.vaultSecretId) ids.push(c.vaultSecretId);
     }
 
@@ -443,6 +457,99 @@ export const _wipeChunk = internalMutation({
       }
     }
 
+    /* 6b. aiCredentials */
+    if (budget > 0) {
+      const rows = await ctx.db
+        .query("aiCredentials")
+        .withIndex("by_userId_and_provider", (q) => q.eq("userId", args.userId))
+        .take(budget);
+      for (const row of rows) {
+        await ctx.db.delete(row._id);
+        budget--;
+      }
+    }
+
+    /* 6c. sync_conflicts via projects */
+    if (budget > 0) {
+      const projects = await ctx.db
+        .query("projects")
+        .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+        .take(50);
+      for (const project of projects) {
+        if (budget <= 0) break;
+        const rows = await ctx.db
+          .query("sync_conflicts")
+          .withIndex("by_projectId", (q) => q.eq("projectId", project._id))
+          .take(budget);
+        for (const row of rows) {
+          await ctx.db.delete(row._id);
+          budget--;
+        }
+      }
+    }
+
+    /* 6d. import_job_outcomes + import_batches */
+    if (budget > 0) {
+      const batches = await ctx.db
+        .query("import_batches")
+        .withIndex("by_userId_and_createdAt", (q) =>
+          q.eq("userId", args.userId),
+        )
+        .take(budget);
+      for (const batch of batches) {
+        if (budget <= 0) break;
+        const outcomes = await ctx.db
+          .query("import_job_outcomes")
+          .withIndex("by_batchId", (q) => q.eq("batchId", batch._id))
+          .take(budget);
+        for (const outcome of outcomes) {
+          await ctx.db.delete(outcome._id);
+          budget--;
+        }
+        if (budget > 0) {
+          const remaining = await ctx.db
+            .query("import_job_outcomes")
+            .withIndex("by_batchId", (q) => q.eq("batchId", batch._id))
+            .take(1);
+          if (remaining.length === 0) {
+            await ctx.db.delete(batch._id);
+            budget--;
+          }
+        }
+      }
+    }
+
+    /* 6e. delete_job_outcomes + delete_batches */
+    if (budget > 0) {
+      const batches = await ctx.db
+        .query("delete_batches")
+        .withIndex("by_userId_and_createdAt", (q) =>
+          q.eq("userId", args.userId),
+        )
+        .take(budget);
+      for (const batch of batches) {
+        if (budget <= 0) break;
+        const outcomes = await ctx.db
+          .query("delete_job_outcomes")
+          .withIndex("by_batchId", (q) => q.eq("batchId", batch._id))
+          .take(budget);
+        for (const outcome of outcomes) {
+          await ctx.db.delete(outcome._id);
+          budget--;
+        }
+        if (budget > 0) {
+          const remaining = await ctx.db
+            .query("delete_job_outcomes")
+            .withIndex("by_batchId", (q) => q.eq("batchId", batch._id))
+            .take(1);
+          if (remaining.length === 0) {
+            await ctx.db.delete(batch._id);
+            budget--;
+          }
+        }
+      }
+    }
+
     /* 7. documents */
     if (budget > 0) {
       const rows = await ctx.db
@@ -487,58 +594,83 @@ async function countRemaining(
   ctx: MutationCtx,
   userId: Id<"users">,
 ): Promise<number> {
-  const [projects, documents, media, errors, usage, creds] = await Promise.all([
+  const tables = await Promise.all([
     ctx.db
       .query("projects")
       .withIndex("by_userId", (q) => q.eq("userId", userId))
-      .collect(),
+      .take(1),
     ctx.db
       .query("documents")
       .withIndex("by_userId", (q) => q.eq("userId", userId))
-      .collect(),
+      .take(1),
     ctx.db
       .query("media")
       .withIndex("by_userId", (q) => q.eq("userId", userId))
-      .collect(),
+      .take(1),
     ctx.db
       .query("mediaErrorLog")
       .withIndex("by_userId_and_createdAt", (q) => q.eq("userId", userId))
-      .collect(),
+      .take(1),
     ctx.db
       .query("mediaUsage")
       .withIndex("by_userId", (q) => q.eq("userId", userId))
-      .collect(),
+      .take(1),
     ctx.db
       .query("mediaCredentials")
       .withIndex("by_userId_and_provider", (q) => q.eq("userId", userId))
-      .collect(),
+      .take(1),
+    ctx.db
+      .query("aiCredentials")
+      .withIndex("by_userId_and_provider", (q) => q.eq("userId", userId))
+      .take(1),
+    ctx.db
+      .query("import_batches")
+      .withIndex("by_userId_and_createdAt", (q) => q.eq("userId", userId))
+      .take(1),
+    ctx.db
+      .query("delete_batches")
+      .withIndex("by_userId_and_createdAt", (q) => q.eq("userId", userId))
+      .take(1),
   ]);
 
-  let count =
-    projects.length +
-    documents.length +
-    media.length +
-    errors.length +
-    usage.length +
-    creds.length;
+  let count = 0;
+  for (const result of tables) {
+    count += result.length;
+  }
 
-  // Only walk the indirect tables when everything direct is empty — saves
-  // a per-document scan on the common case where the wipe still has work.
-  if (count === 0) {
-    for (const doc of documents) {
-      const sps = await ctx.db
-        .query("scheduled_publishes")
-        .withIndex("by_documentId", (q) => q.eq("documentId", doc._id))
-        .collect();
-      count += sps.length;
-    }
-    for (const project of projects) {
-      const phs = await ctx.db
-        .query("publish_history")
-        .withIndex("by_projectId", (q) => q.eq("projectId", project._id))
-        .collect();
-      count += phs.length;
-    }
+  if (count > 0) return count;
+
+  const documents = await ctx.db
+    .query("documents")
+    .withIndex("by_userId", (q) => q.eq("userId", userId))
+    .take(50);
+  for (const doc of documents) {
+    const sps = await ctx.db
+      .query("scheduled_publishes")
+      .withIndex("by_documentId", (q) => q.eq("documentId", doc._id))
+      .take(1);
+    count += sps.length;
+    if (count > 0) return count;
+  }
+
+  const projects = await ctx.db
+    .query("projects")
+    .withIndex("by_userId", (q) => q.eq("userId", userId))
+    .take(50);
+  for (const project of projects) {
+    const phs = await ctx.db
+      .query("publish_history")
+      .withIndex("by_projectId", (q) => q.eq("projectId", project._id))
+      .take(1);
+    count += phs.length;
+    if (count > 0) return count;
+
+    const conflicts = await ctx.db
+      .query("sync_conflicts")
+      .withIndex("by_projectId", (q) => q.eq("projectId", project._id))
+      .take(1);
+    count += conflicts.length;
+    if (count > 0) return count;
   }
 
   return count;
@@ -555,6 +687,7 @@ export const _resetUserRow = internalMutation({
       githubAccessToken: undefined,
       githubVaultSecretId: undefined,
       githubUsername: undefined,
+      defaultCompressionSettings: undefined,
     });
   },
 });
