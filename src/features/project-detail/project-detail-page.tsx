@@ -137,8 +137,8 @@ export function ProjectDetailPage() {
 
     for (const doc of documents ?? []) {
       const excerpt =
-        doc.content.length > 120
-          ? `${doc.content.slice(0, 120)}...`
+        doc.content.length > 200
+          ? `${doc.content.slice(0, 200)}...`
           : doc.content;
       const hasGithubPath = Boolean(doc.githubPath);
       const isSynced =
@@ -161,6 +161,7 @@ export function ProjectDetailPage() {
         excerpt,
         updatedAt: doc.updatedAt,
         tags: doc.tags ?? [],
+        wordCount: doc.content.split(/\s+/).filter(Boolean).length,
       };
       if (doc.boardPosition !== undefined) {
         item.boardPosition = doc.boardPosition;

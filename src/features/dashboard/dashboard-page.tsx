@@ -27,6 +27,7 @@ import {
   staggerContainer,
   staggerItem,
 } from "@/lib/motion";
+import { relativeTime } from "@/lib/relative-time";
 import { splitShortcutKeys } from "@/lib/shortcuts";
 import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/stores/editor-store";
@@ -42,21 +43,6 @@ function getGreeting(): string {
   if (hour < 12) return "Good morning";
   if (hour < 18) return "Good afternoon";
   return "Good evening";
-}
-
-function relativeTime(timestamp: number): string {
-  const diff = Date.now() - timestamp;
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "Just now";
-  if (mins < 60) return `${String(mins)}m ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${String(hours)}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days < 7) return `${String(days)}d ago`;
-  return new Date(timestamp).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-  });
 }
 
 const STATUS_STYLES = {

@@ -1,6 +1,5 @@
 "use client";
 
-import { useMutation } from "convex/react";
 import { motion } from "framer-motion";
 import {
   ArrowRight,
@@ -12,8 +11,6 @@ import {
   Pencil,
   Trash2,
 } from "lucide-react";
-import { useCallback } from "react";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { DocumentStatusBadge } from "@/components/ui/document-status-badge";
 import {
@@ -26,11 +23,10 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useDocumentActions } from "@/hooks/use-document-actions";
 import { smoothTransition, staggerItem } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import type { BoardColumnDef } from "@/types/board";
-import { api } from "../../../../convex/_generated/api";
-import type { Id } from "../../../../convex/_generated/dataModel";
 import { TagBadges } from "./tag-badges";
 
 /** Unified content row type shared between table and board views. */
@@ -49,6 +45,7 @@ export type ContentItem = {
   sha?: string;
   tags?: string[];
   boardPosition?: number;
+  wordCount?: number;
 };
 
 type ContentTableRowProps = {
@@ -79,40 +76,11 @@ export function ContentTableRow({
   onDelete,
   onDeleteRemote,
 }: ContentTableRowProps) {
-  const duplicateDoc = useMutation(api.cms.documents.duplicate);
-  const moveCard = useMutation(api.cms.documents.moveCard);
-
-  const handleDuplicate = useCallback(async () => {
-    if (!item.id) return;
-    try {
-      const result = await duplicateDoc({
-        documentId: item.id as Id<"documents">,
-      });
-      toast.success(`Duplicated as "${result.title}"`);
-    } catch {
-      toast.error("Failed to duplicate document");
-    }
-  }, [item.id, duplicateDoc]);
-
-  const handleMoveToColumn = useCallback(
-    async (targetColumnId: string) => {
-      if (!item.id || targetColumnId === item.status) return;
-      try {
-        await moveCard({
-          documentId: item.id as Id<"documents">,
-          targetStatus: targetColumnId,
-          boardPosition: Date.now(),
-        });
-        const targetLabel =
-          columns?.find((c) => c.id === targetColumnId)?.label ??
-          targetColumnId;
-        toast.success(`Moved to "${targetLabel}"`);
-      } catch {
-        toast.error("Failed to move document");
-      }
-    },
-    [item.id, item.status, moveCard, columns],
-  );
+  const { duplicate, moveToColumn } = useDocumentActions({
+    documentId: item.id,
+    currentStatus: item.status,
+    columns,
+  });
 
   const isLocal = item.kind === "local";
   const hasActions = onDelete || onDeleteRemote || isLocal;
@@ -239,7 +207,7 @@ export function ContentTableRow({
                         disabled={col.id === item.status}
                         onClick={(e) => {
                           e.stopPropagation();
-                          void handleMoveToColumn(col.id);
+                          void moveToColumn(col.id);
                         }}
                       >
                         {col.id === item.status && (
@@ -257,7 +225,7 @@ export function ContentTableRow({
                 <DropdownMenuItem
                   onClick={(e) => {
                     e.stopPropagation();
-                    void handleDuplicate();
+                    void duplicate();
                   }}
                 >
                   <Copy className="size-3.5" />

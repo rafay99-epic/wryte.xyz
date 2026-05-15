@@ -35,6 +35,14 @@ type BoardState = {
   /** Whether the board settings dialog is open. */
   settingsDialogOpen: boolean;
 
+  // --- Collapsed columns ---
+  /** Set of column IDs that are collapsed. */
+  collapsedColumns: Set<string>;
+
+  // --- Keyboard navigation ---
+  /** ID of the currently focused card for keyboard nav, or null. */
+  focusedCardId: string | null;
+
   // --- Scheduling dialog (triggered by schedule-on-drop) ---
   /** Document ID needing scheduling after drop, or null. */
   pendingScheduleDocId: string | null;
@@ -60,6 +68,9 @@ type BoardState = {
   setEditingColumnId: (id: string | null) => void;
   setSettingsDialogOpen: (open: boolean) => void;
 
+  toggleColumnCollapsed: (columnId: string) => void;
+  setFocusedCardId: (id: string | null) => void;
+
   setPendingSchedule: (docId: string, prevStatus: string) => void;
   clearPendingSchedule: () => void;
 
@@ -72,6 +83,8 @@ const initialState = {
   overColumnId: null as string | null,
   optimisticMoves: new Map<string, { status: string; boardPosition: number }>(),
   activeTagFilters: new Set<string>(),
+  collapsedColumns: new Set<string>(),
+  focusedCardId: null as string | null,
   editingColumnId: null as string | null,
   settingsDialogOpen: false,
   pendingScheduleDocId: null as string | null,
@@ -117,6 +130,19 @@ export const useBoardStore = create<BoardState>()((set) => ({
   setEditingColumnId: (id) => set({ editingColumnId: id }),
   setSettingsDialogOpen: (open) => set({ settingsDialogOpen: open }),
 
+  toggleColumnCollapsed: (columnId) =>
+    set((state) => {
+      const next = new Set(state.collapsedColumns);
+      if (next.has(columnId)) {
+        next.delete(columnId);
+      } else {
+        next.add(columnId);
+      }
+      return { collapsedColumns: next };
+    }),
+
+  setFocusedCardId: (id) => set({ focusedCardId: id }),
+
   setPendingSchedule: (docId, prevStatus) =>
     set({
       pendingScheduleDocId: docId,
@@ -135,6 +161,8 @@ export const useBoardStore = create<BoardState>()((set) => ({
       overColumnId: null,
       optimisticMoves: new Map(),
       activeTagFilters: new Set(),
+      collapsedColumns: new Set(),
+      focusedCardId: null,
       editingColumnId: null,
       settingsDialogOpen: false,
       pendingScheduleDocId: null,

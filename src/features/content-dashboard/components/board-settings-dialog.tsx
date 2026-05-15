@@ -1,18 +1,22 @@
 "use client";
 
 import { useMutation } from "convex/react";
-import { Clock, Loader2, Plus, Trash2, Upload } from "lucide-react";
+import {
+  Clock,
+  GripVertical,
+  Loader2,
+  Plus,
+  Trash2,
+  Upload,
+} from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -20,6 +24,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Sheet,
+  SheetBody,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import type { BoardColor } from "@/lib/board-colors";
 import { COLOR_MAP } from "@/lib/board-colors";
 import { cn } from "@/lib/utils";
@@ -82,8 +95,6 @@ function hasErrors(errors: ValidationErrors): boolean {
 type ColumnRowProps = {
   column: BoardColumnDef;
   isOnly: boolean;
-  colorPickerOpenId: string | null;
-  onColorPickerToggle: (id: string | null) => void;
   onLabelChange: (id: string, label: string) => void;
   onColorChange: (id: string, color: BoardColor) => void;
   onBehaviorChange: (id: string, behavior: BehaviorOption) => void;
@@ -93,142 +104,149 @@ type ColumnRowProps = {
 function ColumnRow({
   column,
   isOnly,
-  colorPickerOpenId,
-  onColorPickerToggle,
   onLabelChange,
   onColorChange,
   onBehaviorChange,
   onDelete,
 }: ColumnRowProps) {
-  const isColorPickerOpen = colorPickerOpenId === column.id;
-  const colorPickerRef = React.useRef<HTMLDivElement>(null);
-  const swatchButtonRef = React.useRef<HTMLButtonElement>(null);
-
-  // Close color picker on outside click
-  React.useEffect(() => {
-    if (!isColorPickerOpen) return;
-
-    function handlePointerDown(e: PointerEvent) {
-      const target = e.target as Node;
-      if (
-        colorPickerRef.current?.contains(target) ||
-        swatchButtonRef.current?.contains(target)
-      ) {
-        return;
-      }
-      onColorPickerToggle(null);
-    }
-
-    document.addEventListener("pointerdown", handlePointerDown);
-    return () => document.removeEventListener("pointerdown", handlePointerDown);
-  }, [isColorPickerOpen, onColorPickerToggle]);
-
   return (
-    <div className="group relative flex items-center gap-2">
-      {/* Color swatch toggle */}
-      <div className="relative">
-        <button
-          ref={swatchButtonRef}
-          type="button"
-          aria-label={`Pick color for ${column.label}`}
-          aria-expanded={isColorPickerOpen}
-          onClick={() =>
-            onColorPickerToggle(isColorPickerOpen ? null : column.id)
-          }
-          className={cn(
-            "h-7 w-7 shrink-0 rounded-full border-2 border-transparent transition-all",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
-            isColorPickerOpen && "ring-2 ring-offset-1 ring-ring/50",
-            COLOR_MAP[column.color].dot,
-          )}
-        />
+    <div className="group rounded-lg border border-border/50 bg-muted/30 px-2.5 py-2 transition-colors hover:border-border hover:bg-muted/50">
+      {/* Top row: grip + swatch + label + (desktop: select +) delete */}
+      <div className="flex items-center gap-2.5">
+        <GripVertical className="size-3.5 shrink-0 cursor-grab text-muted-foreground/40 transition-colors group-hover:text-muted-foreground/70" />
 
-        {isColorPickerOpen && (
-          <div
-            ref={colorPickerRef}
-            className={cn(
-              "absolute top-9 left-0 z-50 rounded-lg border bg-popover p-1",
-              "shadow-md ring-1 ring-foreground/10",
-            )}
+        <Popover>
+          <PopoverTrigger
+            render={
+              <button
+                type="button"
+                aria-label={`Pick color for ${column.label}`}
+                className={cn(
+                  "size-6 shrink-0 rounded-full ring-1 ring-inset ring-white/20 transition-all",
+                  "hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+                  COLOR_MAP[column.color].dot,
+                )}
+              />
+            }
+          />
+          <PopoverContent
+            side="bottom"
+            align="start"
+            sideOffset={8}
+            className="w-auto p-2"
           >
             <ColorPicker
               value={column.color}
-              onChange={(c) => {
-                onColorChange(column.id, c);
-                onColorPickerToggle(null);
-              }}
+              onChange={(c) => onColorChange(column.id, c)}
             />
-          </div>
-        )}
+          </PopoverContent>
+        </Popover>
+
+        <input
+          type="text"
+          value={column.label}
+          onChange={(e) => onLabelChange(column.id, e.target.value)}
+          placeholder="Column name"
+          className={cn(
+            "h-7 min-w-0 flex-1 rounded-md border-none bg-transparent px-1.5 text-sm font-medium",
+            "placeholder:text-muted-foreground/50",
+            "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50",
+            "transition-colors",
+          )}
+        />
+
+        {/* Behavior select — hidden on mobile, shown sm+ */}
+        <div className="hidden sm:block">
+          <Select
+            value={column.behavior}
+            onValueChange={(val) =>
+              onBehaviorChange(column.id, val as BehaviorOption)
+            }
+          >
+            <SelectTrigger
+              size="sm"
+              className="h-7 w-[8rem] shrink-0 border-border/50 bg-transparent text-xs"
+              aria-label="Column behavior"
+            >
+              <SelectValue>
+                {column.behavior === "schedule" && (
+                  <Clock className="size-3 shrink-0 text-muted-foreground" />
+                )}
+                {column.behavior === "publish" && (
+                  <Upload className="size-3 shrink-0 text-muted-foreground" />
+                )}
+                <span>{BEHAVIOR_LABELS[column.behavior]}</span>
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">No automation</SelectItem>
+              <SelectItem value="schedule">
+                <Clock className="size-3.5" />
+                Auto-schedule
+              </SelectItem>
+              <SelectItem value="publish">
+                <Upload className="size-3.5" />
+                Auto-publish
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          disabled={isOnly}
+          aria-label={`Delete column ${column.label}`}
+          onClick={() => onDelete(column.id)}
+          className="size-7 shrink-0 text-muted-foreground/50 hover:text-destructive disabled:opacity-30"
+        >
+          <Trash2 className="size-3.5" />
+        </Button>
       </div>
 
-      {/* Label input */}
-      <input
-        type="text"
-        value={column.label}
-        onChange={(e) => onLabelChange(column.id, e.target.value)}
-        placeholder="Column name"
-        className={cn(
-          "h-8 min-w-0 flex-1 rounded-lg border border-input bg-transparent px-2.5 text-sm",
-          "placeholder:text-muted-foreground",
-          "focus-visible:outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
-          "transition-colors",
-        )}
-      />
-
-      {/* Behavior select */}
-      <Select
-        value={column.behavior}
-        onValueChange={(val) =>
-          onBehaviorChange(column.id, val as BehaviorOption)
-        }
-      >
-        <SelectTrigger
-          size="sm"
-          className="w-[8.5rem] shrink-0 text-xs"
-          aria-label="Column behavior"
+      {/* Bottom row on mobile: behavior select */}
+      <div className="mt-1.5 pl-[2.625rem] sm:hidden">
+        <Select
+          value={column.behavior}
+          onValueChange={(val) =>
+            onBehaviorChange(column.id, val as BehaviorOption)
+          }
         >
-          <SelectValue>
-            {column.behavior === "schedule" && (
-              <Clock className="size-3 shrink-0 text-muted-foreground" />
-            )}
-            {column.behavior === "publish" && (
-              <Upload className="size-3 shrink-0 text-muted-foreground" />
-            )}
-            <span>{BEHAVIOR_LABELS[column.behavior]}</span>
-          </SelectValue>
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="none">No automation</SelectItem>
-          <SelectItem value="schedule">
-            <Clock className="size-3.5" />
-            Auto-schedule
-          </SelectItem>
-          <SelectItem value="publish">
-            <Upload className="size-3.5" />
-            Auto-publish
-          </SelectItem>
-        </SelectContent>
-      </Select>
-
-      {/* Delete button */}
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        disabled={isOnly}
-        aria-label={`Delete column ${column.label}`}
-        onClick={() => onDelete(column.id)}
-        className="shrink-0 text-muted-foreground hover:text-destructive"
-      >
-        <Trash2 />
-      </Button>
+          <SelectTrigger
+            size="sm"
+            className="h-7 w-full border-border/50 bg-transparent text-xs"
+            aria-label="Column behavior"
+          >
+            <SelectValue>
+              {column.behavior === "schedule" && (
+                <Clock className="size-3 shrink-0 text-muted-foreground" />
+              )}
+              {column.behavior === "publish" && (
+                <Upload className="size-3 shrink-0 text-muted-foreground" />
+              )}
+              <span>{BEHAVIOR_LABELS[column.behavior]}</span>
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">No automation</SelectItem>
+            <SelectItem value="schedule">
+              <Clock className="size-3.5" />
+              Auto-schedule
+            </SelectItem>
+            <SelectItem value="publish">
+              <Upload className="size-3.5" />
+              Auto-publish
+            </SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Main dialog component
+// Main component
 // ---------------------------------------------------------------------------
 
 export function BoardSettingsDialog({
@@ -239,18 +257,13 @@ export function BoardSettingsDialog({
   const setOpen = useBoardStore((s) => s.setSettingsDialogOpen);
 
   const [editColumns, setEditColumns] = React.useState<BoardColumnDef[]>([]);
-  const [colorPickerOpenId, setColorPickerOpenId] = React.useState<
-    string | null
-  >(null);
   const [isSaving, setIsSaving] = React.useState(false);
 
   const updateColumns = useMutation(api.cms.boardColumns.updateColumns);
 
-  // Sync local state when dialog opens
   React.useEffect(() => {
     if (open) {
       setEditColumns(columns.map((c) => ({ ...c })));
-      setColorPickerOpenId(null);
     }
   }, [open, columns]);
 
@@ -279,10 +292,8 @@ export function BoardSettingsDialog({
   function handleDelete(id: string) {
     setEditColumns((prev) => {
       const next = prev.filter((c) => c.id !== id);
-      // Re-assign positions after deletion
       return next.map((c, i) => ({ ...c, position: i }));
     });
-    if (colorPickerOpenId === id) setColorPickerOpenId(null);
   }
 
   function handleAddColumn() {
@@ -329,10 +340,6 @@ export function BoardSettingsDialog({
     }
   }
 
-  function handleCancel() {
-    setOpen(false);
-  }
-
   // ---------------------------------------------------------------------------
   // Validation errors (live)
   // ---------------------------------------------------------------------------
@@ -344,68 +351,70 @@ export function BoardSettingsDialog({
   // ---------------------------------------------------------------------------
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="sm:max-w-lg" showCloseButton={!isSaving}>
-        <DialogHeader>
-          <DialogTitle>Board Settings</DialogTitle>
-          <DialogDescription>
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetContent side="right" showCloseButton={!isSaving}>
+        <SheetHeader>
+          <SheetTitle>Board Settings</SheetTitle>
+          <SheetDescription>
             Manage your board columns — change labels, colors, and automation
             behaviors.
-          </DialogDescription>
-        </DialogHeader>
+          </SheetDescription>
+        </SheetHeader>
 
-        {/* Column list */}
-        <div className="flex flex-col gap-2">
-          {editColumns.map((col) => (
-            <ColumnRow
-              key={col.id}
-              column={col}
-              isOnly={editColumns.length === 1}
-              colorPickerOpenId={colorPickerOpenId}
-              onColorPickerToggle={setColorPickerOpenId}
-              onLabelChange={handleLabelChange}
-              onColorChange={handleColorChange}
-              onBehaviorChange={handleBehaviorChange}
-              onDelete={handleDelete}
-            />
-          ))}
-        </div>
-
-        {/* Add column button */}
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={handleAddColumn}
-          className="mt-1 w-full justify-center gap-1.5"
-        >
-          <Plus />
-          Add column
-        </Button>
-
-        {/* Validation error messages */}
-        {hasErrors(errors) && (
-          <div className="flex flex-col gap-1 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-            {errors.duplicateIds && (
-              <p>
-                Two or more columns share the same ID. Each ID must be unique.
-              </p>
-            )}
-            {errors.multiplePublish && (
-              <p>Only one column may have the "Auto-publish" behavior.</p>
-            )}
-            {errors.multipleSchedule && (
-              <p>Only one column may have the "Auto-schedule" behavior.</p>
-            )}
+        <SheetBody className="flex flex-col gap-4 px-4 sm:px-6">
+          {/* Column header labels — desktop only */}
+          <div className="hidden items-center px-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/60 sm:flex">
+            <span className="ml-12">Column</span>
+            <span className="ml-auto mr-16">Behavior</span>
           </div>
-        )}
 
-        <DialogFooter>
+          {/* Column list */}
+          <div className="flex flex-col gap-1.5">
+            {editColumns.map((col) => (
+              <ColumnRow
+                key={col.id}
+                column={col}
+                isOnly={editColumns.length === 1}
+                onLabelChange={handleLabelChange}
+                onColorChange={handleColorChange}
+                onBehaviorChange={handleBehaviorChange}
+                onDelete={handleDelete}
+              />
+            ))}
+          </div>
+
+          {/* Add column button */}
+          <button
+            type="button"
+            onClick={handleAddColumn}
+            className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border/60 py-2 text-xs font-medium text-muted-foreground transition-colors hover:border-border hover:bg-muted/30 hover:text-foreground"
+          >
+            <Plus className="size-3.5" />
+            Add column
+          </button>
+
+          {/* Validation error messages */}
+          {hasErrors(errors) && (
+            <div className="flex flex-col gap-1 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2.5 text-xs text-destructive">
+              {errors.duplicateIds && (
+                <p>Two or more columns share the same ID.</p>
+              )}
+              {errors.multiplePublish && (
+                <p>Only one column may have the "Auto-publish" behavior.</p>
+              )}
+              {errors.multipleSchedule && (
+                <p>Only one column may have the "Auto-schedule" behavior.</p>
+              )}
+            </div>
+          )}
+        </SheetBody>
+
+        <SheetFooter>
           <Button
             type="button"
             variant="outline"
             size="sm"
-            onClick={handleCancel}
+            onClick={() => setOpen(false)}
             disabled={isSaving}
           >
             Cancel
@@ -415,6 +424,7 @@ export function BoardSettingsDialog({
             size="sm"
             onClick={handleSave}
             disabled={isSaving || hasErrors(errors)}
+            className="ml-auto"
           >
             {isSaving ? (
               <>
@@ -425,8 +435,8 @@ export function BoardSettingsDialog({
               "Save changes"
             )}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
 }

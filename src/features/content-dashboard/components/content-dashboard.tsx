@@ -790,6 +790,12 @@ export function ContentDashboard({
                     projectId={projectId}
                     selectedPaths={selectedPaths}
                     onToggleSelect={handleToggleSelect}
+                    selectedDocIds={selectedDocIds}
+                    onToggleDocSelect={
+                      onBulkPublish || onBulkDelete
+                        ? handleToggleDocSelect
+                        : undefined
+                    }
                     onOpenItem={onOpenItem}
                     onDeleteLocal={onDeleteLocal}
                     onDeleteRemote={onDeleteRemote}

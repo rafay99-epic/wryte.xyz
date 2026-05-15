@@ -6,8 +6,15 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { motion } from "framer-motion";
-import { ChevronDown, ChevronUp, Clock, Plus, Upload } from "lucide-react";
-import { useMemo, useState } from "react";
+import {
+  ChevronDown,
+  ChevronRight,
+  ChevronUp,
+  Clock,
+  Plus,
+  Upload,
+} from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getColorClasses } from "@/lib/board-colors";
@@ -30,6 +37,8 @@ type BoardColumnProps = {
   allProjectTags: string[];
   selectedPaths?: Set<string> | undefined;
   onToggleSelect?: ((path: string, checked: boolean) => void) | undefined;
+  selectedDocIds?: Set<string> | undefined;
+  onToggleDocSelect?: ((docId: string, checked: boolean) => void) | undefined;
   onOpenItem: (item: ContentItem) => void;
   onDeleteLocal: (item: ContentItem) => void;
   onDeleteRemote: (item: ContentItem) => void;
@@ -46,6 +55,8 @@ export function BoardColumn({
   allProjectTags,
   selectedPaths,
   onToggleSelect,
+  selectedDocIds,
+  onToggleDocSelect,
   onOpenItem,
   onDeleteLocal,
   onDeleteRemote,
@@ -55,18 +66,20 @@ export function BoardColumn({
   const colors = getColorClasses(column.color);
   const overColumnId = useBoardStore((s) => s.overColumnId);
   const isOver = overColumnId === column.id;
+  const isCollapsed = useBoardStore((s) => s.collapsedColumns.has(column.id));
+  const toggleCollapsed = useBoardStore((s) => s.toggleColumnCollapsed);
 
   // Per-column pagination
   const [currentPage, setCurrentPage] = useState(1);
   const totalItems = items.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / COLUMN_PAGE_SIZE));
 
-  // Clamp page if items shrink
+  // Clamp page when items shrink
+  useEffect(() => {
+    setCurrentPage((p) => Math.min(p, totalPages));
+  }, [totalPages]);
+
   const effectivePage = Math.min(currentPage, totalPages);
-  if (effectivePage !== currentPage && currentPage > 1) {
-    // Can't call setState in render, so schedule it
-    setTimeout(() => setCurrentPage(effectivePage), 0);
-  }
 
   const paginatedItems = useMemo(() => {
     const start = (effectivePage - 1) * COLUMN_PAGE_SIZE;
@@ -89,6 +102,41 @@ export function BoardColumn({
   const showingStart = (effectivePage - 1) * COLUMN_PAGE_SIZE + 1;
   const showingEnd = Math.min(effectivePage * COLUMN_PAGE_SIZE, totalItems);
 
+  if (isCollapsed) {
+    return (
+      <div
+        ref={setNodeRef}
+        className={cn(
+          "flex w-10 flex-col items-center rounded-xl border border-t-[3px] bg-muted/20 py-2 transition-colors",
+          colors.accent,
+          isOver && "border-primary/40 bg-primary/5",
+        )}
+      >
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          onClick={() => toggleCollapsed(column.id)}
+          aria-label={`Expand ${column.label}`}
+          className="mb-1"
+        >
+          <ChevronRight className="size-3.5" />
+        </Button>
+        <span className="[writing-mode:vertical-lr] text-xs font-semibold tracking-wide">
+          {column.label}
+        </span>
+        <Badge
+          variant="secondary"
+          className={cn(
+            "mt-2 px-1 py-0 text-[10px] font-semibold",
+            colors.badge,
+          )}
+        >
+          {totalItems}
+        </Badge>
+      </div>
+    );
+  }
+
   return (
     <div
       ref={setNodeRef}
@@ -101,6 +149,15 @@ export function BoardColumn({
       {/* Column header */}
       <div className="flex items-center justify-between px-3 py-2.5">
         <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            onClick={() => toggleCollapsed(column.id)}
+            aria-label={`Collapse ${column.label}`}
+            className="-ml-1"
+          >
+            <ChevronDown className="size-3" />
+          </Button>
           <span className="text-sm font-semibold">{column.label}</span>
           {column.behavior === "schedule" && (
             <Clock className="size-3 text-muted-foreground/60" />
@@ -127,7 +184,7 @@ export function BoardColumn({
             variants={staggerContainer}
             initial="initial"
             animate="animate"
-            className="flex flex-col gap-2"
+            className="flex flex-col gap-2.5"
           >
             {paginatedItems.length === 0 ? (
               <p className="py-6 text-center text-xs text-muted-foreground/50">
@@ -147,12 +204,17 @@ export function BoardColumn({
                     selected={
                       item.kind === "remote" && selectedPaths
                         ? selectedPaths.has(item.path)
-                        : undefined
+                        : item.kind === "local" && item.id && selectedDocIds
+                          ? selectedDocIds.has(item.id)
+                          : undefined
                     }
                     onSelect={
                       item.kind === "remote" && onToggleSelect
                         ? (checked) => onToggleSelect(item.path, checked)
-                        : undefined
+                        : item.kind === "local" && item.id && onToggleDocSelect
+                          ? (checked) =>
+                              onToggleDocSelect(item.id as string, checked)
+                          : undefined
                     }
                     onOpen={() => onOpenItem(item)}
                     onDelete={

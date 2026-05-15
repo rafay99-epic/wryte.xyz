@@ -1,17 +1,10 @@
 "use client";
 
-import { useMutation } from "convex/react";
 import { Plus, Tag, X } from "lucide-react";
 import * as React from "react";
-import { toast } from "sonner";
 
+import { useTagEditor } from "@/hooks/use-tag-editor";
 import { cn } from "@/lib/utils";
-import { api } from "../../../../convex/_generated/api";
-import type { Id } from "../../../../convex/_generated/dataModel";
-
-// ---------------------------------------------------------------------------
-// Tag color helpers (mirrors tag-badges.tsx for visual consistency)
-// ---------------------------------------------------------------------------
 
 const TAG_COLORS = [
   "bg-blue-500/10 text-blue-700 border-blue-200 dark:text-blue-300 dark:border-blue-800",
@@ -38,22 +31,12 @@ function tagColorClass(tag: string): string {
   return TAG_COLORS[idx] ?? TAG_COLORS[0] ?? "";
 }
 
-// ---------------------------------------------------------------------------
-// Props
-// ---------------------------------------------------------------------------
-
 type TagEditorPopoverProps = {
   documentId: string;
   currentTags: string[];
-  /** All tags used across the project, for autocomplete suggestions */
   allProjectTags: string[];
-  /** Trigger element — renders as a small icon button */
   children: React.ReactNode;
 };
-
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
 
 export function TagEditorPopover({
   documentId,
@@ -62,28 +45,25 @@ export function TagEditorPopover({
   children,
 }: TagEditorPopoverProps) {
   const [open, setOpen] = React.useState(false);
-  const [tags, setTags] = React.useState<string[]>(currentTags);
-  const [inputValue, setInputValue] = React.useState("");
 
   const triggerRef = React.useRef<HTMLDivElement>(null);
   const popoverRef = React.useRef<HTMLDivElement>(null);
-  const inputRef = React.useRef<HTMLInputElement>(null);
 
-  const updateTags = useMutation(api.cms.documents.updateTags);
+  const editor = useTagEditor({ documentId, initialTags: currentTags });
 
   // Sync tags when prop changes (e.g. external update)
   React.useEffect(() => {
     if (!open) {
-      setTags(currentTags);
+      editor.resetTags(currentTags);
     }
-  }, [currentTags, open]);
+  }, [currentTags, open, editor.resetTags]);
 
   // Focus input when popover opens
   React.useEffect(() => {
     if (open) {
-      setTimeout(() => inputRef.current?.focus(), 0);
+      setTimeout(() => editor.inputRef.current?.focus(), 0);
     }
-  }, [open]);
+  }, [open, editor.inputRef]);
 
   // Close on outside click
   React.useEffect(() => {
@@ -104,83 +84,17 @@ export function TagEditorPopover({
     return () => document.removeEventListener("pointerdown", handlePointerDown);
   }, [open]);
 
-  // ---------------------------------------------------------------------------
-  // Mutation helper
-  // ---------------------------------------------------------------------------
-
-  async function persistTags(nextTags: string[]) {
-    try {
-      await updateTags({
-        documentId: documentId as Id<"documents">,
-        tags: nextTags,
-      });
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Failed to update tags.";
-      toast.error(message);
-    }
-  }
-
-  // ---------------------------------------------------------------------------
-  // Tag actions
-  // ---------------------------------------------------------------------------
-
-  function addTag(raw: string) {
-    const tag = raw.trim().toLowerCase().replace(/,/g, "");
-    if (!tag || tags.includes(tag)) {
-      setInputValue("");
-      return;
-    }
-    const nextTags = [...tags, tag];
-    setTags(nextTags);
-    setInputValue("");
-    void persistTags(nextTags);
-  }
-
-  function removeTag(tag: string) {
-    const nextTags = tags.filter((t) => t !== tag);
-    setTags(nextTags);
-    void persistTags(nextTags);
-  }
-
-  // ---------------------------------------------------------------------------
-  // Input handlers
-  // ---------------------------------------------------------------------------
-
-  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === "Enter" || e.key === ",") {
-      e.preventDefault();
-      addTag(inputValue);
-    } else if (e.key === "Backspace" && inputValue === "" && tags.length > 0) {
-      const last = tags[tags.length - 1];
-      if (last !== undefined) {
-        removeTag(last);
-      }
-    } else if (e.key === "Escape") {
-      setOpen(false);
-    }
-  }
-
   function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
-    // Strip commas as the user types so they don't accumulate
-    setInputValue(e.target.value.replace(/,/g, ""));
+    editor.setInputValue(e.target.value.replace(/,/g, ""));
   }
 
-  // ---------------------------------------------------------------------------
-  // Autocomplete suggestions
-  // ---------------------------------------------------------------------------
-
-  const trimmed = inputValue.trim().toLowerCase();
+  const trimmed = editor.inputValue.trim().toLowerCase();
 
   const suggestions = allProjectTags.filter(
     (t) =>
-      !tags.includes(t) &&
+      !editor.tags.includes(t) &&
       (trimmed === "" || t.toLowerCase().includes(trimmed)),
   );
-
-  // ---------------------------------------------------------------------------
-  // Render
-  // ---------------------------------------------------------------------------
 
   return (
     <div className="relative inline-flex" ref={triggerRef}>
@@ -223,9 +137,9 @@ export function TagEditorPopover({
           </div>
 
           {/* Existing tag badges */}
-          {tags.length > 0 && (
+          {editor.tags.length > 0 && (
             <div className="mb-2 flex flex-wrap gap-1">
-              {tags.map((tag) => (
+              {editor.tags.map((tag) => (
                 <span
                   key={tag}
                   className={cn(
@@ -238,7 +152,7 @@ export function TagEditorPopover({
                   <button
                     type="button"
                     aria-label={`Remove tag ${tag}`}
-                    onClick={() => removeTag(tag)}
+                    onClick={() => editor.removeTag(tag)}
                     className="ml-0.5 rounded-sm opacity-60 hover:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   >
                     <X className="size-2.5" />
@@ -251,11 +165,14 @@ export function TagEditorPopover({
           {/* Input row */}
           <div className="flex items-center gap-1.5">
             <input
-              ref={inputRef}
+              ref={editor.inputRef}
               type="text"
-              value={inputValue}
+              value={editor.inputValue}
               onChange={handleInputChange}
-              onKeyDown={handleKeyDown}
+              onKeyDown={(e) => {
+                editor.handleKeyDown(e);
+                if (e.key === "Escape") setOpen(false);
+              }}
               placeholder="Add a tag…"
               className={cn(
                 "h-7 min-w-0 flex-1 rounded-md border border-input bg-transparent px-2 text-xs",
@@ -267,8 +184,8 @@ export function TagEditorPopover({
             <button
               type="button"
               aria-label="Add tag"
-              disabled={!inputValue.trim()}
-              onClick={() => addTag(inputValue)}
+              disabled={!editor.inputValue.trim()}
+              onClick={() => editor.addTag(editor.inputValue)}
               className={cn(
                 "flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-input",
                 "text-muted-foreground transition-colors",
@@ -291,7 +208,7 @@ export function TagEditorPopover({
                 <button
                   key={suggestion}
                   type="button"
-                  onClick={() => addTag(suggestion)}
+                  onClick={() => editor.addTag(suggestion)}
                   className={cn(
                     "flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left text-xs",
                     "text-foreground transition-colors",

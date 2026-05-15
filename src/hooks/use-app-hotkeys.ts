@@ -4,6 +4,7 @@ import type { Hotkey } from "@tanstack/hotkeys";
 import { type UseHotkeyDefinition, useHotkeys } from "@tanstack/react-hotkeys";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo } from "react";
+import { isInputFocused } from "@/lib/dom-utils";
 import { useEditorStore } from "@/stores/editor-store";
 import { useShortcutsStore } from "@/stores/shortcuts-store";
 import { useThemeStore } from "@/stores/theme-store";
@@ -35,15 +36,6 @@ export function useAppHotkeys(handlers: AppHotkeyHandlers) {
     if (mode === "dark") setMode("light");
     else if (mode === "light") setMode("system");
     else setMode("dark");
-  }, []);
-
-  const isInputFocused = useCallback(() => {
-    const el = document.activeElement;
-    if (!el) return false;
-    if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)
-      return true;
-    if (el instanceof HTMLElement && el.isContentEditable) return true;
-    return false;
   }, []);
 
   /** Helper to cast string keys from the store to the branded Hotkey type. */
@@ -182,7 +174,6 @@ export function useAppHotkeys(handlers: AppHotkeyHandlers) {
       toggleSidebar,
       toggleFocusMode,
       cycleTheme,
-      isInputFocused,
       activeProjectId,
       router,
     ],

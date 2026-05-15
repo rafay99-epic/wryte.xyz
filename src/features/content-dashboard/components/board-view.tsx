@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  closestCenter,
   DndContext,
   type DragEndEvent,
   type DragOverEvent,
@@ -9,6 +8,7 @@ import {
   type DragStartEvent,
   KeyboardSensor,
   PointerSensor,
+  rectIntersection,
   TouchSensor,
   useSensor,
   useSensors,
@@ -18,6 +18,7 @@ import { Plus } from "lucide-react";
 import { useCallback, useMemo } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { useBoardKeyboardNav } from "@/hooks/use-board-keyboard-nav";
 import type { ParsedFrontmatter } from "@/lib/parse-frontmatter";
 import { useBoardStore } from "@/stores/board-store";
 import type { BoardColumnDef } from "@/types/board";
@@ -27,7 +28,6 @@ import { BoardCard } from "./board-card";
 import { BoardColumn } from "./board-column";
 import type { ContentItem } from "./content-table-row";
 
-/** Pseudo-column for remote GitHub files. */
 const REMOTE_COLUMN: BoardColumnDef = {
   id: "remote",
   label: "Remote",
@@ -49,6 +49,8 @@ type BoardViewProps = {
   onDeleteRemote: (item: ContentItem) => void;
   onCreateClick: (initialStatus?: string) => void;
   onSettingsClick: () => void;
+  selectedDocIds?: Set<string> | undefined;
+  onToggleDocSelect?: ((docId: string, checked: boolean) => void) | undefined;
 };
 
 export function BoardView({
@@ -64,6 +66,8 @@ export function BoardView({
   onDeleteRemote,
   onCreateClick,
   onSettingsClick,
+  selectedDocIds,
+  onToggleDocSelect,
 }: BoardViewProps) {
   const {
     activeItem,
@@ -76,31 +80,27 @@ export function BoardView({
   } = useBoardStore();
 
   const moveCard = useMutation(api.cms.documents.moveCard);
-
   const publishAction = useAction(api.integrations.github.publish);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      activationConstraint: { distance: 12 },
+      activationConstraint: { distance: 5 },
     }),
     useSensor(TouchSensor, {
-      activationConstraint: { delay: 220, tolerance: 8 },
+      activationConstraint: { delay: 150, tolerance: 8 },
     }),
     useSensor(KeyboardSensor),
   );
 
-  // Group items by status, applying optimistic moves
   const grouped = useMemo(() => {
     const groups: Record<string, ContentItem[]> = {};
 
-    // Initialize groups for all columns
     for (const col of columns) {
       groups[col.id] = [];
     }
     groups["remote"] = [];
 
     for (const item of items) {
-      // Check for optimistic move
       const optimistic = item.id ? optimisticMoves.get(item.id) : undefined;
       const effectiveStatus = optimistic?.status ?? item.status;
       const effectivePosition = optimistic?.boardPosition ?? item.boardPosition;
@@ -117,14 +117,12 @@ export function BoardView({
         }
         groups[effectiveStatus]?.push(updated);
       } else {
-        // Fallback: items without status go to first column
         const firstCol = columns[0]?.id ?? "draft";
         if (!groups[firstCol]) groups[firstCol] = [];
         groups[firstCol]?.push(item);
       }
     }
 
-    // Sort each group by boardPosition
     for (const key of Object.keys(groups)) {
       groups[key]?.sort(
         (a, b) => (a.boardPosition ?? 0) - (b.boardPosition ?? 0),
@@ -133,6 +131,9 @@ export function BoardView({
 
     return groups;
   }, [items, columns, optimisticMoves]);
+
+  // --- Keyboard navigation (vim-style) ---
+  useBoardKeyboardNav({ columns, grouped, items, onOpenItem });
 
   const handleDragStart = useCallback(
     (event: DragStartEvent) => {
@@ -148,9 +149,6 @@ export function BoardView({
       const overData = event.over?.data.current;
       if (overData?.["columnId"]) {
         setOverColumnId(overData["columnId"] as string);
-      } else if (overData?.["sortable"]) {
-        // Over another card — extract column from its data
-        setOverColumnId(null);
       } else {
         setOverColumnId(null);
       }
@@ -170,25 +168,20 @@ export function BoardView({
       const draggedItem = activeData["item"] as ContentItem;
       const sourceColumnId = activeData["columnId"] as string;
 
-      // Determine target column
       let targetColumnId: string;
       const overData = over.data.current;
 
       if (overData?.["columnId"]) {
-        // Dropped on a column droppable
         targetColumnId = overData["columnId"] as string;
       } else if (overData?.["sortable"]) {
-        // Dropped on another card — find its column
         targetColumnId = (overData["columnId"] as string) ?? sourceColumnId;
       } else {
-        return; // Invalid drop target
+        return;
       }
 
       if (!draggedItem.id) return;
-
       if (targetColumnId === "remote") return;
 
-      // Compute new board position via fractional indexing
       const targetItems = grouped[targetColumnId] ?? [];
       const overItemId = over.id as string;
 
@@ -216,7 +209,6 @@ export function BoardView({
         newPosition = lastPos + 1000;
       }
 
-      // Apply optimistic move
       applyOptimisticMove(draggedItem.id, targetColumnId, newPosition);
 
       try {
@@ -226,10 +218,8 @@ export function BoardView({
           boardPosition: newPosition,
         });
 
-        // Clear optimistic move — Convex reactive query will have updated
         clearOptimisticMove(draggedItem.id);
 
-        // Handle column behavior
         if (result.behavior === "publish" && hasGithub) {
           try {
             await publishAction({
@@ -254,7 +244,6 @@ export function BoardView({
           setPendingSchedule(draggedItem.id, sourceColumnId);
         }
       } catch (_err) {
-        // Revert optimistic move
         clearOptimisticMove(draggedItem.id);
         toast.error("Failed to move card");
       }
@@ -272,7 +261,6 @@ export function BoardView({
     ],
   );
 
-  // Compute all unique tags across items for tag autocomplete
   const allProjectTags = useMemo(() => {
     const tagSet = new Set<string>();
     for (const item of items) {
@@ -291,7 +279,6 @@ export function BoardView({
     return Array.from(tagSet).sort();
   }, [items, frontmatterMap]);
 
-  // Find tags for the active item (for drag overlay)
   const activeItemTags = useMemo(() => {
     if (!activeItem?.id) return [];
     const fm = frontmatterMap.get(activeItem.id);
@@ -301,7 +288,7 @@ export function BoardView({
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCenter}
+      collisionDetection={rectIntersection}
       onDragStart={handleDragStart}
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
@@ -315,6 +302,8 @@ export function BoardView({
             columns={columns}
             frontmatterMap={frontmatterMap}
             allProjectTags={allProjectTags}
+            selectedDocIds={selectedDocIds}
+            onToggleDocSelect={onToggleDocSelect}
             onOpenItem={onOpenItem}
             onDeleteLocal={onDeleteLocal}
             onDeleteRemote={onDeleteRemote}
@@ -322,7 +311,6 @@ export function BoardView({
           />
         ))}
 
-        {/* Remote column — only shown when GitHub is connected and has remote items */}
         {hasGithub && (grouped["remote"]?.length ?? 0) > 0 && (
           <BoardColumn
             column={REMOTE_COLUMN}
@@ -340,7 +328,6 @@ export function BoardView({
           />
         )}
 
-        {/* Add column button */}
         <div className="flex min-w-[80px] items-start pt-2">
           <Button
             variant="ghost"
@@ -354,7 +341,6 @@ export function BoardView({
         </div>
       </div>
 
-      {/* Drag overlay */}
       <DragOverlay>
         {activeItem && (
           <BoardCard
