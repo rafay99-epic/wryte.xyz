@@ -6,11 +6,15 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowLeft,
   CalendarDays,
+  Database,
+  FilePlus,
   FileText,
   FolderOpen,
   ImageIcon,
   Layers,
   LayoutDashboard,
+  Lightbulb,
+  Newspaper,
   Plus,
   Settings,
   Star,
@@ -21,6 +25,7 @@ import { BrandIcon } from "@/components/branding/brand-icon";
 import { SidebarNavLink as NavLink } from "@/components/layout/app-sidebar/sidebar-nav-link";
 import { SidebarStatusDot as StatusDot } from "@/components/layout/app-sidebar/sidebar-status-dot";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
+import { useIsAdmin } from "@/hooks/use-is-admin";
 import { getColorClasses } from "@/lib/board-colors";
 import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/stores/editor-store";
@@ -38,6 +43,7 @@ export function AppSidebar() {
   const activeProjectId = useEditorStore((s) => s.activeProjectId);
   const setActiveProjectId = useEditorStore((s) => s.setActiveProjectId);
 
+  const isAdmin = useIsAdmin();
   const projects = useQuery(api.cms.projects.list);
   const documents = useQuery(
     api.cms.documents.list,
@@ -133,6 +139,44 @@ export function AppSidebar() {
               </div>
 
               <div className="my-3 h-px bg-sidebar-border" />
+
+              {/* Admin — only visible to users with publicMetadata.role === "admin".
+                  Mutations re-verify the role server-side, so this is just UX. */}
+              {isAdmin && (
+                <>
+                  <div className="mb-3">
+                    <div className="mb-1.5 px-3">
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                        Admin
+                      </span>
+                    </div>
+                    <div className="space-y-0.5">
+                      <NavLink
+                        href="/admin/changelog"
+                        icon={Newspaper}
+                        label="All changelogs"
+                        exact
+                      />
+                      <NavLink
+                        href="/admin/changelog/new"
+                        icon={FilePlus}
+                        label="Add new changelog"
+                      />
+                      <NavLink
+                        href="/admin/feature-requests"
+                        icon={Lightbulb}
+                        label="Feature requests"
+                      />
+                      <NavLink
+                        href="/admin/seed"
+                        icon={Database}
+                        label="Seed data"
+                      />
+                    </div>
+                  </div>
+                  <div className="my-3 h-px bg-sidebar-border" />
+                </>
+              )}
 
               {/* Projects */}
               <div>
@@ -376,7 +420,7 @@ export function AppSidebar() {
           />
         </div>
         <p className="mt-2 text-center text-[9px] leading-tight text-muted-foreground/30">
-          v0.5.1 · build 72 ·{" "}
+          v0.5.3 · build 73 ·{" "}
           <a
             href="https://syntaxlabtechnology.com"
             target="_blank"

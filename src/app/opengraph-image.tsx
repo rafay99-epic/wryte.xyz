@@ -78,7 +78,7 @@ export default async function OgImage() {
       >
         <span>wryte.xyz</span>
         <span>&middot;</span>
-        <span>v0.5.1</span>
+        <span>v0.5.3</span>
       </div>
     </div>,
     { ...size },

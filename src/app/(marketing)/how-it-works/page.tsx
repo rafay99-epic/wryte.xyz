@@ -538,7 +538,7 @@ export default function HowItWorksPage() {
             </div>
             <div className="mt-5 flex items-center justify-between border-t border-foreground/[0.06] dark:border-foreground/[0.03] pt-5">
               <p className="text-[11px] text-foreground/30 dark:text-foreground/15">
-                v0.5.1 · build 72 · Built by{" "}
+                v0.5.3 · build 73 · Built by{" "}
                 <a
                   href="https://rafay99.com"
                   target="_blank"

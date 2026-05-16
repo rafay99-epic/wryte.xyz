@@ -94,6 +94,33 @@ export const _getGithubOauthToken = internalAction({
 });
 
 /**
+ * Returns true if the given Clerk user has `publicMetadata.role === "admin"`.
+ * Source of truth for admin gates on staff-only Convex mutations (e.g.
+ * the changelog writer functions). The role is set from the Clerk
+ * dashboard under Users → {user} → Metadata → Public → `{ "role":
+ * "admin" }`.
+ *
+ * Internal-only — callers establish the Convex user identity through
+ * `ctx.auth.getUserIdentity()` and forward the trusted `clerkUserId`
+ * here. Returns `false` (rather than throwing) for any failure so the
+ * caller can render a friendly "forbidden" error.
+ */
+export const _isAdmin = internalAction({
+  args: { clerkUserId: v.string() },
+  handler: async (_ctx, args): Promise<boolean> => {
+    try {
+      const clerk = buildClient();
+      const user = await clerk.users.getUser(args.clerkUserId);
+      const role = (user.publicMetadata as { role?: unknown } | null)?.role;
+      return role === "admin";
+    } catch (err) {
+      console.error("[Clerk] _isAdmin lookup failed:", err);
+      return false;
+    }
+  },
+});
+
+/**
  * One-shot diagnostic for the Clerk SDK ↔ Convex integration. Run it
  * from the Convex dashboard's function runner (or call it from the
  * client) to find out which side of the connection is misbehaving:

@@ -556,4 +556,81 @@ export default defineSchema({
   })
     .index("by_documentId", ["documentId"])
     .index("by_scheduledAt", ["scheduledAt"]),
+
+  /**
+   * Feature requests — community-submitted ideas for new functionality.
+   *
+   * Authoring requires a Clerk-authenticated user; the author's clerk
+   * id is pinned on the row so admins can see who asked for what.
+   * `upvoteCount` is denormalized off the join table so the public
+   * sort-by-popularity query stays O(N) on `featureRequests` instead of
+   * scanning every upvote row on every read.
+   *
+   * `status` is the public lifecycle — admins flip it as ideas move
+   * from "open" through "in_progress" to "shipped" (or "declined").
+   * Hidden statuses (spam, dupes) just get deleted outright.
+   */
+  feature_requests: defineTable({
+    title: v.string(),
+    description: v.string(),
+    status: v.union(
+      v.literal("open"),
+      v.literal("planned"),
+      v.literal("in_progress"),
+      v.literal("shipped"),
+      v.literal("declined"),
+    ),
+    authorClerkUserId: v.string(),
+    authorName: v.string(),
+    /** Denormalized count of rows in `feature_request_upvotes` for this id. */
+    upvoteCount: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_status", ["status"])
+    .index("by_upvoteCount", ["upvoteCount"])
+    .index("by_status_and_upvoteCount", ["status", "upvoteCount"])
+    .index("by_authorClerkUserId", ["authorClerkUserId"]),
+
+  /**
+   * Join rows — one per (user, feature request) pair. The composite
+   * index lets the `toggleUpvote` mutation look up "has this user
+   * already voted?" in one O(log n) read without scanning either side.
+   */
+  feature_request_upvotes: defineTable({
+    featureRequestId: v.id("feature_requests"),
+    clerkUserId: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_featureRequestId", ["featureRequestId"])
+    .index("by_user_and_request", ["clerkUserId", "featureRequestId"]),
+
+  /**
+   * Changelog entries — public release notes surfaced on the marketing
+   * site. Authored by admins (gated by `publicMetadata.role === "admin"`
+   * via the Clerk Backend SDK in `convex/integrations/clerk.ts`) and
+   * rendered server-side with PPR so the marketing shell stays cached at
+   * the edge while the list streams in from Convex per request.
+   *
+   * `version` is the human-readable release tag (e.g. "0.5.2") and
+   * `build` is the build/commit identifier — both are free-form strings
+   * because we don't enforce a versioning scheme. `publishedAt` is
+   * optional so drafts can live in the admin UI without leaking to the
+   * public list — the `by_publishedAt` index doubles as the public-only
+   * filter (range over non-null values).
+   */
+  changelog: defineTable({
+    title: v.string(),
+    slug: v.string(),
+    description: v.string(),
+    content: v.string(),
+    version: v.string(),
+    build: v.string(),
+    publishedAt: v.optional(v.number()),
+    authorClerkUserId: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_slug", ["slug"])
+    .index("by_publishedAt", ["publishedAt"]),
 });

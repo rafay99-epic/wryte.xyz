@@ -448,4 +448,66 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     period: MINUTE,
     capacity: 30,
   },
+
+  /* ------------------------------------------------------------------ */
+  /*  Changelog (admin-only)                                             */
+  /* ------------------------------------------------------------------ */
+
+  "changelog:create": {
+    kind: "fixed window",
+    rate: 30,
+    period: HOUR,
+  },
+  "changelog:update": {
+    kind: "token bucket",
+    rate: 60,
+    period: MINUTE,
+    capacity: 10,
+  },
+  "changelog:remove": {
+    kind: "fixed window",
+    rate: 10,
+    period: HOUR,
+  },
+
+  /* ------------------------------------------------------------------ */
+  /*  Feature requests                                                   */
+  /* ------------------------------------------------------------------ */
+
+  /** Public submission — generous but anti-spam. */
+  "featureRequests:create": {
+    kind: "fixed window",
+    rate: 10,
+    period: HOUR,
+  },
+  /** Upvotes need to feel instant — token bucket with burst capacity. */
+  "featureRequests:toggleUpvote": {
+    kind: "token bucket",
+    rate: 60,
+    period: MINUTE,
+    capacity: 15,
+  },
+  /** Admin moderation — same generous shape as changelog edits. */
+  "featureRequests:updateStatus": {
+    kind: "token bucket",
+    rate: 60,
+    period: MINUTE,
+    capacity: 10,
+  },
+  "featureRequests:remove": {
+    kind: "fixed window",
+    rate: 30,
+    period: HOUR,
+  },
+
+  /* ------------------------------------------------------------------ */
+  /*  One-shot seed scripts                                              */
+  /* ------------------------------------------------------------------ */
+
+  /** Tight cap — seeding is a one-off, accidental loops are the only risk. */
+  "seed:run": {
+    kind: "fixed window",
+    rate: 5,
+    period: MINUTE,
+  },
 });

@@ -13,6 +13,7 @@ const isProtectedRoute = createRouteMatcher([
   "/editor(.*)",
   "/projects(.*)",
   "/settings(.*)",
+  "/admin(.*)",
 ]);
 
 /**
