@@ -231,6 +231,57 @@ export default defineSchema({
     .index("by_bulkBatchId", ["bulkBatchId"]),
 
   /**
+   * Draft snapshots — intentional checkpoints before publish. These are
+   * separate from `documents.content` so autosave can keep the live working
+   * copy lightweight while authors preserve v1/v2/final-candidate states.
+   */
+  document_drafts: defineTable({
+    documentId: v.id("documents"),
+    projectId: v.id("projects"),
+    userId: v.id("users"),
+    label: v.string(),
+    contentSnapshot: v.string(),
+    frontmatterSnapshot: v.optional(v.string()),
+    titleSnapshot: v.string(),
+    summary: v.optional(v.string()),
+    wordCount: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_documentId", ["documentId"])
+    .index("by_projectId", ["projectId"])
+    .index("by_userId", ["userId"]),
+
+  /**
+   * Research/context notes attached to a document. `selectedForAi` lets the
+   * editor build a deliberate context packet without sending every note.
+   */
+  document_research: defineTable({
+    documentId: v.id("documents"),
+    projectId: v.id("projects"),
+    userId: v.id("users"),
+    type: v.union(
+      v.literal("note"),
+      v.literal("source"),
+      v.literal("quote"),
+      v.literal("outline"),
+      v.literal("idea"),
+      v.literal("ai_summary"),
+    ),
+    title: v.string(),
+    content: v.string(),
+    url: v.optional(v.string()),
+    sourceName: v.optional(v.string()),
+    selectedForAi: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_documentId", ["documentId"])
+    .index("by_projectId", ["projectId"])
+    .index("by_userId", ["userId"])
+    .index("by_documentId_and_selectedForAi", ["documentId", "selectedForAi"]),
+
+  /**
    * Media table — records of images uploaded to a project's chosen storage provider.
    *
    * `provider` indicates where the binary lives:

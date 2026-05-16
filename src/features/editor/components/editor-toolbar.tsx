@@ -4,6 +4,7 @@ import { useQuery } from "convex/react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Bold,
+  BookOpenText,
   Braces,
   Code,
   Heading1,
@@ -43,6 +44,7 @@ import { useEditorStore } from "@/stores/editor-store";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
 import { AiEnhanceButton } from "./ai-enhance-button";
+import { DocumentWorkspaceDrawer } from "./document-workspace-drawer";
 import { useEditorContext } from "./editor-context";
 import { ImageInsertDialog } from "./image-insert-dialog";
 
@@ -76,6 +78,7 @@ export function EditorToolbar({ documentId, projectId }: EditorToolbarProps) {
 
   const [imageDialogOpen, setImageDialogOpen] = useState(false);
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
+  const [workspaceOpen, setWorkspaceOpen] = useState(false);
 
   // Gate the AI Assistant pill: hide entirely until the project has a
   // provider + model + active credential. Surfaces only through the AI
@@ -313,6 +316,16 @@ export function EditorToolbar({ documentId, projectId }: EditorToolbarProps) {
           </div>
 
           {/* AI Assistant button — only visible once AI is fully configured */}
+          <button
+            type="button"
+            onClick={() => setWorkspaceOpen(true)}
+            className="flex items-center gap-1.5 rounded-lg border border-border/60 px-3 py-1.5 text-xs font-medium text-muted-foreground transition-all hover:bg-muted/60 hover:text-foreground active:scale-[0.97]"
+          >
+            <BookOpenText className="size-3.5" />
+            <span>Workspace</span>
+          </button>
+
+          {/* AI Assistant button — only visible once AI is fully configured */}
           {aiReady && (
             <button
               type="button"
@@ -330,6 +343,13 @@ export function EditorToolbar({ documentId, projectId }: EditorToolbarProps) {
         open={imageDialogOpen}
         onOpenChange={setImageDialogOpen}
         onInsert={handleImageInsert}
+        documentId={documentId}
+        projectId={projectId}
+      />
+
+      <DocumentWorkspaceDrawer
+        open={workspaceOpen}
+        onOpenChange={setWorkspaceOpen}
         documentId={documentId}
         projectId={projectId}
       />

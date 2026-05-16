@@ -14,7 +14,7 @@ import { v } from "convex/values";
 import OpenAI from "openai";
 import { components, internal } from "../_generated/api";
 import { internalAction } from "../_generated/server";
-import { ENHANCE_SYSTEM_PROMPT } from "./enhance";
+import { ENHANCE_SYSTEM_PROMPT, FINAL_DRAFT_SYSTEM_PROMPT } from "./enhance";
 
 /* ------------------------------------------------------------------ */
 /*  System prompts                                                     */
@@ -73,6 +73,19 @@ const PROVIDER_VALIDATOR = v.union(
 );
 
 type ProviderName = "anthropic" | "openai" | "openrouter";
+type DraftContext = {
+  label: string;
+  title: string;
+  summary?: string;
+  content: string;
+};
+type ResearchContext = {
+  type: "note" | "source" | "quote" | "outline" | "idea" | "ai_summary";
+  title: string;
+  sourceName?: string;
+  url?: string;
+  content: string;
+};
 
 /* ------------------------------------------------------------------ */
 /*  Provider adapters                                                  */
@@ -231,6 +244,146 @@ export const runEnhancement = internalAction({
         args.model,
         args.content,
         ENHANCE_SYSTEM_PROMPT,
+        writer,
+      );
+
+      await ctx.runMutation(components.persistentTextStreaming.lib.addChunk, {
+        streamId,
+        text: pending,
+        final: true,
+      });
+    } catch (error) {
+      const message = describeProviderError(error, args.provider);
+      try {
+        await ctx.runMutation(
+          components.persistentTextStreaming.lib.setStreamStatus,
+          { streamId, status: "error" },
+        );
+      } catch {
+        // Stream may already be in a terminal state.
+      }
+      throw new Error(message);
+    }
+  },
+});
+
+/* ------------------------------------------------------------------ */
+/*  Internal action: final draft from research + snapshots             */
+/* ------------------------------------------------------------------ */
+
+function buildFinalDraftPrompt(args: {
+  title: string;
+  currentContent: string;
+  drafts: DraftContext[];
+  research: ResearchContext[];
+}): string {
+  const draftBlocks = args.drafts.length
+    ? args.drafts
+        .map(
+          (draft, index) =>
+            `## Draft Snapshot ${index + 1}: ${draft.label}
+Title: ${draft.title}
+${draft.summary ? `Summary: ${draft.summary}\n` : ""}
+Content:
+${draft.content}`,
+        )
+        .join("\n\n---\n\n")
+    : "No draft snapshots selected.";
+
+  const researchBlocks = args.research.length
+    ? args.research
+        .map(
+          (item, index) =>
+            `## Research ${index + 1}: ${item.title}
+Type: ${item.type}
+${item.sourceName ? `Source: ${item.sourceName}\n` : ""}${
+  item.url ? `URL: ${item.url}\n` : ""
+}Content:
+${item.content}`,
+        )
+        .join("\n\n---\n\n")
+    : "No research notes selected.";
+
+  return `Article title: ${args.title}
+
+# Current Working Article
+${args.currentContent}
+
+# Selected Draft Snapshots
+${draftBlocks}
+
+# Selected Research Context
+${researchBlocks}
+
+Write the final markdown article now.`;
+}
+
+export const runFinalDraft = internalAction({
+  args: {
+    streamId: StreamIdValidator,
+    provider: PROVIDER_VALIDATOR,
+    model: v.string(),
+    vaultSecretId: v.string(),
+    title: v.string(),
+    currentContent: v.string(),
+    drafts: v.array(
+      v.object({
+        label: v.string(),
+        title: v.string(),
+        summary: v.optional(v.string()),
+        content: v.string(),
+      }),
+    ),
+    research: v.array(
+      v.object({
+        type: v.union(
+          v.literal("note"),
+          v.literal("source"),
+          v.literal("quote"),
+          v.literal("outline"),
+          v.literal("idea"),
+          v.literal("ai_summary"),
+        ),
+        title: v.string(),
+        sourceName: v.optional(v.string()),
+        url: v.optional(v.string()),
+        content: v.string(),
+      }),
+    ),
+  },
+  handler: async (ctx, args) => {
+    const apiKey = await ctx.runAction(
+      internal.integrations.secretStore._read,
+      { id: args.vaultSecretId },
+    );
+    if (!apiKey) {
+      throw new Error(
+        "API key not found in vault — it may have been deleted during a key rotation. Please try again.",
+      );
+    }
+
+    const streamId = args.streamId;
+    let pending = "";
+    const writer = {
+      addChunk: async (text: string) => {
+        pending += text;
+        if (hasSentenceDelimiter(text)) {
+          await ctx.runMutation(
+            components.persistentTextStreaming.lib.addChunk,
+            { streamId, text: pending, final: false },
+          );
+          pending = "";
+        }
+      },
+    };
+
+    try {
+      await streamByProvider(
+        args.provider,
+        apiKey,
+        args.model,
+        buildFinalDraftPrompt(args),
+        FINAL_DRAFT_SYSTEM_PROMPT,
         writer,
       );
 

@@ -183,6 +183,45 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     rate: 10,
     period: MINUTE,
   },
+  "documentDrafts:create": {
+    kind: "token bucket",
+    rate: 30,
+    period: MINUTE,
+    capacity: 10,
+  },
+  "documentDrafts:update": {
+    kind: "token bucket",
+    rate: 30,
+    period: MINUTE,
+    capacity: 10,
+  },
+  "documentDrafts:remove": {
+    kind: "fixed window",
+    rate: 20,
+    period: MINUTE,
+  },
+  "documentDrafts:restore": {
+    kind: "fixed window",
+    rate: 10,
+    period: MINUTE,
+  },
+  "documentResearch:create": {
+    kind: "token bucket",
+    rate: 60,
+    period: MINUTE,
+    capacity: 15,
+  },
+  "documentResearch:update": {
+    kind: "token bucket",
+    rate: 120,
+    period: MINUTE,
+    capacity: 30,
+  },
+  "documentResearch:remove": {
+    kind: "fixed window",
+    rate: 30,
+    period: MINUTE,
+  },
   /**
    * Sync-conflict resolution. The user can plough through a stack of
    * conflicts (use github / keep convex / merge), but each resolution
@@ -364,6 +403,11 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
   "ai:createFrontmatterStream": {
     kind: "fixed window",
     rate: 10,
+    period: MINUTE,
+  },
+  "ai:createFinalDraftStream": {
+    kind: "fixed window",
+    rate: 8,
     period: MINUTE,
   },
   "aiCredentials:set": {

@@ -27,6 +27,8 @@ import type * as ai_enhanceActions from "../ai/enhanceActions.js";
 import type * as cms_boardColumns from "../cms/boardColumns.js";
 import type * as cms_changelog from "../cms/changelog.js";
 import type * as cms_conflicts from "../cms/conflicts.js";
+import type * as cms_documentDrafts from "../cms/documentDrafts.js";
+import type * as cms_documentResearch from "../cms/documentResearch.js";
 import type * as cms_documents from "../cms/documents.js";
 import type * as cms_projects from "../cms/projects.js";
 import type * as cms_trash from "../cms/trash.js";
@@ -77,6 +79,8 @@ declare const fullApi: ApiFromModules<{
   "cms/boardColumns": typeof cms_boardColumns;
   "cms/changelog": typeof cms_changelog;
   "cms/conflicts": typeof cms_conflicts;
+  "cms/documentDrafts": typeof cms_documentDrafts;
+  "cms/documentResearch": typeof cms_documentResearch;
   "cms/documents": typeof cms_documents;
   "cms/projects": typeof cms_projects;
   "cms/trash": typeof cms_trash;

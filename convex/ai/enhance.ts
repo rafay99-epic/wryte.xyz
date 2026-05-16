@@ -49,6 +49,17 @@ Guidelines:
 - Return ONLY the improved markdown content, nothing else
 - If the content is already well-written, make minimal changes`;
 
+export const FINAL_DRAFT_SYSTEM_PROMPT = `You are an expert long-form blog editor. Turn the provided working article, draft snapshots, and research notes into a polished final markdown draft.
+
+Guidelines:
+- Use the research and prior drafts as context, not as text to dump verbatim
+- Preserve the author's voice and the article's intended angle
+- Resolve contradictions by favoring the current article unless research clearly improves it
+- Keep markdown formatting clean and publish-ready
+- Do not invent facts beyond the provided context
+- Do not include commentary, explanations, or meta-text
+- Return ONLY the final markdown article`;
+
 /* ------------------------------------------------------------------ */
 /*  Shared resolver: auth + project + credential                        */
 /* ------------------------------------------------------------------ */
@@ -234,6 +245,86 @@ export const createFrontmatterStream = mutation({
         vaultSecretId,
       },
     );
+
+    return { streamId, provider, model };
+  },
+});
+
+export const createFinalDraftStream = mutation({
+  args: {
+    projectId: v.id("projects"),
+    documentId: v.id("documents"),
+    content: v.string(),
+    title: v.optional(v.string()),
+    draftIds: v.optional(v.array(v.id("document_drafts"))),
+    researchIds: v.optional(v.array(v.id("document_research"))),
+  },
+  handler: async (ctx, args) => {
+    const key = await getRateLimitKey(ctx);
+    await rateLimiter.limit(ctx, "ai:createFinalDraftStream", {
+      key,
+      throws: true,
+    });
+
+    const { provider, model, vaultSecretId } =
+      await resolveProjectAndCredential(ctx, args.projectId);
+    const user = await getCurrentUser(ctx);
+    const document = await ctx.db.get(args.documentId);
+    if (
+      !document ||
+      document.projectId !== args.projectId ||
+      document.userId !== user._id ||
+      document.trashedAt !== undefined
+    ) {
+      throw new Error("Document not found");
+    }
+
+    const requestedDraftIds = (args.draftIds ?? []).slice(0, 5);
+    const requestedResearchIds = (args.researchIds ?? []).slice(0, 12);
+
+    const drafts = (
+      await Promise.all(requestedDraftIds.map((id) => ctx.db.get(id)))
+    ).filter(
+      (draft): draft is Doc<"document_drafts"> =>
+        !!draft &&
+        draft.documentId === args.documentId &&
+        draft.userId === user._id,
+    );
+
+    const research = (
+      await Promise.all(requestedResearchIds.map((id) => ctx.db.get(id)))
+    ).filter(
+      (item): item is Doc<"document_research"> =>
+        !!item &&
+        item.documentId === args.documentId &&
+        item.userId === user._id,
+    );
+
+    const streamId = await streaming.createStream(ctx);
+
+    await ctx.scheduler.runAfter(0, internal.ai.enhanceActions.runFinalDraft, {
+      streamId,
+      provider,
+      model,
+      vaultSecretId,
+      title: args.title ?? document.title,
+      currentContent: args.content,
+      drafts: drafts.map((draft) => ({
+        label: draft.label,
+        title: draft.titleSnapshot,
+        ...(draft.summary !== undefined ? { summary: draft.summary } : {}),
+        content: draft.contentSnapshot.slice(0, 6000),
+      })),
+      research: research.map((item) => ({
+        type: item.type,
+        title: item.title,
+        ...(item.sourceName !== undefined
+          ? { sourceName: item.sourceName }
+          : {}),
+        ...(item.url !== undefined ? { url: item.url } : {}),
+        content: item.content.slice(0, 3000),
+      })),
+    });
 
     return { streamId, provider, model };
   },
