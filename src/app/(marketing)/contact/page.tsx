@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { BrandIcon } from "@/components/branding/brand-icon";
 import { MarketingThemeToggle } from "@/components/layout/marketing-theme-toggle";
 import { AnimatedSection as Section } from "@/features/marketing/components/animated-section";
+import { APP_RELEASE_LABEL } from "@/lib/release";
 import { api } from "../../../../convex/_generated/api";
 
 export default function ContactPage() {
@@ -246,7 +247,7 @@ export default function ContactPage() {
             </div>
             <div className="mt-5 flex items-center justify-between border-t border-foreground/[0.06] dark:border-foreground/[0.03] pt-5">
               <p className="text-[11px] text-foreground/30 dark:text-foreground/15">
-                v0.5.3 · build 73 · Built by{" "}
+                {APP_RELEASE_LABEL} · Built by{" "}
                 <a
                   href="https://rafay99.com"
                   target="_blank"

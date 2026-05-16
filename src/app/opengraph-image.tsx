@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { ImageResponse } from "next/og";
+import { APP_VERSION_LABEL } from "@/lib/release";
 
 export const runtime = "nodejs";
 export const alt = "Wryte – Write Now, Publish Later";
@@ -78,7 +79,7 @@ export default async function OgImage() {
       >
         <span>wryte.xyz</span>
         <span>&middot;</span>
-        <span>v0.5.3</span>
+        <span>{APP_VERSION_LABEL}</span>
       </div>
     </div>,
     { ...size },

@@ -27,6 +27,7 @@ import { SidebarStatusDot as StatusDot } from "@/components/layout/app-sidebar/s
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import { getColorClasses } from "@/lib/board-colors";
+import { APP_RELEASE_LABEL } from "@/lib/release";
 import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/stores/editor-store";
 import { DEFAULT_BOARD_COLUMNS } from "@/types/board";
@@ -420,7 +421,7 @@ export function AppSidebar() {
           />
         </div>
         <p className="mt-2 text-center text-[9px] leading-tight text-muted-foreground/30">
-          v0.5.3 · build 73 ·{" "}
+          {APP_RELEASE_LABEL} ·{" "}
           <a
             href="https://syntaxlabtechnology.com"
             target="_blank"
