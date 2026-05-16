@@ -34,8 +34,11 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MediaImage } from "@/features/media-library/components/media-image";
 import { usePendingDeletes } from "@/features/media-library/hooks/use-pending-deletes";
-import { useGithubInvalidation, useGithubMedia } from "@/hooks/use-github";
 import { useImageCompression } from "@/hooks/use-image-compression";
+import {
+  type MediaLibraryItem,
+  useProjectMediaLibrary,
+} from "@/hooks/use-project-media-library";
 import {
   type CompressionSettings,
   describeSavings,
@@ -52,19 +55,7 @@ import type { Id } from "../../../convex/_generated/dataModel";
 
 type ActiveProvider = MediaProvider;
 
-/** Provider-agnostic shape used by the card grid. */
-type UnifiedMediaItem = {
-  /** Stable identity within the provider — GitHub repo path, UT key, Cloudinary public_id. */
-  externalId: string;
-  /** Display name (filename). */
-  name: string;
-  /** Final URL embedded into markdown. */
-  url: string;
-  /** Bytes. */
-  size: number;
-  /** GitHub-only blob SHA — used for deletion. */
-  sha?: string;
-};
+type UnifiedMediaItem = MediaLibraryItem;
 
 /* ------------------------------------------------------------------ */
 /*  Page                                                               */
@@ -93,157 +84,42 @@ export function MediaLibraryPage() {
     pruneAgainst,
   } = usePendingDeletes();
 
-  // Determine the active provider. Treat the legacy "external" value as github.
-  const provider: ActiveProvider = useMemo(() => {
-    const mode = project?.mediaStorageMode;
-    if (mode === "uploadthing" || mode === "cloudinary") return mode;
-    return "github";
-  }, [project?.mediaStorageMode]);
-
-  const hasGithubConfig = Boolean(project?.githubRepo && project?.mediaPath);
-
-  /* ---------- GitHub source (existing TanStack hook) ---------- */
-  const isGithub = provider === "github";
   const {
-    data: githubData,
-    isLoading: isGithubLoading,
-    refetch: refetchGithub,
-  } = useGithubMedia({
-    repo: isGithub && project ? (project.githubRepo ?? null) : null,
-    branch: project?.githubBranch ?? "main",
-    path: isGithub && project ? (project.mediaPath ?? null) : null,
+    provider,
+    isGithub,
+    hasGithubConfig,
+    items,
+    isLoading,
+    isLoadingMore,
+    error: errorMessage,
+    hasMore: providerHasMore,
+    loadMore,
+    refresh,
+  } = useProjectMediaLibrary({
+    projectId,
+    project,
+    enabled: project !== undefined && project !== null,
   });
-  const { invalidateMedia } = useGithubInvalidation();
 
-  /* ---------- UploadThing / Cloudinary source (Convex action) ---------- */
-  const listMedia = useAction(api.media.uploads.list);
-  const [providerItems, setProviderItems] = useState<UnifiedMediaItem[]>([]);
-  const [isProviderLoading, setIsProviderLoading] = useState(false);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [providerError, setProviderError] = useState<string | null>(null);
-  const [providerHasMore, setProviderHasMore] = useState(false);
-
-  // Cursor lives in a ref so paging through doesn't re-create `fetchProvider`
-  // on every page (which would re-trigger the IntersectionObserver effect).
-  const providerCursorRef = useRef<string | null>(null);
-  // Guard against concurrent fetches (e.g. user spam-clicking refresh while
-  // a page is still in flight).
-  const inFlightRef = useRef(false);
-
-  const fetchProvider = useCallback(
-    async (opts?: { append?: boolean }) => {
-      if (isGithub) return;
-      if (inFlightRef.current) return;
-      inFlightRef.current = true;
-      const append = opts?.append ?? false;
-      if (append) {
-        setIsLoadingMore(true);
-      } else {
-        setIsProviderLoading(true);
-        setProviderError(null);
-      }
-      try {
-        const args: {
-          projectId: Id<"projects">;
-          cursor?: string;
-          limit?: number;
-        } = { projectId, limit: 100 };
-        const cursor = append ? providerCursorRef.current : null;
-        if (cursor) args.cursor = cursor;
-        const res = await listMedia(args);
-        const newItems = res.items.map((it) => ({
-          externalId: it.externalId,
-          name: it.filename,
-          url: it.url,
-          size: it.size,
-        }));
-        setProviderItems((prev) =>
-          append ? [...prev, ...newItems] : newItems,
-        );
-        providerCursorRef.current = res.nextCursor;
-        setProviderHasMore(res.nextCursor !== null);
-      } catch (err) {
-        const data = (err as { data?: { message?: string } })?.data;
-        const message =
-          data?.message ??
-          (err instanceof Error ? err.message : "Failed to load media");
-        setProviderError(message);
-        if (!append) setProviderItems([]);
-        // Stop chasing pages on error.
-        setProviderHasMore(false);
-      } finally {
-        inFlightRef.current = false;
-        if (append) setIsLoadingMore(false);
-        else setIsProviderLoading(false);
-      }
-    },
-    [isGithub, listMedia, projectId],
-  );
-
-  // Reset + fetch first page whenever the project or provider changes.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: fetchProvider is stable per-projectId; we only want this on mount/provider switch.
-  useEffect(() => {
-    if (isGithub) return;
-    setProviderItems([]);
-    setProviderError(null);
-    setProviderHasMore(false);
-    providerCursorRef.current = null;
-    void fetchProvider({ append: false });
-  }, [isGithub, projectId]);
-
-  // Sentinel element used by the IntersectionObserver below.
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
-  // Infinite scroll: load the next page when the sentinel scrolls into view.
   useEffect(() => {
     if (isGithub) return;
-    if (!providerHasMore || isProviderLoading || isLoadingMore) return;
+    if (!providerHasMore || isLoading || isLoadingMore) return;
     const el = sentinelRef.current;
     if (!el) return;
     const observer = new IntersectionObserver(
       (entries) => {
         const entry = entries[0];
         if (entry?.isIntersecting) {
-          void fetchProvider({ append: true });
+          loadMore();
         }
       },
       { rootMargin: "200px" },
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, [
-    isGithub,
-    providerHasMore,
-    isProviderLoading,
-    isLoadingMore,
-    fetchProvider,
-  ]);
-
-  /* ---------- Unified items ---------- */
-  const items: UnifiedMediaItem[] = useMemo(() => {
-    if (isGithub) {
-      // Filter out files without a usable URL — happens when the GitHub
-      // download_url is missing (e.g. private repos using OAuth headers,
-      // or transient API errors).
-      return (githubData?.files ?? [])
-        .filter(
-          (f) => typeof f.downloadUrl === "string" && f.downloadUrl.length > 0,
-        )
-        .map((f) => ({
-          externalId: f.path,
-          name: f.name,
-          url: f.downloadUrl,
-          size: f.size,
-          sha: f.sha,
-        }));
-    }
-    return providerItems.filter(
-      (i) => typeof i.url === "string" && i.url.length > 0,
-    );
-  }, [isGithub, githubData?.files, providerItems]);
-
-  const isLoading = isGithub ? isGithubLoading : isProviderLoading;
-  const errorMessage = isGithub ? null : providerError;
+  }, [isGithub, providerHasMore, isLoading, isLoadingMore, loadMore]);
 
   const filteredItems = useMemo(() => {
     const base = pendingDeletes.size
@@ -261,18 +137,6 @@ export function MediaLibraryPage() {
     pruneAgainst(new Set(items.map((i) => i.externalId)));
   }, [items, pendingDeletes.size, pruneAgainst]);
 
-  const refresh = useCallback(async () => {
-    if (isGithub) {
-      await invalidateMedia();
-      void refetchGithub();
-    } else {
-      // Restart from page 1.
-      providerCursorRef.current = null;
-      setProviderHasMore(false);
-      await fetchProvider({ append: false });
-    }
-  }, [fetchProvider, invalidateMedia, isGithub, refetchGithub]);
-
   // Auto-load more when a search has zero matches but there are more pages
   // to fetch. Cap at 5 extra fetches per search to avoid excessive API calls.
   const autoFetchCountRef = useRef(0);
@@ -287,23 +151,23 @@ export function MediaLibraryPage() {
       lastSearchRef.current = q;
     }
     if (!providerHasMore) return;
-    if (isProviderLoading || isLoadingMore) return;
+    if (isLoading || isLoadingMore) return;
     if (autoFetchCountRef.current >= 5) return;
-    const hasMatch = providerItems.some((it) =>
+    const hasMatch = items.some((it) =>
       it.name.toLowerCase().includes(q.toLowerCase()),
     );
     if (!hasMatch) {
       autoFetchCountRef.current++;
-      void fetchProvider({ append: true });
+      loadMore();
     }
   }, [
     isGithub,
     searchQuery,
     providerHasMore,
-    isProviderLoading,
+    isLoading,
     isLoadingMore,
-    providerItems,
-    fetchProvider,
+    items,
+    loadMore,
   ]);
 
   const handleUploaded = useCallback(() => {
@@ -336,8 +200,8 @@ export function MediaLibraryPage() {
   const needsConfig =
     (provider === "uploadthing" || provider === "cloudinary") &&
     items.length === 0 &&
-    !isProviderLoading &&
-    providerError !== null;
+    !isLoading &&
+    errorMessage !== null;
 
   return (
     <div className="p-6">
@@ -476,11 +340,7 @@ export function MediaLibraryPage() {
               Loading more from {providerLabel}…
             </div>
           ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => void fetchProvider({ append: true })}
-            >
+            <Button variant="outline" size="sm" onClick={loadMore}>
               Load more
             </Button>
           )}

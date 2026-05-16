@@ -67,7 +67,9 @@ export function EditorLayout({ documentId, projectId }: EditorLayoutProps) {
   return (
     <EditorProvider>
       <div className="flex h-full flex-col">
-        {!focusMode && <EditorToolbar projectId={projectId} />}
+        {!focusMode && (
+          <EditorToolbar documentId={documentId} projectId={projectId} />
+        )}
         {!focusMode && (
           <FrontmatterEditor documentId={documentId} projectId={projectId} />
         )}

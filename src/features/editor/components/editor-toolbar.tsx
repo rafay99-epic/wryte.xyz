@@ -47,6 +47,7 @@ import { useEditorContext } from "./editor-context";
 import { ImageInsertDialog } from "./image-insert-dialog";
 
 type EditorToolbarProps = {
+  documentId: string;
   projectId: string;
 };
 
@@ -63,7 +64,7 @@ const VIEW_MODES: { value: ViewMode; label: string }[] = [
  * Left: Undo/Redo + Text dropdown + formatting buttons
  * Right: Word count + View mode switcher + AI Assistant button
  */
-export function EditorToolbar({ projectId }: EditorToolbarProps) {
+export function EditorToolbar({ documentId, projectId }: EditorToolbarProps) {
   const { viewMode, setViewMode, content } = useEditorStore(
     useShallow((state) => ({
       viewMode: state.viewMode,
@@ -329,6 +330,7 @@ export function EditorToolbar({ projectId }: EditorToolbarProps) {
         open={imageDialogOpen}
         onOpenChange={setImageDialogOpen}
         onInsert={handleImageInsert}
+        documentId={documentId}
         projectId={projectId}
       />
 
