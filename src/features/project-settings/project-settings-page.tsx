@@ -3271,8 +3271,226 @@ function AiSection({
             onClick={() => void handleSave()}
           />
         </div>
+
+        <Divider />
+
+        <PromptTemplatesEditor projectId={projectId} />
       </motion.div>
     </motion.div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  AI Prompt Templates Editor                                          */
+/* ------------------------------------------------------------------ */
+
+function PromptTemplatesEditor({ projectId }: { projectId: Id<"projects"> }) {
+  const templates = useQuery(api.ai.promptTemplates.getTemplates, {
+    projectId,
+  });
+  const addTemplate = useMutation(api.ai.promptTemplates.addTemplate);
+  const removeTemplate = useMutation(api.ai.promptTemplates.removeTemplate);
+  const updateTemplates = useMutation(api.ai.promptTemplates.updateTemplates);
+
+  const [newName, setNewName] = useState("");
+  const [newPrompt, setNewPrompt] = useState("");
+  const [isAdding, setIsAdding] = useState(false);
+
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
+
+  const handleAdd = useCallback(async () => {
+    const name = newName.trim();
+    const prompt = newPrompt.trim();
+    if (!name || !prompt) return;
+
+    setIsAdding(true);
+    try {
+      await addTemplate({ projectId, name, prompt });
+      setNewName("");
+      setNewPrompt("");
+      toast.success("Template added");
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to add template",
+      );
+    } finally {
+      setIsAdding(false);
+    }
+  }, [addTemplate, projectId, newName, newPrompt]);
+
+  const handleRemove = useCallback(
+    async (templateId: string) => {
+      try {
+        await removeTemplate({ projectId, templateId });
+        toast.success("Template removed");
+      } catch (err) {
+        toast.error(
+          err instanceof Error ? err.message : "Failed to remove template",
+        );
+      }
+    },
+    [removeTemplate, projectId],
+  );
+
+  const handleFieldChange = useCallback(
+    (
+      templateId: string,
+      field: "name" | "prompt",
+      value: string,
+      currentTemplates: typeof templates,
+    ) => {
+      if (!currentTemplates) return;
+
+      const updated = currentTemplates.map((t) =>
+        t.id === templateId ? { ...t, [field]: value } : t,
+      );
+
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => {
+        void updateTemplates({
+          projectId,
+          templates: JSON.stringify(updated),
+        });
+      }, 600);
+    },
+    [updateTemplates, projectId],
+  );
+
+  const atLimit = (templates?.length ?? 0) >= 20;
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <p className="text-xs font-medium text-muted-foreground">
+          Prompt Templates
+        </p>
+        <p className="mt-0.5 text-[11px] text-muted-foreground/60">
+          Reusable instructions that appear as quick-apply pills in the inline
+          AI popover (Mod+J).
+        </p>
+      </div>
+
+      {templates === undefined ? (
+        <div className="space-y-2">
+          {[0, 1].map((i) => (
+            <Skeleton key={i} className="h-16 w-full rounded-lg" />
+          ))}
+        </div>
+      ) : templates.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-border/60 bg-muted/10 px-4 py-6 text-center">
+          <p className="text-xs text-muted-foreground/50">
+            No templates yet. Add one below.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {templates.map((t) => (
+            <PromptTemplateRow
+              key={t.id}
+              template={t}
+              onRemove={() => void handleRemove(t.id)}
+              onChange={(field, value) =>
+                handleFieldChange(t.id, field, value, templates)
+              }
+            />
+          ))}
+        </div>
+      )}
+
+      <div className="space-y-2 rounded-lg border border-border/40 bg-muted/10 p-3">
+        <Input
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+          placeholder="Template name"
+          className="h-8 text-[13px]"
+          disabled={atLimit}
+        />
+        <Input
+          value={newPrompt}
+          onChange={(e) => setNewPrompt(e.target.value)}
+          placeholder="Instruction prompt"
+          className="h-8 text-[13px]"
+          disabled={atLimit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") void handleAdd();
+          }}
+        />
+        <div className="flex items-center justify-between">
+          <p className="text-[11px] text-muted-foreground/50">
+            {atLimit
+              ? "Maximum 20 templates reached"
+              : `${templates?.length ?? 0}/20 templates`}
+          </p>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => void handleAdd()}
+            disabled={
+              isAdding || !newName.trim() || !newPrompt.trim() || atLimit
+            }
+            className="h-7 gap-1 text-xs"
+          >
+            {isAdding ? (
+              <Loader2 className="size-3 animate-spin" />
+            ) : (
+              <Plus className="size-3" />
+            )}
+            Add template
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PromptTemplateRow({
+  template,
+  onRemove,
+  onChange,
+}: {
+  template: { id: string; name: string; prompt: string };
+  onRemove: () => void;
+  onChange: (field: "name" | "prompt", value: string) => void;
+}) {
+  const [name, setName] = useState(template.name);
+  const [prompt, setPrompt] = useState(template.prompt);
+
+  useEffect(() => {
+    setName(template.name);
+    setPrompt(template.prompt);
+  }, [template.name, template.prompt]);
+
+  return (
+    <div className="group flex items-start gap-2 rounded-lg border border-border/40 bg-background p-2.5">
+      <div className="min-w-0 flex-1 space-y-1.5">
+        <input
+          value={name}
+          onChange={(e) => {
+            setName(e.target.value);
+            onChange("name", e.target.value);
+          }}
+          className="w-full bg-transparent text-sm font-medium text-foreground outline-none placeholder:text-muted-foreground/50"
+          placeholder="Template name"
+        />
+        <input
+          value={prompt}
+          onChange={(e) => {
+            setPrompt(e.target.value);
+            onChange("prompt", e.target.value);
+          }}
+          className="w-full bg-transparent text-xs text-muted-foreground outline-none placeholder:text-muted-foreground/40"
+          placeholder="Instruction prompt"
+        />
+      </div>
+      <button
+        type="button"
+        onClick={onRemove}
+        className="mt-1 shrink-0 rounded-md p-1 text-muted-foreground/50 opacity-0 transition-all hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
+        aria-label="Remove template"
+      >
+        <Trash2 className="size-3.5" />
+      </button>
+    </div>
   );
 }
 

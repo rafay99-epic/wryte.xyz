@@ -158,6 +158,7 @@ export const createEnhanceStream = mutation({
   args: {
     projectId: v.id("projects"),
     content: v.string(),
+    systemPrompt: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const key = await getRateLimitKey(ctx);
@@ -180,6 +181,7 @@ export const createEnhanceStream = mutation({
       ...(project.contentFormat
         ? { contentFormat: project.contentFormat }
         : {}),
+      ...(args.systemPrompt ? { systemPrompt: args.systemPrompt } : {}),
     });
 
     return { streamId, provider, model };
@@ -201,6 +203,7 @@ export const createInlineEnhanceStream = mutation({
     projectId: v.id("projects"),
     selectedText: v.string(),
     instruction: v.string(),
+    systemPrompt: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const key = await getRateLimitKey(ctx);
@@ -227,6 +230,7 @@ export const createInlineEnhanceStream = mutation({
         ...(project.contentFormat
           ? { contentFormat: project.contentFormat }
           : {}),
+        ...(args.systemPrompt ? { systemPrompt: args.systemPrompt } : {}),
       },
     );
 
@@ -278,6 +282,7 @@ export const createFinalDraftStream = mutation({
     title: v.optional(v.string()),
     draftIds: v.optional(v.array(v.id("document_drafts"))),
     researchIds: v.optional(v.array(v.id("document_research"))),
+    systemPrompt: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const key = await getRateLimitKey(ctx);
@@ -336,6 +341,7 @@ export const createFinalDraftStream = mutation({
       ...(aiProject.contentFormat
         ? { contentFormat: aiProject.contentFormat }
         : {}),
+      ...(args.systemPrompt ? { systemPrompt: args.systemPrompt } : {}),
       drafts: drafts.map((draft) => ({
         label: draft.label,
         title: draft.titleSnapshot,

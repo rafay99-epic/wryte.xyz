@@ -28,6 +28,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { getStreamErrorMessage } from "@/lib/stream-error";
+import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/stores/editor-store";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
@@ -55,23 +56,6 @@ const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
 };
 
 /* ------------------------------------------------------------------ */
-/*  System prompt (read-only display)                                  */
-/* ------------------------------------------------------------------ */
-
-const SYSTEM_PROMPT = `You are an expert writing editor. Improve the provided markdown content while preserving the author's voice, intent, and meaning.
-
-Guidelines:
-- Fix grammar, spelling, and punctuation errors
-- Improve sentence structure and flow
-- Enhance clarity and readability
-- Maintain the original tone and style
-- Preserve all markdown formatting (headings, links, lists, code blocks, etc.)
-- Do not add new sections or substantially change the content's meaning
-- Do not add commentary, explanations, or meta-text
-- Return ONLY the improved markdown content, nothing else
-- If the content is already well-written, make minimal changes`;
-
-/* ------------------------------------------------------------------ */
 /*  Component                                                          */
 /* ------------------------------------------------------------------ */
 
@@ -97,11 +81,24 @@ export function AiEnhanceButton({
     projectId: projectId as Id<"projects">,
   });
   const createEnhanceStream = useMutation(api.ai.enhance.createEnhanceStream);
+  const templates = useQuery(api.ai.promptTemplates.getTemplates, {
+    projectId: projectId as Id<"projects">,
+  });
 
   const [streamId, setStreamId] = useState<string | undefined>(undefined);
   const [originalContent, setOriginalContent] = useState("");
+  const [customPrompt, setCustomPrompt] = useState("");
+  const [activeTemplateId, setActiveTemplateId] = useState<string | null>(null);
   const [promptExpanded, setPromptExpanded] = useState(false);
   const [originalExpanded, setOriginalExpanded] = useState(false);
+
+  useEffect(() => {
+    const first = templates?.[0];
+    if (first && !customPrompt) {
+      setCustomPrompt(first.prompt);
+      setActiveTemplateId(first.id);
+    }
+  }, [templates, customPrompt]);
 
   // Query the stream body reactively — auto-updates as chunks arrive
   const streamBody = useQuery(
@@ -152,17 +149,22 @@ export function AiEnhanceButton({
     onOpenChange(false);
   }, [onOpenChange]);
 
+  const defaultPrompt = templates?.[0]?.prompt ?? "";
+  const defaultTemplateId = templates?.[0]?.id ?? null;
+
   // Reset state when panel closes
   useEffect(() => {
     if (open) return;
     const timer = setTimeout(() => {
       setStreamId(undefined);
       setOriginalContent("");
+      setCustomPrompt(defaultPrompt);
+      setActiveTemplateId(defaultTemplateId);
       setPromptExpanded(false);
       setOriginalExpanded(false);
     }, 300);
     return () => clearTimeout(timer);
-  }, [open]);
+  }, [open, defaultPrompt, defaultTemplateId]);
 
   const handleEnhance = useCallback(async () => {
     if (!content.trim()) {
@@ -176,13 +178,14 @@ export function AiEnhanceButton({
       const result = await createEnhanceStream({
         projectId: projectId as Id<"projects">,
         content,
+        ...(customPrompt.trim() ? { systemPrompt: customPrompt.trim() } : {}),
       });
       setStreamId(result.streamId);
     } catch (error: unknown) {
       const err = error as { message?: string };
       toast.error(err.message ?? "Failed to start enhancement");
     }
-  }, [content, createEnhanceStream, projectId]);
+  }, [content, createEnhanceStream, projectId, customPrompt]);
 
   const handleApply = useCallback(() => {
     if (streamText) {
@@ -270,14 +273,23 @@ export function AiEnhanceButton({
           {/* Configured state */}
           {isConfigured && (
             <>
-              {/* System prompt (collapsible) */}
+              {/* System prompt — editable with template presets */}
               <div className="rounded-xl border border-border/40 bg-muted/20">
                 <button
                   type="button"
                   onClick={() => setPromptExpanded(!promptExpanded)}
                   className="flex w-full items-center justify-between px-4 py-2.5 text-[13px] font-medium text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  <span>System Prompt</span>
+                  <span>
+                    System Prompt
+                    {!promptExpanded && activeTemplateId && templates && (
+                      <span className="ml-1.5 text-primary/70">
+                        —{" "}
+                        {templates.find((t) => t.id === activeTemplateId)
+                          ?.name ?? "Custom"}
+                      </span>
+                    )}
+                  </span>
                   {promptExpanded ? (
                     <ChevronUp className="size-4" />
                   ) : (
@@ -293,9 +305,42 @@ export function AiEnhanceButton({
                       transition={{ duration: 0.2 }}
                       className="overflow-hidden"
                     >
-                      <div className="border-t border-border/40 px-4 py-3">
-                        <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-muted-foreground/80">
-                          {SYSTEM_PROMPT}
+                      <div className="border-t border-border/40 px-4 py-3 space-y-3">
+                        {templates && templates.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5">
+                            {templates.map((t) => (
+                              <button
+                                key={t.id}
+                                type="button"
+                                onClick={() => {
+                                  setCustomPrompt(t.prompt);
+                                  setActiveTemplateId(t.id);
+                                }}
+                                className={cn(
+                                  "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+                                  activeTemplateId === t.id
+                                    ? "bg-primary/15 text-primary ring-1 ring-primary/30"
+                                    : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground",
+                                )}
+                              >
+                                {t.name}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        <textarea
+                          value={customPrompt}
+                          onChange={(e) => {
+                            setCustomPrompt(e.target.value);
+                            setActiveTemplateId(null);
+                          }}
+                          rows={6}
+                          className="w-full resize-y rounded-lg border border-border/40 bg-background px-3 py-2 text-[13px] leading-relaxed text-foreground/85 outline-none placeholder:text-muted-foreground/40 focus:ring-1 focus:ring-primary/30"
+                          placeholder="Enter a custom system prompt..."
+                        />
+                        <p className="text-[11px] text-muted-foreground/50">
+                          Edit freely or pick a template above. This prompt
+                          controls how the AI processes your content.
                         </p>
                       </div>
                     </motion.div>

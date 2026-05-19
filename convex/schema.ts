@@ -131,6 +131,8 @@ export default defineSchema({
     ),
     /** AI model identifier, e.g. "claude-sonnet-4-20250514" */
     aiModel: v.optional(v.string()),
+    /** JSON-serialized AiPromptTemplate[] for reusable AI instructions */
+    aiPromptTemplates: v.optional(v.string()),
     /**
      * IANA timezone identifier (e.g. "America/New_York"). Drives how
      * scheduled publish times are interpreted and how the publish-date

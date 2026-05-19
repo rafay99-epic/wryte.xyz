@@ -55,6 +55,11 @@ export function InlineAiPopover({
   const inputRef = useRef<HTMLInputElement>(null);
   const resultRef = useRef<HTMLDivElement>(null);
 
+  const templates = useQuery(
+    api.ai.promptTemplates.getTemplates,
+    activeProjectId ? { projectId: activeProjectId as Id<"projects"> } : "skip",
+  );
+
   const createInlineStream = useMutation(
     api.ai.enhance.createInlineEnhanceStream,
   );
@@ -102,6 +107,10 @@ export function InlineAiPopover({
     return () => clearTimeout(timer);
   }, [open]);
 
+  const inlineSystemPrompt = templates?.find(
+    (t) => t.id === "inline-transform",
+  )?.prompt;
+
   const handleSubmit = useCallback(async () => {
     if (!instruction.trim() || !selectionSnapshot || !activeProjectId) return;
 
@@ -110,13 +119,45 @@ export function InlineAiPopover({
         projectId: activeProjectId as Id<"projects">,
         selectedText: selectionSnapshot.text,
         instruction: instruction.trim(),
+        ...(inlineSystemPrompt ? { systemPrompt: inlineSystemPrompt } : {}),
       });
       setStreamId(result.streamId);
     } catch (error: unknown) {
       const err = error as { message?: string };
       toast.error(err.message ?? "Failed to start AI transformation");
     }
-  }, [instruction, selectionSnapshot, activeProjectId, createInlineStream]);
+  }, [
+    instruction,
+    selectionSnapshot,
+    activeProjectId,
+    createInlineStream,
+    inlineSystemPrompt,
+  ]);
+
+  const handleTemplateClick = useCallback(
+    async (prompt: string) => {
+      if (!selectionSnapshot || !activeProjectId) return;
+      setInstruction(prompt);
+      try {
+        const result = await createInlineStream({
+          projectId: activeProjectId as Id<"projects">,
+          selectedText: selectionSnapshot.text,
+          instruction: prompt,
+          ...(inlineSystemPrompt ? { systemPrompt: inlineSystemPrompt } : {}),
+        });
+        setStreamId(result.streamId);
+      } catch (error: unknown) {
+        const err = error as { message?: string };
+        toast.error(err.message ?? "Failed to start AI transformation");
+      }
+    },
+    [
+      selectionSnapshot,
+      activeProjectId,
+      createInlineStream,
+      inlineSystemPrompt,
+    ],
+  );
 
   const handleAccept = useCallback(() => {
     if (streamText && selectionSnapshot) {
@@ -162,6 +203,24 @@ export function InlineAiPopover({
           className="fixed left-1/2 top-20 z-50 w-[min(36rem,calc(100%-2rem))] -translate-x-1/2"
         >
           <div className="rounded-xl border border-border/60 bg-popover shadow-xl ring-1 ring-black/5">
+            {/* ── Template pills ── */}
+            {!streamId && templates && templates.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 border-b border-border/40 px-3 py-2">
+                {templates.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => void handleTemplateClick(t.prompt)}
+                    className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/20"
+                    title={t.prompt}
+                  >
+                    <Sparkles className="size-3" />
+                    {t.name}
+                  </button>
+                ))}
+              </div>
+            )}
+
             {/* ── Prompt input phase ── */}
             {!streamId && (
               <div className="flex items-center gap-2 p-2">

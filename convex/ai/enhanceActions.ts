@@ -284,6 +284,7 @@ export const runEnhancement = internalAction({
     content: v.string(),
     vaultSecretId: v.string(),
     contentFormat: v.optional(contentFormatValidator),
+    systemPrompt: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const apiKey = await ctx.runAction(
@@ -314,12 +315,16 @@ export const runEnhancement = internalAction({
     };
 
     try {
+      const enhancePrompt =
+        args.systemPrompt ?? getEnhanceSystemPrompt(args.contentFormat);
       await streamByProvider(
         args.provider,
         apiKey,
         args.model,
         args.content,
-        getEnhanceSystemPrompt(args.contentFormat),
+        args.contentFormat === "mdx" && args.systemPrompt
+          ? args.systemPrompt + MDX_ADDENDUM
+          : enhancePrompt,
         writer,
       );
 
@@ -396,6 +401,7 @@ export const runFinalDraft = internalAction({
     title: v.string(),
     currentContent: v.string(),
     contentFormat: v.optional(contentFormatValidator),
+    systemPrompt: v.optional(v.string()),
     drafts: v.array(
       v.object({
         label: v.string(),
@@ -448,12 +454,16 @@ export const runFinalDraft = internalAction({
     };
 
     try {
+      const draftPrompt =
+        args.systemPrompt ?? getFinalDraftSystemPrompt(args.contentFormat);
       await streamByProvider(
         args.provider,
         apiKey,
         args.model,
         buildFinalDraftPrompt(args),
-        getFinalDraftSystemPrompt(args.contentFormat),
+        args.contentFormat === "mdx" && args.systemPrompt
+          ? args.systemPrompt + MDX_ADDENDUM
+          : draftPrompt,
         writer,
       );
 
@@ -483,6 +493,7 @@ export const runInlineEnhancement = internalAction({
     instruction: v.string(),
     vaultSecretId: v.string(),
     contentFormat: v.optional(contentFormatValidator),
+    systemPrompt: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const apiKey = await ctx.runAction(
@@ -515,12 +526,16 @@ export const runInlineEnhancement = internalAction({
     };
 
     try {
+      const inlinePrompt =
+        args.systemPrompt ?? getInlineSystemPrompt(args.contentFormat);
       await streamByProvider(
         args.provider,
         apiKey,
         args.model,
         userMessage,
-        getInlineSystemPrompt(args.contentFormat),
+        args.contentFormat === "mdx" && args.systemPrompt
+          ? args.systemPrompt + MDX_ADDENDUM
+          : inlinePrompt,
         writer,
       );
 

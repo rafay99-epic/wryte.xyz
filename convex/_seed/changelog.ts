@@ -469,6 +469,30 @@ const ENTRIES: SeedEntry[] = [
 - CI now runs \`bunx next build\` directly instead of the deploy-aware build command.
 `,
   },
+  {
+    title: "Per-project AI prompt templates",
+    slug: "v0-7-3-ai-prompt-templates",
+    description:
+      "Save reusable AI prompts per project and one-click apply them. All AI flows — enhance, inline, and final draft — now use customizable system prompts instead of hardcoded ones.",
+    version: "0.7.3",
+    build: "d2389be",
+    publishedAt: Date.parse("2026-05-20T23:00:00+05:00"),
+    content: `## What's new
+
+- **AI prompt templates** — save reusable AI instructions per project in Settings → AI Enhancement → Prompt Templates. Templates appear as one-click pills in the inline AI popover (Mod+J) for zero-typing transforms.
+- **Customizable system prompts** — the AI Enhancement panel now shows an editable system prompt with template presets. Pick a template or write your own — the AI uses exactly what you give it.
+- **All AI flows updated** — enhance, inline transform, and final draft all accept custom system prompts. The hardcoded prompts are now editable defaults that ship with every project.
+- **Default templates** — new projects come with six defaults: Enhance, Inline transform, Final draft, Simplify, Make concise, and Fix grammar. All match the previously hardcoded system prompts.
+- **MDX-aware custom prompts** — MDX projects automatically get the JSX preservation addendum appended to custom prompts, so components are never mangled.
+
+## Under the hood
+
+- Added \`aiPromptTemplates\` field to projects schema (JSON-stringified array, same pattern as \`boardColumns\`).
+- Added \`convex/ai/promptTemplates.ts\` with \`getTemplates\` query and \`addTemplate\`, \`updateTemplates\`, \`removeTemplate\` mutations.
+- Three new rate limits for template operations.
+- Threaded \`systemPrompt\` through \`createEnhanceStream\`, \`createInlineEnhanceStream\`, and \`createFinalDraftStream\` mutations and their corresponding actions.
+`,
+  },
 ];
 
 export const seed = action({

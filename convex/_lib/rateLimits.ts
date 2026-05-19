@@ -288,6 +288,26 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
   },
 
   /* ------------------------------------------------------------------ */
+  /*  AI prompt templates                                                */
+  /* ------------------------------------------------------------------ */
+
+  "promptTemplates:updateTemplates": {
+    kind: "fixed window",
+    rate: 20,
+    period: MINUTE,
+  },
+  "promptTemplates:addTemplate": {
+    kind: "fixed window",
+    rate: 20,
+    period: MINUTE,
+  },
+  "promptTemplates:removeTemplate": {
+    kind: "fixed window",
+    rate: 20,
+    period: MINUTE,
+  },
+
+  /* ------------------------------------------------------------------ */
   /*  Media                                                              */
   /* ------------------------------------------------------------------ */
 

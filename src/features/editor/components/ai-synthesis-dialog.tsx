@@ -58,6 +58,9 @@ export function AiSynthesisDialog({
   const createDraftSnapshot = useMutation(
     api.cms.documentDrafts.createSnapshot,
   );
+  const templates = useQuery(api.ai.promptTemplates.getTemplates, {
+    projectId: projectId as Id<"projects">,
+  });
 
   const [selectedDraftIds, setSelectedDraftIds] = useState<Set<string>>(
     () => new Set(),
@@ -94,6 +97,10 @@ export function AiSynthesisDialog({
     }
   }, [open, drafts]);
 
+  const finalDraftPrompt = templates?.find(
+    (t) => t.id === "final-draft",
+  )?.prompt;
+
   const handleGenerate = useCallback(async () => {
     setIsStarting(true);
     try {
@@ -106,6 +113,7 @@ export function AiSynthesisDialog({
           (id) => id as Id<"document_drafts">,
         ),
         researchIds: selectedResearchIds,
+        ...(finalDraftPrompt ? { systemPrompt: finalDraftPrompt } : {}),
       });
       setStreamId(result.streamId);
     } catch (error) {
@@ -124,6 +132,7 @@ export function AiSynthesisDialog({
     content,
     selectedDraftIds,
     selectedResearchIds,
+    finalDraftPrompt,
   ]);
 
   const handleApplyToMain = useCallback(() => {
