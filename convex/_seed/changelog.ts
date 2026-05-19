@@ -447,6 +447,28 @@ const ENTRIES: SeedEntry[] = [
 - **Content Format selector** — fixed dropdown alignment and width in project settings.
 `,
   },
+  {
+    title: "Atomic deploys & version notifications",
+    slug: "v0-7-2-atomic-deploys-version-notifications",
+    description:
+      "Frontend and backend now deploy atomically through Vercel. Connected clients get a real-time toast when a new version is available.",
+    version: "0.7.2",
+    build: "4166076",
+    publishedAt: Date.parse("2026-05-20T21:00:00+05:00"),
+    content: `## What's new
+
+- **Atomic FE+BE deploys** — the Vercel build now runs \`convex deploy\` before \`next build\`, so frontend and backend deploy together. Reverting a Vercel deployment rolls back both. The separate \`convex-deploy.yml\` GitHub Action has been retired.
+- **Version update notification** — when a new version is deployed, every connected client receives a persistent toast via Convex's real-time websocket (zero polling). Clicking "Update now" refreshes the page to load the latest build.
+- **Version stamp** — a post-deploy script writes the current version and build SHA into the \`app_version\` table using \`ConvexHttpClient\`, so the notification system knows what's live.
+
+## Under the hood
+
+- Added \`app_version\` Convex table (singleton row: version, build, deployedAt).
+- Added \`stamp-version.ts\` script that runs after \`convex deploy\` during Vercel builds.
+- Added \`useVersionCheck\` hook that subscribes to the deployed version and compares against the build-time \`APP_VERSION\`.
+- CI now runs \`bunx next build\` directly instead of the deploy-aware build command.
+`,
+  },
 ];
 
 export const seed = action({
