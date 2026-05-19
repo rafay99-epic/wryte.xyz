@@ -165,7 +165,7 @@ export function CreateDocumentDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="gap-0 p-0 sm:max-w-lg">
-        <div className="px-6 pt-8 pb-2">
+        <div className="overflow-hidden px-6 pt-8 pb-2">
           {/* Hero — same icon + heading as /articles/new */}
           <motion.div
             initial={{ opacity: 0, y: 8 }}
@@ -234,14 +234,14 @@ export function CreateDocumentDialog({
                       setIsSlugEditing(false);
                     }
                   }}
-                  className="h-auto border-0 bg-transparent p-0 font-mono text-xs shadow-none focus-visible:ring-0"
+                  className="h-auto min-w-0 border-0 bg-transparent p-0 font-mono text-xs shadow-none focus-visible:ring-0"
                   autoFocus
                 />
               ) : (
                 <button
                   type="button"
                   onClick={() => setIsSlugEditing(true)}
-                  className="truncate font-mono text-xs text-muted-foreground transition-colors hover:text-foreground"
+                  className="min-w-0 truncate font-mono text-xs text-muted-foreground transition-colors hover:text-foreground"
                 >
                   {slug || "article-slug"}
                 </button>
@@ -254,10 +254,10 @@ export function CreateDocumentDialog({
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: "auto" }}
                 transition={{ duration: 0.2 }}
-                className="flex items-center gap-2 px-1"
+                className="flex min-w-0 items-center gap-2 px-1"
               >
                 <Globe className="size-3 shrink-0 text-muted-foreground/40" />
-                <span className="truncate font-mono text-[11px] text-muted-foreground/50">
+                <span className="min-w-0 truncate font-mono text-[11px] text-muted-foreground/50">
                   {filePath}
                 </span>
               </motion.div>

@@ -378,6 +378,19 @@ const ENTRIES: SeedEntry[] = [
 - **Changelog authoring CLI** — \`bun run changelog:new\` walks you through a new entry, auto-fills the build SHA and slug, and bumps \`package.json\` so the next release does not ship with stale version metadata.
 `,
   },
+  {
+    title: "New article dialog overflow fix",
+    slug: "v0-6-1-new-article-dialog-overflow-fix",
+    description:
+      "Fix long slugs and file paths overflowing the new article dialog instead of truncating with an ellipsis.",
+    version: "0.6.1",
+    build: "e6d3814",
+    publishedAt: Date.parse("2026-05-19T22:30:00+05:00"),
+    content: `## Fixes
+
+- **Dialog text overflow** — long slugs and file paths in the "New article" dialog (and the full-page \`/articles/new\` form) now truncate correctly instead of overflowing the container. Added \`min-w-0\` to flex children so \`text-overflow: ellipsis\` can kick in, and \`overflow-hidden\` on the dialog content wrapper as a safety net.
+`,
+  },
 ];
 
 export const seed = action({
