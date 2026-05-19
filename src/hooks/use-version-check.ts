@@ -7,45 +7,52 @@ import { APP_VERSION } from "@/lib/release";
 import { api } from "../../convex/_generated/api";
 
 const TOAST_ID = "version-update";
+const STORAGE_KEY = "wryte:dismissed-version";
 
-/**
- * Subscribes to the deployed app version via Convex's real-time
- * websocket. When the server-side version changes and no longer
- * matches the build-time APP_VERSION baked into this bundle, a
- * persistent toast prompts the user to refresh.
- */
+function getDismissedVersion(): string | null {
+  try {
+    return localStorage.getItem(STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function setDismissedVersion(version: string) {
+  try {
+    localStorage.setItem(STORAGE_KEY, version);
+  } catch {
+    // private browsing or storage full — silently ignore
+  }
+}
+
 export function useVersionCheck() {
   const deployed = useQuery(api.cms.appVersion.current);
-  const dismissedRef = useRef<string | null>(null);
-  const hasNotifiedRef = useRef(false);
+  const shownRef = useRef(false);
 
   useEffect(() => {
     if (deployed === undefined) return;
     if (deployed === null) return;
 
     const serverVersion = deployed.version;
-    const isStale = serverVersion !== APP_VERSION;
 
-    if (
-      isStale &&
-      !hasNotifiedRef.current &&
-      dismissedRef.current !== serverVersion
-    ) {
-      hasNotifiedRef.current = true;
-      toast.info(`Version ${serverVersion} is available`, {
-        id: TOAST_ID,
-        description:
-          "A new version has been deployed. Refresh to get the latest features and fixes.",
-        duration: Infinity,
-        action: {
-          label: "Update now",
-          onClick: () => window.location.reload(),
-        },
-        onDismiss: () => {
-          dismissedRef.current = serverVersion;
-          hasNotifiedRef.current = false;
-        },
-      });
-    }
+    if (serverVersion === APP_VERSION) return;
+
+    if (shownRef.current) return;
+    if (getDismissedVersion() === serverVersion) return;
+
+    shownRef.current = true;
+    toast.info(`Version ${serverVersion} is available`, {
+      id: TOAST_ID,
+      description:
+        "A new version has been deployed. Refresh to get the latest features and fixes.",
+      duration: Infinity,
+      action: {
+        label: "Update now",
+        onClick: () => window.location.reload(),
+      },
+      onDismiss: () => {
+        setDismissedVersion(serverVersion);
+      },
+    });
   }, [deployed]);
 }

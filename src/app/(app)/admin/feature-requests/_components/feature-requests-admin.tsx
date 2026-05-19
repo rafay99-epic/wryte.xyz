@@ -1,10 +1,11 @@
 "use client";
 
 import { useAction } from "convex/react";
-import { ChevronUp, ExternalLink, Trash2 } from "lucide-react";
+import { ChevronUp, ExternalLink, Search, Trash2 } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -12,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 import { api } from "../../../../../../convex/_generated/api";
 import type { Doc, Id } from "../../../../../../convex/_generated/dataModel";
 
@@ -25,6 +27,13 @@ const STATUS_OPTIONS: { value: Status; label: string }[] = [
   { value: "declined", label: "Declined" },
 ];
 
+type FilterTab = "all" | Status;
+
+const FILTER_TABS: { value: FilterTab; label: string }[] = [
+  { value: "all", label: "All" },
+  ...STATUS_OPTIONS,
+];
+
 export function FeatureRequestsAdmin() {
   const listAll = useAction(api.support.featureRequests.listAllForAdmin);
   const updateStatus = useAction(api.support.featureRequests.updateStatus);
@@ -32,6 +41,8 @@ export function FeatureRequestsAdmin() {
 
   const [rows, setRows] = useState<Doc<"feature_requests">[] | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activeFilter, setActiveFilter] = useState<FilterTab>("all");
+  const [query, setQuery] = useState("");
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -49,11 +60,34 @@ export function FeatureRequestsAdmin() {
     void refresh();
   }, [refresh]);
 
+  const statusCounts = useMemo(() => {
+    if (!rows) return null;
+    const counts: Record<string, number> = { all: rows.length };
+    for (const opt of STATUS_OPTIONS) counts[opt.value] = 0;
+    for (const r of rows) counts[r.status] = (counts[r.status] ?? 0) + 1;
+    return counts;
+  }, [rows]);
+
+  const filtered = useMemo(() => {
+    if (!rows) return null;
+    let result = rows;
+    if (activeFilter !== "all") {
+      result = result.filter((r) => r.status === activeFilter);
+    }
+    const q = query.trim().toLowerCase();
+    if (q) {
+      result = result.filter(
+        (r) =>
+          r.title.toLowerCase().includes(q) ||
+          r.description.toLowerCase().includes(q) ||
+          r.authorName.toLowerCase().includes(q),
+      );
+    }
+    return result;
+  }, [rows, activeFilter, query]);
+
   const onStatusChange = useCallback(
     async (id: Id<"feature_requests">, status: Status) => {
-      // Optimistic local update — the action call is async but the
-      // moderator shouldn't have to wait for the round-trip to see the
-      // change applied.
       setRows((prev) =>
         prev ? prev.map((r) => (r._id === id ? { ...r, status } : r)) : prev,
       );
@@ -86,7 +120,8 @@ export function FeatureRequestsAdmin() {
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-10">
-      <div className="mb-8 flex items-center justify-between">
+      {/* Header */}
+      <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">
             Feature requests
@@ -106,6 +141,49 @@ export function FeatureRequestsAdmin() {
         </Link>
       </div>
 
+      {/* Filter tabs + search */}
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-1 overflow-x-auto">
+          {FILTER_TABS.map((tab) => (
+            <button
+              key={tab.value}
+              type="button"
+              onClick={() => setActiveFilter(tab.value)}
+              className={cn(
+                "inline-flex items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1.5 text-[12px] font-medium transition-colors",
+                activeFilter === tab.value
+                  ? "bg-foreground/10 text-foreground"
+                  : "text-foreground/55 hover:bg-foreground/[0.04] hover:text-foreground/80",
+              )}
+            >
+              {tab.label}
+              {statusCounts && (
+                <span
+                  className={cn(
+                    "rounded-full px-1.5 py-px font-mono text-[10px] tabular-nums",
+                    activeFilter === tab.value
+                      ? "bg-foreground/10 text-foreground/80"
+                      : "bg-foreground/[0.06] text-foreground/45",
+                  )}
+                >
+                  {statusCounts[tab.value] ?? 0}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+        <div className="relative w-full sm:w-64">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-foreground/40" />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search requests..."
+            className="h-8 pl-8 text-[13px]"
+          />
+        </div>
+      </div>
+
+      {/* List */}
       {loading && rows === null ? (
         <div className="space-y-2">
           {[0, 1, 2, 3, 4].map((i) => (
@@ -115,13 +193,17 @@ export function FeatureRequestsAdmin() {
             />
           ))}
         </div>
-      ) : rows && rows.length === 0 ? (
+      ) : filtered && filtered.length === 0 ? (
         <div className="rounded-lg border border-dashed border-foreground/15 p-12 text-center">
-          <p className="text-sm text-foreground/60">No feature requests yet.</p>
+          <p className="text-sm text-foreground/60">
+            {query || activeFilter !== "all"
+              ? "No matching requests."
+              : "No feature requests yet."}
+          </p>
         </div>
       ) : (
         <ul className="divide-y divide-foreground/[0.06] rounded-lg border border-foreground/10">
-          {rows?.map((req) => (
+          {filtered?.map((req) => (
             <li
               key={req._id}
               className="group flex items-start gap-4 px-4 py-3.5"
@@ -144,7 +226,7 @@ export function FeatureRequestsAdmin() {
                 )}
                 <div className="mt-1.5 flex items-center gap-2 font-mono text-[11px] text-foreground/45">
                   <span>by {req.authorName}</span>
-                  <span>·</span>
+                  <span>&middot;</span>
                   <span>
                     {new Date(req.createdAt).toLocaleDateString("en-US", {
                       month: "short",
