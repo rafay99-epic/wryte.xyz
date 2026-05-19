@@ -425,6 +425,28 @@ const ENTRIES: SeedEntry[] = [
 - **\`replaceContent\` preserves undo** — the \`replaceContent\` helper (used by AI features) now uses \`setRangeText\` instead of direct \`.value\` assignment, keeping the undo chain intact after AI rewrites.
 `,
   },
+  {
+    title: "MDX file format support",
+    slug: "v0-7-0-mdx-file-format-support",
+    description:
+      "Projects can now use MDX as their content format — live React component rendering in the editor preview, MDX-aware AI prompts, and correct .mdx extensions in GitHub publishes.",
+    version: "0.7.0",
+    build: "12c0177",
+    publishedAt: Date.parse("2026-05-20T20:00:00+05:00"),
+    content: `## What's new
+
+- **MDX content format** — projects can now choose between Markdown (\`.md\`) and MDX (\`.mdx\`) in Content settings. The setting controls file extensions in GitHub publishes, file path previews, and editor behavior.
+- **Live React preview** — the MDX editor preview compiles and renders React components in real time. Define components with \`export function\`, use hooks like \`useState\` and \`useEffect\`, and see interactive UI directly in the preview pane.
+- **Unknown component placeholders** — JSX tags that reference undefined components render as styled placeholder blocks instead of crashing the preview.
+- **MDX-aware AI** — enhancement and final-draft prompts now preserve JSX/MDX syntax when the project uses MDX format.
+
+## Fixes
+
+- **GitHub publish format change** — changing a project's content format no longer causes 422 errors. Old-extension files are cleaned up automatically on publish.
+- **Bulk publish orphan cleanup** — switching from \`.md\` to \`.mdx\` (or vice versa) deletes the old-extension file in the same commit.
+- **Content Format selector** — fixed dropdown alignment and width in project settings.
+`,
+  },
 ];
 
 export const seed = action({

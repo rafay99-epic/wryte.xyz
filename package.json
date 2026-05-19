@@ -1,6 +1,6 @@
 {
   "name": "wrypte.xyz",
-  "version": "0.6.3",
+  "version": "0.7.0",
   "private": true,
   "license": "MIT",
   "scripts": {
@@ -29,7 +29,6 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@mdx-js/mdx": "^3.1.1",
-    "@mdx-js/react": "^3.1.1",
     "@octokit/rest": "^22.0.1",
     "@tanstack/react-hotkeys": "^0.10.0",
     "@tanstack/react-query": "^5.100.10",

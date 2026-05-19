@@ -444,7 +444,11 @@ export const publishToGithub = internalAction({
     const fileContent = buildMarkdownFile(frontmatterData, document.content);
     const base64Content = Buffer.from(fileContent).toString("base64");
 
-    let existingSha: string | undefined = document.githubSha ?? undefined;
+    const pathChanged =
+      document.githubPath != null && document.githubPath !== filePath;
+    let existingSha: string | undefined = pathChanged
+      ? undefined
+      : (document.githubSha ?? undefined);
 
     if (!existingSha) {
       try {
@@ -519,6 +523,29 @@ export const publishToGithub = internalAction({
     const newSha = response.data.content?.sha;
     if (!newSha) {
       throw new Error("GitHub API did not return a file SHA");
+    }
+
+    if (pathChanged && document.githubPath) {
+      try {
+        const { data: oldFile } = await octokit.repos.getContent({
+          owner,
+          repo,
+          path: document.githubPath,
+          ref: branch,
+        });
+        if (!Array.isArray(oldFile) && oldFile.type === "file") {
+          await octokit.repos.deleteFile({
+            owner,
+            repo,
+            path: document.githubPath,
+            message: `Remove old ${document.githubPath} (format changed)`,
+            sha: oldFile.sha,
+            branch,
+          });
+        }
+      } catch {
+        // Best-effort cleanup — old file may already be gone
+      }
     }
 
     const commitSha = response.data.commit?.sha;
@@ -688,6 +715,7 @@ export const bulkPublish = action({
       content: string;
       frontmatter?: string;
       githubSha?: string;
+      githubPath?: string;
     }> = [];
 
     for (const docId of args.documentIds) {
@@ -702,6 +730,7 @@ export const bulkPublish = action({
           content: string;
           frontmatter?: string;
           githubSha?: string;
+          githubPath?: string;
         } = {
           id: docId,
           title: doc.title,
@@ -710,6 +739,7 @@ export const bulkPublish = action({
         };
         if (doc.frontmatter) docEntry.frontmatter = doc.frontmatter;
         if (doc.githubSha) docEntry.githubSha = doc.githubSha;
+        if (doc.githubPath) docEntry.githubPath = doc.githubPath;
         docs.push(docEntry);
       }
     }
@@ -736,7 +766,7 @@ export const bulkPublish = action({
       path: string;
       mode: "100644";
       type: "blob";
-      sha: string;
+      sha: string | null;
     }> = [];
 
     const docFileMap: Array<{
@@ -799,6 +829,15 @@ export const bulkPublish = action({
           sha: blobData.sha,
         });
 
+        if (doc.githubPath && doc.githubPath !== filePath) {
+          treeEntries.push({
+            path: doc.githubPath,
+            mode: "100644",
+            type: "blob",
+            sha: null,
+          });
+        }
+
         docFileMap.push({ doc, filePath, isUpdate });
       } catch {
         failed++;
@@ -857,8 +896,10 @@ export const bulkPublish = action({
     const bulkBatchId = `bulk-${publishedAt}-${Math.random().toString(36).slice(2, 8)}`;
 
     for (const entry of docFileMap) {
-      const blobEntry = treeEntries.find((t) => t.path === entry.filePath);
-      const newFileSha = blobEntry?.sha;
+      const blobEntry = treeEntries.find(
+        (t) => t.path === entry.filePath && t.sha != null,
+      );
+      const newFileSha = blobEntry?.sha ?? undefined;
 
       const updateArgs: {
         documentId: typeof entry.doc.id;

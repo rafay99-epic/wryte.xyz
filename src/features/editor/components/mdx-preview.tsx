@@ -1,14 +1,22 @@
 "use client";
 
-import { evaluate } from "@mdx-js/mdx";
-import { useMDXComponents } from "@mdx-js/react";
+import { compile } from "@mdx-js/mdx";
 import { motion } from "framer-motion";
-import {
+import React, {
   Component,
+  createContext,
   type ErrorInfo,
+  Fragment,
+  forwardRef,
+  memo,
   type ReactNode,
+  Suspense,
+  useCallback,
+  useContext,
   useEffect,
+  useId,
   useMemo,
+  useReducer,
   useRef,
   useState,
 } from "react";
@@ -18,8 +26,46 @@ import remarkGfm from "remark-gfm";
 import { useEditorStore } from "@/stores/editor-store";
 
 type MdxModule = { default: React.ComponentType };
+type MdxComponentProps = Record<string, unknown> & { children?: ReactNode };
 
 const DEBOUNCE_MS = 300;
+
+/* ------------------------------------------------------------------ */
+/*  React scope — injected into compiled MDX so hooks/imports work     */
+/* ------------------------------------------------------------------ */
+
+const REACT_SCOPE = {
+  React,
+  useState,
+  useEffect,
+  useMemo,
+  useCallback,
+  useRef,
+  useContext,
+  useReducer,
+  useId,
+  Fragment,
+  createContext,
+  forwardRef,
+  memo,
+  Suspense,
+};
+
+const SCOPE_PREAMBLE = [
+  "const __scope = arguments[0].__scope;",
+  "const React = __scope.React;",
+  "const {useState,useEffect,useMemo,useCallback,useRef,useContext,useReducer,useId,Fragment,createContext,forwardRef,memo,Suspense} = __scope;",
+].join("\n");
+
+const REACT_IMPORT_RE = /^\s*import\b[\s\S]*?\bfrom\s+['"]react['"].*$/gm;
+
+function stripReactImports(source: string): string {
+  return source.replace(REACT_IMPORT_RE, "");
+}
+
+/* ------------------------------------------------------------------ */
+/*  Unknown component placeholders                                     */
+/* ------------------------------------------------------------------ */
 
 function UnknownComponent({
   name,
@@ -38,11 +84,25 @@ function UnknownComponent({
   );
 }
 
-const baseComponents: Record<
-  string,
-  React.ComponentType<Record<string, unknown>>
-> = {
-  img: ({ alt, src, ...props }: Record<string, unknown>) => (
+const unknownCache = new Map<string, React.ComponentType<MdxComponentProps>>();
+
+function getPlaceholder(name: string): React.ComponentType<MdxComponentProps> {
+  let comp = unknownCache.get(name);
+  if (!comp) {
+    comp = ({ children }: MdxComponentProps) => (
+      <UnknownComponent name={name}>{children}</UnknownComponent>
+    );
+    unknownCache.set(name, comp);
+  }
+  return comp;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Styled component overrides for standard HTML elements              */
+/* ------------------------------------------------------------------ */
+
+const baseComponents: Record<string, React.ComponentType<MdxComponentProps>> = {
+  img: ({ alt, src, ...props }: MdxComponentProps) => (
     // eslint-disable-next-line @next/next/no-img-element
     <img
       src={src as string}
@@ -52,11 +112,7 @@ const baseComponents: Record<
       {...props}
     />
   ),
-  a: ({
-    children,
-    href,
-    ...props
-  }: Record<string, unknown> & { children?: ReactNode }) => (
+  a: ({ children, href, ...props }: MdxComponentProps) => (
     <a
       href={href as string}
       target="_blank"
@@ -67,10 +123,7 @@ const baseComponents: Record<
       {children}
     </a>
   ),
-  pre: ({
-    children,
-    ...props
-  }: Record<string, unknown> & { children?: ReactNode }) => (
+  pre: ({ children, ...props }: MdxComponentProps) => (
     <pre
       className="overflow-x-auto rounded-xl border border-border/50 bg-muted/40 p-5 text-[13px] leading-relaxed dark:bg-muted/30"
       {...props}
@@ -78,11 +131,7 @@ const baseComponents: Record<
       {children}
     </pre>
   ),
-  code: ({
-    children,
-    className,
-    ...props
-  }: Record<string, unknown> & { children?: ReactNode }) => {
+  code: ({ children, className, ...props }: MdxComponentProps) => {
     const cls = className as string | undefined;
     const isBlock = cls?.startsWith("language-") || cls?.startsWith("hljs");
     if (isBlock) {
@@ -101,10 +150,7 @@ const baseComponents: Record<
       </code>
     );
   },
-  blockquote: ({
-    children,
-    ...props
-  }: Record<string, unknown> & { children?: ReactNode }) => (
+  blockquote: ({ children, ...props }: MdxComponentProps) => (
     <blockquote
       className="border-l-[3px] border-primary/40 pl-4 italic text-muted-foreground"
       {...props}
@@ -112,23 +158,17 @@ const baseComponents: Record<
       {children}
     </blockquote>
   ),
-  hr: (props: Record<string, unknown>) => (
+  hr: (props: MdxComponentProps) => (
     <hr className="my-8 border-0 border-t border-border/40" {...props} />
   ),
-  table: ({
-    children,
-    ...props
-  }: Record<string, unknown> & { children?: ReactNode }) => (
+  table: ({ children, ...props }: MdxComponentProps) => (
     <div className="my-4 overflow-x-auto rounded-lg border border-border/50">
       <table className="w-full text-sm" {...props}>
         {children}
       </table>
     </div>
   ),
-  th: ({
-    children,
-    ...props
-  }: Record<string, unknown> & { children?: ReactNode }) => (
+  th: ({ children, ...props }: MdxComponentProps) => (
     <th
       className="bg-muted/40 px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground"
       {...props}
@@ -136,24 +176,69 @@ const baseComponents: Record<
       {children}
     </th>
   ),
-  td: ({
-    children,
-    ...props
-  }: Record<string, unknown> & { children?: ReactNode }) => (
+  td: ({ children, ...props }: MdxComponentProps) => (
     <td className="border-t border-border/30 px-4 py-2.5" {...props}>
       {children}
     </td>
   ),
 };
 
-const componentProxy = new Proxy(baseComponents, {
-  get(target, prop: string) {
-    if (prop in target) return target[prop];
-    return ({ children }: { children?: ReactNode }) => (
-      <UnknownComponent name={prop}>{children}</UnknownComponent>
-    );
-  },
-});
+/* ------------------------------------------------------------------ */
+/*  Build per-compilation component map with placeholders              */
+/* ------------------------------------------------------------------ */
+
+const COMPONENT_TAG_RE = /<([A-Z]\w*)/g;
+
+function buildComponentMap(
+  source: string,
+): Record<string, React.ComponentType<MdxComponentProps>> {
+  const map: Record<string, React.ComponentType<MdxComponentProps>> = {
+    ...baseComponents,
+  };
+  for (const match of source.matchAll(COMPONENT_TAG_RE)) {
+    const name = match[1] as string;
+    if (!(name in map)) {
+      map[name] = getPlaceholder(name);
+    }
+  }
+  return map;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Compile + run MDX with React in scope                              */
+/* ------------------------------------------------------------------ */
+
+const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor as new (
+  body: string,
+) => (...args: unknown[]) => Promise<unknown>;
+
+async function compileMdx(
+  source: string,
+  components: Record<string, React.ComponentType<MdxComponentProps>>,
+): Promise<MdxModule> {
+  const stripped = stripReactImports(source);
+
+  const compiled = String(
+    await compile(stripped, {
+      outputFormat: "function-body",
+      providerImportSource: "#",
+      remarkPlugins: [remarkGfm],
+      rehypePlugins: [rehypeHighlight],
+    }),
+  );
+
+  const fn = new AsyncFunction(`${SCOPE_PREAMBLE}\n${compiled}`);
+
+  return (await fn({
+    ...runtime,
+    useMDXComponents: () => components,
+    __scope: REACT_SCOPE,
+  })) as MdxModule;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Error boundary                                                     */
+/* ------------------------------------------------------------------ */
 
 type ErrorBoundaryProps = { children: ReactNode; fallback: ReactNode };
 type ErrorBoundaryState = { error: Error | null };
@@ -191,17 +276,15 @@ function CompileError({ message }: { message: string }) {
   );
 }
 
+/* ------------------------------------------------------------------ */
+/*  Preview component                                                  */
+/* ------------------------------------------------------------------ */
+
 export function MdxPreview() {
   const content = useEditorStore((state) => state.content);
-  const providedComponents = useMDXComponents();
   const [compiled, setCompiled] = useState<MdxModule | null>(null);
   const [error, setError] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout>>(null);
-
-  const mergedComponents = useMemo(
-    () => ({ ...componentProxy, ...providedComponents }),
-    [providedComponents],
-  );
 
   useEffect(() => {
     if (!content) {
@@ -210,27 +293,29 @@ export function MdxPreview() {
       return;
     }
 
+    let stale = false;
     if (timerRef.current) clearTimeout(timerRef.current);
 
     timerRef.current = setTimeout(async () => {
       try {
-        const mod = await evaluate(content, {
-          ...runtime,
-          remarkPlugins: [remarkGfm],
-          rehypePlugins: [rehypeHighlight],
-          useMDXComponents: () => mergedComponents,
-        } as Parameters<typeof evaluate>[1]);
-        setCompiled(mod as MdxModule);
-        setError(null);
+        const components = buildComponentMap(content);
+        const mod = await compileMdx(content, components);
+        if (!stale) {
+          setCompiled(mod);
+          setError(null);
+        }
       } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
+        if (!stale) {
+          setError(err instanceof Error ? err.message : String(err));
+        }
       }
     }, DEBOUNCE_MS);
 
     return () => {
+      stale = true;
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [content, mergedComponents]);
+  }, [content]);
 
   if (!content) {
     return (

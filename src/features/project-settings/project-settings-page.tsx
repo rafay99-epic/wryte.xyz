@@ -26,7 +26,6 @@ import {
   Sparkles,
   Trash2,
   User,
-  Webhook,
   XCircle,
 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
@@ -1075,10 +1074,10 @@ function ContentSection({
       if (!value) return;
       const fmt = value as ContentFormat;
       setContentFormat(fmt);
-      const ext = getFileExtension(fmt);
-      const currentExt = getFileExtension(fmt === "md" ? "mdx" : "md");
-      if (filenamePattern.endsWith(currentExt)) {
-        setFilenamePattern(filenamePattern.slice(0, -currentExt.length) + ext);
+      const newExt = getFileExtension(fmt);
+      const oldExt = getFileExtension(fmt === "md" ? "mdx" : "md");
+      if (filenamePattern.endsWith(oldExt)) {
+        setFilenamePattern(filenamePattern.slice(0, -oldExt.length) + newExt);
       }
     },
     [filenamePattern],
@@ -1114,13 +1113,21 @@ function ContentSection({
         <FieldGroup
           label="Content Format"
           htmlFor="s-content-format"
-          hint="Changing format only affects future publishes."
+          hint={
+            contentFormat === "mdx"
+              ? "MDX lets you embed interactive React components inside markdown. Components use React hooks (useState, useEffect, etc.) and are rendered live in the editor preview. Only React is supported — Vue, Svelte, and other frameworks are not compatible. Changing format only affects future publishes."
+              : "Standard markdown with no component support. Changing format only affects future publishes."
+          }
         >
           <Select value={contentFormat} onValueChange={handleFormatChange}>
-            <SelectTrigger id="s-content-format" className="max-w-sm">
+            <SelectTrigger id="s-content-format" className="w-full max-w-sm">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent
+              align="start"
+              alignItemWithTrigger={false}
+              className="w-(--anchor-width) min-w-48"
+            >
               <SelectItem value="md">Markdown (.md)</SelectItem>
               <SelectItem value="mdx">MDX (.mdx)</SelectItem>
             </SelectContent>
@@ -1933,9 +1940,6 @@ function PublishingSection({
   const [defaultDraft, setDefaultDraft] = useState(
     project.defaultDraft ?? true,
   );
-  const [deployHookUrl, setDeployHookUrl] = useState(
-    project.deployHookUrl ?? "",
-  );
   const [frontmatterFormat, setFrontmatterFormat] = useState<"yaml" | "toml">(
     project.frontmatterFormat ?? "yaml",
   );
@@ -1953,7 +1957,6 @@ function PublishingSection({
       project.commitMessageTemplate ?? "docs: publish {{filename}}",
     );
     setDefaultDraft(project.defaultDraft ?? true);
-    setDeployHookUrl(project.deployHookUrl ?? "");
     setFrontmatterFormat(project.frontmatterFormat ?? "yaml");
     setTimezone(project.timezone ?? "");
     setAutoSaveEnabled(project.autoSaveEnabled ?? true);
@@ -1961,7 +1964,6 @@ function PublishingSection({
   }, [
     project.commitMessageTemplate,
     project.defaultDraft,
-    project.deployHookUrl,
     project.frontmatterFormat,
     project.timezone,
     project.autoSaveEnabled,
@@ -1972,7 +1974,6 @@ function PublishingSection({
     commitTemplate.trim() !==
       (project.commitMessageTemplate ?? "docs: publish {{filename}}") ||
     defaultDraft !== (project.defaultDraft ?? true) ||
-    deployHookUrl.trim() !== (project.deployHookUrl ?? "") ||
     frontmatterFormat !== (project.frontmatterFormat ?? "yaml") ||
     timezone !== (project.timezone ?? "") ||
     autoSaveEnabled !== (project.autoSaveEnabled ?? true) ||
@@ -1990,7 +1991,6 @@ function PublishingSection({
         autoSaveEnabled,
         trashRetentionDays,
       };
-      if (deployHookUrl.trim()) args.deployHookUrl = deployHookUrl.trim();
       await updateProject(args);
       toast.success("Publishing settings saved");
     } catch {
@@ -2001,7 +2001,6 @@ function PublishingSection({
   }, [
     commitTemplate,
     defaultDraft,
-    deployHookUrl,
     frontmatterFormat,
     timezone,
     autoSaveEnabled,
@@ -2136,39 +2135,15 @@ function PublishingSection({
             />
           </div>
         </FieldGroup>
+
+        <SaveButton
+          isSaving={isSaving}
+          disabled={!hasChanges}
+          onClick={() => void handleSave()}
+        />
       </motion.div>
 
-      <Divider />
-
-      {/* Deploy Hook */}
-      <motion.div variants={staggerItem} transition={smoothTransition}>
-        <div className="mb-3 flex items-center gap-2">
-          <Webhook className="size-4 text-muted-foreground" />
-          <span className="text-sm font-medium">Deploy Hook</span>
-        </div>
-
-        <FieldGroup
-          label="Webhook URL"
-          htmlFor="s-deploy-hook"
-          hint="Paste a Vercel, Netlify, or Cloudflare Pages deploy hook URL. A POST request is sent after each publish."
-        >
-          <Input
-            id="s-deploy-hook"
-            value={deployHookUrl}
-            onChange={(e) => setDeployHookUrl(e.target.value)}
-            placeholder="https://api.vercel.com/v1/integrations/deploy/..."
-            className="font-mono text-xs"
-          />
-        </FieldGroup>
-
-        <div className="mt-4 flex justify-end">
-          <SaveButton
-            isSaving={isSaving}
-            disabled={!hasChanges}
-            onClick={handleSave}
-          />
-        </div>
-      </motion.div>
+      {/* Deploy Hook — hidden, not yet ready for release */}
     </motion.div>
   );
 }
