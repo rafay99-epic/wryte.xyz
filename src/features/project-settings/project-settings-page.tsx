@@ -63,6 +63,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { TimezoneSelect } from "@/components/ui/timezone-select";
 import { useGithubBranches } from "@/hooks/use-github";
+import type { ContentFormat } from "@/lib/content-format";
+import { getFileExtension } from "@/lib/content-format";
 import {
   type CompressionSettings,
   compressionSettingsEqual,
@@ -102,6 +104,7 @@ type ProjectData = {
   frontmatterSchema?: string;
   commitMessageTemplate?: string;
   filenamePattern?: string;
+  contentFormat?: "md" | "mdx";
   defaultDraft?: boolean;
   siteUrl?: string;
   deployHookUrl?: string;
@@ -1024,19 +1027,31 @@ function ContentSection({
   const [contentPath, setContentPath] = useState(
     project.contentPath ?? "content/blog",
   );
+  const [contentFormat, setContentFormat] = useState<ContentFormat>(
+    (project.contentFormat as ContentFormat) ?? "md",
+  );
+
+  const defaultPattern = `{{slug}}${getFileExtension(contentFormat)}`;
   const [filenamePattern, setFilenamePattern] = useState(
-    project.filenamePattern ?? "{{slug}}.md",
+    project.filenamePattern ?? defaultPattern,
   );
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     setContentPath(project.contentPath ?? "content/blog");
-    setFilenamePattern(project.filenamePattern ?? "{{slug}}.md");
-  }, [project.contentPath, project.filenamePattern]);
+    const fmt = (project.contentFormat as ContentFormat) ?? "md";
+    setContentFormat(fmt);
+    setFilenamePattern(
+      project.filenamePattern ?? `{{slug}}${getFileExtension(fmt)}`,
+    );
+  }, [project.contentPath, project.filenamePattern, project.contentFormat]);
 
   const hasChanges =
     contentPath.trim() !== (project.contentPath ?? "content/blog") ||
-    filenamePattern.trim() !== (project.filenamePattern ?? "{{slug}}.md");
+    filenamePattern.trim() !==
+      (project.filenamePattern ??
+        `{{slug}}${getFileExtension(project.contentFormat)}`) ||
+    contentFormat !== ((project.contentFormat as ContentFormat) ?? "md");
 
   const handleSave = useCallback(async () => {
     setIsSaving(true);
@@ -1045,6 +1060,7 @@ function ContentSection({
         projectId,
         contentPath: contentPath.trim(),
         filenamePattern: filenamePattern.trim(),
+        contentFormat,
       });
       toast.success("Content structure saved");
     } catch {
@@ -1052,14 +1068,28 @@ function ContentSection({
     } finally {
       setIsSaving(false);
     }
-  }, [contentPath, filenamePattern, projectId, updateProject]);
+  }, [contentPath, filenamePattern, contentFormat, projectId, updateProject]);
+
+  const handleFormatChange = useCallback(
+    (value: string | null) => {
+      if (!value) return;
+      const fmt = value as ContentFormat;
+      setContentFormat(fmt);
+      const ext = getFileExtension(fmt);
+      const currentExt = getFileExtension(fmt === "md" ? "mdx" : "md");
+      if (filenamePattern.endsWith(currentExt)) {
+        setFilenamePattern(filenamePattern.slice(0, -currentExt.length) + ext);
+      }
+    },
+    [filenamePattern],
+  );
 
   return (
     <motion.div variants={staggerContainer} initial="initial" animate="animate">
       <SectionHeader
         icon={FolderTree}
         title="Content Structure"
-        description="Where your markdown files live and how they're named"
+        description="Where your content files live and how they're named"
       />
 
       <motion.div
@@ -1070,7 +1100,7 @@ function ContentSection({
         <FieldGroup
           label="Content Directory"
           htmlFor="s-content-path"
-          hint="Where markdown files are published."
+          hint="Where content files are published."
         >
           <Input
             id="s-content-path"
@@ -1082,6 +1112,22 @@ function ContentSection({
         </FieldGroup>
 
         <FieldGroup
+          label="Content Format"
+          htmlFor="s-content-format"
+          hint="Changing format only affects future publishes."
+        >
+          <Select value={contentFormat} onValueChange={handleFormatChange}>
+            <SelectTrigger id="s-content-format" className="max-w-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="md">Markdown (.md)</SelectItem>
+              <SelectItem value="mdx">MDX (.mdx)</SelectItem>
+            </SelectContent>
+          </Select>
+        </FieldGroup>
+
+        <FieldGroup
           label="Filename Pattern"
           htmlFor="s-filename"
           hint="Variables: {{slug}}, {{date}}, {{year}}, {{month}}, {{day}}"
@@ -1090,7 +1136,7 @@ function ContentSection({
             id="s-filename"
             value={filenamePattern}
             onChange={(e) => setFilenamePattern(e.target.value)}
-            placeholder="{{slug}}.md"
+            placeholder={defaultPattern}
             className="max-w-sm font-mono text-sm"
           />
         </FieldGroup>

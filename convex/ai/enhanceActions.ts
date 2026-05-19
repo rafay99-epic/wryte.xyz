@@ -14,7 +14,8 @@ import { v } from "convex/values";
 import OpenAI from "openai";
 import { components, internal } from "../_generated/api";
 import { internalAction } from "../_generated/server";
-import { ENHANCE_SYSTEM_PROMPT, FINAL_DRAFT_SYSTEM_PROMPT } from "./enhance";
+import { contentFormatValidator } from "../_lib/contentFormat";
+import { getEnhanceSystemPrompt, getFinalDraftSystemPrompt } from "./enhance";
 
 /* ------------------------------------------------------------------ */
 /*  System prompts                                                     */
@@ -28,6 +29,14 @@ Rules:
 - Preserve markdown formatting unless the instruction says otherwise
 - If the instruction is unclear, make your best interpretation
 - Keep the same language unless asked to translate`;
+
+const MDX_ADDENDUM = `\n- Preserve all JSX/MDX component syntax (<Component prop="value" />, {expressions}, import/export statements). Do not modify, remove, or reformat JSX tags or expressions.`;
+
+function getInlineSystemPrompt(contentFormat?: string): string {
+  return contentFormat === "mdx"
+    ? INLINE_SYSTEM_PROMPT + MDX_ADDENDUM
+    : INLINE_SYSTEM_PROMPT;
+}
 
 /**
  * System prompt for schema-driven frontmatter suggestions. Field types and
@@ -274,6 +283,7 @@ export const runEnhancement = internalAction({
     model: v.string(),
     content: v.string(),
     vaultSecretId: v.string(),
+    contentFormat: v.optional(contentFormatValidator),
   },
   handler: async (ctx, args) => {
     const apiKey = await ctx.runAction(
@@ -309,7 +319,7 @@ export const runEnhancement = internalAction({
         apiKey,
         args.model,
         args.content,
-        ENHANCE_SYSTEM_PROMPT,
+        getEnhanceSystemPrompt(args.contentFormat),
         writer,
       );
 
@@ -385,6 +395,7 @@ export const runFinalDraft = internalAction({
     vaultSecretId: v.string(),
     title: v.string(),
     currentContent: v.string(),
+    contentFormat: v.optional(contentFormatValidator),
     drafts: v.array(
       v.object({
         label: v.string(),
@@ -442,7 +453,7 @@ export const runFinalDraft = internalAction({
         apiKey,
         args.model,
         buildFinalDraftPrompt(args),
-        FINAL_DRAFT_SYSTEM_PROMPT,
+        getFinalDraftSystemPrompt(args.contentFormat),
         writer,
       );
 
@@ -471,6 +482,7 @@ export const runInlineEnhancement = internalAction({
     selectedText: v.string(),
     instruction: v.string(),
     vaultSecretId: v.string(),
+    contentFormat: v.optional(contentFormatValidator),
   },
   handler: async (ctx, args) => {
     const apiKey = await ctx.runAction(
@@ -508,7 +520,7 @@ export const runInlineEnhancement = internalAction({
         apiKey,
         args.model,
         userMessage,
-        INLINE_SYSTEM_PROMPT,
+        getInlineSystemPrompt(args.contentFormat),
         writer,
       );
 

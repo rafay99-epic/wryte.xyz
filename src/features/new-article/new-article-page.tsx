@@ -26,6 +26,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { buildInitialFrontmatter } from "@/lib/build-initial-frontmatter";
+import { getFileExtension } from "@/lib/content-format";
 import { generateSlug } from "@/lib/markdown";
 import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/stores/editor-store";
@@ -85,8 +86,8 @@ export function NewArticlePage() {
   const filePath = useMemo(() => {
     const contentDir = selectedProject?.contentPath || "content/blog";
     const s = slug || "my-new-post";
-    return `${contentDir}/${s}.md`;
-  }, [selectedProject?.contentPath, slug]);
+    return `${contentDir}/${s}${getFileExtension(selectedProject?.contentFormat)}`;
+  }, [selectedProject?.contentPath, selectedProject?.contentFormat, slug]);
 
   const handleSubmit = useCallback(async () => {
     if (!selectedProjectId) {

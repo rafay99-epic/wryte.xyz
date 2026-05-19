@@ -1,13 +1,17 @@
 "use client";
 
+import { useQuery } from "convex/react";
 import { useCallback, useRef } from "react";
 import { useEditorStore } from "@/stores/editor-store";
+import { api } from "../../../../convex/_generated/api";
+import type { Id } from "../../../../convex/_generated/dataModel";
 import { DraftTabBar } from "./draft-tab-bar";
 import { EditorProvider } from "./editor-context";
 import { EditorToolbar } from "./editor-toolbar";
 import { FrontmatterEditor } from "./frontmatter-editor";
 import { MarkdownEditor } from "./markdown-editor";
 import { MarkdownPreview } from "./markdown-preview";
+import { MdxPreview } from "./mdx-preview";
 import { ResearchPanel } from "./research-panel";
 
 type EditorLayoutProps = {
@@ -23,6 +27,11 @@ export function EditorLayout({
   onRequestSave,
   onSynthesisOpen,
 }: EditorLayoutProps) {
+  const project = useQuery(api.cms.projects.get, {
+    projectId: projectId as Id<"projects">,
+  });
+  const isMdx = project?.contentFormat === "mdx";
+
   const viewMode = useEditorStore((state) => state.viewMode);
   const focusMode = useEditorStore((state) => state.focusMode);
   const activeDraftId = useEditorStore((state) => state.activeDraftId);
@@ -106,7 +115,7 @@ export function EditorLayout({
                 className="editor-pane-enter h-full w-full overflow-y-auto slim-scrollbar"
               >
                 <div className="mx-auto max-w-[820px]">
-                  <MarkdownPreview />
+                  {isMdx ? <MdxPreview /> : <MarkdownPreview />}
                 </div>
               </div>
             )}
@@ -127,7 +136,7 @@ export function EditorLayout({
                   onScroll={handlePreviewScroll}
                 >
                   <div className="mx-auto max-w-[640px]">
-                    <MarkdownPreview />
+                    {isMdx ? <MdxPreview /> : <MarkdownPreview />}
                   </div>
                 </div>
               </div>

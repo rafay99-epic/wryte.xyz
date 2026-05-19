@@ -60,6 +60,20 @@ Guidelines:
 - Do not include commentary, explanations, or meta-text
 - Return ONLY the final markdown article`;
 
+const MDX_ADDENDUM = `\n- Preserve all JSX/MDX component syntax (<Component prop="value" />, {expressions}, import/export statements). Do not modify, remove, or reformat JSX tags or expressions.`;
+
+export function getEnhanceSystemPrompt(contentFormat?: string): string {
+  return contentFormat === "mdx"
+    ? ENHANCE_SYSTEM_PROMPT + MDX_ADDENDUM
+    : ENHANCE_SYSTEM_PROMPT;
+}
+
+export function getFinalDraftSystemPrompt(contentFormat?: string): string {
+  return contentFormat === "mdx"
+    ? FINAL_DRAFT_SYSTEM_PROMPT + MDX_ADDENDUM
+    : FINAL_DRAFT_SYSTEM_PROMPT;
+}
+
 /* ------------------------------------------------------------------ */
 /*  Shared resolver: auth + project + credential                        */
 /* ------------------------------------------------------------------ */
@@ -152,7 +166,7 @@ export const createEnhanceStream = mutation({
       throws: true,
     });
 
-    const { provider, model, vaultSecretId } =
+    const { project, provider, model, vaultSecretId } =
       await resolveProjectAndCredential(ctx, args.projectId);
 
     const streamId = await streaming.createStream(ctx);
@@ -163,6 +177,9 @@ export const createEnhanceStream = mutation({
       model,
       content: args.content,
       vaultSecretId,
+      ...(project.contentFormat
+        ? { contentFormat: project.contentFormat }
+        : {}),
     });
 
     return { streamId, provider, model };
@@ -192,7 +209,7 @@ export const createInlineEnhanceStream = mutation({
       throws: true,
     });
 
-    const { provider, model, vaultSecretId } =
+    const { project, provider, model, vaultSecretId } =
       await resolveProjectAndCredential(ctx, args.projectId);
 
     const streamId = await streaming.createStream(ctx);
@@ -207,6 +224,9 @@ export const createInlineEnhanceStream = mutation({
         selectedText: args.selectedText,
         instruction: args.instruction,
         vaultSecretId,
+        ...(project.contentFormat
+          ? { contentFormat: project.contentFormat }
+          : {}),
       },
     );
 
@@ -266,8 +286,12 @@ export const createFinalDraftStream = mutation({
       throws: true,
     });
 
-    const { provider, model, vaultSecretId } =
-      await resolveProjectAndCredential(ctx, args.projectId);
+    const {
+      project: aiProject,
+      provider,
+      model,
+      vaultSecretId,
+    } = await resolveProjectAndCredential(ctx, args.projectId);
     const user = await getCurrentUser(ctx);
     const document = await ctx.db.get(args.documentId);
     if (
@@ -309,6 +333,9 @@ export const createFinalDraftStream = mutation({
       vaultSecretId,
       title: args.title ?? document.title,
       currentContent: args.content,
+      ...(aiProject.contentFormat
+        ? { contentFormat: aiProject.contentFormat }
+        : {}),
       drafts: drafts.map((draft) => ({
         label: draft.label,
         title: draft.titleSnapshot,

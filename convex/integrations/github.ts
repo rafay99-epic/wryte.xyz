@@ -166,6 +166,10 @@ function findPubDateField(
   }
 }
 
+function getFileExtension(contentFormat?: string): string {
+  return contentFormat === "mdx" ? ".mdx" : ".md";
+}
+
 /**
  * Parses an "owner/repo" string into its two components.
  * Throws a descriptive error if the format is invalid, since this is a common
@@ -398,9 +402,10 @@ export const publishToGithub = internalAction({
 
     const { owner, repo } = parseRepoString(project.githubRepo);
     const branch = project.githubBranch ?? "main";
+    const ext = getFileExtension(project.contentFormat);
     const filePath = joinRepoPath(
       project.contentPath ?? "content",
-      `${document.slug}.md`,
+      `${document.slug}${ext}`,
     );
 
     const octokit = new Octokit({ auth: token });
@@ -742,11 +747,13 @@ export const bulkPublish = action({
 
     let failed = 0;
 
+    const ext = getFileExtension(project.contentFormat);
+
     for (const doc of docs) {
       try {
         const filePath = contentPath
-          ? `${contentPath}/${doc.slug}.md`
-          : `${doc.slug}.md`;
+          ? `${contentPath}/${doc.slug}${ext}`
+          : `${doc.slug}${ext}`;
         const isUpdate = Boolean(doc.githubSha);
 
         let frontmatterData: Record<string, unknown> = {

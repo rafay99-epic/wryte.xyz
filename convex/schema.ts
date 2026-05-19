@@ -87,6 +87,8 @@ export default defineSchema({
     commitMessageTemplate: v.optional(v.string()),
     /** Filename pattern for new posts, e.g. "{{slug}}.md" or "{{date}}-{{slug}}.md" */
     filenamePattern: v.optional(v.string()),
+    /** Content file format — controls extension (.md or .mdx) and editor behaviour */
+    contentFormat: v.optional(v.union(v.literal("md"), v.literal("mdx"))),
     /** Whether new documents default to draft: true */
     defaultDraft: v.optional(v.boolean()),
     /** Site URL for preview links and canonical URLs */

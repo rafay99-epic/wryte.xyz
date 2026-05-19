@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { getFileExtension } from "@/lib/content-format";
 import { buildFrontmatter } from "@/lib/markdown";
 import { useEditorStore } from "@/stores/editor-store";
 import { api } from "../../../../convex/_generated/api";
@@ -90,7 +91,7 @@ export function PublishDialog({
   // Compute the target file path in the repo for display purposes
   const contentPath = project?.contentPath ?? "content";
   const slug = document?.slug ?? "untitled";
-  const filePath = `${contentPath}/${slug}.md`;
+  const filePath = `${contentPath}/${slug}${getFileExtension(project?.contentFormat)}`;
 
   // Build a YAML frontmatter preview by merging the document's saved frontmatter
   // with a title and current timestamp. This shows the user exactly what will be

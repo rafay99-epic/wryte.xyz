@@ -9,6 +9,7 @@ import {
 } from "../_generated/server";
 import { getAuthedUserOrNull, getCurrentUser } from "../_lib/auth";
 import { compressionSettingsValidator } from "../_lib/compression";
+import { contentFormatValidator } from "../_lib/contentFormat";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
 import { cascadeDeleteScheduledPublishesForDoc } from "./documents";
 
@@ -133,6 +134,7 @@ export const create = mutation({
     frontmatterSchema: v.optional(v.string()),
     commitMessageTemplate: v.optional(v.string()),
     filenamePattern: v.optional(v.string()),
+    contentFormat: v.optional(contentFormatValidator),
     defaultDraft: v.optional(v.boolean()),
     siteUrl: v.optional(v.string()),
     deployHookUrl: v.optional(v.string()),
@@ -175,6 +177,7 @@ export const create = mutation({
       frontmatterSchema?: string;
       commitMessageTemplate?: string;
       filenamePattern?: string;
+      contentFormat?: "md" | "mdx";
       defaultDraft?: boolean;
       siteUrl?: string;
       deployHookUrl?: string;
@@ -216,6 +219,8 @@ export const create = mutation({
       insertData.commitMessageTemplate = args.commitMessageTemplate;
     if (args.filenamePattern !== undefined)
       insertData.filenamePattern = args.filenamePattern;
+    if (args.contentFormat !== undefined)
+      insertData.contentFormat = args.contentFormat;
     if (args.defaultDraft !== undefined)
       insertData.defaultDraft = args.defaultDraft;
     if (args.siteUrl !== undefined) insertData.siteUrl = args.siteUrl;
@@ -262,6 +267,7 @@ export const update = mutation({
     frontmatterSchema: v.optional(v.string()),
     commitMessageTemplate: v.optional(v.string()),
     filenamePattern: v.optional(v.string()),
+    contentFormat: v.optional(contentFormatValidator),
     defaultDraft: v.optional(v.boolean()),
     siteUrl: v.optional(v.string()),
     deployHookUrl: v.optional(v.string()),

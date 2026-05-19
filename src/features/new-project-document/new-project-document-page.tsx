@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { buildInitialFrontmatter } from "@/lib/build-initial-frontmatter";
+import { getFileExtension } from "@/lib/content-format";
 import { generateSlug } from "@/lib/markdown";
 import { useEditorStore } from "@/stores/editor-store";
 import { api } from "../../../convex/_generated/api";
@@ -67,8 +68,8 @@ export function NewProjectDocumentPage() {
   const filePath = useMemo(() => {
     const contentDir = project?.contentPath || "content/blog";
     const s = slug || "my-new-post";
-    return `${contentDir}/${s}.md`;
-  }, [project?.contentPath, slug]);
+    return `${contentDir}/${s}${getFileExtension(project?.contentFormat)}`;
+  }, [project?.contentPath, project?.contentFormat, slug]);
 
   const handleSubmit = useCallback(async () => {
     const trimmedTitle = title.trim();

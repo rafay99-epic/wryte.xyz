@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { buildInitialFrontmatter } from "@/lib/build-initial-frontmatter";
+import { getFileExtension } from "@/lib/content-format";
 import { generateSlug } from "@/lib/markdown";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
@@ -85,8 +86,8 @@ export function CreateDocumentDialog({
   const filePath = useMemo(() => {
     const contentDir = project?.contentPath || "content/blog";
     const s = slug || "my-new-post";
-    return `${contentDir}/${s}.md`;
-  }, [project?.contentPath, slug]);
+    return `${contentDir}/${s}${getFileExtension(project?.contentFormat)}`;
+  }, [project?.contentPath, project?.contentFormat, slug]);
 
   const handleSubmit = useCallback(async () => {
     const trimmedTitle = title.trim();
