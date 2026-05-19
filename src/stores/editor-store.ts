@@ -11,58 +11,35 @@ type ViewMode = "edit" | "preview" | "split";
  * Components subscribe to slices of this store to avoid unnecessary re-renders.
  */
 type EditorState = {
-  /** Raw markdown content currently in the editor textarea. */
   content: string;
-  /** Document title shown in the header / tab. */
   title: string;
-  /** Whether the in-memory content has diverged from the last persisted version. */
   isDirty: boolean;
-  /** True while an autosave network request is in-flight. */
   isSaving: boolean;
-  /** Unix-ms timestamp of the most recent successful save, or null if never saved this session. */
   lastSavedAt: number | null;
-  /** Current editor layout: edit-only, preview-only, or side-by-side split. */
   viewMode: ViewMode;
-  /** Whether the document/navigation sidebar is expanded. */
   sidebarOpen: boolean;
-  /** Currently selected project ID for sidebar navigation — null when on dashboard/global pages. */
   activeProjectId: string | null;
-  /** When true, hides sidebar, header, and toolbar for distraction-free writing. */
   focusMode: boolean;
-  /** When true, shows the publish history side panel in the editor. */
   historyPanelOpen: boolean;
-  /** Sidebar state saved before entering focus mode, restored on exit. */
   _preFocusSidebarOpen: boolean | null;
+  activeDraftId: string | null;
+  researchPanelOpen: boolean;
 
-  /** Update markdown content and mark the document as dirty (unsaved changes). */
   setContent: (content: string) => void;
-  /** Update the document title and mark the document as dirty. */
   setTitle: (title: string) => void;
-  /**
-   * Initialise the editor with a loaded document's data in a single atomic update.
-   * Unlike calling setTitle + setContent separately, this does NOT mark the store
-   * as dirty — preventing the autosave hook from triggering a spurious save.
-   */
   initDocument: (title: string, content: string, projectId: string) => void;
-  /** Called after a successful save — clears dirty/saving flags and records the timestamp. */
   markSaved: () => void;
-  /** Toggle the saving indicator (used by the autosave hook). */
   setSaving: (isSaving: boolean) => void;
-  /** Switch editor layout between edit, preview, and split modes. */
   setViewMode: (viewMode: ViewMode) => void;
-  /** Toggle sidebar open/closed. */
   toggleSidebar: () => void;
-  /** Set the active project for sidebar navigation. */
   setActiveProjectId: (id: string | null) => void;
-  /** Toggle focus (distraction-free) mode on/off. */
   toggleFocusMode: () => void;
-  /** Toggle the publish history side panel. */
   toggleHistoryPanel: () => void;
-  /** Reset all editor state back to defaults (e.g. when navigating away from a document). */
+  setActiveDraftId: (id: string | null) => void;
+  toggleResearchPanel: () => void;
   reset: () => void;
 };
 
-/** Default state used on first mount and when resetting the store. */
 const initialState = {
   content: "",
   title: "",
@@ -75,6 +52,8 @@ const initialState = {
   focusMode: false,
   historyPanelOpen: false,
   _preFocusSidebarOpen: null as boolean | null,
+  activeDraftId: null as string | null,
+  researchPanelOpen: false,
 };
 
 /**
@@ -138,10 +117,13 @@ export const useEditorStore = create<EditorState>()((set) => ({
       };
     }),
 
-  // Toggle publish history panel
   toggleHistoryPanel: () =>
     set((state) => ({ historyPanelOpen: !state.historyPanelOpen })),
 
-  // Wipe everything — prevents stale data when switching documents
+  setActiveDraftId: (id) => set({ activeDraftId: id }),
+
+  toggleResearchPanel: () =>
+    set((state) => ({ researchPanelOpen: !state.researchPanelOpen })),
+
   reset: () => set(initialState),
 }));

@@ -24,6 +24,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { smoothTransition } from "@/lib/motion";
+import { extractStreamError } from "@/lib/stream-error";
 import { cn, humanizeFieldName } from "@/lib/utils";
 import type { FrontmatterFieldType } from "@/types/frontmatter";
 import { api } from "../../../../convex/_generated/api";
@@ -171,6 +172,13 @@ export function FrontmatterAiDrawer({
     streamBody.status !== "error";
   const isDone = streamBody?.status === "done";
   const isError = streamBody?.status === "error";
+
+  useEffect(() => {
+    if (isError && streamBody?.text) {
+      const result = extractStreamError(streamBody.text);
+      if (result?.error) setError(result.error);
+    }
+  }, [isError, streamBody?.text]);
 
   const suggestions: SuggestionMap | null = useMemo(() => {
     if (!streamBody?.text) return null;

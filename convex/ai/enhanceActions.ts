@@ -14,7 +14,7 @@ import { v } from "convex/values";
 import OpenAI from "openai";
 import { components, internal } from "../_generated/api";
 import { internalAction } from "../_generated/server";
-import { ENHANCE_SYSTEM_PROMPT } from "./enhance";
+import { ENHANCE_SYSTEM_PROMPT, FINAL_DRAFT_SYSTEM_PROMPT } from "./enhance";
 
 /* ------------------------------------------------------------------ */
 /*  System prompts                                                     */
@@ -73,6 +73,19 @@ const PROVIDER_VALIDATOR = v.union(
 );
 
 type ProviderName = "anthropic" | "openai" | "openrouter";
+type DraftContext = {
+  label: string;
+  title: string;
+  summary?: string;
+  content: string;
+};
+type ResearchContext = {
+  type: "note" | "source" | "quote" | "outline" | "idea" | "ai_summary";
+  title: string;
+  sourceName?: string;
+  url?: string;
+  content: string;
+};
 
 /* ------------------------------------------------------------------ */
 /*  Provider adapters                                                  */
@@ -170,18 +183,84 @@ function hasJsonDelimiter(text: string): boolean {
   return text.includes("}") || text.includes(",") || text.includes("]");
 }
 
+function extractApiMessage(err: unknown): string | undefined {
+  const e = err as {
+    status?: number;
+    message?: string;
+    error?: { message?: string; metadata?: { raw?: string } };
+  };
+  if (e?.error?.message) return e.error.message;
+  if (e?.error?.metadata?.raw) {
+    try {
+      const parsed = JSON.parse(e.error.metadata.raw) as {
+        error?: { message?: string };
+      };
+      if (parsed?.error?.message) return parsed.error.message;
+    } catch {
+      // not JSON
+    }
+  }
+  return e?.message ?? undefined;
+}
+
 function describeProviderError(err: unknown, provider: ProviderName): string {
-  const e = err as { status?: number; message?: string };
+  const e = err as { status?: number; code?: string };
+  const detail = extractApiMessage(err);
+  const prefix = provider === "openrouter" ? "OpenRouter" : provider;
+
   if (e?.status === 401) {
-    return `${provider} rejected the API key. Update it in Project Settings → AI.`;
+    return `${prefix} rejected the API key — update it in Project Settings → AI.`;
+  }
+  if (e?.status === 402) {
+    return `${prefix} credits exhausted — add credits or switch to a different provider/model.`;
+  }
+  if (e?.status === 403) {
+    return `${prefix} denied access — the API key may lack permission for this model.`;
+  }
+  if (e?.status === 408 || e?.code === "timeout") {
+    return `${prefix} request timed out — the model may be overloaded. Try again.`;
   }
   if (e?.status === 429) {
-    return `${provider} is rate-limiting your requests. Try again in a moment.`;
+    return `${prefix} rate limit exceeded — wait a moment and try again.${detail ? ` (${detail})` : ""}`;
+  }
+  if (e?.status === 502 || e?.status === 503) {
+    return `${prefix} is temporarily unavailable (${e.status}) — try again in a few seconds.`;
   }
   if (e?.status !== undefined && e.status >= 500) {
-    return `${provider} returned a server error (${e.status}). Try again shortly.`;
+    return `${prefix} server error (${e.status})${detail ? `: ${detail}` : " — try again shortly."}`;
   }
-  return e?.message ?? "Unknown error";
+  if (detail) return `${prefix}: ${detail}`;
+  return `${prefix}: an unexpected error occurred. Check your API key and model in Project Settings → AI.`;
+}
+
+const STREAM_ERROR_SENTINEL = "__STREAM_ERROR__";
+
+type StreamErrorCtx = {
+  runMutation: import("../_generated/server").ActionCtx["runMutation"];
+};
+
+async function writeStreamError(
+  ctx: StreamErrorCtx,
+  streamId: string,
+  message: string,
+): Promise<void> {
+  try {
+    await ctx.runMutation(components.persistentTextStreaming.lib.addChunk, {
+      streamId,
+      text: `${STREAM_ERROR_SENTINEL}${message}`,
+      final: false,
+    });
+  } catch {
+    // best-effort
+  }
+  try {
+    await ctx.runMutation(
+      components.persistentTextStreaming.lib.setStreamStatus,
+      { streamId, status: "error" },
+    );
+  } catch {
+    // stream may already be terminal
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -241,14 +320,140 @@ export const runEnhancement = internalAction({
       });
     } catch (error) {
       const message = describeProviderError(error, args.provider);
-      try {
-        await ctx.runMutation(
-          components.persistentTextStreaming.lib.setStreamStatus,
-          { streamId, status: "error" },
-        );
-      } catch {
-        // Stream may already be in a terminal state.
-      }
+      await writeStreamError(ctx, streamId, message);
+      throw new Error(message);
+    }
+  },
+});
+
+/* ------------------------------------------------------------------ */
+/*  Internal action: final draft from research + snapshots             */
+/* ------------------------------------------------------------------ */
+
+function buildFinalDraftPrompt(args: {
+  title: string;
+  currentContent: string;
+  drafts: DraftContext[];
+  research: ResearchContext[];
+}): string {
+  const draftBlocks = args.drafts.length
+    ? args.drafts
+        .map(
+          (draft, index) =>
+            `## Draft Snapshot ${index + 1}: ${draft.label}
+Title: ${draft.title}
+${draft.summary ? `Summary: ${draft.summary}\n` : ""}
+Content:
+${draft.content}`,
+        )
+        .join("\n\n---\n\n")
+    : "No draft snapshots selected.";
+
+  const researchBlocks = args.research.length
+    ? args.research
+        .map(
+          (item, index) =>
+            `## Research ${index + 1}: ${item.title}
+Type: ${item.type}
+${item.sourceName ? `Source: ${item.sourceName}\n` : ""}${
+  item.url ? `URL: ${item.url}\n` : ""
+}Content:
+${item.content}`,
+        )
+        .join("\n\n---\n\n")
+    : "No research notes selected.";
+
+  return `Article title: ${args.title}
+
+# Current Working Article
+${args.currentContent}
+
+# Selected Draft Snapshots
+${draftBlocks}
+
+# Selected Research Context
+${researchBlocks}
+
+Write the final markdown article now.`;
+}
+
+export const runFinalDraft = internalAction({
+  args: {
+    streamId: StreamIdValidator,
+    provider: PROVIDER_VALIDATOR,
+    model: v.string(),
+    vaultSecretId: v.string(),
+    title: v.string(),
+    currentContent: v.string(),
+    drafts: v.array(
+      v.object({
+        label: v.string(),
+        title: v.string(),
+        summary: v.optional(v.string()),
+        content: v.string(),
+      }),
+    ),
+    research: v.array(
+      v.object({
+        type: v.union(
+          v.literal("note"),
+          v.literal("source"),
+          v.literal("quote"),
+          v.literal("outline"),
+          v.literal("idea"),
+          v.literal("ai_summary"),
+        ),
+        title: v.string(),
+        sourceName: v.optional(v.string()),
+        url: v.optional(v.string()),
+        content: v.string(),
+      }),
+    ),
+  },
+  handler: async (ctx, args) => {
+    const apiKey = await ctx.runAction(
+      internal.integrations.secretStore._read,
+      { id: args.vaultSecretId },
+    );
+    if (!apiKey) {
+      throw new Error(
+        "API key not found in vault — it may have been deleted during a key rotation. Please try again.",
+      );
+    }
+
+    const streamId = args.streamId;
+    let pending = "";
+    const writer = {
+      addChunk: async (text: string) => {
+        pending += text;
+        if (hasSentenceDelimiter(text)) {
+          await ctx.runMutation(
+            components.persistentTextStreaming.lib.addChunk,
+            { streamId, text: pending, final: false },
+          );
+          pending = "";
+        }
+      },
+    };
+
+    try {
+      await streamByProvider(
+        args.provider,
+        apiKey,
+        args.model,
+        buildFinalDraftPrompt(args),
+        FINAL_DRAFT_SYSTEM_PROMPT,
+        writer,
+      );
+
+      await ctx.runMutation(components.persistentTextStreaming.lib.addChunk, {
+        streamId,
+        text: pending,
+        final: true,
+      });
+    } catch (error) {
+      const message = describeProviderError(error, args.provider);
+      await writeStreamError(ctx, streamId, message);
       throw new Error(message);
     }
   },
@@ -314,14 +519,7 @@ export const runInlineEnhancement = internalAction({
       });
     } catch (error) {
       const message = describeProviderError(error, args.provider);
-      try {
-        await ctx.runMutation(
-          components.persistentTextStreaming.lib.setStreamStatus,
-          { streamId, status: "error" },
-        );
-      } catch {
-        // Already terminal.
-      }
+      await writeStreamError(ctx, streamId, message);
       throw new Error(message);
     }
   },
@@ -522,14 +720,7 @@ export const runFrontmatterSuggestion = internalAction({
       });
     } catch (error) {
       const message = describeProviderError(error, args.provider);
-      try {
-        await ctx.runMutation(
-          components.persistentTextStreaming.lib.setStreamStatus,
-          { streamId, status: "error" },
-        );
-      } catch {
-        // Already terminal.
-      }
+      await writeStreamError(ctx, streamId, message);
       throw new Error(message);
     }
   },

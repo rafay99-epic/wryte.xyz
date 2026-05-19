@@ -18,6 +18,7 @@ import {
   Minus,
   Quote,
   Redo2,
+  ScrollText,
   Sparkles,
   Strikethrough,
   Type,
@@ -65,11 +66,19 @@ const VIEW_MODES: { value: ViewMode; label: string }[] = [
  * Right: Word count + View mode switcher + AI Assistant button
  */
 export function EditorToolbar({ documentId, projectId }: EditorToolbarProps) {
-  const { viewMode, setViewMode, content } = useEditorStore(
+  const {
+    viewMode,
+    setViewMode,
+    content,
+    researchPanelOpen,
+    toggleResearchPanel,
+  } = useEditorStore(
     useShallow((state) => ({
       viewMode: state.viewMode,
       setViewMode: state.setViewMode,
       content: state.content,
+      researchPanelOpen: state.researchPanelOpen,
+      toggleResearchPanel: state.toggleResearchPanel,
     })),
   );
   const { insertAtCursor, wrapSelection } = useEditorContext();
@@ -312,7 +321,20 @@ export function EditorToolbar({ documentId, projectId }: EditorToolbarProps) {
             ))}
           </div>
 
-          {/* AI Assistant button — only visible once AI is fully configured */}
+          <button
+            type="button"
+            onClick={toggleResearchPanel}
+            className={cn(
+              "flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all active:scale-[0.97]",
+              researchPanelOpen
+                ? "border-primary/30 bg-primary/5 text-primary"
+                : "border-border/60 text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+            )}
+          >
+            <ScrollText className="size-3.5" />
+            <span>Research</span>
+          </button>
+
           {aiReady && (
             <button
               type="button"
