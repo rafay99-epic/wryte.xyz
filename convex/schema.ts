@@ -17,6 +17,18 @@ import { compressionSettingsValidator } from "./_lib/compression";
 
 export default defineSchema({
   /**
+   * Singleton row holding the currently deployed app version. Written by
+   * the post-deploy script; read by every connected client via a Convex
+   * subscription so version-change toasts arrive instantly over the
+   * existing websocket — zero polling.
+   */
+  app_version: defineTable({
+    version: v.string(),
+    build: v.string(),
+    deployedAt: v.number(),
+  }),
+
+  /**
    * Users table — stores Clerk-authenticated user profiles.
    * `tokenIdentifier` is the Clerk-issued unique ID used to look up users on every request.
    *

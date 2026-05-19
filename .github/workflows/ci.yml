@@ -46,4 +46,4 @@ jobs:
         run: bun audit
 
       - name: Production build
-        run: bun run build
+        run: bunx next build

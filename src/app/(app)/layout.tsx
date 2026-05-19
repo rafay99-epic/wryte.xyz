@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { KbdGroup } from "@/components/ui/kbd";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CommandPalette } from "@/features/command-palette/command-palette";
+import { useVersionCheck } from "@/hooks/use-version-check";
 import { splitShortcutKeys } from "@/lib/shortcuts";
 import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/stores/editor-store";
@@ -40,6 +41,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     () => setCommandPaletteOpen(false),
     [],
   );
+
+  useVersionCheck();
 
   // Register global keyboard shortcuts
   useAppHotkeys({

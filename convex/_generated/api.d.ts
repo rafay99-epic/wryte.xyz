@@ -25,6 +25,7 @@ import type * as ai_credentials from "../ai/credentials.js";
 import type * as ai_credentialsDb from "../ai/credentialsDb.js";
 import type * as ai_enhance from "../ai/enhance.js";
 import type * as ai_enhanceActions from "../ai/enhanceActions.js";
+import type * as cms_appVersion from "../cms/appVersion.js";
 import type * as cms_boardColumns from "../cms/boardColumns.js";
 import type * as cms_changelog from "../cms/changelog.js";
 import type * as cms_conflicts from "../cms/conflicts.js";
@@ -78,6 +79,7 @@ declare const fullApi: ApiFromModules<{
   "ai/credentialsDb": typeof ai_credentialsDb;
   "ai/enhance": typeof ai_enhance;
   "ai/enhanceActions": typeof ai_enhanceActions;
+  "cms/appVersion": typeof cms_appVersion;
   "cms/boardColumns": typeof cms_boardColumns;
   "cms/changelog": typeof cms_changelog;
   "cms/conflicts": typeof cms_conflicts;
