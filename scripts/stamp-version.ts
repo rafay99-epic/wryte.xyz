@@ -1,14 +1,15 @@
 #!/usr/bin/env bun
-/**
- * Post-deploy script — stamps the current app version into the Convex
- * `app_version` singleton so connected clients see the update toast
- * via Convex's real-time websocket.
- *
- * Called automatically during Vercel build after `convex deploy`
- * finishes. Can also be run manually: `bun run stamp-version`
- */
 import { execSync } from "node:child_process";
+import { ConvexHttpClient } from "convex/browser";
+import { api } from "../convex/_generated/api";
 import packageJson from "../package.json";
+
+const convexUrl = process.env["NEXT_PUBLIC_CONVEX_URL"];
+if (!convexUrl) {
+  // biome-ignore lint/suspicious/noConsole: CLI script
+  console.log("NEXT_PUBLIC_CONVEX_URL not set — skipping version stamp.");
+  process.exit(0);
+}
 
 const version = packageJson.version;
 
@@ -30,10 +31,8 @@ const build =
 console.log(`Stamping version ${version} (build ${build})...`);
 
 try {
-  execSync(
-    `npx convex run --no-push cms/appVersion:stamp '${JSON.stringify({ version, build })}'`,
-    { stdio: "inherit" },
-  );
+  const client = new ConvexHttpClient(convexUrl);
+  await client.mutation(api.cms.appVersion.stamp, { version, build });
   // biome-ignore lint/suspicious/noConsole: CLI script
   console.log("Version stamped.");
 } catch (error) {
