@@ -348,6 +348,36 @@ const ENTRIES: SeedEntry[] = [
 - **Convex folder structure** — feature requests live under \`support/\` (alongside support tickets), and one-shot seed scripts moved to \`convex/_seed/\` to match the existing underscore-prefixed special folders.
 `,
   },
+  {
+    title: "Drafts as editor tabs, research panel, and hook colocation",
+    slug: "v0-6-0-drafts-tabs-and-research-panel",
+    description:
+      "Open multiple drafts as tabs in the editor with a built-in research panel, surface AI errors inline, and a structural refactor that colocates hooks with the features that own them.",
+    version: "0.6.0",
+    build: "0d507b9",
+    publishedAt: Date.parse("2026-05-19T22:00:00+05:00"),
+    content: `## What's new
+
+### Editor
+- **Drafts as tabs** — open multiple drafts side-by-side in the editor with a tab bar instead of swapping documents one at a time.
+- **Research panel** — a dockable panel for quick lookups while you write, so reference material stays one click away.
+- **Inline AI error messages** — failures from AI features surface in-place in the editor instead of disappearing into the console.
+
+### Dashboard
+- **Shared tag colors** — board cards, table rows, and the tag editor popover all pull from the same palette, so a tag looks identical everywhere.
+
+## Fixes
+
+- Blog editor resolves media paths correctly when posts reference assets outside the default folder.
+- Version and build numbers in app footers auto-update from the build environment instead of going stale.
+- Board view no longer logs an \`'Escape' is already registered\` warning when its keyboard nav mounts alongside the global app hotkeys.
+
+## Under the hood
+
+- **Hook colocation** — feature-specific hooks now live in \`hooks/\` folders inside their feature directory (\`src/features/editor/hooks/\`, \`src/features/content-dashboard/hooks/\`, \`src/components/layout/hooks/\`). \`src/hooks/\` is reserved for genuinely shared hooks used by multiple unrelated features.
+- **Changelog authoring CLI** — \`bun run changelog:new\` walks you through a new entry, auto-fills the build SHA and slug, and bumps \`package.json\` so the next release does not ship with stale version metadata.
+`,
+  },
 ];
 
 export const seed = action({

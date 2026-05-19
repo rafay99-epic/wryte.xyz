@@ -1,6 +1,6 @@
 {
   "name": "wrypte.xyz",
-  "version": "0.5.4",
+  "version": "0.6.0",
   "private": true,
   "license": "MIT",
   "scripts": {
@@ -13,7 +13,8 @@
     "start": "next start",
     "lint": "biome check",
     "format": "biome format --write",
-    "type": "tsc --noEmit"
+    "type": "tsc --noEmit",
+    "changelog:new": "bun scripts/changelog-new.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.96.0",
