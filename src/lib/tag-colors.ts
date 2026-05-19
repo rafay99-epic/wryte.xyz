@@ -61,5 +61,6 @@ const TAG_PALETTE = [
 export type TagColorSet = (typeof TAG_PALETTE)[number];
 
 export function getTagColor(tag: string): TagColorSet {
-  return TAG_PALETTE[hashTag(tag) % TAG_PALETTE.length]!;
+  const idx = hashTag(tag) % TAG_PALETTE.length;
+  return TAG_PALETTE[idx] ?? TAG_PALETTE[0];
 }
