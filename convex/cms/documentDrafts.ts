@@ -36,7 +36,7 @@ export const list = query({
     const drafts = await ctx.db
       .query("document_drafts")
       .withIndex("by_documentId", (q) => q.eq("documentId", args.documentId))
-      .collect();
+      .take(50);
 
     return drafts.sort((a, b) => a.createdAt - b.createdAt);
   },
@@ -76,7 +76,7 @@ export const create = mutation({
     const existing = await ctx.db
       .query("document_drafts")
       .withIndex("by_documentId", (q) => q.eq("documentId", args.documentId))
-      .collect();
+      .take(100);
 
     const now = Date.now();
     const label = args.label?.trim() || `Draft ${String(existing.length + 1)}`;

@@ -46,17 +46,17 @@ export const selfDestructPreview = query({
     const projects = await ctx.db
       .query("projects")
       .withIndex("by_userId", (q) => q.eq("userId", user._id))
-      .collect();
+      .take(100);
 
     const documents = await ctx.db
       .query("documents")
       .withIndex("by_userId", (q) => q.eq("userId", user._id))
-      .collect();
+      .take(5000);
 
     const mediaUsageRows = await ctx.db
       .query("mediaUsage")
       .withIndex("by_userId", (q) => q.eq("userId", user._id))
-      .collect();
+      .take(100);
     let mediaCount = 0;
     for (const usage of mediaUsageRows) {
       mediaCount += usage.fileCount;
@@ -79,7 +79,7 @@ export const selfDestructPreview = query({
       const rows = await ctx.db
         .query("scheduled_publishes")
         .withIndex("by_documentId", (q) => q.eq("documentId", doc._id))
-        .collect();
+        .take(10);
       for (const row of rows) {
         if (row.status === "pending" || row.status === "processing") {
           scheduled.push({
@@ -96,12 +96,12 @@ export const selfDestructPreview = query({
     const credentialRows = await ctx.db
       .query("mediaCredentials")
       .withIndex("by_userId_and_provider", (q) => q.eq("userId", user._id))
-      .collect();
+      .take(20);
 
     const aiCredentialRows = await ctx.db
       .query("aiCredentials")
       .withIndex("by_userId_and_provider", (q) => q.eq("userId", user._id))
-      .collect();
+      .take(20);
 
     return {
       projectCount: projects.length,
@@ -262,7 +262,7 @@ export const _listCancellationTargets = internalQuery({
     const documents = await ctx.db
       .query("documents")
       .withIndex("by_userId", (q) => q.eq("userId", args.userId))
-      .collect();
+      .take(5000);
     const out: Array<{
       _id: Id<"scheduled_publishes">;
       workflowId?: string;
@@ -272,7 +272,7 @@ export const _listCancellationTargets = internalQuery({
       const rows = await ctx.db
         .query("scheduled_publishes")
         .withIndex("by_documentId", (q) => q.eq("documentId", doc._id))
-        .collect();
+        .take(10);
       for (const row of rows) {
         if (row.status === "pending" || row.status === "processing") {
           const entry: {
@@ -304,7 +304,7 @@ export const _listVaultIds = internalQuery({
     const mediaCreds = await ctx.db
       .query("mediaCredentials")
       .withIndex("by_userId_and_provider", (q) => q.eq("userId", args.userId))
-      .collect();
+      .take(20);
     for (const c of mediaCreds) {
       if (c.vaultSecretId) ids.push(c.vaultSecretId);
     }
@@ -312,7 +312,7 @@ export const _listVaultIds = internalQuery({
     const aiCreds = await ctx.db
       .query("aiCredentials")
       .withIndex("by_userId_and_provider", (q) => q.eq("userId", args.userId))
-      .collect();
+      .take(20);
     for (const c of aiCreds) {
       if (c.vaultSecretId) ids.push(c.vaultSecretId);
     }
@@ -366,7 +366,7 @@ export const _wipeChunk = internalMutation({
       const documents = await ctx.db
         .query("documents")
         .withIndex("by_userId", (q) => q.eq("userId", args.userId))
-        .collect();
+        .take(5000);
       for (const doc of documents) {
         if (budget <= 0) break;
         const rows = await ctx.db
@@ -385,7 +385,7 @@ export const _wipeChunk = internalMutation({
       const projects = await ctx.db
         .query("projects")
         .withIndex("by_userId", (q) => q.eq("userId", args.userId))
-        .collect();
+        .take(100);
       for (const project of projects) {
         if (budget <= 0) break;
         const rows = await ctx.db

@@ -1049,7 +1049,7 @@ export const getImportBatch = query({
     const outcomes = await ctx.db
       .query("import_job_outcomes")
       .withIndex("by_batchId", (q) => q.eq("batchId", args.batchId))
-      .collect();
+      .take(500);
 
     let succeeded = 0;
     let failed = 0;
@@ -1172,7 +1172,7 @@ export async function cascadeDeleteScheduledPublishesForDoc(
   const scheduledPublishes = await ctx.db
     .query("scheduled_publishes")
     .withIndex("by_documentId", (q) => q.eq("documentId", documentId))
-    .collect();
+    .take(50);
   for (const sp of scheduledPublishes) {
     await ctx.db.delete(sp._id);
   }
@@ -1269,7 +1269,7 @@ export const getDeleteBatch = query({
     const outcomes = await ctx.db
       .query("delete_job_outcomes")
       .withIndex("by_batchId", (q) => q.eq("batchId", args.batchId))
-      .collect();
+      .take(500);
 
     let succeeded = 0;
     let failed = 0;

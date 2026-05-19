@@ -12,6 +12,7 @@
  * enforced by the `by_slug` index plus an explicit conflict check on
  * create/update.
  */
+import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
@@ -29,20 +30,18 @@ import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
 /* ------------------------------------------------------------------ */
 
 /**
- * Lists published changelog entries in reverse-chronological order.
- * Public — surfaced on the marketing `/changelog` page. Capped at 100
- * because the marketing list is rendered as a single scroll; if we
- * ever cross that many entries we'll switch to pagination.
+ * Paginated published changelog entries in reverse-chronological order.
+ * Public — powers the marketing `/changelog` page with cursor-based
+ * pagination so the page stays fast as the list grows.
  */
 export const listPublished = query({
-  args: {},
-  handler: async (ctx) => {
-    const entries = await ctx.db
+  args: { paginationOpts: paginationOptsValidator },
+  handler: async (ctx, args) => {
+    return await ctx.db
       .query("changelog")
       .withIndex("by_publishedAt", (q) => q.gt("publishedAt", 0))
       .order("desc")
-      .take(100);
-    return entries;
+      .paginate(args.paginationOpts);
   },
 });
 

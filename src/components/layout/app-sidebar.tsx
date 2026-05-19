@@ -19,6 +19,7 @@ import {
   Settings,
   Star,
 } from "lucide-react";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useMemo } from "react";
 import { BrandIcon } from "@/components/branding/brand-icon";
@@ -110,12 +111,15 @@ export function AppSidebar() {
   return (
     <div className="flex h-full w-[260px] flex-col bg-sidebar">
       {/* Product header */}
-      <div className="flex h-12 shrink-0 items-center gap-2 border-b border-sidebar-border px-4">
+      <Link
+        href="/"
+        className="flex h-12 shrink-0 items-center gap-2 border-b border-sidebar-border px-4"
+      >
         <BrandIcon width={24} height={24} className="rounded-md" />
         <span className="text-sm font-semibold tracking-tight text-sidebar-foreground">
           wryte
         </span>
-      </div>
+      </Link>
 
       {/* Navigation */}
       <div className="flex-1 overflow-y-auto slim-scrollbar px-3 py-3">

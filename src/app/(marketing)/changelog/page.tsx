@@ -1,21 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
+import { MarketingFooter } from "@/components/layout/marketing-footer";
 import { ChangelogList } from "./_components/changelog-list";
 import { ChangelogListSkeleton } from "./_components/changelog-list-skeleton";
-
-/**
- * Revalidate the rendered HTML every 60 seconds. The Convex query
- * inside `<ChangelogList>` runs server-side at request time, but the
- * CDN holds the rendered page for up to a minute between fetches so
- * regular visitors hit the cache instead of Convex on every load.
- *
- * (We previously tried Partial Prerendering here, but `cacheComponents`
- * in Next 16 is an app-wide opt-in that would require auditing every
- * client component in the codebase. Plain ISR is a better fit for one
- * mostly-static page.)
- */
-export const revalidate = 60;
 
 export const metadata: Metadata = {
   title: "Changelog",
@@ -24,13 +12,11 @@ export const metadata: Metadata = {
 
 export default function ChangelogPage() {
   return (
-    <div className="relative min-h-screen">
-      {/* Background glow — pure decoration, ships in the static shell */}
+    <div className="relative flex min-h-screen flex-col">
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute left-1/2 top-0 h-[400px] w-[800px] -translate-x-1/2 rounded-full bg-amber-500/[0.04] blur-[120px]" />
       </div>
 
-      {/* Marketing header — static shell */}
       <header className="relative z-10 border-b border-foreground/[0.06]">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
           <Link
@@ -45,8 +31,7 @@ export default function ChangelogPage() {
         </div>
       </header>
 
-      <main className="relative z-10 mx-auto max-w-3xl px-6 py-20 sm:py-28">
-        {/* Hero — static shell, prerendered */}
+      <main className="relative z-10 mx-auto w-full max-w-3xl flex-1 px-6 py-20 sm:py-28">
         <div className="mb-20 text-center">
           <p className="font-mono text-[11px] font-medium uppercase tracking-[0.25em] text-amber-500/80">
             What&apos;s new
@@ -67,11 +52,12 @@ export default function ChangelogPage() {
           </p>
         </div>
 
-        {/* Dynamic hole — streams in from Convex per request via PPR */}
         <Suspense fallback={<ChangelogListSkeleton />}>
           <ChangelogList />
         </Suspense>
       </main>
+
+      <MarketingFooter />
     </div>
   );
 }

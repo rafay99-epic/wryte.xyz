@@ -48,7 +48,7 @@ export const _create = internalMutation({
     const existing = await ctx.db
       .query("sync_conflicts")
       .withIndex("by_documentId", (q) => q.eq("documentId", args.documentId))
-      .collect();
+      .take(10);
     const openConflict = existing.find((c) => c.resolvedAt === undefined);
 
     if (openConflict) {
@@ -118,7 +118,7 @@ export const listForProject = query({
       .withIndex("by_projectId_unresolved", (q) =>
         q.eq("projectId", args.projectId).eq("resolvedAt", undefined),
       )
-      .collect();
+      .take(100);
 
     return conflicts
       .sort((a, b) => b.detectedAt - a.detectedAt)
@@ -154,7 +154,7 @@ export const getOpenByDocument = query({
     const conflicts = await ctx.db
       .query("sync_conflicts")
       .withIndex("by_documentId", (q) => q.eq("documentId", args.documentId))
-      .collect();
+      .take(10);
     const open = conflicts.find((c) => c.resolvedAt === undefined);
     if (!open) return null;
     return {

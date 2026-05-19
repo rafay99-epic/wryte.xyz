@@ -40,7 +40,7 @@ export const list = query({
     const items = await ctx.db
       .query("document_research")
       .withIndex("by_documentId", (q) => q.eq("documentId", args.documentId))
-      .collect();
+      .take(200);
 
     return items.sort((a, b) => b.updatedAt - a.updatedAt);
   },

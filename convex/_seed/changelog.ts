@@ -379,16 +379,36 @@ const ENTRIES: SeedEntry[] = [
 `,
   },
   {
-    title: "New article dialog overflow fix",
-    slug: "v0-6-1-new-article-dialog-overflow-fix",
+    title: "Changelog pagination, footer, and dialog fix",
+    slug: "v0-6-1-changelog-pagination-and-dialog-fix",
     description:
-      "Fix long slugs and file paths overflowing the new article dialog instead of truncating with an ellipsis.",
+      "Paginated changelog on both backend and frontend, added the marketing footer to the changelog page, and fixed text overflow in the new article dialog.",
     version: "0.6.1",
     build: "e6d3814",
     publishedAt: Date.parse("2026-05-19T22:30:00+05:00"),
-    content: `## Fixes
+    content: `## What's new
 
-- **Dialog text overflow** — long slugs and file paths in the "New article" dialog (and the full-page \`/articles/new\` form) now truncate correctly instead of overflowing the container. Added \`min-w-0\` to flex children so \`text-overflow: ellipsis\` can kick in, and \`overflow-hidden\` on the dialog content wrapper as a safety net.
+- **Changelog pagination** — the public changelog page now uses cursor-based pagination via Convex's \`usePaginatedQuery\`, with a "Load older releases" button instead of dumping every entry at once.
+- **Changelog footer** — the \`/changelog\` page now includes the same marketing footer (brand, links, version label) used across the rest of the site.
+- **Shared marketing footer** — extracted the duplicated footer markup into a reusable \`MarketingFooter\` component in \`src/components/layout/\`.
+
+## Fixes
+
+- **Dialog text overflow** — long slugs and file paths in the "New article" dialog (and the full-page \`/articles/new\` form) now truncate correctly instead of overflowing the container.
+`,
+  },
+  {
+    title: "Convex query safety audit",
+    slug: "v0-6-2-convex-query-safety-audit",
+    description:
+      "Replaced every unbounded .collect() across the Convex backend with bounded .take(n) calls to prevent runaway reads as tables grow.",
+    version: "0.6.2",
+    build: "76b9a1e",
+    publishedAt: Date.parse("2026-05-19T23:00:00+05:00"),
+    content: `## Under the hood
+
+- **Bounded all database queries** — every \`.collect()\` call across the Convex backend has been replaced with \`.take(n)\` using limits appropriate to each table's expected cardinality. Affected files: \`documents.ts\`, \`projects.ts\`, \`documentDrafts.ts\`, \`documentResearch.ts\`, \`conflicts.ts\`, \`boardColumns.ts\`, \`trash.ts\`, \`scheduling.ts\`, \`credentialsDb.ts\`, and \`selfDestruct.ts\`.
+- **No functional changes** — queries return the same results for any realistic dataset; the bounds simply prevent runaway reads if a table grows unexpectedly.
 `,
   },
 ];

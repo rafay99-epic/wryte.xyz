@@ -68,7 +68,7 @@ export const listForProject = query({
     const rows = await ctx.db
       .query("mediaCredentials")
       .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
-      .collect();
+      .take(10);
     return rows.map((r) => ({
       _id: r._id,
       provider: r.provider,

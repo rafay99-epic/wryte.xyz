@@ -203,7 +203,7 @@ export const _cleanupExpired = internalMutation({
     let deleted = 0;
     let projectsSkipped = 0;
 
-    const projects = await ctx.db.query("projects").collect();
+    const projects = await ctx.db.query("projects").take(1000);
     for (const project of projects) {
       if (deleted >= PER_RUN_CAP) break;
       const retentionDays =
@@ -226,7 +226,7 @@ export const _cleanupExpired = internalMutation({
             .gt("trashedAt", 0)
             .lte("trashedAt", cutoff),
         )
-        .collect();
+        .take(PER_RUN_CAP);
 
       for (const d of expired) {
         if (deleted >= PER_RUN_CAP) break;

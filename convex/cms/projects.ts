@@ -37,7 +37,7 @@ async function projectsForCurrentUserOrEmpty(
   const projects = await ctx.db
     .query("projects")
     .withIndex("by_userId", (q) => q.eq("userId", user._id))
-    .collect();
+    .take(100);
 
   return sortProjectsForList(projects);
 }
@@ -160,7 +160,7 @@ export const create = mutation({
     const existing = await ctx.db
       .query("projects")
       .withIndex("by_userId", (q) => q.eq("userId", user._id))
-      .collect();
+      .take(100);
     const anyOrdered = existing.some((p) => p.sortOrder !== undefined);
 
     const insertData: {
@@ -358,7 +358,7 @@ export const remove = mutation({
     const documents = await ctx.db
       .query("documents")
       .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
-      .collect();
+      .take(500);
 
     for (const doc of documents) {
       await cascadeDeleteScheduledPublishesForDoc(ctx, doc._id);
@@ -389,7 +389,7 @@ export const internalGet = internalQuery({
 export const _backfillDocumentCounts = internalMutation({
   args: {},
   handler: async (ctx) => {
-    const projects = await ctx.db.query("projects").collect();
+    const projects = await ctx.db.query("projects").take(1000);
     let updated = 0;
     for (const p of projects) {
       const docs = await ctx.db

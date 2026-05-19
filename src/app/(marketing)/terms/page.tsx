@@ -2,6 +2,7 @@ import { ArrowLeft, Scale } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { BrandIcon } from "@/components/branding/brand-icon";
+import { MarketingFooter } from "@/components/layout/marketing-footer";
 import { MarketingThemeToggle } from "@/components/layout/marketing-theme-toggle";
 import { AnimatedSection as Section } from "@/features/marketing/components/animated-section";
 
@@ -339,35 +340,7 @@ export default function TermsPage() {
           </div>
         </main>
 
-        {/* ── Footer ─────────────────────────────────────────────── */}
-        <footer className="border-t border-foreground/[0.12] dark:border-foreground/[0.04] py-8">
-          <div className="mx-auto flex max-w-[1100px] items-center justify-between px-6">
-            <div className="flex items-center gap-2">
-              <BrandIcon
-                width={18}
-                height={18}
-                className="rounded-[3px] opacity-40"
-              />
-              <span className="text-[12px] text-foreground/55 dark:text-foreground/20">
-                &copy; {new Date().getFullYear()} Wryte
-              </span>
-            </div>
-            <div className="flex items-center gap-5 text-[12px] text-foreground/55 dark:text-foreground/20">
-              <Link
-                href="/privacy"
-                className="transition-colors hover:text-foreground dark:hover:text-foreground/40"
-              >
-                Privacy Policy
-              </Link>
-              <Link
-                href="/"
-                className="transition-colors hover:text-foreground dark:hover:text-foreground/40"
-              >
-                Home
-              </Link>
-            </div>
-          </div>
-        </footer>
+        <MarketingFooter />
       </div>
     </div>
   );

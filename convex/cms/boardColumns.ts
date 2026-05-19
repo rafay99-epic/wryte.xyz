@@ -265,7 +265,7 @@ export const removeColumn = mutation({
       .withIndex("by_projectId_and_status", (q) =>
         q.eq("projectId", args.projectId).eq("status", args.columnId),
       )
-      .collect();
+      .take(500);
 
     for (const doc of documents) {
       await ctx.db.patch(doc._id, {

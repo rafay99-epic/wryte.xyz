@@ -109,7 +109,7 @@ export const getLatestForDocument = query({
     const records = await ctx.db
       .query("scheduled_publishes")
       .withIndex("by_documentId", (q) => q.eq("documentId", args.documentId))
-      .collect();
+      .take(10);
 
     if (records.length === 0) return null;
     records.sort((a, b) => b.createdAt - a.createdAt);
@@ -160,7 +160,7 @@ export const schedule = mutation({
     const existing = await ctx.db
       .query("scheduled_publishes")
       .withIndex("by_documentId", (q) => q.eq("documentId", args.documentId))
-      .collect();
+      .take(10);
 
     for (const sp of existing) {
       if (sp.status === "pending" || sp.status === "processing") {
@@ -251,7 +251,7 @@ export const cancel = mutation({
     const scheduledPublishes = await ctx.db
       .query("scheduled_publishes")
       .withIndex("by_documentId", (q) => q.eq("documentId", args.documentId))
-      .collect();
+      .take(10);
 
     for (const sp of scheduledPublishes) {
       if (sp.status === "pending" || sp.status === "processing") {
@@ -361,7 +361,7 @@ export const onPublishComplete = internalMutation({
           .withIndex("by_documentId", (q) =>
             q.eq("documentId", documentId as Id<"documents">),
           )
-          .collect();
+          .take(10);
         const hasFreshSchedule = otherActive.some(
           (s) =>
             s._id !== (publishId as Id<"scheduled_publishes">) &&
@@ -388,7 +388,7 @@ export const onPublishComplete = internalMutation({
           .withIndex("by_documentId", (q) =>
             q.eq("documentId", documentId as Id<"documents">),
           )
-          .collect();
+          .take(10);
         const hasActiveSchedule = otherSchedules.some(
           (s) => s.status === "pending" || s.status === "processing",
         );
