@@ -36,7 +36,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useViewPreferences } from "@/hooks/use-view-preferences";
+import { useViewPreferences } from "@/features/content-dashboard/hooks/use-view-preferences";
 import { fadeIn, smoothTransition } from "@/lib/motion";
 import type { ParsedFrontmatter } from "@/lib/parse-frontmatter";
 import { cn } from "@/lib/utils";

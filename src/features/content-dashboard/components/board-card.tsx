@@ -27,10 +27,10 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useDocumentActions } from "@/hooks/use-document-actions";
-import { useHoverPreview } from "@/hooks/use-hover-preview";
-import { useInlineRename } from "@/hooks/use-inline-rename";
-import { useTagEditor } from "@/hooks/use-tag-editor";
+import { useDocumentActions } from "@/features/content-dashboard/hooks/use-document-actions";
+import { useHoverPreview } from "@/features/content-dashboard/hooks/use-hover-preview";
+import { useInlineRename } from "@/features/content-dashboard/hooks/use-inline-rename";
+import { useTagEditor } from "@/features/content-dashboard/hooks/use-tag-editor";
 import { smoothTransition, staggerItem } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { useBoardStore } from "@/stores/board-store";

@@ -18,7 +18,7 @@ import { Plus } from "lucide-react";
 import { useCallback, useMemo } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { useBoardKeyboardNav } from "@/hooks/use-board-keyboard-nav";
+import { useBoardKeyboardNav } from "@/features/content-dashboard/hooks/use-board-keyboard-nav";
 import type { ParsedFrontmatter } from "@/lib/parse-frontmatter";
 import { useBoardStore } from "@/stores/board-store";
 import type { BoardColumnDef } from "@/types/board";

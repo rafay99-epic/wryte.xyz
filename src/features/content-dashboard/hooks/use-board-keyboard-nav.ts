@@ -7,8 +7,8 @@ import type { ContentItem } from "@/features/content-dashboard/components/conten
 import { isInputFocused } from "@/lib/dom-utils";
 import { useBoardStore } from "@/stores/board-store";
 import type { BoardColumnDef } from "@/types/board";
-import { api } from "../../convex/_generated/api";
-import type { Id } from "../../convex/_generated/dataModel";
+import { api } from "../../../../convex/_generated/api";
+import type { Id } from "../../../../convex/_generated/dataModel";
 
 /**
  * Registers vim-style keyboard shortcuts for board navigation and
@@ -164,5 +164,8 @@ export function useBoardKeyboardNav({
     ],
   );
 
-  useHotkeys(boardHotkeys, { preventDefault: false });
+  useHotkeys(boardHotkeys, {
+    preventDefault: false,
+    conflictBehavior: "allow",
+  });
 }

@@ -4,7 +4,7 @@ import { useQuery } from "convex/react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useShallow } from "zustand/react/shallow";
-import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
+import { useKeyboardShortcuts } from "@/features/editor/hooks/use-keyboard-shortcuts";
 import { splitShortcutKeys } from "@/lib/shortcuts";
 import { useEditorStore } from "@/stores/editor-store";
 import { useShortcutsStore } from "@/stores/shortcuts-store";

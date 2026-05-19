@@ -23,7 +23,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useDocumentActions } from "@/hooks/use-document-actions";
+import { useDocumentActions } from "@/features/content-dashboard/hooks/use-document-actions";
 import { smoothTransition, staggerItem } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import type { BoardColumnDef } from "@/types/board";

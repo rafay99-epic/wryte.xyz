@@ -1,7 +1,7 @@
 "use client";
 
 import Image, { type ImageProps } from "next/image";
-import { useResolvedTheme } from "@/hooks/use-resolved-theme";
+import { useResolvedTheme } from "@/components/branding/hooks/use-resolved-theme";
 import { BRAND, resolveBrandAsset } from "@/lib/branding";
 
 type Props = Omit<ImageProps, "src" | "alt"> & {

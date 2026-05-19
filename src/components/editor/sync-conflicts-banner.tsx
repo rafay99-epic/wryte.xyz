@@ -2,7 +2,7 @@
 
 import { AlertTriangle, ArrowRight } from "lucide-react";
 import Link from "next/link";
-import { useSyncConflicts } from "@/hooks/use-sync-conflicts";
+import { useSyncConflicts } from "@/features/sync-conflicts/hooks/use-sync-conflicts";
 import type { Id } from "../../../convex/_generated/dataModel";
 
 /**

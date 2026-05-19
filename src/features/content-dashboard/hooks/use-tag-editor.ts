@@ -2,8 +2,8 @@ import { useMutation } from "convex/react";
 import type * as React from "react";
 import { useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
-import { api } from "../../convex/_generated/api";
-import type { Id } from "../../convex/_generated/dataModel";
+import { api } from "../../../../convex/_generated/api";
+import type { Id } from "../../../../convex/_generated/dataModel";
 
 /**
  * Shared tag-editing logic used by both the board card inline editor
