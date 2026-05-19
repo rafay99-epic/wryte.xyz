@@ -205,6 +205,17 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     rate: 10,
     period: MINUTE,
   },
+  "documentDrafts:updateContent": {
+    kind: "token bucket",
+    rate: 120,
+    period: MINUTE,
+    capacity: 30,
+  },
+  "documentDrafts:promote": {
+    kind: "fixed window",
+    rate: 10,
+    period: MINUTE,
+  },
   "documentResearch:create": {
     kind: "token bucket",
     rate: 60,

@@ -183,18 +183,84 @@ function hasJsonDelimiter(text: string): boolean {
   return text.includes("}") || text.includes(",") || text.includes("]");
 }
 
+function extractApiMessage(err: unknown): string | undefined {
+  const e = err as {
+    status?: number;
+    message?: string;
+    error?: { message?: string; metadata?: { raw?: string } };
+  };
+  if (e?.error?.message) return e.error.message;
+  if (e?.error?.metadata?.raw) {
+    try {
+      const parsed = JSON.parse(e.error.metadata.raw) as {
+        error?: { message?: string };
+      };
+      if (parsed?.error?.message) return parsed.error.message;
+    } catch {
+      // not JSON
+    }
+  }
+  return e?.message ?? undefined;
+}
+
 function describeProviderError(err: unknown, provider: ProviderName): string {
-  const e = err as { status?: number; message?: string };
+  const e = err as { status?: number; code?: string };
+  const detail = extractApiMessage(err);
+  const prefix = provider === "openrouter" ? "OpenRouter" : provider;
+
   if (e?.status === 401) {
-    return `${provider} rejected the API key. Update it in Project Settings → AI.`;
+    return `${prefix} rejected the API key — update it in Project Settings → AI.`;
+  }
+  if (e?.status === 402) {
+    return `${prefix} credits exhausted — add credits or switch to a different provider/model.`;
+  }
+  if (e?.status === 403) {
+    return `${prefix} denied access — the API key may lack permission for this model.`;
+  }
+  if (e?.status === 408 || e?.code === "timeout") {
+    return `${prefix} request timed out — the model may be overloaded. Try again.`;
   }
   if (e?.status === 429) {
-    return `${provider} is rate-limiting your requests. Try again in a moment.`;
+    return `${prefix} rate limit exceeded — wait a moment and try again.${detail ? ` (${detail})` : ""}`;
+  }
+  if (e?.status === 502 || e?.status === 503) {
+    return `${prefix} is temporarily unavailable (${e.status}) — try again in a few seconds.`;
   }
   if (e?.status !== undefined && e.status >= 500) {
-    return `${provider} returned a server error (${e.status}). Try again shortly.`;
+    return `${prefix} server error (${e.status})${detail ? `: ${detail}` : " — try again shortly."}`;
   }
-  return e?.message ?? "Unknown error";
+  if (detail) return `${prefix}: ${detail}`;
+  return `${prefix}: an unexpected error occurred. Check your API key and model in Project Settings → AI.`;
+}
+
+const STREAM_ERROR_SENTINEL = "__STREAM_ERROR__";
+
+type StreamErrorCtx = {
+  runMutation: import("../_generated/server").ActionCtx["runMutation"];
+};
+
+async function writeStreamError(
+  ctx: StreamErrorCtx,
+  streamId: string,
+  message: string,
+): Promise<void> {
+  try {
+    await ctx.runMutation(components.persistentTextStreaming.lib.addChunk, {
+      streamId,
+      text: `${STREAM_ERROR_SENTINEL}${message}`,
+      final: false,
+    });
+  } catch {
+    // best-effort
+  }
+  try {
+    await ctx.runMutation(
+      components.persistentTextStreaming.lib.setStreamStatus,
+      { streamId, status: "error" },
+    );
+  } catch {
+    // stream may already be terminal
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -254,14 +320,7 @@ export const runEnhancement = internalAction({
       });
     } catch (error) {
       const message = describeProviderError(error, args.provider);
-      try {
-        await ctx.runMutation(
-          components.persistentTextStreaming.lib.setStreamStatus,
-          { streamId, status: "error" },
-        );
-      } catch {
-        // Stream may already be in a terminal state.
-      }
+      await writeStreamError(ctx, streamId, message);
       throw new Error(message);
     }
   },
@@ -394,14 +453,7 @@ export const runFinalDraft = internalAction({
       });
     } catch (error) {
       const message = describeProviderError(error, args.provider);
-      try {
-        await ctx.runMutation(
-          components.persistentTextStreaming.lib.setStreamStatus,
-          { streamId, status: "error" },
-        );
-      } catch {
-        // Stream may already be in a terminal state.
-      }
+      await writeStreamError(ctx, streamId, message);
       throw new Error(message);
     }
   },
@@ -467,14 +519,7 @@ export const runInlineEnhancement = internalAction({
       });
     } catch (error) {
       const message = describeProviderError(error, args.provider);
-      try {
-        await ctx.runMutation(
-          components.persistentTextStreaming.lib.setStreamStatus,
-          { streamId, status: "error" },
-        );
-      } catch {
-        // Already terminal.
-      }
+      await writeStreamError(ctx, streamId, message);
       throw new Error(message);
     }
   },
@@ -675,14 +720,7 @@ export const runFrontmatterSuggestion = internalAction({
       });
     } catch (error) {
       const message = describeProviderError(error, args.provider);
-      try {
-        await ctx.runMutation(
-          components.persistentTextStreaming.lib.setStreamStatus,
-          { streamId, status: "error" },
-        );
-      } catch {
-        // Already terminal.
-      }
+      await writeStreamError(ctx, streamId, message);
       throw new Error(message);
     }
   },

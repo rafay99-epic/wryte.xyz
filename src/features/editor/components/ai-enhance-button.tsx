@@ -27,6 +27,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { getStreamErrorMessage } from "@/lib/stream-error";
 import { useEditorStore } from "@/stores/editor-store";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
@@ -461,8 +462,10 @@ export function AiEnhanceButton({
                           Enhancement failed
                         </p>
                         <p className="text-[13px] text-red-500/70 mt-0.5">
-                          An error occurred while generating the enhancement.
-                          Please try again.
+                          {getStreamErrorMessage(
+                            streamText,
+                            "An error occurred while generating the enhancement. Please try again.",
+                          )}
                         </p>
                       </div>
                       <Button

@@ -38,15 +38,26 @@ export const list = query({
       .withIndex("by_documentId", (q) => q.eq("documentId", args.documentId))
       .collect();
 
-    return drafts.sort((a, b) => b.createdAt - a.createdAt);
+    return drafts.sort((a, b) => a.createdAt - b.createdAt);
   },
 });
 
-export const createFromDocument = mutation({
+export const get = query({
+  args: { draftId: v.id("document_drafts") },
+  handler: async (ctx, args) => {
+    const user = await getAuthedUserOrNull(ctx);
+    if (!user) return null;
+    const draft = await ctx.db.get(args.draftId);
+    if (!draft || draft.userId !== user._id) return null;
+    return draft;
+  },
+});
+
+export const create = mutation({
   args: {
     documentId: v.id("documents"),
-    label: v.string(),
-    summary: v.optional(v.string()),
+    label: v.optional(v.string()),
+    copyFromMain: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const key = await getRateLimitKey(ctx);
@@ -61,22 +72,28 @@ export const createFromDocument = mutation({
       args.documentId,
       user._id,
     );
+
+    const existing = await ctx.db
+      .query("document_drafts")
+      .withIndex("by_documentId", (q) => q.eq("documentId", args.documentId))
+      .collect();
+
     const now = Date.now();
-    const label =
-      args.label.trim() || `Draft ${new Date(now).toLocaleString()}`;
+    const label = args.label?.trim() || `Draft ${String(existing.length + 1)}`;
+
+    const copyContent = args.copyFromMain ?? false;
 
     return await ctx.db.insert("document_drafts", {
       documentId: args.documentId,
       projectId: document.projectId,
       userId: user._id,
       label,
-      contentSnapshot: document.content,
-      ...(document.frontmatter !== undefined
+      contentSnapshot: copyContent ? document.content : "",
+      titleSnapshot: copyContent ? document.title : "",
+      ...(copyContent && document.frontmatter !== undefined
         ? { frontmatterSnapshot: document.frontmatter }
         : {}),
-      titleSnapshot: document.title,
-      ...(args.summary?.trim() ? { summary: args.summary.trim() } : {}),
-      wordCount: wordCount(document.content),
+      wordCount: copyContent ? wordCount(document.content) : 0,
       createdAt: now,
       updatedAt: now,
     });
@@ -158,11 +175,15 @@ export const update = mutation({
   },
 });
 
-export const remove = mutation({
-  args: { draftId: v.id("document_drafts") },
+export const updateContent = mutation({
+  args: {
+    draftId: v.id("document_drafts"),
+    title: v.optional(v.string()),
+    content: v.optional(v.string()),
+  },
   handler: async (ctx, args) => {
     const key = await getRateLimitKey(ctx);
-    await rateLimiter.limit(ctx, "documentDrafts:remove", {
+    await rateLimiter.limit(ctx, "documentDrafts:updateContent", {
       key,
       throws: true,
     });
@@ -172,15 +193,29 @@ export const remove = mutation({
     if (!draft || draft.userId !== user._id) {
       throw new Error("Draft not found");
     }
-    await ctx.db.delete(args.draftId);
+
+    const updates: {
+      titleSnapshot?: string;
+      contentSnapshot?: string;
+      wordCount?: number;
+      updatedAt: number;
+    } = { updatedAt: Date.now() };
+
+    if (args.title !== undefined) updates.titleSnapshot = args.title;
+    if (args.content !== undefined) {
+      updates.contentSnapshot = args.content;
+      updates.wordCount = wordCount(args.content);
+    }
+
+    await ctx.db.patch(args.draftId, updates);
   },
 });
 
-export const restoreToDocument = mutation({
+export const promoteToMain = mutation({
   args: { draftId: v.id("document_drafts") },
   handler: async (ctx, args) => {
     const key = await getRateLimitKey(ctx);
-    await rateLimiter.limit(ctx, "documentDrafts:restore", {
+    await rateLimiter.limit(ctx, "documentDrafts:promote", {
       key,
       throws: true,
     });
@@ -204,7 +239,24 @@ export const restoreToDocument = mutation({
       title: draft.titleSnapshot,
       content: draft.contentSnapshot,
       frontmatter: draft.frontmatterSnapshot,
-      restoredFrom: draft.createdAt,
     };
+  },
+});
+
+export const remove = mutation({
+  args: { draftId: v.id("document_drafts") },
+  handler: async (ctx, args) => {
+    const key = await getRateLimitKey(ctx);
+    await rateLimiter.limit(ctx, "documentDrafts:remove", {
+      key,
+      throws: true,
+    });
+
+    const user = await getCurrentUser(ctx);
+    const draft = await ctx.db.get(args.draftId);
+    if (!draft || draft.userId !== user._id) {
+      throw new Error("Draft not found");
+    }
+    await ctx.db.delete(args.draftId);
   },
 });

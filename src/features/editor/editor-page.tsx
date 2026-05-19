@@ -1,11 +1,11 @@
 "use client";
 
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { motion } from "framer-motion";
 import { ArrowLeft, FileQuestion, LayoutDashboard } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useShallow } from "zustand/react/shallow";
 import { ConflictLockView } from "@/components/editor/conflict-lock-view";
@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/stores/editor-store";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
+import { AiSynthesisDialog } from "./components/ai-synthesis-dialog";
 
 export function EditorPage() {
   const params = useParams();
@@ -32,30 +33,36 @@ export function EditorPage() {
     api.cms.projects.get,
     document ? { projectId: document.projectId } : "skip",
   );
-  // Pending sync conflict (if any) for this document. While set, the
-  // editor renders a locked view and autosave is suppressed —
-  // `documents.update` also refuses to write, so a stale tab can't
-  // race past the lock.
   const openConflict = useQuery(api.cms.conflicts.getOpenByDocument, {
     documentId: documentId as Id<"documents">,
   });
 
-  const { content, title, isDirty, initDocument, reset } = useEditorStore(
+  const updateDocument = useMutation(api.cms.documents.update);
+  const updateDraftContent = useMutation(api.cms.documentDrafts.updateContent);
+
+  const {
+    content,
+    title,
+    isDirty,
+    activeDraftId,
+    initDocument,
+    reset,
+    setActiveDraftId,
+  } = useEditorStore(
     useShallow((state) => ({
       content: state.content,
       title: state.title,
       isDirty: state.isDirty,
+      activeDraftId: state.activeDraftId,
       initDocument: state.initDocument,
       reset: state.reset,
+      setActiveDraftId: state.setActiveDraftId,
     })),
   );
 
   const hasInitialized = useRef(false);
-  /** Track which documentId we initialised for, so we re-init on navigation. */
   const initializedDocId = useRef<string | null>(null);
 
-  // Initialize the editor store when document loads — uses a single atomic
-  // update that does NOT mark the store dirty, preventing spurious autosaves.
   useEffect(() => {
     if (
       document &&
@@ -68,10 +75,10 @@ export function EditorPage() {
         document.content,
         document.projectId as string,
       );
+      setActiveDraftId(null);
     }
-  }, [document, documentId, initDocument]);
+  }, [document, documentId, initDocument, setActiveDraftId]);
 
-  // Reset store on unmount
   useEffect(() => {
     return () => {
       reset();
@@ -80,10 +87,13 @@ export function EditorPage() {
     };
   }, [reset]);
 
-  // Update store if document changes externally (and user hasn't made edits).
-  // Uses atomic initDocument to avoid marking dirty between setTitle/setContent.
   useEffect(() => {
-    if (document && hasInitialized.current && !isDirty) {
+    if (
+      document &&
+      hasInitialized.current &&
+      !isDirty &&
+      activeDraftId === null
+    ) {
       if (document.content !== content || document.title !== title) {
         initDocument(
           document.title,
@@ -92,24 +102,50 @@ export function EditorPage() {
         );
       }
     }
-  }, [document, isDirty, content, title, initDocument]);
+  }, [document, isDirty, content, title, initDocument, activeDraftId]);
 
-  // Wire up autosave. `autoSaveEnabled` is per-project, defaults to true
-  // when the field is absent on the document/project. Locked docs (open
-  // sync conflict) suppress autosave entirely; the server-side check
-  // in `documents.update` is the source of truth, this just avoids
-  // sending guaranteed-to-fail writes.
+  const saveDocument = useCallback(
+    async (c: string, t: string) => {
+      await updateDocument({
+        documentId: documentId as Id<"documents">,
+        content: c,
+        title: t,
+      });
+    },
+    [documentId, updateDocument],
+  );
+
+  const saveDraft = useCallback(
+    async (c: string, t: string) => {
+      if (!activeDraftId) return;
+      await updateDraftContent({
+        draftId: activeDraftId as Id<"document_drafts">,
+        content: c,
+        title: t,
+      });
+    },
+    [activeDraftId, updateDraftContent],
+  );
+
+  const targetId = activeDraftId ?? documentId;
+  const onSave = activeDraftId ? saveDraft : saveDocument;
+
   const autoSaveEnabled =
     (project?.autoSaveEnabled ?? true) && openConflict == null;
   const { saveNow } = useAutosave({
-    documentId,
+    targetId,
     content,
     title,
+    onSave,
     enabled: autoSaveEnabled,
   });
 
-  // Manual save via Cmd/Ctrl+S — works regardless of auto-save setting so
-  // authors who disable auto-save still have a fast keyboard path.
+  const handleRequestSave = useCallback(async () => {
+    if (useEditorStore.getState().isDirty) {
+      await saveNow();
+    }
+  }, [saveNow]);
+
   const handleManualSave = useCallback(() => {
     if (!useEditorStore.getState().isDirty) {
       toast.info("Nothing to save", { id: "manual-save" });
@@ -120,8 +156,6 @@ export function EditorPage() {
         toast.success("Saved", { id: "manual-save", duration: 1500 });
       })
       .catch(() => {
-        // useAutosave already surfaces persistent failures; this toast covers
-        // the immediate one-off case so the user gets feedback right away.
         toast.error("Save failed", { id: "manual-save" });
       });
   }, [saveNow]);
@@ -139,6 +173,7 @@ export function EditorPage() {
 
   const historyPanelOpen = useEditorStore((s) => s.historyPanelOpen);
   const toggleHistoryPanel = useEditorStore((s) => s.toggleHistoryPanel);
+  const [synthesisOpen, setSynthesisOpen] = useState(false);
 
   if (document === undefined || project === undefined) {
     return (
@@ -176,20 +211,24 @@ export function EditorPage() {
       <EditorLayout
         documentId={documentId}
         projectId={document.projectId as string}
+        onRequestSave={handleRequestSave}
+        onSynthesisOpen={() => setSynthesisOpen(true)}
       />
       <PublishHistoryPanel
         documentId={documentId}
         open={historyPanelOpen}
         onClose={toggleHistoryPanel}
       />
+      <AiSynthesisDialog
+        open={synthesisOpen}
+        onOpenChange={setSynthesisOpen}
+        documentId={documentId}
+        projectId={document.projectId as string}
+      />
     </div>
   );
 }
 
-/**
- * Friendly not-found state shown when the document or its parent project
- * no longer exists (e.g. deleted, bad URL).
- */
 function DocumentNotFound() {
   const router = useRouter();
 

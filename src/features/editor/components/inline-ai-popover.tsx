@@ -13,6 +13,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { getStreamErrorMessage } from "@/lib/stream-error";
 import { useEditorStore } from "@/stores/editor-store";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
@@ -264,7 +265,10 @@ export function InlineAiPopover({
                   <div className="mt-2 flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2">
                     <AlertCircle className="size-4 text-red-500 shrink-0" />
                     <p className="flex-1 text-xs text-red-600">
-                      Transformation failed. Please try again.
+                      {getStreamErrorMessage(
+                        streamText,
+                        "Transformation failed. Please try again.",
+                      )}
                     </p>
                     <Button
                       variant="outline"
