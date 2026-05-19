@@ -25,6 +25,12 @@ export function MarketingFooter() {
               Changelog
             </Link>
             <Link
+              href="/feature-requests"
+              className="transition-colors hover:text-foreground/70"
+            >
+              Feature Requests
+            </Link>
+            <Link
               href="/contact"
               className="transition-colors hover:text-foreground/70"
             >
