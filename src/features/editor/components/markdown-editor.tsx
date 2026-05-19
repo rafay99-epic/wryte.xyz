@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "convex/react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useShallow } from "zustand/react/shallow";
 import { useKeyboardShortcuts } from "@/features/editor/hooks/use-keyboard-shortcuts";
@@ -94,6 +94,11 @@ export function MarkdownEditor() {
     onInlineAI,
   });
 
+  // Track whether the latest content change originated from the textarea itself.
+  // When true the sync effect skips the store→textarea write, preserving the
+  // browser's native undo stack.
+  const isInternalUpdateRef = useRef(false);
+
   // Listen for native `input` events and push into Zustand store
   useEffect(() => {
     const textarea = textareaRef.current;
@@ -101,6 +106,7 @@ export function MarkdownEditor() {
 
     function handleInput(e: Event) {
       const target = e.target as HTMLTextAreaElement;
+      isInternalUpdateRef.current = true;
       setContent(target.value);
     }
 
@@ -110,8 +116,14 @@ export function MarkdownEditor() {
     };
   }, [textareaRef, setContent]);
 
-  // Sync store -> textarea when content changes externally
+  // Sync store -> textarea only when content changes externally
+  // (e.g. document load, draft switch, AI enhance).
+  // Skipped for textarea-originated changes to preserve the undo stack.
   useEffect(() => {
+    if (isInternalUpdateRef.current) {
+      isInternalUpdateRef.current = false;
+      return;
+    }
     const textarea = textareaRef.current;
     if (textarea && textarea.value !== content) {
       textarea.value = content;

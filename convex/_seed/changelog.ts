@@ -411,6 +411,20 @@ const ENTRIES: SeedEntry[] = [
 - **No functional changes** — queries return the same results for any realistic dataset; the bounds simply prevent runaway reads if a table grows unexpectedly.
 `,
   },
+  {
+    title: "Editor undo/redo fix",
+    slug: "v0-6-3-editor-undo-redo-fix",
+    description:
+      "Fixed Cmd+Z / Ctrl+Z undo and redo not working in the markdown editor by preserving the browser's native undo stack.",
+    version: "0.6.3",
+    build: "907c5e5",
+    publishedAt: Date.parse("2026-05-19T23:30:00+05:00"),
+    content: `## Fixes
+
+- **Undo/redo restored** — \`Cmd+Z\` / \`Ctrl+Z\` and \`Cmd+Shift+Z\` / \`Ctrl+Y\` now work correctly in the editor. The store-to-textarea sync effect was overwriting \`textarea.value\` on every content change, which destroyed the browser's native undo stack. Internal (typed) changes now skip the sync, preserving undo history.
+- **\`replaceContent\` preserves undo** — the \`replaceContent\` helper (used by AI features) now uses \`setRangeText\` instead of direct \`.value\` assignment, keeping the undo chain intact after AI rewrites.
+`,
+  },
 ];
 
 export const seed = action({

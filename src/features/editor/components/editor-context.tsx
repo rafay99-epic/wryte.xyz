@@ -85,7 +85,8 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     const textarea = textareaRef.current;
     if (!textarea) return;
 
-    textarea.value = content;
+    textarea.focus();
+    textarea.setRangeText(content, 0, textarea.value.length, "end");
     textarea.dispatchEvent(new Event("input", { bubbles: true }));
   }, []);
 
