@@ -18,6 +18,7 @@
  * Admin writes (status updates, deletes) re-verify the admin role
  * server-side and are rate-limited independently.
  */
+import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
@@ -49,7 +50,7 @@ type PublicFeatureRequest = Doc<"feature_requests"> & {
 /* ------------------------------------------------------------------ */
 
 /**
- * Lists all feature requests sorted by upvote count (descending).
+ * Paginated feature requests sorted by upvote count (descending).
  *
  * Returns `currentUserUpvoted` per row so the client can render the
  * upvote button in its correct on/off state without a second query.
@@ -58,33 +59,35 @@ type PublicFeatureRequest = Doc<"feature_requests"> & {
 export const list = query({
   args: {
     status: v.optional(STATUS_VALIDATOR),
+    paginationOpts: paginationOptsValidator,
   },
-  handler: async (ctx, args): Promise<PublicFeatureRequest[]> => {
+  handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     const callerClerkId = identity
       ? parseClerkUserId(identity.tokenIdentifier)
       : null;
 
-    const requests = args.status
+    const result = args.status
       ? await ctx.db
           .query("feature_requests")
           .withIndex("by_status_and_upvoteCount", (q) =>
             q.eq("status", args.status as PublicFeatureRequest["status"]),
           )
           .order("desc")
-          .take(200)
+          .paginate(args.paginationOpts)
       : await ctx.db
           .query("feature_requests")
           .withIndex("by_upvoteCount")
           .order("desc")
-          .take(200);
+          .paginate(args.paginationOpts);
 
     if (!callerClerkId) {
-      return requests.map((r) => ({ ...r, currentUserUpvoted: false }));
+      return {
+        ...result,
+        page: result.page.map((r) => ({ ...r, currentUserUpvoted: false })),
+      };
     }
 
-    // Fetch the caller's upvotes once and zip into the result. Cheaper
-    // than one lookup per row even for a few hundred entries.
     const myUpvotes = await ctx.db
       .query("feature_request_upvotes")
       .withIndex("by_user_and_request", (q) =>
@@ -93,10 +96,13 @@ export const list = query({
       .take(500);
     const upvotedSet = new Set(myUpvotes.map((u) => u.featureRequestId));
 
-    return requests.map((r) => ({
-      ...r,
-      currentUserUpvoted: upvotedSet.has(r._id),
-    }));
+    return {
+      ...result,
+      page: result.page.map((r) => ({
+        ...r,
+        currentUserUpvoted: upvotedSet.has(r._id),
+      })),
+    };
   },
 });
 

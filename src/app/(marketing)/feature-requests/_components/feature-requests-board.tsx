@@ -1,10 +1,10 @@
 "use client";
 
 import { SignInButton, useUser } from "@clerk/nextjs";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation, usePaginatedQuery } from "convex/react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronUp, Plus, Sparkles } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { ChevronUp, Loader2, Plus, Sparkles } from "lucide-react";
+import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import { api } from "../../../../../convex/_generated/api";
 import type { Id } from "../../../../../convex/_generated/dataModel";
@@ -41,13 +41,17 @@ export function FeatureRequestsBoard() {
   const [tab, setTab] = useState<StatusFilter>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  const requests = useQuery(
+  const PAGE_SIZE = 15;
+  const {
+    results,
+    status: paginationStatus,
+    loadMore,
+  } = usePaginatedQuery(
     api.support.featureRequests.list,
     tab === "all" ? {} : { status: tab },
+    { initialNumItems: PAGE_SIZE },
   );
   const toggleUpvote = useMutation(api.support.featureRequests.toggleUpvote);
-
-  const sortedRequests = useMemo(() => requests ?? null, [requests]);
 
   const handleVote = useCallback(
     async (id: Id<"feature_requests">) => {
@@ -120,7 +124,7 @@ export function FeatureRequestsBoard() {
       </div>
 
       {/* List */}
-      {sortedRequests === null ? (
+      {paginationStatus === "LoadingFirstPage" ? (
         <ul className="space-y-3">
           {[0, 1, 2, 3, 4].map((i) => (
             <li
@@ -129,7 +133,7 @@ export function FeatureRequestsBoard() {
             />
           ))}
         </ul>
-      ) : sortedRequests.length === 0 ? (
+      ) : results.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-foreground/15 p-14 text-center">
           <p className="text-sm text-foreground/65">
             Nothing here yet. Be the first to suggest something.
@@ -148,7 +152,7 @@ export function FeatureRequestsBoard() {
       ) : (
         <ul className="space-y-3">
           <AnimatePresence initial={false}>
-            {sortedRequests.map((req, idx) => (
+            {results.map((req, idx) => (
               <motion.li
                 key={req._id}
                 layout
@@ -216,6 +220,24 @@ export function FeatureRequestsBoard() {
             ))}
           </AnimatePresence>
         </ul>
+      )}
+
+      {paginationStatus === "CanLoadMore" && (
+        <div className="mt-8 flex justify-center">
+          <button
+            type="button"
+            onClick={() => loadMore(PAGE_SIZE)}
+            className="inline-flex items-center gap-2 rounded-full border border-foreground/15 bg-foreground/[0.03] px-5 py-2.5 text-sm font-medium text-foreground/70 transition-colors hover:border-foreground/25 hover:bg-foreground/[0.06] hover:text-foreground"
+          >
+            Load more
+          </button>
+        </div>
+      )}
+
+      {paginationStatus === "LoadingMore" && (
+        <div className="mt-8 flex justify-center py-4">
+          <Loader2 className="size-5 animate-spin text-foreground/40" />
+        </div>
       )}
 
       <NewRequestDialog open={dialogOpen} onOpenChange={setDialogOpen} />

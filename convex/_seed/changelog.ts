@@ -524,6 +524,25 @@ const ENTRIES: SeedEntry[] = [
 - Six new rate limits for social credential and post operations.
 `,
   },
+  {
+    title: "Paginated public feature requests",
+    slug: "v0-7-5-paginated-feature-requests",
+    description:
+      "The public feature requests board now uses cursor-based pagination instead of loading all entries at once.",
+    version: "0.7.5",
+    build: "628f48e",
+    publishedAt: Date.parse("2026-05-21T00:30:00+05:00"),
+    content: `## What's new
+
+- **Paginated feature requests** — the public board at \`/feature-requests\` now loads 15 items at a time with a "Load more" button, matching the changelog pagination pattern. Reduces initial payload and keeps the page fast as the board grows.
+- **Platform list cleanup** — removed 5 platforms (TikTok, Instagram, YouTube, Pinterest, Google Business) from the Upload-Post integration that don't support text-only posting per the API docs.
+
+## Under the hood
+
+- Converted the \`list\` query in \`convex/support/featureRequests.ts\` from \`.take(200)\` to Convex cursor-based \`.paginate()\`.
+- Frontend switched from \`useQuery\` to \`usePaginatedQuery\` with loading states for first page and subsequent pages.
+`,
+  },
 ];
 
 export const seed = action({
