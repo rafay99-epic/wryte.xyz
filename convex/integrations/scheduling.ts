@@ -45,6 +45,7 @@ export const scheduledPublishWorkflow = publishWorkflowManager.define({
     publishId: v.id("scheduled_publishes"),
     documentId: v.id("documents"),
     scheduledAt: v.number(),
+    socialPostText: v.optional(v.string()),
   },
   handler: async (step, args) => {
     // Step 1: Wait until the scheduled time, then mark as "processing"
@@ -60,9 +61,15 @@ export const scheduledPublishWorkflow = publishWorkflowManager.define({
     // they wake up. publishedAtMs is the user's *intended* publish time —
     // we pass it so the resulting frontmatter's pubDate reflects the time
     // the user picked, not the (often few-second-later) workflow fire time.
+    const publishArgs: {
+      documentId: typeof args.documentId;
+      publishedAtMs: number;
+      socialPostText?: string;
+    } = { documentId: args.documentId, publishedAtMs: args.scheduledAt };
+    if (args.socialPostText) publishArgs.socialPostText = args.socialPostText;
     await step.runAction(
       internal.integrations.github.publishToGithub,
-      { documentId: args.documentId, publishedAtMs: args.scheduledAt },
+      publishArgs,
       {
         retry: {
           maxAttempts: 3,
@@ -135,6 +142,7 @@ export const schedule = mutation({
   args: {
     documentId: v.id("documents"),
     scheduledAt: v.number(),
+    socialPostText: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const key = await getRateLimitKey(ctx);
@@ -154,6 +162,10 @@ export const schedule = mutation({
 
     if (args.scheduledAt <= Date.now()) {
       throw new Error("Please choose a date and time in the future.");
+    }
+
+    if (args.socialPostText && args.socialPostText.length > 2000) {
+      throw new Error("Social post text is too long (max 2000 characters).");
     }
 
     // Cancel any existing pending workflows for this document
@@ -184,26 +196,41 @@ export const schedule = mutation({
     }
 
     // Create the scheduled publish record
-    const publishId = await ctx.db.insert("scheduled_publishes", {
+    const insertDoc: {
+      documentId: Id<"documents">;
+      scheduledAt: number;
+      status: "pending";
+      socialPostText?: string;
+      createdAt: number;
+    } = {
       documentId: args.documentId,
       scheduledAt: args.scheduledAt,
       status: "pending",
       createdAt: Date.now(),
-    });
+    };
+    if (args.socialPostText) insertDoc.socialPostText = args.socialPostText;
+    const publishId = await ctx.db.insert("scheduled_publishes", insertDoc);
 
     // Start the durable workflow. The workflow no longer carries a
     // credential — `publishToGithub` resolves a fresh token from Clerk
     // (or vault) at fire-time, which is what makes long-term schedules
     // reliable even when the captured-at-schedule-time token would have
     // expired.
+    const workflowArgs: {
+      publishId: Id<"scheduled_publishes">;
+      documentId: Id<"documents">;
+      scheduledAt: number;
+      socialPostText?: string;
+    } = {
+      publishId,
+      documentId: args.documentId,
+      scheduledAt: args.scheduledAt,
+    };
+    if (args.socialPostText) workflowArgs.socialPostText = args.socialPostText;
     const workflowId = await publishWorkflowManager.start(
       ctx,
       internal.integrations.scheduling.scheduledPublishWorkflow,
-      {
-        publishId,
-        documentId: args.documentId,
-        scheduledAt: args.scheduledAt,
-      },
+      workflowArgs,
       {
         onComplete: internal.integrations.scheduling.onPublishComplete,
         context: { publishId, documentId: args.documentId },

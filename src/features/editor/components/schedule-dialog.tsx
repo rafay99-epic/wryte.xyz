@@ -10,11 +10,14 @@ import {
   ChevronRight,
   Clock,
   Loader2,
+  Share2,
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { SocialPostField } from "@/components/forms/social-post-field";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import {
   Sheet,
   SheetBody,
@@ -24,6 +27,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { Switch } from "@/components/ui/switch";
 import { TimePicker } from "@/components/ui/time-picker";
 import { TimezoneSelect } from "@/components/ui/timezone-select";
 import {
@@ -213,9 +217,48 @@ export function ScheduleDialog({
     | null
     | undefined;
 
+  const socialConfig = useQuery(
+    api.social.credentialsDb.getPublicConfig,
+    document ? { projectId: document.projectId } : "skip",
+  );
+
   const schedulePublish = useMutation(api.integrations.scheduling.schedule);
   const cancelSchedule = useMutation(api.integrations.scheduling.cancel);
   const updateDocument = useMutation(api.cms.documents.update);
+
+  const [socialPostText, setSocialPostText] = useState("");
+  const [includeSocialPost, setIncludeSocialPost] = useState(true);
+
+  const socialEnabled =
+    project?.socialPostOnPublish === true &&
+    socialConfig?.status === "active" &&
+    Boolean(project?.siteUrl);
+
+  const defaultSocialText = useMemo(() => {
+    if (!socialEnabled || !project?.siteUrl) return "";
+    let parsed: { postTemplate?: string } | null = null;
+    if (socialConfig?.publicConfig) {
+      try {
+        parsed = JSON.parse(socialConfig.publicConfig);
+      } catch {
+        /* corrupted config — fall through to default template */
+      }
+    }
+    const template =
+      parsed?.postTemplate || "New blog post: {{title}}\n\n{{url}}";
+    const slug = document?.slug ?? "untitled";
+    const url = `${project.siteUrl.replace(/\/$/, "")}/${slug}`;
+    const docTitle = document?.title || "Untitled";
+    return template
+      .replace(/\{\{title\}\}/g, docTitle)
+      .replace(/\{\{url\}\}/g, url);
+  }, [
+    socialEnabled,
+    socialConfig?.publicConfig,
+    project?.siteUrl,
+    document?.slug,
+    document?.title,
+  ]);
 
   const isAlreadyScheduled = document?.status === "scheduled";
   const existingScheduledAt = document?.scheduledAt;
@@ -237,10 +280,9 @@ export function ScheduleDialog({
   // Reset state when panel opens
   useEffect(() => {
     if (open) {
-      // Reset the per-dialog timezone to the project default each time the
-      // dialog is reopened, so unrelated schedules don't inherit a stale
-      // override from a previous session.
       setTimezone(projectTimezone);
+      setSocialPostText(defaultSocialText);
+      setIncludeSocialPost(true);
       if (existingScheduledAt) {
         // Read the existing instant *in the project timezone* so the calendar
         // highlights the day the user originally picked, not whatever day it
@@ -262,7 +304,7 @@ export function ScheduleDialog({
         setMinute(0);
       }
     }
-  }, [open, existingScheduledAt, projectTimezone]);
+  }, [open, existingScheduledAt, projectTimezone, defaultSocialText]);
 
   // When user picks a date, auto-adjust time if it would be in the past
   const handleDateSelect = useCallback(
@@ -331,9 +373,12 @@ export function ScheduleDialog({
       // No client-side token capture. `publishToGithub` will resolve a
       // fresh token from Clerk (or the vault PAT) at fire-time, which is
       // what makes scheduling work for arbitrarily long delays.
+      const trimmedSocial =
+        socialEnabled && includeSocialPost ? socialPostText.trim() : "";
       await schedulePublish({
         documentId: documentId as Id<"documents">,
         scheduledAt: scheduledTimestamp,
+        ...(trimmedSocial && { socialPostText: trimmedSocial }),
       });
 
       // Sync the scheduled date into frontmatter's pubDate field
@@ -600,6 +645,37 @@ export function ScheduleDialog({
                 </p>
               )}
             </div>
+
+            {/* Social post text */}
+            {socialEnabled && (
+              <div>
+                <h3 className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+                  <Share2 className="size-3" />
+                  Social announcement
+                </h3>
+                <div className="space-y-2 rounded-xl border border-border/40 bg-card/50 p-4">
+                  <div className="flex items-center justify-between">
+                    <Label
+                      htmlFor="schedule-social-text"
+                      className="text-xs text-muted-foreground"
+                    >
+                      Customize the post text
+                    </Label>
+                    <Switch
+                      checked={includeSocialPost}
+                      onCheckedChange={setIncludeSocialPost}
+                    />
+                  </div>
+                  {includeSocialPost && (
+                    <SocialPostField
+                      id="schedule-social-text"
+                      value={socialPostText}
+                      onChange={setSocialPostText}
+                    />
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Preview */}
             {formattedDateTime && (

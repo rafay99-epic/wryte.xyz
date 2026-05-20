@@ -302,6 +302,7 @@ export const update = mutation({
      * (e.g. 36500 for "100 years") is the UX for "Never auto-cleanup".
      */
     trashRetentionDays: v.optional(v.number()),
+    socialPostOnPublish: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const key = await getRateLimitKey(ctx);

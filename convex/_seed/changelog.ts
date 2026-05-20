@@ -493,6 +493,37 @@ const ENTRIES: SeedEntry[] = [
 - Threaded \`systemPrompt\` through \`createEnhanceStream\`, \`createInlineEnhanceStream\`, and \`createFinalDraftStream\` mutations and their corresponding actions.
 `,
   },
+  {
+    title: "Social media cross-posting and settings refactor",
+    slug: "v0-7-4-social-posting-and-settings-refactor",
+    description:
+      "Auto-announce new blog posts to X, LinkedIn, Bluesky, Threads, Facebook, and Reddit via Upload-Post. Account and project settings pages refactored into modular components.",
+    version: "0.7.4",
+    build: "38b7ee5",
+    publishedAt: Date.parse("2026-05-20T23:59:00+05:00"),
+    content: `## What's new
+
+### Social media cross-posting
+- **Auto-announce on publish** — when you publish a post to GitHub, Wryte can automatically announce it on X, LinkedIn, Bluesky, Threads, Facebook, and Reddit via Upload-Post integration.
+- **Social settings tab** — configure your Upload-Post API key, select platforms, set your username, and customize the post template with \`{{title}}\` and \`{{url}}\` variables.
+- **Post template editor** — shared \`SocialPostField\` component with info tooltip, variable insert buttons, and character counter across settings, publish dialog, and schedule dialog.
+- **Send test post** — verify the integration end-to-end by sending a dummy post to all selected platforms.
+- **Reddit subreddit support** — required subreddit field appears when Reddit is selected, with auto-detection of \`r/\` prefix and trailing slashes.
+- **Platform validation** — only platforms supported by Upload-Post's text API are shown (removed TikTok, Instagram, YouTube, Pinterest, Google Business which require images/video).
+- **Scheduled publish support** — social posts fire for both instant and scheduled publishes.
+
+### Settings refactor
+- **Project settings** — the 3800-line monolith is now a thin shell composing 9 section components (General, GitHub, Content, Publishing, Frontmatter, Media, AI, Social, Danger Zone), each backed by a colocated hook.
+- **Account settings** — the 1400-line page is now a thin shell composing 7 tab components (Account, Appearance, Media, Shortcuts, Support, Self-destruct), each with colocated hooks.
+
+## Under the hood
+
+- Added \`socialCredentials\` table with vault-backed key storage, status tracking, and public config for username/platforms/template/subreddit.
+- Added \`socialPostOnPublish\` toggle to the projects schema.
+- Fire-and-forget \`announcePublish\` internal action — errors are logged but never block the publish flow.
+- Six new rate limits for social credential and post operations.
+`,
+  },
 ];
 
 export const seed = action({

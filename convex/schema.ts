@@ -133,6 +133,8 @@ export default defineSchema({
     aiModel: v.optional(v.string()),
     /** JSON-serialized AiPromptTemplate[] for reusable AI instructions */
     aiPromptTemplates: v.optional(v.string()),
+    /** Auto-post to connected social media when publishing */
+    socialPostOnPublish: v.optional(v.boolean()),
     /**
      * IANA timezone identifier (e.g. "America/New_York"). Drives how
      * scheduled publish times are interpreted and how the publish-date
@@ -416,6 +418,37 @@ export default defineSchema({
     .index("by_userId_and_provider", ["userId", "provider"]),
 
   /**
+   * Social media credentials — per-project, encrypted in WorkOS Vault.
+   *
+   * Mirrors `mediaCredentials` (includes `publicConfig` for non-secret
+   * settings like the Upload-Post profile username and target platforms).
+   * Only one row per (projectId, provider).
+   */
+  socialCredentials: defineTable({
+    projectId: v.id("projects"),
+    userId: v.id("users"),
+    provider: v.literal("upload-post"),
+    vaultSecretId: v.string(),
+    vaultVersionId: v.optional(v.string()),
+    /** JSON: { username: string, platforms: string[] } */
+    publicConfig: v.optional(v.string()),
+    status: v.union(
+      v.literal("active"),
+      v.literal("verifying"),
+      v.literal("invalid"),
+      v.literal("rotating"),
+    ),
+    lastVerifiedAt: v.optional(v.number()),
+    lastVerifyError: v.optional(v.string()),
+    rotatedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_projectId", ["projectId"])
+    .index("by_projectId_and_provider", ["projectId", "provider"])
+    .index("by_userId_and_provider", ["userId", "provider"]),
+
+  /**
    * Media usage counters — denormalized so quota checks don't scan the media table
    * on every upload. Incremented in the same mutation that writes the media row,
    * decremented on delete. `uploadsThisMonth` resets when `monthBucket` rolls over.
@@ -619,6 +652,7 @@ export default defineSchema({
     ),
     error: v.optional(v.string()),
     workflowId: v.optional(v.string()),
+    socialPostText: v.optional(v.string()),
     createdAt: v.number(),
   })
     .index("by_documentId", ["documentId"])

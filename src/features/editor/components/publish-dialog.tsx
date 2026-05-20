@@ -1,10 +1,11 @@
 "use client";
 
 import { useAction, useMutation, useQuery } from "convex/react";
-import { Loader2, Send } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Loader2, Send, Share2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useShallow } from "zustand/react/shallow";
+import { SocialPostField } from "@/components/forms/social-post-field";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -16,6 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { getFileExtension } from "@/lib/content-format";
 import { buildFrontmatter } from "@/lib/markdown";
 import { useEditorStore } from "@/stores/editor-store";
@@ -66,6 +68,11 @@ export function PublishDialog({
     projectId ? { projectId: projectId as Id<"projects"> } : "skip",
   );
 
+  const socialConfig = useQuery(
+    api.social.credentialsDb.getPublicConfig,
+    projectId ? { projectId: projectId as Id<"projects"> } : "skip",
+  );
+
   const publishToGithub = useAction(publishAction);
   const updateDocument = useMutation(documentsUpdate);
 
@@ -76,6 +83,38 @@ export function PublishDialog({
     : `Add ${title || "document"}`;
 
   const [commitMessage, setCommitMessage] = useState(defaultCommitMessage);
+  const [socialPostText, setSocialPostText] = useState("");
+  const [includeSocialPost, setIncludeSocialPost] = useState(true);
+
+  const socialEnabled =
+    project?.socialPostOnPublish === true &&
+    socialConfig?.status === "active" &&
+    Boolean(project?.siteUrl);
+
+  const defaultSocialText = useMemo(() => {
+    if (!socialEnabled || !project?.siteUrl) return "";
+    let parsed: { postTemplate?: string } | null = null;
+    if (socialConfig?.publicConfig) {
+      try {
+        parsed = JSON.parse(socialConfig.publicConfig);
+      } catch {
+        /* corrupted config — fall through to default template */
+      }
+    }
+    const template =
+      parsed?.postTemplate || "New blog post: {{title}}\n\n{{url}}";
+    const slug = document?.slug ?? "untitled";
+    const url = `${project.siteUrl.replace(/\/$/, "")}/${slug}`;
+    return template
+      .replace(/\{\{title\}\}/g, title || "Untitled")
+      .replace(/\{\{url\}\}/g, url);
+  }, [
+    socialEnabled,
+    socialConfig?.publicConfig,
+    project?.siteUrl,
+    document?.slug,
+    title,
+  ]);
 
   // Reset commit message to the current default each time the dialog opens
   useEffect(() => {
@@ -85,8 +124,10 @@ export function PublishDialog({
           ? `Update ${title || "document"}`
           : `Add ${title || "document"}`,
       );
+      setSocialPostText(defaultSocialText);
+      setIncludeSocialPost(true);
     }
-  }, [open, isUpdate, title]);
+  }, [open, isUpdate, title, defaultSocialText]);
 
   // Compute the target file path in the repo for display purposes
   const contentPath = project?.contentPath ?? "content";
@@ -141,9 +182,12 @@ export function PublishDialog({
         useEditorStore.getState().markSaved();
       }
       const trimmedMessage = commitMessage.trim();
+      const trimmedSocial =
+        socialEnabled && includeSocialPost ? socialPostText.trim() : "";
       await publishToGithub({
         documentId: documentId as Id<"documents">,
         ...(trimmedMessage && { commitMessage: trimmedMessage }),
+        ...(trimmedSocial && { socialPostText: trimmedSocial }),
       });
       toast.success("Published successfully!", {
         description: `${title} has been published to GitHub.`,
@@ -210,6 +254,32 @@ export function PublishDialog({
               placeholder="Commit message"
             />
           </div>
+
+          {/* Social post text */}
+          {socialEnabled && (
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Label
+                  htmlFor="social-post-text"
+                  className="flex items-center gap-1.5"
+                >
+                  <Share2 className="size-3 text-muted-foreground" />
+                  Social announcement
+                </Label>
+                <Switch
+                  checked={includeSocialPost}
+                  onCheckedChange={setIncludeSocialPost}
+                />
+              </div>
+              {includeSocialPost && (
+                <SocialPostField
+                  id="social-post-text"
+                  value={socialPostText}
+                  onChange={setSocialPostText}
+                />
+              )}
+            </div>
+          )}
         </div>
 
         <DialogFooter>

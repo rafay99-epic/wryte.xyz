@@ -465,6 +465,44 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
   },
 
   /* ------------------------------------------------------------------ */
+  /*  Social credentials (Upload-Post)                                   */
+  /* ------------------------------------------------------------------ */
+
+  "socialCredentials:set": {
+    kind: "token bucket",
+    rate: 5,
+    period: MINUTE,
+    capacity: 2,
+  },
+  "socialCredentials:rotate": {
+    kind: "fixed window",
+    rate: 10,
+    period: HOUR,
+  },
+  "socialCredentials:test": {
+    kind: "token bucket",
+    rate: 20,
+    period: MINUTE,
+    capacity: 5,
+  },
+  "socialCredentials:delete": {
+    kind: "fixed window",
+    rate: 5,
+    period: HOUR,
+  },
+  "socialCredentials:updateConfig": {
+    kind: "fixed window",
+    rate: 20,
+    period: MINUTE,
+  },
+  "socialPost:test": {
+    kind: "token bucket",
+    rate: 5,
+    period: MINUTE,
+    capacity: 3,
+  },
+
+  /* ------------------------------------------------------------------ */
   /*  GitHub actions                                                     */
   /* ------------------------------------------------------------------ */
 

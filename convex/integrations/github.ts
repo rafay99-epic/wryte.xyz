@@ -371,6 +371,7 @@ export const publishToGithub = internalAction({
      * a few seconds). When omitted, "now" is used.
      */
     publishedAtMs: v.optional(v.number()),
+    socialPostText: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const document = await ctx.runQuery(internal.cms.documents.internalGet, {
@@ -606,6 +607,25 @@ export const publishToGithub = internalAction({
       internal.cms.documents.internalRecordPublishHistory,
       historyArgs,
     );
+
+    if (project.siteUrl && project.socialPostOnPublish) {
+      const announceArgs: {
+        projectId: Id<"projects">;
+        documentTitle: string;
+        publishedUrl: string;
+        customText?: string;
+      } = {
+        projectId: project._id,
+        documentTitle: document.title,
+        publishedUrl: `${project.siteUrl.replace(/\/$/, "")}/${document.slug}`,
+      };
+      if (args.socialPostText) announceArgs.customText = args.socialPostText;
+      await ctx.scheduler.runAfter(
+        0,
+        internal.social.post.announcePublish,
+        announceArgs,
+      );
+    }
   },
 });
 
@@ -617,6 +637,7 @@ export const publish = action({
   args: {
     documentId: v.id("documents"),
     commitMessage: v.optional(v.string()),
+    socialPostText: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<void> => {
     const key = await getRateLimitKey(ctx);
@@ -652,10 +673,17 @@ export const publish = action({
       throw new Error("Unauthorized: you do not own this document");
     }
 
+    if (args.socialPostText && args.socialPostText.length > 2000) {
+      throw new Error("Social post text is too long (max 2000 characters).");
+    }
+
     await ctx.runAction(internal.integrations.github.publishToGithub, {
       documentId: args.documentId,
       ...(args.commitMessage !== undefined && {
         commitMessage: args.commitMessage,
+      }),
+      ...(args.socialPostText !== undefined && {
+        socialPostText: args.socialPostText,
       }),
     });
   },
@@ -957,6 +985,14 @@ export const bulkPublish = action({
         internal.cms.documents.internalRecordPublishHistory,
         bulkHistoryArgs,
       );
+
+      if (project.siteUrl && project.socialPostOnPublish) {
+        await ctx.scheduler.runAfter(0, internal.social.post.announcePublish, {
+          projectId: project._id,
+          documentTitle: entry.doc.title,
+          publishedUrl: `${project.siteUrl.replace(/\/$/, "")}/${entry.doc.slug}`,
+        });
+      }
     }
 
     return {
