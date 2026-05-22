@@ -478,3 +478,72 @@ code.hljs {
   color: #ffd8d3;
   background-color: #78191b;
 }
+
+/* ── Marketing: CTA button shine sweep ───────────────────────────────── */
+@keyframes cta-shine {
+  0% {
+    transform: translateX(-100%) skewX(-15deg);
+  }
+  100% {
+    transform: translateX(200%) skewX(-15deg);
+  }
+}
+.cta-shine {
+  position: relative;
+  overflow: hidden;
+}
+.cta-shine::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 40%,
+    oklch(1 0 0 / 25%) 45%,
+    oklch(1 0 0 / 35%) 50%,
+    oklch(1 0 0 / 25%) 55%,
+    transparent 60%
+  );
+  animation: cta-shine 3.5s ease-in-out infinite;
+  animation-delay: 1.5s;
+  pointer-events: none;
+}
+
+/* ── Marketing: animated gradient border ─────────────────────────────── */
+@keyframes border-rotate {
+  from {
+    --border-angle: 0deg;
+  }
+  to {
+    --border-angle: 360deg;
+  }
+}
+@property --border-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+.animated-border {
+  position: relative;
+  border-radius: 1rem;
+}
+.animated-border::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(
+    from var(--border-angle),
+    transparent 30%,
+    oklch(0.82 0.16 80 / 60%) 45%,
+    oklch(0.65 0.12 280 / 50%) 55%,
+    transparent 70%
+  );
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  animation: border-rotate 4s linear infinite;
+  pointer-events: none;
+}

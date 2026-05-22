@@ -1,13 +1,12 @@
 "use client";
 
 import { useMutation } from "convex/react";
-import { ArrowLeft, CheckCircle2, Loader2, Mail, Send } from "lucide-react";
+import { CheckCircle2, Loader2, Mail, Send } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
-import { BrandIcon } from "@/components/branding/brand-icon";
 import { MarketingFooter } from "@/components/layout/marketing-footer";
-import { MarketingThemeToggle } from "@/components/layout/marketing-theme-toggle";
+import { MarketingNavbar } from "@/components/layout/marketing-navbar";
 import { AnimatedSection as Section } from "@/features/marketing/components/animated-section";
 import { api } from "../../../../convex/_generated/api";
 
@@ -65,27 +64,7 @@ export default function ContactPage() {
 
       <div className="relative z-10">
         {/* Header */}
-        <header className="fixed top-0 right-0 left-0 z-50 border-b border-foreground/[0.06] bg-background/80 backdrop-blur-xl">
-          <div className="mx-auto flex h-16 max-w-[1200px] items-center justify-between px-6">
-            <Link href="/" className="flex items-center gap-2.5">
-              <BrandIcon width={28} height={28} className="rounded-md" />
-              <span className="text-[15px] font-semibold tracking-tight text-foreground/80">
-                wryte
-              </span>
-            </Link>
-
-            <div className="flex items-center gap-2">
-              <MarketingThemeToggle />
-              <Link
-                href="/"
-                className="inline-flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-[13px] text-foreground/65 dark:text-foreground/35 transition-colors hover:bg-foreground/5 hover:text-foreground/70"
-              >
-                <ArrowLeft className="size-3.5" />
-                Home
-              </Link>
-            </div>
-          </div>
-        </header>
+        <MarketingNavbar />
 
         {/* Hero */}
         <section className="flex flex-col items-center px-6 pt-32 pb-8">
