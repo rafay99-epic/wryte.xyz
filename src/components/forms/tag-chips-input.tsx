@@ -75,9 +75,10 @@ export function TagChipsInput({
   );
 
   return (
-    <button
-      type="button"
-      onClick={() => inputRef.current?.focus()}
+    <div
+      onClick={(e) => {
+        if (e.target === e.currentTarget) inputRef.current?.focus();
+      }}
       className={cn(
         "flex min-h-9 w-full flex-wrap items-center gap-1.5 rounded-md border border-input bg-transparent px-2 py-1.5 text-left text-sm transition-colors focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/30 dark:bg-input/30",
         className,
@@ -142,6 +143,6 @@ export function TagChipsInput({
         placeholder={chips.length === 0 ? placeholder : ""}
         className="min-w-[6rem] flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/50"
       />
-    </button>
+    </div>
   );
 }

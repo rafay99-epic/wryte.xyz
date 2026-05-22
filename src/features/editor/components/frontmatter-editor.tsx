@@ -10,12 +10,14 @@ import {
   ChevronRight,
   ExternalLink,
   EyeOff,
+  FileCode2,
   FileText,
   Globe,
   Hash,
   Image,
   Link2,
   Lock,
+  type LucideIcon,
   Palette,
   SlidersHorizontal,
   Sparkles,
@@ -102,7 +104,54 @@ function fieldIcon(type: FrontmatterFieldType) {
   }
 }
 
-type EditorMode = "visual" | "code";
+type EditorMode = "visual" | "yaml" | "md" | "mdx";
+type TextMode = Exclude<EditorMode, "visual">;
+
+type ModeTab = { id: EditorMode; label: string; icon?: LucideIcon };
+
+const ALL_MODE_TABS: Readonly<Record<EditorMode, ModeTab>> = {
+  visual: { id: "visual", label: "Visual", icon: SlidersHorizontal },
+  yaml: { id: "yaml", label: "YAML", icon: Braces },
+  md: { id: "md", label: "MD", icon: FileText },
+  mdx: { id: "mdx", label: "MDX", icon: FileCode2 },
+};
+
+/** Visual + YAML are always available; MD/MDX surfaces only the one that
+ *  matches the project's `contentFormat` so the toggle isn't cluttered
+ *  with a format the document can't be saved as. */
+function buildModeTabs(
+  contentFormat: "md" | "mdx" | undefined,
+): ReadonlyArray<ModeTab> {
+  return [
+    ALL_MODE_TABS.visual,
+    ALL_MODE_TABS.yaml,
+    contentFormat === "mdx" ? ALL_MODE_TABS.mdx : ALL_MODE_TABS.md,
+  ];
+}
+
+const TEXT_MODE_META: Record<
+  TextMode,
+  { badge: string; placeholder: string; helper: string }
+> = {
+  yaml: {
+    badge: "YAML",
+    placeholder: `title: My Post\ndescription: A great article\ndate: 2024-01-01\ntags:\n  - javascript\n  - react\ndraft: true`,
+    helper:
+      "Edit your frontmatter as YAML. Changes auto-save after you stop typing.",
+  },
+  md: {
+    badge: "MD",
+    placeholder: `---\ntitle: My Post\ndescription: A great article\ndate: 2024-01-01\ntags:\n  - javascript\n  - react\ndraft: true\n---\n`,
+    helper:
+      "Edit the `---` frontmatter block as it appears in a .md file. Changes auto-save.",
+  },
+  mdx: {
+    badge: "MDX",
+    placeholder: `export const frontmatter = {\n  "title": "My Post",\n  "description": "A great article",\n  "tags": ["javascript", "react"],\n  "draft": true\n};\n`,
+    helper:
+      "MDX-style named export. Standard JS object literals work — unquoted keys, trailing commas.",
+  },
+};
 
 /**
  * Converts the values object to YAML string for the code editor.
@@ -112,12 +161,48 @@ function valuesToYaml(
   values: Record<string, string | boolean>,
   fields: SchemaField[],
 ): string {
-  // Build a typed object for YAML serialization
+  const obj = buildSerializableObject(values, fields);
+  try {
+    return yaml
+      .dump(obj, { lineWidth: -1, noRefs: true, sortKeys: false })
+      .trim();
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Parses YAML string back to the flat values object used by the visual editor.
+ * Returns { values, error } — error is set if YAML is invalid.
+ */
+function yamlToValues(yamlStr: string): {
+  values: Record<string, string | boolean>;
+  error: string | null;
+} {
+  if (!yamlStr.trim()) return { values: {}, error: null };
+  try {
+    return normalizeParsedToValues(yaml.load(yamlStr));
+  } catch (e) {
+    return {
+      values: {},
+      error: e instanceof Error ? e.message : "Invalid YAML",
+    };
+  }
+}
+
+/**
+ * Builds the typed object payload that powers YAML/MDX serialization —
+ * shared so the two formats stay consistent on coercions (numbers,
+ * booleans, lists, embedded JSON).
+ */
+function buildSerializableObject(
+  values: Record<string, string | boolean>,
+  fields: SchemaField[],
+): Record<string, unknown> {
   const obj: Record<string, unknown> = {};
   for (const [key, val] of Object.entries(values)) {
     if (val === "" || val === undefined) continue;
     const field = fields.find((f) => f.name === key);
-    // Convert comma-separated strings to arrays for tags/list/multiselect
     if (
       field &&
       (field.type === "tags" ||
@@ -144,65 +229,141 @@ function valuesToYaml(
       obj[key] = val;
     }
   }
-  try {
-    return yaml
-      .dump(obj, { lineWidth: -1, noRefs: true, sortKeys: false })
-      .trim();
-  } catch {
-    return "";
-  }
+  return obj;
 }
 
-/**
- * Parses YAML string back to the flat values object used by the visual editor.
- * Returns { values, error } — error is set if YAML is invalid.
- */
-function yamlToValues(yamlStr: string): {
+/** Normalizes a parsed object (from any source format) into the flat
+ *  string/boolean values map the visual editor consumes. */
+function normalizeParsedToValues(parsed: unknown): {
   values: Record<string, string | boolean>;
   error: string | null;
 } {
-  if (!yamlStr.trim()) {
-    return { values: {}, error: null };
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    return { values: {}, error: "Frontmatter must be a key-value mapping" };
   }
+  const result: Record<string, string | boolean> = {};
+  for (const [key, val] of Object.entries(parsed as Record<string, unknown>)) {
+    if (typeof val === "boolean") {
+      result[key] = val;
+    } else if (val instanceof Date) {
+      result[key] = val.toISOString().slice(0, 10);
+    } else if (Array.isArray(val)) {
+      result[key] = val.map(String).join(", ");
+    } else if (typeof val === "object" && val !== null) {
+      result[key] = JSON.stringify(val);
+    } else if (val !== null && val !== undefined) {
+      result[key] = String(val);
+    }
+  }
+  return { values: result, error: null };
+}
+
+/** Serialize values as the `---`-delimited YAML block that lives at the
+ *  top of a `.md` file. */
+function valuesToMd(
+  values: Record<string, string | boolean>,
+  fields: SchemaField[],
+): string {
+  const yamlBody = valuesToYaml(values, fields);
+  return `---\n${yamlBody}\n---\n`;
+}
+
+/** Parse an `.md`-style frontmatter block (delimiters optional — a bare
+ *  YAML body is also accepted so users can paste either shape). */
+function mdToValues(mdStr: string): {
+  values: Record<string, string | boolean>;
+  error: string | null;
+} {
+  const trimmed = mdStr.trim();
+  if (!trimmed) return { values: {}, error: null };
+  if (!trimmed.startsWith("---")) {
+    // Forgive a missing opening delimiter — treat the whole input as YAML.
+    return yamlToValues(trimmed);
+  }
+  const after = trimmed.slice(3).replace(/^[\r\n]+/, "");
+  const closeMatch = after.match(/^---\s*$/m);
+  if (!closeMatch || closeMatch.index === undefined) {
+    return { values: {}, error: "Missing closing --- delimiter" };
+  }
+  const yamlBody = after.slice(0, closeMatch.index);
+  return yamlToValues(yamlBody);
+}
+
+/** Serialize values as the MDX-style `export const frontmatter = {...}`
+ *  named export that MDX toolchains commonly read. */
+function valuesToMdx(
+  values: Record<string, string | boolean>,
+  fields: SchemaField[],
+): string {
+  const obj = buildSerializableObject(values, fields);
+  return `export const frontmatter = ${JSON.stringify(obj, null, 2)};\n`;
+}
+
+/** Parse an MDX-style export back to values. Accepts a bare object literal
+ *  too (so pasting `{ title: "..." }` works), and uses `new Function` —
+ *  not `eval` — so the parsed expression has no access to outer scope. */
+function mdxToValues(mdxStr: string): {
+  values: Record<string, string | boolean>;
+  error: string | null;
+} {
+  const trimmed = mdxStr.trim();
+  if (!trimmed) return { values: {}, error: null };
+  // Strip the optional `export const/let/var frontmatter = ` prefix and any
+  // trailing semicolon, leaving just the object literal body.
+  const match = trimmed.match(
+    /^(?:export\s+)?(?:const|let|var)?\s*frontmatter\s*=\s*([\s\S]*?);?\s*$/,
+  );
+  const objStr = (match?.[1] ?? trimmed).trim().replace(/;\s*$/, "");
   try {
-    const parsed = yaml.load(yamlStr);
-    if (
-      typeof parsed !== "object" ||
-      parsed === null ||
-      Array.isArray(parsed)
-    ) {
-      return { values: {}, error: "YAML must be a key-value mapping" };
-    }
-    const result: Record<string, string | boolean> = {};
-    for (const [key, val] of Object.entries(
-      parsed as Record<string, unknown>,
-    )) {
-      if (typeof val === "boolean") {
-        result[key] = val;
-      } else if (val instanceof Date) {
-        // js-yaml parses YAML dates into Date objects — convert to ISO string
-        // so date/datetime inputs can consume them (YYYY-MM-DD or YYYY-MM-DDTHH:MM).
-        result[key] = val.toISOString().slice(0, 10);
-      } else if (Array.isArray(val)) {
-        result[key] = val.map(String).join(", ");
-      } else if (typeof val === "object" && val !== null) {
-        result[key] = JSON.stringify(val);
-      } else if (val !== null && val !== undefined) {
-        result[key] = String(val);
-      }
-    }
-    return { values: result, error: null };
+    // Parenthesize so JS reads `{...}` as an object literal, not a block.
+    // `new Function` runs in its own scope with no closure access.
+    const parsed = new Function(`"use strict"; return (${objStr});`)();
+    return normalizeParsedToValues(parsed);
   } catch (e) {
     return {
       values: {},
-      error: e instanceof Error ? e.message : "Invalid YAML",
+      error:
+        e instanceof Error
+          ? `Invalid object literal: ${e.message}`
+          : "Invalid object literal",
     };
+  }
+}
+
+/** Serialize values into one of the text editor formats. */
+function serializeMode(
+  mode: TextMode,
+  values: Record<string, string | boolean>,
+  fields: SchemaField[],
+): string {
+  switch (mode) {
+    case "yaml":
+      return valuesToYaml(values, fields);
+    case "md":
+      return valuesToMd(values, fields);
+    case "mdx":
+      return valuesToMdx(values, fields);
+  }
+}
+
+/** Parse text in the given format back into values. */
+function parseMode(
+  mode: TextMode,
+  codeStr: string,
+): { values: Record<string, string | boolean>; error: string | null } {
+  switch (mode) {
+    case "yaml":
+      return yamlToValues(codeStr);
+    case "md":
+      return mdToValues(codeStr);
+    case "mdx":
+      return mdxToValues(codeStr);
   }
 }
 
 /**
  * Frontmatter panel with smooth expand/collapse animation,
- * compact layout, field grouping, Visual/Code toggle, and support for all field types.
+ * compact layout, field grouping, Visual/YAML/MD/MDX modes, and support for all field types.
  */
 export function FrontmatterEditor({
   projectId,
@@ -243,6 +404,22 @@ export function FrontmatterEditor({
     () => parseSchema(project?.frontmatterSchema),
     [project?.frontmatterSchema],
   );
+
+  // Tabs shown for this project — Visual + YAML always, plus whichever of
+  // MD/MDX matches the project's `contentFormat`.
+  const modeTabs = useMemo(
+    () => buildModeTabs(project?.contentFormat),
+    [project?.contentFormat],
+  );
+
+  // If the project's contentFormat changes and renders the active tab
+  // unavailable (e.g. user was in MDX but the project flipped to MD),
+  // fall back to Visual rather than rendering an unreachable mode.
+  useEffect(() => {
+    if (!modeTabs.some((t) => t.id === editorMode)) {
+      setEditorMode("visual");
+    }
+  }, [modeTabs, editorMode]);
 
   const tagFieldName = useMemo(
     () => getTagFieldName(project?.frontmatterSchema),
@@ -391,22 +568,36 @@ export function FrontmatterEditor({
     [fields],
   );
 
-  // Switch between visual and code modes
+  // Switch between visual, YAML, MD, and MDX modes. Any text-mode switch
+  // first parses the current code buffer so unsaved edits aren't dropped on
+  // the floor; a parse error blocks the switch so the user can fix it.
   const handleModeSwitch = useCallback(
     (mode: EditorMode) => {
-      if (mode === "code" && editorMode === "visual") {
-        // Visual → Code: serialize current values to YAML
-        setCodeValue(valuesToYaml(values, allFields));
+      if (mode === editorMode) return;
+      const oldIsText = editorMode !== "visual";
+      const newIsText = mode !== "visual";
+
+      if (!oldIsText && newIsText) {
+        setCodeValue(serializeMode(mode, values, allFields));
         setCodeError(null);
-      } else if (mode === "visual" && editorMode === "code") {
-        // Code → Visual: parse YAML back to values
-        const { values: parsed, error } = yamlToValues(codeValue);
+      } else if (oldIsText && !newIsText) {
+        const { values: parsed, error } = parseMode(editorMode, codeValue);
         if (error) {
           setCodeError(error);
-          return; // Don't switch if YAML is invalid
+          return;
         }
         setValues(parsed);
         saveValues(parsed);
+        setCodeError(null);
+      } else if (oldIsText && newIsText) {
+        const { values: parsed, error } = parseMode(editorMode, codeValue);
+        if (error) {
+          setCodeError(error);
+          return;
+        }
+        setValues(parsed);
+        saveValues(parsed);
+        setCodeValue(serializeMode(mode, parsed, allFields));
         setCodeError(null);
       }
       setEditorMode(mode);
@@ -414,19 +605,15 @@ export function FrontmatterEditor({
     [editorMode, values, codeValue, allFields, saveValues],
   );
 
-  // Handle code editor changes with debounced save
+  // Handle code editor changes with debounced save — uses the parser for
+  // the currently-active text mode.
   const handleCodeChange = useCallback(
     (newCode: string) => {
       setCodeValue(newCode);
-
-      // Clear previous timeout
-      if (codeTimeoutRef.current) {
-        clearTimeout(codeTimeoutRef.current);
-      }
-
-      // Debounce: validate and save after 600ms of no typing
+      if (codeTimeoutRef.current) clearTimeout(codeTimeoutRef.current);
       codeTimeoutRef.current = setTimeout(() => {
-        const { values: parsed, error } = yamlToValues(newCode);
+        if (editorMode === "visual") return;
+        const { values: parsed, error } = parseMode(editorMode, newCode);
         if (error) {
           setCodeError(error);
         } else {
@@ -436,7 +623,7 @@ export function FrontmatterEditor({
         }
       }, 600);
     },
-    [saveValues],
+    [editorMode, saveValues],
   );
 
   // Cleanup timeout on unmount
@@ -498,50 +685,48 @@ export function FrontmatterEditor({
             className="overflow-hidden"
           >
             <div className="border-t border-border/30 bg-muted/10">
-              {/* Mode toggle bar */}
+              {/* Mode toggle bar — stays pinned above the scroll area */}
               <div className="flex items-center justify-between border-b border-border/20 px-4 py-1.5">
                 <div className="relative flex items-center gap-1 rounded-md bg-muted/50 p-0.5">
-                  {/* Animated sliding background indicator */}
+                  {/* Sliding active-tab indicator. Four equally sized tabs;
+                      compute the indicator's left edge from the active index. */}
                   <motion.div
                     className="absolute inset-y-0.5 rounded bg-background shadow-sm"
                     initial={false}
                     animate={{
-                      left: editorMode === "visual" ? "2px" : "50%",
-                      right: editorMode === "visual" ? "50%" : "2px",
+                      left: `calc(2px + ${Math.max(
+                        0,
+                        modeTabs.findIndex((t) => t.id === editorMode),
+                      )} * (100% - 4px) / ${modeTabs.length})`,
+                      width: `calc((100% - 4px) / ${modeTabs.length})`,
                     }}
                     transition={{ type: "spring", stiffness: 500, damping: 35 }}
                   />
-                  <button
-                    type="button"
-                    onClick={() => handleModeSwitch("visual")}
-                    className="relative z-10 flex items-center gap-1 rounded px-2 py-1 text-[10px] font-medium transition-colors"
-                  >
-                    <SlidersHorizontal
-                      className={`size-3 transition-colors duration-200 ${editorMode === "visual" ? "text-foreground" : "text-muted-foreground"}`}
-                    />
-                    <span
-                      className={`transition-colors duration-200 ${editorMode === "visual" ? "text-foreground" : "text-muted-foreground"}`}
-                    >
-                      Visual
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleModeSwitch("code")}
-                    className="relative z-10 flex items-center gap-1 rounded px-2 py-1 text-[10px] font-medium transition-colors"
-                  >
-                    <Braces
-                      className={`size-3 transition-colors duration-200 ${editorMode === "code" ? "text-foreground" : "text-muted-foreground"}`}
-                    />
-                    <span
-                      className={`transition-colors duration-200 ${editorMode === "code" ? "text-foreground" : "text-muted-foreground"}`}
-                    >
-                      YAML
-                    </span>
-                  </button>
+                  {modeTabs.map(({ id, label, icon: Icon }) => {
+                    const isActive = editorMode === id;
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        onClick={() => handleModeSwitch(id)}
+                        className="relative z-10 flex items-center gap-1 rounded px-2 py-1 text-[10px] font-medium transition-colors"
+                      >
+                        {Icon ? (
+                          <Icon
+                            className={`size-3 transition-colors duration-200 ${isActive ? "text-foreground" : "text-muted-foreground"}`}
+                          />
+                        ) : null}
+                        <span
+                          className={`transition-colors duration-200 ${isActive ? "text-foreground" : "text-muted-foreground"}`}
+                        >
+                          {label}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
                 <AnimatePresence>
-                  {editorMode === "code" && codeError && (
+                  {editorMode !== "visual" && codeError && (
                     <motion.div
                       initial={{ opacity: 0, x: 10 }}
                       animate={{ opacity: 1, x: 0 }}
@@ -557,192 +742,202 @@ export function FrontmatterEditor({
                 </AnimatePresence>
               </div>
 
-              {/* Animated content switcher */}
-              <AnimatePresence mode="wait" initial={false}>
-                {editorMode === "visual" ? (
-                  <motion.div
-                    key="visual"
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -8 }}
-                    transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
-                  >
-                    {/* Visual mode — form fields */}
-                    <div className="px-5 py-4">
-                      {hasGroups ? (
-                        <div className="space-y-6">
-                          {Array.from(groupedFields.entries()).map(
-                            ([group, groupFields]) => (
-                              <div key={group || "__default"}>
-                                {group && (
-                                  <p className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70">
-                                    {group}
-                                  </p>
-                                )}
-                                <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
-                                  {groupFields.map((field) => (
-                                    <FrontmatterFieldControl
-                                      key={field.name}
-                                      field={field}
-                                      value={values[field.name]}
-                                      onChange={(value) =>
-                                        handleFieldChange(field.name, value)
-                                      }
-                                      projectId={projectId}
-                                    />
-                                  ))}
+              {/* Animated content switcher — capped so a long schema doesn't
+                  push the markdown body off-screen; the panel scrolls instead. */}
+              <div className="max-h-[55vh] overflow-y-auto slim-scrollbar">
+                <AnimatePresence mode="wait" initial={false}>
+                  {editorMode === "visual" ? (
+                    <motion.div
+                      key="visual"
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -8 }}
+                      transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
+                    >
+                      {/* Visual mode — form fields */}
+                      <div className="px-5 py-4">
+                        {hasGroups ? (
+                          <div className="space-y-6">
+                            {Array.from(groupedFields.entries()).map(
+                              ([group, groupFields]) => (
+                                <div key={group || "__default"}>
+                                  {group && (
+                                    <p className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70">
+                                      {group}
+                                    </p>
+                                  )}
+                                  <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
+                                    {groupFields.map((field) => (
+                                      <FrontmatterFieldControl
+                                        key={field.name}
+                                        field={field}
+                                        value={values[field.name]}
+                                        onChange={(value) =>
+                                          handleFieldChange(field.name, value)
+                                        }
+                                        projectId={projectId}
+                                      />
+                                    ))}
+                                  </div>
                                 </div>
-                              </div>
-                            ),
-                          )}
-                        </div>
-                      ) : (
-                        <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
-                          {fields.map((field) => (
-                            <FrontmatterFieldControl
-                              key={field.name}
-                              field={field}
-                              value={values[field.name]}
-                              onChange={(value) =>
-                                handleFieldChange(field.name, value)
-                              }
-                              projectId={projectId}
-                            />
-                          ))}
-                        </div>
-                      )}
+                              ),
+                            )}
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
+                            {fields.map((field) => (
+                              <FrontmatterFieldControl
+                                key={field.name}
+                                field={field}
+                                value={values[field.name]}
+                                onChange={(value) =>
+                                  handleFieldChange(field.name, value)
+                                }
+                                projectId={projectId}
+                              />
+                            ))}
+                          </div>
+                        )}
 
-                      {/* Auto-injected fallbacks for fields a project's
+                        {/* Auto-injected fallbacks for fields a project's
                           schema didn't declare but every post needs:
                           slug (when title exists), pubDate, and draft.
                           Rendered below the schema-defined fields so they
                           don't fight for the top slot. */}
-                      {(() => {
-                        const hasTitle = fields.some((f) => f.name === "title");
-                        const hasSlug = fields.some((f) => f.name === "slug");
-                        const hasPubDate = fields.some((f) =>
-                          ["pubDate", "publishDate", "date"].includes(f.name),
-                        );
-                        const hasDraft = fields.some((f) => f.name === "draft");
-                        const needsSlug = hasTitle && !hasSlug;
-                        const needsAny = needsSlug || !hasPubDate || !hasDraft;
-                        if (!needsAny) return null;
-                        return (
-                          <div className="mt-4 grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
-                            {needsSlug && (
-                              <div className="space-y-1.5">
-                                <Label
-                                  htmlFor="fm-slug"
-                                  className="flex items-center gap-1.5 text-xs font-medium text-foreground/80"
-                                >
-                                  <Link2 className="size-3.5 text-muted-foreground/70" />
-                                  Slug
-                                  <Lock className="ml-auto size-3 text-muted-foreground/50" />
-                                </Label>
-                                <Input
-                                  id="fm-slug"
-                                  value={
-                                    typeof values["slug"] === "string"
-                                      ? values["slug"]
-                                      : ""
-                                  }
-                                  onChange={(e) =>
-                                    handleFieldChange("slug", e.target.value)
-                                  }
-                                  placeholder="auto-generated-slug"
-                                  className="h-9 font-mono text-xs"
-                                />
-                              </div>
-                            )}
-                            {!hasPubDate && (
-                              <div className="space-y-1.5">
-                                <Label
-                                  htmlFor="fm-pubDate"
-                                  className="flex items-center gap-1.5 text-xs font-medium text-foreground/80"
-                                >
-                                  <CalendarDays className="size-3.5 text-muted-foreground/70" />
-                                  Pub Date
-                                </Label>
-                                <Input
-                                  id="fm-pubDate"
-                                  type="datetime-local"
-                                  value={
-                                    typeof values["pubDate"] === "string"
-                                      ? values["pubDate"].slice(0, 16)
-                                      : ""
-                                  }
-                                  onChange={(e) =>
-                                    handleFieldChange("pubDate", e.target.value)
-                                  }
-                                  className="h-9"
-                                />
-                              </div>
-                            )}
-                            {!hasDraft && (
-                              <div className="flex items-center justify-between rounded-lg border border-input/40 bg-muted/20 px-3.5 py-2.5">
-                                <Label
-                                  htmlFor="fm-draft"
-                                  className="flex cursor-pointer items-center gap-1.5 text-xs font-medium text-foreground/80"
-                                >
-                                  <EyeOff className="size-3.5 text-muted-foreground/70" />
-                                  Draft
-                                </Label>
-                                <Switch
-                                  id="fm-draft"
-                                  checked={
-                                    typeof values["draft"] === "boolean"
-                                      ? values["draft"]
-                                      : false
-                                  }
-                                  onCheckedChange={(checked) =>
-                                    handleFieldChange("draft", checked)
-                                  }
-                                />
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  </motion.div>
-                ) : (
-                  <motion.div
-                    key="code"
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -8 }}
-                    transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
-                  >
-                    {/* Code mode — YAML editor */}
-                    <div className="px-5 py-4">
-                      <div className="relative">
-                        <textarea
-                          value={codeValue}
-                          onChange={(e) => handleCodeChange(e.target.value)}
-                          spellCheck={false}
-                          className={`w-full resize-y rounded-lg border bg-zinc-950 px-4 py-3 font-mono text-xs leading-relaxed text-zinc-100 outline-none transition-colors placeholder:text-zinc-600 focus-visible:ring-2 focus-visible:ring-ring/30 dark:bg-zinc-950 ${
-                            codeError
-                              ? "border-destructive/50 focus-visible:ring-destructive/30"
-                              : "border-border/40 focus-visible:border-ring"
-                          }`}
-                          rows={Math.max(6, codeValue.split("\n").length + 2)}
-                          placeholder={`title: My Post\ndescription: A great article\ndate: 2024-01-01\ntags:\n  - javascript\n  - react\ndraft: true`}
-                        />
-                        <div className="pointer-events-none absolute right-3 top-3">
-                          <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-[9px] font-medium text-zinc-500">
-                            YAML
-                          </span>
-                        </div>
+                        {(() => {
+                          const hasTitle = fields.some(
+                            (f) => f.name === "title",
+                          );
+                          const hasSlug = fields.some((f) => f.name === "slug");
+                          const hasPubDate = fields.some((f) =>
+                            ["pubDate", "publishDate", "date"].includes(f.name),
+                          );
+                          const hasDraft = fields.some(
+                            (f) => f.name === "draft",
+                          );
+                          const needsSlug = hasTitle && !hasSlug;
+                          const needsAny =
+                            needsSlug || !hasPubDate || !hasDraft;
+                          if (!needsAny) return null;
+                          return (
+                            <div className="mt-4 grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
+                              {needsSlug && (
+                                <div className="space-y-1.5">
+                                  <Label
+                                    htmlFor="fm-slug"
+                                    className="flex items-center gap-1.5 text-xs font-medium text-foreground/80"
+                                  >
+                                    <Link2 className="size-3.5 text-muted-foreground/70" />
+                                    Slug
+                                    <Lock className="ml-auto size-3 text-muted-foreground/50" />
+                                  </Label>
+                                  <Input
+                                    id="fm-slug"
+                                    value={
+                                      typeof values["slug"] === "string"
+                                        ? values["slug"]
+                                        : ""
+                                    }
+                                    onChange={(e) =>
+                                      handleFieldChange("slug", e.target.value)
+                                    }
+                                    placeholder="auto-generated-slug"
+                                    className="h-9 font-mono text-xs"
+                                  />
+                                </div>
+                              )}
+                              {!hasPubDate && (
+                                <div className="space-y-1.5">
+                                  <Label
+                                    htmlFor="fm-pubDate"
+                                    className="flex items-center gap-1.5 text-xs font-medium text-foreground/80"
+                                  >
+                                    <CalendarDays className="size-3.5 text-muted-foreground/70" />
+                                    Pub Date
+                                  </Label>
+                                  <Input
+                                    id="fm-pubDate"
+                                    type="datetime-local"
+                                    value={
+                                      typeof values["pubDate"] === "string"
+                                        ? values["pubDate"].slice(0, 16)
+                                        : ""
+                                    }
+                                    onChange={(e) =>
+                                      handleFieldChange(
+                                        "pubDate",
+                                        e.target.value,
+                                      )
+                                    }
+                                    className="h-9"
+                                  />
+                                </div>
+                              )}
+                              {!hasDraft && (
+                                <div className="flex items-center justify-between rounded-lg border border-input/40 bg-muted/20 px-3.5 py-2.5">
+                                  <Label
+                                    htmlFor="fm-draft"
+                                    className="flex cursor-pointer items-center gap-1.5 text-xs font-medium text-foreground/80"
+                                  >
+                                    <EyeOff className="size-3.5 text-muted-foreground/70" />
+                                    Draft
+                                  </Label>
+                                  <Switch
+                                    id="fm-draft"
+                                    checked={
+                                      typeof values["draft"] === "boolean"
+                                        ? values["draft"]
+                                        : false
+                                    }
+                                    onCheckedChange={(checked) =>
+                                      handleFieldChange("draft", checked)
+                                    }
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </div>
-                      <p className="mt-1.5 text-[10px] text-muted-foreground/50">
-                        Edit your frontmatter as YAML. Changes auto-save after
-                        you stop typing. Switch back to Visual to see the form
-                        view.
-                      </p>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      key={editorMode}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -8 }}
+                      transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
+                    >
+                      {/* Text editor — YAML, MD, or MDX */}
+                      <div className="px-5 py-4">
+                        <div className="relative">
+                          <textarea
+                            value={codeValue}
+                            onChange={(e) => handleCodeChange(e.target.value)}
+                            spellCheck={false}
+                            className={`w-full resize-y rounded-lg border bg-zinc-950 px-4 py-3 font-mono text-xs leading-relaxed text-zinc-100 outline-none transition-colors placeholder:text-zinc-600 focus-visible:ring-2 focus-visible:ring-ring/30 dark:bg-zinc-950 ${
+                              codeError
+                                ? "border-destructive/50 focus-visible:ring-destructive/30"
+                                : "border-border/40 focus-visible:border-ring"
+                            }`}
+                            rows={Math.max(6, codeValue.split("\n").length + 2)}
+                            placeholder={TEXT_MODE_META[editorMode].placeholder}
+                          />
+                          <div className="pointer-events-none absolute right-3 top-3">
+                            <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-[9px] font-medium text-zinc-500">
+                              {TEXT_MODE_META[editorMode].badge}
+                            </span>
+                          </div>
+                        </div>
+                        <p className="mt-1.5 text-[10px] text-muted-foreground/50">
+                          {TEXT_MODE_META[editorMode].helper} Switch back to
+                          Visual to see the form view.
+                        </p>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
             </div>
           </motion.div>
         )}

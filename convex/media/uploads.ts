@@ -111,6 +111,19 @@ export const upload = action({
     );
     if (!owned) throw new Error("Unauthorized");
 
+    // Per-project size limit (clamped to the absolute ceiling above).
+    const projectMax =
+      typeof owned.project.maxUploadBytes === "number" &&
+      owned.project.maxUploadBytes > 0
+        ? Math.min(owned.project.maxUploadBytes, QUOTAS.MAX_UPLOAD_BYTES)
+        : QUOTAS.MAX_UPLOAD_BYTES;
+    if (args.bytes.byteLength > projectMax) {
+      throw new ConvexError({
+        code: "FILE_TOO_LARGE" as MediaErrorCode,
+        message: DEFAULT_MESSAGES.FILE_TOO_LARGE,
+      });
+    }
+
     // Project-level quota.
     const quota = await ctx.runQuery(internal.media.uploadsDb._quotaCheck, {
       projectId: args.projectId,

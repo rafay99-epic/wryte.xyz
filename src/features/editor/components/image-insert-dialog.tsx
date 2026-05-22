@@ -24,10 +24,12 @@ import {
   type MediaLibraryItem,
   useProjectMediaLibrary,
 } from "@/hooks/use-project-media-library";
+import { useUploadLimit } from "@/hooks/use-upload-limit";
 import {
   type CompressionSettings,
   describeSavings,
 } from "@/lib/image-compression";
+import { formatMb } from "@/lib/upload-limits";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
 
@@ -67,6 +69,8 @@ export function ImageInsertDialog({
   const { compress, isCompressing, resolvedSettings } = useImageCompression(
     projectId as Id<"projects">,
   );
+  const { maxBytes: maxUploadBytes, formatted: maxUploadLabel } =
+    useUploadLimit(projectId as Id<"projects">);
   const [compressionOverride, setCompressionOverride] =
     useState<CompressionSettings | null>(null);
   const {
@@ -144,9 +148,9 @@ export function ImageInsertDialog({
           compressionOverride ?? undefined,
         );
         const toUpload = compressed.file;
-        if (toUpload.size > 1_000_000) {
+        if (toUpload.size > maxUploadBytes) {
           setUploadError(
-            `File is ${(toUpload.size / 1_000_000).toFixed(1)} MB; exceeds the 1 MB limit. Try a smaller image or increase compression.`,
+            `File is ${formatMb(toUpload.size)}; exceeds the ${maxUploadLabel} limit. Try a smaller image, increase compression, or raise the limit in project settings.`,
           );
           setIsUploading(false);
           return;
@@ -185,6 +189,8 @@ export function ImageInsertDialog({
       compress,
       compressionOverride,
       documentId,
+      maxUploadBytes,
+      maxUploadLabel,
       onInsert,
       onOpenChange,
       projectId,

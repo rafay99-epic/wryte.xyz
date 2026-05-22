@@ -24,10 +24,12 @@ import {
   type MediaLibraryItem,
   useProjectMediaLibrary,
 } from "@/hooks/use-project-media-library";
+import { useUploadLimit } from "@/hooks/use-upload-limit";
 import {
   type CompressionSettings,
   describeSavings,
 } from "@/lib/image-compression";
+import { formatMb } from "@/lib/upload-limits";
 import { cn } from "@/lib/utils";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
@@ -459,6 +461,8 @@ function UploadTab({
   const { compress, isCompressing, resolvedSettings } = useImageCompression(
     projectId as Id<"projects">,
   );
+  const { maxBytes: maxUploadBytes, formatted: maxUploadLabel } =
+    useUploadLimit(projectId as Id<"projects">);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -470,9 +474,9 @@ function UploadTab({
       try {
         const compressed = await compress(file, override ?? undefined);
         const toUpload = compressed.file;
-        if (toUpload.size > 1_000_000) {
+        if (toUpload.size > maxUploadBytes) {
           toast.error("File too large", {
-            description: `${(toUpload.size / 1_000_000).toFixed(1)} MB exceeds the 1 MB limit (even after compression). Try a smaller image or increase compression.`,
+            description: `${formatMb(toUpload.size)} exceeds the ${maxUploadLabel} limit (even after compression). Try a smaller image, increase compression, or raise the limit in project settings.`,
           });
           setIsUploading(false);
           return;
@@ -499,7 +503,15 @@ function UploadTab({
         setIsUploading(false);
       }
     },
-    [compress, override, uploadMedia, projectId, onUploaded],
+    [
+      compress,
+      override,
+      maxUploadBytes,
+      maxUploadLabel,
+      uploadMedia,
+      projectId,
+      onUploaded,
+    ],
   );
 
   const handleDrop = useCallback(

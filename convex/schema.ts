@@ -159,6 +159,14 @@ export default defineSchema({
      */
     compressionSettings: v.optional(compressionSettingsValidator),
     /**
+     * Per-project ceiling on the post-compression size of a single image
+     * upload, in bytes. Enforced on both the client (before sending) and
+     * the backend (in `media/uploads.ts`). Absent → DEFAULT_MAX_UPLOAD_BYTES
+     * (see `src/lib/upload-limits.ts`). Always clamped server-side to
+     * `QUOTAS.MAX_UPLOAD_BYTES`.
+     */
+    maxUploadBytes: v.optional(v.number()),
+    /**
      * How many days a soft-deleted document lingers in the project trash
      * before the cleanup cron hard-deletes it. Absent → 30 (the default
      * is read-side; we don't backfill). Set to a very large number to

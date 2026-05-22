@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import {
   Eye,
   EyeOff,
+  HardDrive,
   ImageIcon,
   Loader2,
   RotateCcw,
@@ -23,6 +24,12 @@ import {
   DEFAULT_COMPRESSION_SETTINGS,
 } from "@/lib/image-compression";
 import { smoothTransition, staggerContainer, staggerItem } from "@/lib/motion";
+import {
+  ABS_MAX_UPLOAD_BYTES,
+  DEFAULT_MAX_UPLOAD_BYTES,
+  MIN_MAX_UPLOAD_BYTES,
+  resolveMaxUploadBytes,
+} from "@/lib/upload-limits";
 import { cn } from "@/lib/utils";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
@@ -129,6 +136,137 @@ export function MediaSection({
       <Divider />
 
       <ProjectCompressionSection projectId={projectId} project={project} />
+
+      <Divider />
+
+      <ProjectUploadLimitSection projectId={projectId} project={project} />
+    </motion.div>
+  );
+}
+
+function ProjectUploadLimitSection({
+  projectId,
+  project,
+}: {
+  projectId: Id<"projects">;
+  project: ProjectData;
+}) {
+  const updateProject = useMutation(api.cms.projects.update);
+  const effectiveBytes = resolveMaxUploadBytes(project);
+
+  const [draftMb, setDraftMb] = useState<string>(
+    (effectiveBytes / 1_000_000).toString(),
+  );
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    setDraftMb((resolveMaxUploadBytes(project) / 1_000_000).toString());
+  }, [project]);
+
+  const parsedBytes = useMemo<number | null>(() => {
+    const n = Number.parseFloat(draftMb);
+    if (!Number.isFinite(n) || n <= 0) return null;
+    return Math.round(n * 1_000_000);
+  }, [draftMb]);
+
+  const isValid =
+    parsedBytes !== null &&
+    parsedBytes >= MIN_MAX_UPLOAD_BYTES &&
+    parsedBytes <= ABS_MAX_UPLOAD_BYTES;
+
+  const isDirty = isValid && parsedBytes !== effectiveBytes;
+  const isCustomized = project.maxUploadBytes !== undefined;
+
+  const handleSave = useCallback(async () => {
+    if (!isValid || parsedBytes === null) return;
+    setIsSaving(true);
+    try {
+      await updateProject({ projectId, maxUploadBytes: parsedBytes });
+      toast.success("Upload limit saved");
+    } catch {
+      toast.error("Failed to save upload limit");
+    } finally {
+      setIsSaving(false);
+    }
+  }, [isValid, parsedBytes, projectId, updateProject]);
+
+  const handleResetToDefault = useCallback(async () => {
+    setIsSaving(true);
+    try {
+      await updateProject({ projectId, maxUploadBytes: null });
+      toast.success("Reverted to default upload limit");
+    } catch {
+      toast.error("Failed to reset upload limit");
+    } finally {
+      setIsSaving(false);
+    }
+  }, [projectId, updateProject]);
+
+  const minMb = MIN_MAX_UPLOAD_BYTES / 1_000_000;
+  const maxMb = ABS_MAX_UPLOAD_BYTES / 1_000_000;
+  const defaultMb = DEFAULT_MAX_UPLOAD_BYTES / 1_000_000;
+
+  return (
+    <motion.div variants={staggerContainer} initial="initial" animate="animate">
+      <SectionHeader
+        icon={HardDrive}
+        title="Upload Size Limit"
+        description="Maximum size per image after compression. Applied everywhere uploads happen — editor, picker, and library."
+      />
+
+      <motion.div
+        variants={staggerItem}
+        transition={smoothTransition}
+        className="space-y-4"
+      >
+        <FieldGroup
+          label="Maximum upload size (MB)"
+          htmlFor="s-max-upload-mb"
+          hint={`Between ${minMb} and ${maxMb} MB. Default ${defaultMb} MB.${
+            isCustomized ? " This project uses a custom limit." : ""
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            <Input
+              id="s-max-upload-mb"
+              type="number"
+              inputMode="decimal"
+              min={minMb}
+              max={maxMb}
+              step="0.1"
+              value={draftMb}
+              onChange={(e) => setDraftMb(e.target.value)}
+              className="max-w-[10rem] font-mono text-sm"
+            />
+            <span className="text-xs text-muted-foreground">MB</span>
+          </div>
+          {!isValid && draftMb.trim() !== "" && (
+            <p className="text-[11px] text-destructive">
+              Enter a number between {minMb} and {maxMb}.
+            </p>
+          )}
+        </FieldGroup>
+
+        <div className="mt-2 flex items-center justify-end gap-2">
+          {isCustomized && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={handleResetToDefault}
+              disabled={isSaving}
+            >
+              <RotateCcw className="size-3.5" />
+              Reset to default
+            </Button>
+          )}
+          <SaveButton
+            isSaving={isSaving}
+            disabled={!isDirty || !isValid}
+            onClick={handleSave}
+            label="Save limit"
+          />
+        </div>
+      </motion.div>
     </motion.div>
   );
 }

@@ -297,6 +297,11 @@ export const update = mutation({
       v.union(compressionSettingsValidator, v.null()),
     ),
     /**
+     * Per-project maximum upload size in bytes. Pass a number to set the
+     * override, or `null` to clear it and fall back to the default.
+     */
+    maxUploadBytes: v.optional(v.union(v.number(), v.null())),
+    /**
      * How many days soft-deleted docs sit in trash before the daily
      * cleanup cron hard-deletes them. Setting to a very large number
      * (e.g. 36500 for "100 years") is the UX for "Never auto-cleanup".
@@ -328,6 +333,10 @@ export const update = mutation({
       // patch with `undefined` to remove the optional field from the doc.
       if (k === "compressionSettings" && value === null) {
         fieldsToUpdate["compressionSettings"] = undefined;
+        continue;
+      }
+      if (k === "maxUploadBytes" && value === null) {
+        fieldsToUpdate["maxUploadBytes"] = undefined;
         continue;
       }
       fieldsToUpdate[k] = value;

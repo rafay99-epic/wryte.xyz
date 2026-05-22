@@ -48,6 +48,7 @@ export type ProjectData = {
   timezone?: string;
   autoSaveEnabled?: boolean;
   compressionSettings?: CompressionSettings;
+  maxUploadBytes?: number;
   trashRetentionDays?: number;
   socialPostOnPublish?: boolean;
 };
