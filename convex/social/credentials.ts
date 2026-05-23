@@ -114,6 +114,17 @@ export const setCredentials = action({
     if (subredditNorm) configObj.subreddit = subredditNorm;
     const publicConfig = JSON.stringify(configObj);
 
+    // Verify-first when replacing an existing credential — never destroy
+    // the working vault entry on a bad new secret.
+    const verify = await verifyUploadPostKey(secret);
+    if (existing && !verify.ok) {
+      return {
+        credentialId: existing._id,
+        ok: false,
+        message: verify.message,
+      };
+    }
+
     const created = await ctx.runAction(
       internal.integrations.secretStore._create,
       {
@@ -175,7 +186,6 @@ export const setCredentials = action({
       );
     }
 
-    const verify = await verifyUploadPostKey(secret);
     const statusArgs: {
       credentialId: Id<"socialCredentials">;
       status: "active" | "invalid";

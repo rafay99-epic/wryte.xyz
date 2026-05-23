@@ -85,6 +85,18 @@ export const setCredentials = action({
       { projectId: args.projectId, provider: args.provider },
     );
 
+    // Verify-first. When we're replacing an existing credential, we must
+    // not destroy the working vault entry just because the user mistyped
+    // a new key — leave the old row intact and surface the error instead.
+    const verify = await runProviderPing(args.provider, secret);
+    if (existing && !verify.ok) {
+      return {
+        credentialId: existing._id,
+        ok: false,
+        message: verify.message,
+      };
+    }
+
     const created = await ctx.runAction(
       internal.integrations.secretStore._create,
       {
@@ -145,7 +157,6 @@ export const setCredentials = action({
       );
     }
 
-    const verify = await runProviderPing(args.provider, secret);
     const statusArgs: {
       credentialId: Id<"aiCredentials">;
       status: "active" | "invalid";

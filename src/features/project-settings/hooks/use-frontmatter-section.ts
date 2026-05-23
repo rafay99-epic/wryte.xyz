@@ -1,6 +1,6 @@
 import { useMutation } from "convex/react";
 import yaml from "js-yaml";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   FIELD_TYPE_OPTIONS,
@@ -78,8 +78,28 @@ export function useFrontmatterSection({
   const [yamlValue, setYamlValue] = useState("");
   const [yamlError, setYamlError] = useState<string | null>(null);
 
+  // Track the schema we last synced with so reactive query updates (the
+  // user's own save round-tripping, or a sibling tab's save) don't wipe
+  // unsaved local edits. The ref holds a normalized JSON string; we accept
+  // a remote change only when the local fields match the last synced value.
+  const fieldsRef = useRef(fields);
+  fieldsRef.current = fields;
+  const lastSyncedRef = useRef<string | null>(null);
+
   useEffect(() => {
-    setFields(initialFields);
+    const remoteNormalized = JSON.stringify(initialFields);
+
+    if (lastSyncedRef.current === null) {
+      lastSyncedRef.current = remoteNormalized;
+      return;
+    }
+    if (remoteNormalized === lastSyncedRef.current) return;
+
+    const localNormalized = JSON.stringify(fieldsRef.current);
+    if (localNormalized === lastSyncedRef.current) {
+      setFields(initialFields);
+      lastSyncedRef.current = remoteNormalized;
+    }
   }, [initialFields]);
 
   useEffect(() => {
@@ -251,11 +271,13 @@ export function useFrontmatterSection({
       return;
     }
     setIsSaving(true);
+    const serialized = JSON.stringify(fields);
     try {
       await updateProject({
         projectId,
-        frontmatterSchema: JSON.stringify(fields),
+        frontmatterSchema: serialized,
       });
+      lastSyncedRef.current = serialized;
       toast.success("Frontmatter schema saved");
     } catch {
       toast.error("Failed to save frontmatter schema");

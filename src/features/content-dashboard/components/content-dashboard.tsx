@@ -432,10 +432,12 @@ export function ContentDashboard({
   const [currentPage, setCurrentPage] = useState(1);
   const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
 
-  // Reset page on filter/search/view changes
+  // Reset page on filter/search/view changes so users don't get stranded on
+  // an empty page after narrowing the result set.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentionally reset page when filter/search/view props change
   useEffect(() => {
     setCurrentPage(1);
-  }, []);
+  }, [viewFilter, searchQuery, viewMode]);
 
   // Clamp page if items shrink
   useEffect(() => {

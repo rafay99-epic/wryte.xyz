@@ -1,7 +1,10 @@
+import type { WorkflowId } from "@convex-dev/workflow";
 import { v } from "convex/values";
-import type { Doc } from "../_generated/dataModel";
+import { internal } from "../_generated/api";
+import type { Doc, Id } from "../_generated/dataModel";
 import type { QueryCtx } from "../_generated/server";
 import {
+  action,
   internalMutation,
   internalQuery,
   mutation,
@@ -11,6 +14,7 @@ import { getAuthedUserOrNull, getCurrentUser } from "../_lib/auth";
 import { compressionSettingsValidator } from "../_lib/compression";
 import { contentFormatValidator } from "../_lib/contentFormat";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
+import { publishWorkflowManager } from "../integrations/scheduling";
 import { cascadeDeleteScheduledPublishesForDoc } from "./documents";
 
 function sortProjectsForList(projects: Doc<"projects">[]): Doc<"projects">[] {
@@ -347,43 +351,525 @@ export const update = mutation({
 });
 
 /**
- * Deletes a project and cascades the deletion to all its documents and
- * their associated scheduled publishes. This is a destructive operation
- * with no undo — the cascade ensures no orphaned records remain.
+ * Deletes a project and every row that hangs off it: documents and their
+ * scheduled publishes, drafts, research, publish history, sync conflicts,
+ * import/delete batches, and the three flavors of per-project credential
+ * along with their WorkOS Vault entries.
+ *
+ * Implemented as an action so we can cancel publish workflows and reach
+ * into the vault. The Convex wipe is chunked through an internal mutation
+ * so projects with thousands of rows don't blow the per-transaction limit.
  *
  * @requires Authentication + project ownership
- * @param args.projectId - The project to delete.
  */
-export const remove = mutation({
+export const remove = action({
   args: { projectId: v.id("projects") },
-  handler: async (ctx, args) => {
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{
+    ok: true;
+    summary: {
+      documentsDeleted: number;
+      mediaDeleted: number;
+      scheduledCancelled: number;
+      scheduledFailedToCancel: number;
+      vaultDeleted: number;
+      vaultOrphaned: number;
+    };
+  }> => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
     const key = await getRateLimitKey(ctx);
     await rateLimiter.limit(ctx, "projects:remove", { key, throws: true });
 
-    const user = await getCurrentUser(ctx);
-    const project = await ctx.db.get(args.projectId);
+    const user = await ctx.runQuery(internal.account.users.internalGetByToken, {
+      tokenIdentifier: identity.tokenIdentifier,
+    });
+    if (!user) throw new Error("User not found");
 
-    if (!project) {
-      throw new Error("Project not found");
-    }
-
+    const project = await ctx.runQuery(internal.cms.projects.internalGet, {
+      projectId: args.projectId,
+    });
+    if (!project) throw new Error("Project not found");
     if (project.userId !== user._id) {
       throw new Error("Unauthorized: you do not own this project");
     }
 
+    /* -- Step A: cancel pending publish workflows for this project -- */
+    const cancellationTargets = await ctx.runQuery(
+      internal.cms.projects._listProjectCancellationTargets,
+      { projectId: args.projectId },
+    );
+    let scheduledCancelled = 0;
+    let scheduledFailedToCancel = 0;
+    for (const target of cancellationTargets) {
+      if (!target.workflowId) continue;
+      try {
+        await publishWorkflowManager.cancel(
+          ctx,
+          target.workflowId as WorkflowId,
+        );
+        scheduledCancelled++;
+      } catch {
+        scheduledFailedToCancel++;
+      }
+    }
+
+    /* -- Step B: drop vault entries for credentials owned by this project -- */
+    const vaultIds = await ctx.runQuery(
+      internal.cms.projects._listProjectVaultIds,
+      { projectId: args.projectId },
+    );
+    let vaultDeleted = 0;
+    let vaultOrphaned = 0;
+    for (const id of vaultIds) {
+      try {
+        await ctx.runAction(internal.integrations.secretStore._delete, { id });
+        vaultDeleted++;
+      } catch {
+        vaultOrphaned++;
+      }
+    }
+
+    /* -- Step C: chunked Convex wipe -- */
+    let documentsDeleted = 0;
+    let mediaDeleted = 0;
+    for (let i = 0; i < 200; i++) {
+      const chunk = await ctx.runMutation(
+        internal.cms.projects._wipeProjectChunk,
+        { projectId: args.projectId, batch: 200 },
+      );
+      documentsDeleted += chunk.documentsDeleted;
+      mediaDeleted += chunk.mediaDeleted;
+      if (chunk.remaining === 0) break;
+    }
+
+    /* -- Step D: drop the project row itself -- */
+    await ctx.runMutation(internal.cms.projects._deleteProjectRow, {
+      projectId: args.projectId,
+    });
+
+    return {
+      ok: true,
+      summary: {
+        documentsDeleted,
+        mediaDeleted,
+        scheduledCancelled,
+        scheduledFailedToCancel,
+        vaultDeleted,
+        vaultOrphaned,
+      },
+    };
+  },
+});
+
+/* ------------------------------------------------------------------ */
+/*  Internal helpers used by the cascade action                          */
+/* ------------------------------------------------------------------ */
+
+export const _listProjectCancellationTargets = internalQuery({
+  args: { projectId: v.id("projects") },
+  handler: async (
+    ctx,
+    args,
+  ): Promise<
+    Array<{
+      _id: Id<"scheduled_publishes">;
+      workflowId?: string;
+      status: "pending" | "processing" | "completed" | "failed";
+    }>
+  > => {
     const documents = await ctx.db
       .query("documents")
       .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
-      .take(500);
+      .take(5000);
+
+    const out: Array<{
+      _id: Id<"scheduled_publishes">;
+      workflowId?: string;
+      status: "pending" | "processing" | "completed" | "failed";
+    }> = [];
 
     for (const doc of documents) {
-      await cascadeDeleteScheduledPublishesForDoc(ctx, doc._id);
-      await ctx.db.delete(doc._id);
+      const rows = await ctx.db
+        .query("scheduled_publishes")
+        .withIndex("by_documentId", (q) => q.eq("documentId", doc._id))
+        .take(20);
+      for (const row of rows) {
+        if (row.status === "pending" || row.status === "processing") {
+          const entry: {
+            _id: Id<"scheduled_publishes">;
+            workflowId?: string;
+            status: "pending" | "processing" | "completed" | "failed";
+          } = { _id: row._id, status: row.status };
+          if (row.workflowId !== undefined) entry.workflowId = row.workflowId;
+          out.push(entry);
+        }
+      }
+    }
+    return out;
+  },
+});
+
+export const _listProjectVaultIds = internalQuery({
+  args: { projectId: v.id("projects") },
+  handler: async (ctx, args): Promise<string[]> => {
+    const ids: string[] = [];
+
+    const mediaCreds = await ctx.db
+      .query("mediaCredentials")
+      .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
+      .take(20);
+    for (const c of mediaCreds) {
+      if (c.vaultSecretId) ids.push(c.vaultSecretId);
     }
 
+    const aiCreds = await ctx.db
+      .query("aiCredentials")
+      .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
+      .take(20);
+    for (const c of aiCreds) {
+      if (c.vaultSecretId) ids.push(c.vaultSecretId);
+    }
+
+    const socialCreds = await ctx.db
+      .query("socialCredentials")
+      .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
+      .take(20);
+    for (const c of socialCreds) {
+      if (c.vaultSecretId) ids.push(c.vaultSecretId);
+    }
+
+    return ids;
+  },
+});
+
+/**
+ * Drains as many project-scoped rows as `batch` allows in a single
+ * transaction, then returns `remaining` so the orchestrator can decide
+ * whether to loop. Deletion order matches `selfDestruct._wipeChunk` so the
+ * dependency tree unwinds cleanly (workflow rows first, project last).
+ */
+export const _wipeProjectChunk = internalMutation({
+  args: {
+    projectId: v.id("projects"),
+    batch: v.number(),
+  },
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{
+    remaining: number;
+    documentsDeleted: number;
+    mediaDeleted: number;
+  }> => {
+    let budget = args.batch;
+    let documentsDeleted = 0;
+    let mediaDeleted = 0;
+
+    /* 1. scheduled_publishes via documents */
+    if (budget > 0) {
+      const documents = await ctx.db
+        .query("documents")
+        .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
+        .take(5000);
+      for (const doc of documents) {
+        if (budget <= 0) break;
+        await cascadeDeleteScheduledPublishesForDoc(ctx, doc._id);
+      }
+    }
+
+    /* 2. publish_history */
+    if (budget > 0) {
+      const rows = await ctx.db
+        .query("publish_history")
+        .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
+        .take(budget);
+      for (const row of rows) {
+        await ctx.db.delete(row._id);
+        budget--;
+      }
+    }
+
+    /* 3. document_drafts */
+    if (budget > 0) {
+      const rows = await ctx.db
+        .query("document_drafts")
+        .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
+        .take(budget);
+      for (const row of rows) {
+        await ctx.db.delete(row._id);
+        budget--;
+      }
+    }
+
+    /* 4. document_research */
+    if (budget > 0) {
+      const rows = await ctx.db
+        .query("document_research")
+        .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
+        .take(budget);
+      for (const row of rows) {
+        await ctx.db.delete(row._id);
+        budget--;
+      }
+    }
+
+    /* 5. media (+ legacy storage blobs) */
+    if (budget > 0) {
+      const rows = await ctx.db
+        .query("media")
+        .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
+        .take(budget);
+      for (const row of rows) {
+        if (row.storageId) {
+          try {
+            await ctx.storage.delete(row.storageId);
+          } catch {
+            // Blob may already be gone — keep going.
+          }
+        }
+        await ctx.db.delete(row._id);
+        budget--;
+        mediaDeleted++;
+      }
+    }
+
+    /* 6. mediaErrorLog */
+    if (budget > 0) {
+      const rows = await ctx.db
+        .query("mediaErrorLog")
+        .withIndex("by_projectId_and_createdAt", (q) =>
+          q.eq("projectId", args.projectId),
+        )
+        .take(budget);
+      for (const row of rows) {
+        await ctx.db.delete(row._id);
+        budget--;
+      }
+    }
+
+    /* 7. mediaUsage */
+    if (budget > 0) {
+      const rows = await ctx.db
+        .query("mediaUsage")
+        .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
+        .take(budget);
+      for (const row of rows) {
+        await ctx.db.delete(row._id);
+        budget--;
+      }
+    }
+
+    /* 8. credentials (vault entries already dropped in step B) */
+    if (budget > 0) {
+      const rows = await ctx.db
+        .query("mediaCredentials")
+        .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
+        .take(budget);
+      for (const row of rows) {
+        await ctx.db.delete(row._id);
+        budget--;
+      }
+    }
+    if (budget > 0) {
+      const rows = await ctx.db
+        .query("aiCredentials")
+        .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
+        .take(budget);
+      for (const row of rows) {
+        await ctx.db.delete(row._id);
+        budget--;
+      }
+    }
+    if (budget > 0) {
+      const rows = await ctx.db
+        .query("socialCredentials")
+        .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
+        .take(budget);
+      for (const row of rows) {
+        await ctx.db.delete(row._id);
+        budget--;
+      }
+    }
+
+    /* 9. sync_conflicts */
+    if (budget > 0) {
+      const rows = await ctx.db
+        .query("sync_conflicts")
+        .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
+        .take(budget);
+      for (const row of rows) {
+        await ctx.db.delete(row._id);
+        budget--;
+      }
+    }
+
+    /* 10. import_batches + outcomes */
+    if (budget > 0) {
+      const batches = await ctx.db
+        .query("import_batches")
+        .withIndex("by_projectId_and_createdAt", (q) =>
+          q.eq("projectId", args.projectId),
+        )
+        .take(budget);
+      for (const batch of batches) {
+        if (budget <= 0) break;
+        const outcomes = await ctx.db
+          .query("import_job_outcomes")
+          .withIndex("by_batchId", (q) => q.eq("batchId", batch._id))
+          .take(budget);
+        for (const outcome of outcomes) {
+          await ctx.db.delete(outcome._id);
+          budget--;
+        }
+        if (budget > 0) {
+          const remaining = await ctx.db
+            .query("import_job_outcomes")
+            .withIndex("by_batchId", (q) => q.eq("batchId", batch._id))
+            .take(1);
+          if (remaining.length === 0) {
+            await ctx.db.delete(batch._id);
+            budget--;
+          }
+        }
+      }
+    }
+
+    /* 11. delete_batches + outcomes */
+    if (budget > 0) {
+      const batches = await ctx.db
+        .query("delete_batches")
+        .withIndex("by_projectId_and_createdAt", (q) =>
+          q.eq("projectId", args.projectId),
+        )
+        .take(budget);
+      for (const batch of batches) {
+        if (budget <= 0) break;
+        const outcomes = await ctx.db
+          .query("delete_job_outcomes")
+          .withIndex("by_batchId", (q) => q.eq("batchId", batch._id))
+          .take(budget);
+        for (const outcome of outcomes) {
+          await ctx.db.delete(outcome._id);
+          budget--;
+        }
+        if (budget > 0) {
+          const remaining = await ctx.db
+            .query("delete_job_outcomes")
+            .withIndex("by_batchId", (q) => q.eq("batchId", batch._id))
+            .take(1);
+          if (remaining.length === 0) {
+            await ctx.db.delete(batch._id);
+            budget--;
+          }
+        }
+      }
+    }
+
+    /* 12. documents */
+    if (budget > 0) {
+      const rows = await ctx.db
+        .query("documents")
+        .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
+        .take(budget);
+      for (const row of rows) {
+        await ctx.db.delete(row._id);
+        budget--;
+        documentsDeleted++;
+      }
+    }
+
+    const remaining = await countProjectRemaining(ctx, args.projectId);
+    return { remaining, documentsDeleted, mediaDeleted };
+  },
+});
+
+/** Final teardown — refuses if the project still has dependent rows. */
+export const _deleteProjectRow = internalMutation({
+  args: { projectId: v.id("projects") },
+  handler: async (ctx, args) => {
+    const remaining = await countProjectRemaining(ctx, args.projectId);
+    if (remaining > 0) {
+      throw new Error(
+        `Cannot finalize delete: ${String(remaining)} dependent rows remain`,
+      );
+    }
     await ctx.db.delete(args.projectId);
   },
 });
+
+/** Counts still-pending rows across every project-scoped table. */
+async function countProjectRemaining(
+  ctx: { db: import("../_generated/server").MutationCtx["db"] },
+  projectId: Id<"projects">,
+): Promise<number> {
+  const heads = await Promise.all([
+    ctx.db
+      .query("documents")
+      .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+      .take(1),
+    ctx.db
+      .query("media")
+      .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+      .take(1),
+    ctx.db
+      .query("publish_history")
+      .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+      .take(1),
+    ctx.db
+      .query("document_drafts")
+      .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+      .take(1),
+    ctx.db
+      .query("document_research")
+      .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+      .take(1),
+    ctx.db
+      .query("mediaUsage")
+      .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+      .take(1),
+    ctx.db
+      .query("mediaErrorLog")
+      .withIndex("by_projectId_and_createdAt", (q) =>
+        q.eq("projectId", projectId),
+      )
+      .take(1),
+    ctx.db
+      .query("mediaCredentials")
+      .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+      .take(1),
+    ctx.db
+      .query("aiCredentials")
+      .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+      .take(1),
+    ctx.db
+      .query("socialCredentials")
+      .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+      .take(1),
+    ctx.db
+      .query("sync_conflicts")
+      .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+      .take(1),
+    ctx.db
+      .query("import_batches")
+      .withIndex("by_projectId_and_createdAt", (q) =>
+        q.eq("projectId", projectId),
+      )
+      .take(1),
+    ctx.db
+      .query("delete_batches")
+      .withIndex("by_projectId_and_createdAt", (q) =>
+        q.eq("projectId", projectId),
+      )
+      .take(1),
+  ]);
+  let count = 0;
+  for (const r of heads) count += r.length;
+  return count;
+}
 
 /**
  * Internal-only query to fetch a project by ID without auth checks.

@@ -742,4 +742,21 @@ export default defineSchema({
   })
     .index("by_slug", ["slug"])
     .index("by_publishedAt", ["publishedAt"]),
+
+  /**
+   * Per-stream ownership record so `getStreamBody` can reject reads from
+   * users who weren't the one who started the stream. The persistent-text-
+   * streaming component's `streams` table has no owner column, so we keep
+   * the binding here. Cleaned up out-of-band — leaked rows are harmless
+   * (the underlying stream blob is still subject to the component's own
+   * retention policy).
+   */
+  ai_stream_owners: defineTable({
+    streamId: v.string(),
+    userId: v.id("users"),
+    projectId: v.id("projects"),
+    createdAt: v.number(),
+  })
+    .index("by_streamId", ["streamId"])
+    .index("by_userId_and_createdAt", ["userId", "createdAt"]),
 });

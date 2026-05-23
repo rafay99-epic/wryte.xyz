@@ -1728,25 +1728,50 @@ export const startBulkImport = action({
 });
 
 /**
- * Validates that a GitHub token has access to the specified repository.
- * Returns a result object instead of throwing so the UI can display inline errors.
+ * Validates that the caller has access to the specified GitHub repository.
+ *
+ * The action requires authentication and resolves the token server-side
+ * via the same three-tier flow as every other GitHub action: Clerk OAuth
+ * first, then vault PAT, then legacy plaintext. Callers may also pass a
+ * `pat` argument to test a PAT they haven't saved yet (the connect
+ * wizard's "verify before save" flow).
  */
 export const verifyRepoAccess = action({
   args: {
-    token: v.string(),
     repo: v.string(),
+    pat: v.optional(v.string()),
   },
-  handler: async (_ctx, args): Promise<{ valid: boolean; error?: string }> => {
-    const key = await getRateLimitKey(_ctx);
-    await rateLimiter.limit(_ctx, "github:verifyRepoAccess", {
+  handler: async (ctx, args): Promise<{ valid: boolean; error?: string }> => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      return { valid: false, error: "Not authenticated" };
+    }
+
+    const user = await ctx.runQuery(internal.account.users.internalGetByToken, {
+      tokenIdentifier: identity.tokenIdentifier,
+    });
+    if (!user) {
+      return { valid: false, error: "User not found" };
+    }
+
+    const key = await getRateLimitKey(ctx);
+    await rateLimiter.limit(ctx, "github:verifyRepoAccess", {
       key,
       throws: true,
     });
 
+    const token = args.pat?.trim() || (await getGithubToken(ctx, user._id));
+    if (!token) {
+      return {
+        valid: false,
+        error: "Connect GitHub via OAuth or provide a Personal Access Token",
+      };
+    }
+
     const { owner, repo } = parseRepoString(args.repo);
 
     try {
-      const octokit = new Octokit({ auth: args.token });
+      const octokit = new Octokit({ auth: token });
       await octokit.repos.get({ owner, repo });
       return { valid: true };
     } catch (error: unknown) {

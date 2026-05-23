@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation } from "convex/react";
+import { useAction } from "convex/react";
 import { AlertTriangle, Loader2, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
@@ -23,7 +23,7 @@ export function DangerZoneSection({
   projectId: Id<"projects">;
 }) {
   const router = useRouter();
-  const removeProject = useMutation(api.cms.projects.remove);
+  const removeProject = useAction(api.cms.projects.remove);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 

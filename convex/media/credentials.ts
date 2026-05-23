@@ -87,6 +87,21 @@ export const setCredentials = action({
       { projectId: args.projectId, provider: args.provider },
     );
 
+    // Verify-first when replacing an existing credential — never destroy
+    // the working vault entry on a bad new secret.
+    const verify = await runProviderPing(args.provider, args.secret);
+    if (existing && !verify.ok) {
+      const failResult: {
+        credentialId: Id<"mediaCredentials">;
+        ok: false;
+        code?: string;
+        message?: string;
+      } = { credentialId: existing._id, ok: false };
+      if (verify.code) failResult.code = verify.code;
+      if (verify.message) failResult.message = verify.message;
+      return failResult;
+    }
+
     const created = await ctx.runAction(
       internal.integrations.secretStore._create,
       {
@@ -157,7 +172,6 @@ export const setCredentials = action({
       );
     }
 
-    const verify = await runProviderPing(args.provider, args.secret);
     const statusArgs: {
       credentialId: Id<"mediaCredentials">;
       status: "active" | "invalid" | "verifying" | "rotating";

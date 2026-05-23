@@ -22,7 +22,6 @@ export function useGithubSection({
   const verifyRepoAccess = useAction(api.integrations.github.verifyRepoAccess);
 
   const [oauthConnected, setOauthConnected] = useState<boolean | null>(null);
-  const [oauthToken, setOauthToken] = useState<string | null>(null);
 
   const [token, setToken] = useState(existingToken);
   const [showToken, setShowToken] = useState(false);
@@ -60,12 +59,9 @@ export function useGithubSection({
       try {
         const res = await fetch("/api/github/token");
         if (res.ok) {
-          const data = (await res.json()) as { token?: string };
-          if (data.token) {
-            setOauthConnected(true);
-            setOauthToken(data.token);
-            return;
-          }
+          const data = (await res.json()) as { connected?: boolean };
+          setOauthConnected(Boolean(data.connected));
+          return;
         }
         setOauthConnected(false);
       } catch {
@@ -131,8 +127,8 @@ export function useGithubSection({
 
   const handleVerify = useCallback(async () => {
     const trimmedRepo = repo.trim();
-    const verifyToken = oauthToken ?? token.trim();
-    if (!verifyToken) {
+    const typedPat = token.trim();
+    if (!oauthConnected && !typedPat) {
       toast.error(
         "Connect GitHub via OAuth or save a Personal Access Token first",
       );
@@ -146,8 +142,8 @@ export function useGithubSection({
     setVerifyError("");
     try {
       const result = await verifyRepoAccess({
-        token: verifyToken,
         repo: trimmedRepo,
+        ...(typedPat ? { pat: typedPat } : {}),
       });
       if (result.valid) {
         setVerifyStatus("connected");
@@ -162,11 +158,10 @@ export function useGithubSection({
       setVerifyError("Failed to verify repository access");
       toast.error("Failed to verify repository access");
     }
-  }, [repo, token, oauthToken, verifyRepoAccess]);
+  }, [repo, token, oauthConnected, verifyRepoAccess]);
 
   return {
     oauthConnected,
-    oauthToken,
     token,
     setToken,
     showToken,
