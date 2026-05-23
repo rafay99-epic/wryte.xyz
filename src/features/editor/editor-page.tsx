@@ -63,6 +63,12 @@ export function EditorPage() {
   const hasInitialized = useRef(false);
   const initializedDocId = useRef<string | null>(null);
 
+  // Initialize the editor store when the document loads, and re-initialize
+  // when the URL switches to a different document. Note: we intentionally
+  // DO NOT eagerly reset on documentId change — that would race with any
+  // pending autosave for the previous document and drop unsaved edits. The
+  // tradeoff is a brief flash of the previous doc's content while the new
+  // document query resolves.
   useEffect(() => {
     if (
       document &&

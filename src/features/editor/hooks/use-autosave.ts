@@ -43,6 +43,11 @@ export function useAutosave({
   const isMountedRef = useRef(true);
   const failureCountRef = useRef(0);
   const onSaveRef = useRef(onSave);
+  // Monotonically increasing token per save attempt. After awaiting the
+  // mutation we check that our token is still the latest; otherwise a newer
+  // save kicked off mid-await and we drop the post-await side-effects to
+  // avoid marking the editor as clean against stale content.
+  const saveSeqRef = useRef(0);
 
   useEffect(() => {
     latestRef.current = { content, title, targetId };
@@ -64,11 +69,17 @@ export function useAutosave({
     if (latestRef.current.targetId !== targetId) return;
     if (!useEditorStore.getState().isDirty) return;
 
+    const seq = ++saveSeqRef.current;
     const snapshotContent = latestRef.current.content;
     const snapshotTitle = latestRef.current.title;
     setSaving(true);
     try {
       await onSaveRef.current(snapshotContent, snapshotTitle);
+
+      // A newer save started while we awaited — that call will handle the
+      // result. Touching state here would mark the editor clean against
+      // content the user has since moved past.
+      if (seq !== saveSeqRef.current) return;
 
       if (isMountedRef.current && latestRef.current.targetId === targetId) {
         const stillFresh =
@@ -82,6 +93,7 @@ export function useAutosave({
         failureCountRef.current = 0;
       }
     } catch (err) {
+      if (seq !== saveSeqRef.current) return;
       if (isMountedRef.current) {
         setSaving(false);
         failureCountRef.current += 1;

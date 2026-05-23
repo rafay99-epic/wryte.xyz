@@ -550,6 +550,20 @@ export const _wipeChunk = internalMutation({
       }
     }
 
+    /* 6f. ai_stream_owners (bookkeeping for AI stream ownership). */
+    if (budget > 0) {
+      const rows = await ctx.db
+        .query("ai_stream_owners")
+        .withIndex("by_userId_and_createdAt", (q) =>
+          q.eq("userId", args.userId),
+        )
+        .take(budget);
+      for (const row of rows) {
+        await ctx.db.delete(row._id);
+        budget--;
+      }
+    }
+
     /* 7. documents */
     if (budget > 0) {
       const rows = await ctx.db
@@ -629,6 +643,10 @@ async function countRemaining(
       .take(1),
     ctx.db
       .query("delete_batches")
+      .withIndex("by_userId_and_createdAt", (q) => q.eq("userId", userId))
+      .take(1),
+    ctx.db
+      .query("ai_stream_owners")
       .withIndex("by_userId_and_createdAt", (q) => q.eq("userId", userId))
       .take(1),
   ]);

@@ -90,25 +90,24 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
 // useGithubToken — check whether GitHub OAuth is connected
 // ---------------------------------------------------------------------------
 
-type TokenResponse = {
-  token: string;
+type ConnectionResponse = {
+  connected: boolean;
 };
 
 /**
- * Fetches the user's GitHub OAuth token from Clerk.
+ * Reports whether the user has linked GitHub via Clerk OAuth.
  *
- * The token itself is rarely needed on the client — this hook is mainly used
- * to check whether the user has a valid GitHub connection (`isConnected`).
- *
- * Caches for 10 minutes since the token rarely changes mid-session.
+ * The OAuth token never crosses the network boundary — all GitHub calls
+ * are proxied through `/api/github/*` routes or Convex actions that fetch
+ * the token server-side. The hook returns `connected: true/false` only.
  */
 export function useGithubToken(
-  options?: Partial<UseQueryOptions<TokenResponse>>,
+  options?: Partial<UseQueryOptions<ConnectionResponse>>,
 ) {
-  return useQuery<TokenResponse>({
+  return useQuery<ConnectionResponse>({
     queryKey: githubKeys.token(),
-    queryFn: () => fetchJson<TokenResponse>("/api/github/token"),
-    staleTime: 10 * 60 * 1000, // 10 minutes
+    queryFn: () => fetchJson<ConnectionResponse>("/api/github/token"),
+    staleTime: 10 * 60 * 1000,
     retry: false,
     ...options,
   });

@@ -180,8 +180,12 @@ export function FrontmatterAiDrawer({
     }
   }, [isError, streamBody?.text]);
 
+  // Only attempt to parse once the stream has finished. Re-running JSON.parse
+  // on every chunk is wasted work — JSON is invalid for almost the entire
+  // duration of streaming — and causes the suggestions UI to flash empty as
+  // the parser flips between null (mid-stream) and the final object.
   const suggestions: SuggestionMap | null = useMemo(() => {
-    if (!streamBody?.text) return null;
+    if (!isDone || !streamBody?.text) return null;
     try {
       let raw = streamBody.text.trim();
       if (raw.startsWith("```")) {
@@ -195,7 +199,7 @@ export function FrontmatterAiDrawer({
     } catch {
       return null;
     }
-  }, [streamBody?.text]);
+  }, [isDone, streamBody?.text]);
 
   /**
    * Field metadata the drawer renders for. Only fields that the AI

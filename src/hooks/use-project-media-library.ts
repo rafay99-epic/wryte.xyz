@@ -87,13 +87,16 @@ export function useProjectMediaLibrary({
   const [hasMore, setHasMore] = useState(false);
 
   const providerCursorRef = useRef<string | null>(null);
-  const inFlightRef = useRef(false);
+  // Monotonic token. Each fetch bumps it; in-flight fetches whose token is
+  // no longer the latest drop their result instead of stomping on the state
+  // for the newer (e.g. for a different project) fetch. The previous
+  // boolean lock dropped the NEW fetch when an old one was still running.
+  const fetchSeqRef = useRef(0);
 
   const fetchProvider = useCallback(
     async (opts?: { append?: boolean }) => {
       if (isGithub || !enabled) return;
-      if (inFlightRef.current) return;
-      inFlightRef.current = true;
+      const seq = ++fetchSeqRef.current;
       const append = opts?.append ?? false;
       if (append) {
         setIsLoadingMore(true);
@@ -110,6 +113,9 @@ export function useProjectMediaLibrary({
         const cursor = append ? providerCursorRef.current : null;
         if (cursor) args.cursor = cursor;
         const res = await listMedia(args);
+        // A newer fetch superseded this one (e.g. projectId changed) — drop
+        // the result rather than overwriting the newer state.
+        if (seq !== fetchSeqRef.current) return;
         const newItems: MediaLibraryItem[] = res.items.map((it) => ({
           externalId: it.externalId,
           name: it.filename,
@@ -122,6 +128,7 @@ export function useProjectMediaLibrary({
         providerCursorRef.current = res.nextCursor;
         setHasMore(res.nextCursor !== null);
       } catch (err) {
+        if (seq !== fetchSeqRef.current) return;
         const data = (err as { data?: { message?: string } })?.data;
         const message =
           data?.message ??
@@ -130,9 +137,10 @@ export function useProjectMediaLibrary({
         if (!append) setProviderItems([]);
         setHasMore(false);
       } finally {
-        inFlightRef.current = false;
-        if (append) setIsLoadingMore(false);
-        else setIsProviderLoading(false);
+        if (seq === fetchSeqRef.current) {
+          if (append) setIsLoadingMore(false);
+          else setIsProviderLoading(false);
+        }
       }
     },
     [enabled, isGithub, listMedia, projectId],

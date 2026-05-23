@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { DatabaseReader } from "../_generated/server";
 import {
@@ -64,23 +65,29 @@ export const list = query({
 
     let documents: Doc<"documents">[];
     if (args.status) {
+      // No status+trashedAt compound index — keep the in-memory trash
+      // filter but query a larger window so trash doesn't crowd out active
+      // status-matched docs.
       const status = args.status;
-      documents = await ctx.db
+      const raw = await ctx.db
         .query("documents")
         .withIndex("by_projectId_and_status", (q) =>
           q.eq("projectId", args.projectId).eq("status", status),
         )
-        .take(500);
+        .take(2000);
+      documents = raw.filter((d) => d.trashedAt === undefined);
     } else {
+      // Use the trashedAt-aware index so trashed docs never enter the
+      // candidate set and steal slots from active ones.
       documents = await ctx.db
         .query("documents")
-        .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
+        .withIndex("by_projectId_and_trashedAt", (q) =>
+          q.eq("projectId", args.projectId).eq("trashedAt", undefined),
+        )
         .take(500);
     }
 
-    return documents
-      .filter((d) => d.trashedAt === undefined)
-      .sort((a, b) => b.updatedAt - a.updatedAt);
+    return documents.sort((a, b) => b.updatedAt - a.updatedAt);
   },
 });
 
@@ -235,7 +242,6 @@ export const update = mutation({
     status: v.optional(v.string()),
     tags: v.optional(v.array(v.string())),
     boardPosition: v.optional(v.number()),
-    scheduledAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const key = await getRateLimitKey(ctx);
@@ -243,6 +249,38 @@ export const update = mutation({
 
     const user = await getCurrentUser(ctx);
     await verifyDocumentOwnership(ctx, args.documentId, user._id);
+
+    // Status transitions that require side-effects (workflow scheduling /
+    // cancellation, publish history, social cross-post) must go through
+    // their dedicated APIs. Direct writes here would leave the workflow
+    // queue out of sync with the document's apparent state — e.g. a doc
+    // could appear scheduled with no firing workflow, or appear published
+    // with no publish_history row.
+    if (args.status !== undefined) {
+      if (args.status === "scheduled") {
+        throw new Error(
+          "Use scheduling.schedule to move a document into the scheduled state.",
+        );
+      }
+      if (args.status === "published") {
+        throw new Error(
+          "Use the publish action to publish a document; update cannot set status to 'published' directly.",
+        );
+      }
+    }
+
+    if (args.content !== undefined) {
+      // Convex serializes documents as UTF-8 and enforces a 1MB per-document
+      // ceiling. A `.length` check would be off by ~3× for CJK or emoji-
+      // heavy content (UTF-16 code units vs UTF-8 bytes), so compute the
+      // real byte size before comparing to the cap.
+      const byteLength = new TextEncoder().encode(args.content).byteLength;
+      if (byteLength > MAX_CONTENT_BYTES) {
+        throw new Error(
+          `Document content is too large (max ${String(Math.round(MAX_CONTENT_BYTES / 1024))} KB).`,
+        );
+      }
+    }
 
     // Defense-in-depth lock: if the doc has an unresolved sync
     // conflict, edits are not allowed. The editor UI also blocks the
@@ -270,6 +308,12 @@ export const update = mutation({
     await ctx.db.patch(documentId, fieldsToUpdate);
   },
 });
+
+/** Soft upper bound on document `content` length. Convex's 1MB doc limit
+ *  is the hard ceiling — we keep things well below it so other fields
+ *  retain budget and the UI doesn't have to deal with cryptic Convex
+ *  errors from an oversize patch. */
+const MAX_CONTENT_BYTES = 500 * 1024;
 
 /**
  * Creates a duplicate of an existing document in the same project.
@@ -573,16 +617,16 @@ export const getBySlug = query({
       return null;
     }
 
+    // Use the trashedAt-aware index so trash never crowds out the active
+    // doc with the requested slug.
     const documents = await ctx.db
       .query("documents")
-      .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
-      .take(500);
+      .withIndex("by_projectId_and_trashedAt", (q) =>
+        q.eq("projectId", args.projectId).eq("trashedAt", undefined),
+      )
+      .take(2000);
 
-    return (
-      documents.find(
-        (d) => d.slug === args.slug && d.trashedAt === undefined,
-      ) ?? null
-    );
+    return documents.find((d) => d.slug === args.slug) ?? null;
   },
 });
 
@@ -694,6 +738,16 @@ export const moveCard = mutation({
     const key = await getRateLimitKey(ctx);
     await rateLimiter.limit(ctx, "documents:moveCard", { key, throws: true });
 
+    // Convex's v.number() accepts NaN and ±Infinity. Clamp to a safe range
+    // so downstream sort / render code doesn't break.
+    if (!Number.isFinite(args.boardPosition)) {
+      throw new Error("boardPosition must be a finite number");
+    }
+    const clampedPosition = Math.max(
+      0,
+      Math.min(args.boardPosition, Number.MAX_SAFE_INTEGER),
+    );
+
     const user = await getCurrentUser(ctx);
     const document = await verifyDocumentOwnership(
       ctx,
@@ -703,7 +757,7 @@ export const moveCard = mutation({
 
     const updates: Record<string, unknown> = {
       status: args.targetStatus,
-      boardPosition: args.boardPosition,
+      boardPosition: clampedPosition,
       updatedAt: Date.now(),
     };
 
@@ -923,21 +977,21 @@ export const listForCalendar = query({
 
     const documents = await ctx.db
       .query("documents")
-      .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
+      .withIndex("by_projectId_and_trashedAt", (q) =>
+        q.eq("projectId", args.projectId).eq("trashedAt", undefined),
+      )
       .take(500);
 
-    return documents
-      .filter((d) => d.trashedAt === undefined)
-      .map((d) => ({
-        _id: d._id,
-        title: d.title,
-        slug: d.slug,
-        status: d.status,
-        scheduledAt: d.scheduledAt,
-        publishedAt: d.publishedAt,
-        updatedAt: d.updatedAt,
-        createdAt: d.createdAt,
-      }));
+    return documents.map((d) => ({
+      _id: d._id,
+      title: d.title,
+      slug: d.slug,
+      status: d.status,
+      scheduledAt: d.scheduledAt,
+      publishedAt: d.publishedAt,
+      updatedAt: d.updatedAt,
+      createdAt: d.createdAt,
+    }));
   },
 });
 
@@ -1467,35 +1521,50 @@ export const _upsertImportedDocument = internalMutation({
 
 /**
  * One-shot backfill: any doc that has a `githubSha` set but no
- * `githubSyncedAt` is assumed to be in sync with GitHub as of right
- * now, so the next sync doesn't flag it as a conflict.
+ * `githubSyncedAt` is assumed to be in sync with GitHub as of right now,
+ * so the next sync doesn't flag it as a conflict.
  *
- * Run from the Convex dashboard once after deploying the smart-sync
- * change; idempotent so re-running is safe.
+ * Implemented as a self-scheduling chunk pattern (per Convex guidelines):
+ * each mutation processes one page and reschedules itself for the next.
+ * The previous while-loop variant ran every page in a single transaction
+ * which risked hitting per-transaction read/write limits on larger
+ * deployments and leaving the backfill half-applied.
+ *
+ * Kick off via the Convex dashboard with `cursor: undefined`. The action
+ * returns the per-page counts; the rolled-up `_backfillGithubSyncedAt`
+ * entry point reports the totals when the run completes.
  */
+const BACKFILL_BATCH_SIZE = 100;
+
 export const _backfillGithubSyncedAt = internalMutation({
-  args: {},
-  handler: async (ctx) => {
+  args: {
+    cursor: v.optional(v.union(v.string(), v.null())),
+  },
+  handler: async (ctx, args) => {
     const now = Date.now();
     let patched = 0;
-    let scanned = 0;
-    const batchSize = 100;
-    let cursor: string | null = null;
-    let done = false;
-    while (!done) {
-      const result = await ctx.db
-        .query("documents")
-        .paginate({ numItems: batchSize, cursor });
-      for (const doc of result.page) {
-        scanned++;
-        if (doc.githubSha && doc.githubSyncedAt === undefined) {
-          await ctx.db.patch(doc._id, { githubSyncedAt: now });
-          patched += 1;
-        }
+    const result = await ctx.db.query("documents").paginate({
+      numItems: BACKFILL_BATCH_SIZE,
+      cursor: args.cursor ?? null,
+    });
+    for (const doc of result.page) {
+      if (doc.githubSha && doc.githubSyncedAt === undefined) {
+        await ctx.db.patch(doc._id, { githubSyncedAt: now });
+        patched += 1;
       }
-      done = result.isDone;
-      cursor = result.continueCursor;
     }
-    return { patched, scanned };
+    if (!result.isDone) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.cms.documents._backfillGithubSyncedAt,
+        { cursor: result.continueCursor },
+      );
+    }
+    return {
+      patched,
+      scanned: result.page.length,
+      isDone: result.isDone,
+      cursor: result.continueCursor,
+    };
   },
 });

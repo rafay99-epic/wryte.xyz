@@ -134,33 +134,31 @@ export function PublishDialog({
   const slug = document?.slug ?? "untitled";
   const filePath = `${contentPath}/${slug}${getFileExtension(project?.contentFormat)}`;
 
-  // Build a YAML frontmatter preview by merging the document's saved frontmatter
-  // with a title and current timestamp. This shows the user exactly what will be
-  // written to the file's front matter block.
-  let frontmatterPreview = "";
-  if (document?.frontmatter) {
-    try {
-      const parsed = JSON.parse(document.frontmatter) as Record<
-        string,
-        unknown
-      >;
-      frontmatterPreview = buildFrontmatter({
-        title,
-        ...parsed,
-        date: new Date().toISOString(),
-      });
-    } catch {
-      frontmatterPreview = buildFrontmatter({
-        title,
-        date: new Date().toISOString(),
-      });
+  // Capture a single "now" timestamp keyed by `open` so the preview's date
+  // refreshes when the dialog reopens but doesn't tick on every parent
+  // render. The action recomputes on the server at publish-time, so this
+  // value is purely for the YAML preview shown in the dialog.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: ISO timestamp is intentionally re-computed per dialog open
+  const dateIso = useMemo(() => new Date().toISOString(), [open]);
+
+  const frontmatterPreview = useMemo(() => {
+    if (document?.frontmatter) {
+      try {
+        const parsed = JSON.parse(document.frontmatter) as Record<
+          string,
+          unknown
+        >;
+        return buildFrontmatter({
+          title,
+          ...parsed,
+          date: dateIso,
+        });
+      } catch {
+        return buildFrontmatter({ title, date: dateIso });
+      }
     }
-  } else {
-    frontmatterPreview = buildFrontmatter({
-      title,
-      date: new Date().toISOString(),
-    });
-  }
+    return buildFrontmatter({ title, date: dateIso });
+  }, [document?.frontmatter, title, dateIso]);
 
   const contentPreview =
     content.length > 200 ? `${content.slice(0, 200)}...` : content;

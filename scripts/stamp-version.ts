@@ -11,6 +11,13 @@ if (!convexUrl) {
   process.exit(0);
 }
 
+const stampSecret = process.env["VERSION_STAMP_SECRET"];
+if (!stampSecret) {
+  // biome-ignore lint/suspicious/noConsole: CLI script
+  console.log("VERSION_STAMP_SECRET not set — skipping version stamp.");
+  process.exit(0);
+}
+
 const version = packageJson.version;
 
 const build =
@@ -32,7 +39,11 @@ console.log(`Stamping version ${version} (build ${build})...`);
 
 try {
   const client = new ConvexHttpClient(convexUrl);
-  await client.mutation(api.cms.appVersion.stamp, { version, build });
+  await client.mutation(api.cms.appVersion.stamp, {
+    version,
+    build,
+    secret: stampSecret,
+  });
   // biome-ignore lint/suspicious/noConsole: CLI script
   console.log("Version stamped.");
 } catch (error) {

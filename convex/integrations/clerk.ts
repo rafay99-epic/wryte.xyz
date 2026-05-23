@@ -67,13 +67,6 @@ export const _getGithubOauthToken = internalAction({
       // valid (but auth-failing) token at the GitHub API call.
       return token || null;
     } catch (err) {
-      // 404 with `resource_not_found` is the single most common failure
-      // mode and the most confusing one: it means the Clerk Backend SDK
-      // is authenticated against a *different* Clerk app than the one
-      // issuing the user's JWT. Surface a hint so the next person
-      // doesn't spend an hour wondering why a signed-in user "doesn't
-      // exist". Every other failure (network, 5xx, scope) gets the
-      // generic console.error and falls through to the vault tier.
       const clerkErr = err as {
         status?: number;
         errors?: Array<{ code?: string }>;
@@ -82,13 +75,27 @@ export const _getGithubOauthToken = internalAction({
         clerkErr.status === 404 &&
         clerkErr.errors?.some((e) => e.code === "resource_not_found");
       if (isUserNotFound) {
+        // Configuration mismatch: the SDK key and the JWT issuer point at
+        // different Clerk apps. Surface a precise hint, then fall through to
+        // the vault tier — the legacy PAT may still work.
         console.error(
           `[Clerk] GitHub OAuth fetch failed: Clerk user ${args.clerkUserId} not found in the Clerk app that CLERK_SECRET_KEY belongs to. CLERK_SECRET_KEY and CLERK_JWT_ISSUER_DOMAIN must be from the same Clerk app — see https://clerk.com/docs/guides/development/integrations/databases/convex`,
         );
-      } else {
-        console.error("[Clerk] GitHub OAuth fetch failed:", err);
+        return null;
       }
-      return null;
+
+      // 401/403 = the user really doesn't have a connected GitHub OAuth
+      // identity in this Clerk app, or the SDK key lost its access.
+      // Falling through to the vault tier is correct.
+      if (clerkErr.status === 401 || clerkErr.status === 403) {
+        console.error("[Clerk] GitHub OAuth fetch unauthorized:", err);
+        return null;
+      }
+
+      // Anything else (network, 5xx, 408 timeout) is transient. Throwing
+      // lets the workflow's retry policy kick in instead of silently
+      // demoting the user to a stale or empty vault PAT.
+      throw err;
     }
   },
 });
@@ -170,16 +177,14 @@ export const debugAuth = internalAction({
       return report;
     }
 
-    // 1. Does the secret key authenticate at all?
+    // 1. Does the secret key authenticate at all? We don't leak the first
+    //    user's id or email — anyone with Convex dashboard access could
+    //    otherwise dump arbitrary user PII through this diagnostic.
     try {
       const list = await clerk.users.getUserList({ limit: 1 });
       report["sdkSmokeTest"] = {
         ok: true,
         totalUsersInApp: list.totalCount,
-        // First user ID in the app — if your JWT's user_id matches
-        // this app, you should be able to find your own ID listed
-        // somewhere in this Clerk instance.
-        firstUserIdSeen: list.data[0]?.id ?? null,
       };
     } catch (err) {
       report["sdkSmokeTest"] = {
@@ -188,15 +193,12 @@ export const debugAuth = internalAction({
       };
     }
 
-    // 2. Look up the JWT's user id via SDK.
+    // 2. Confirm the JWT's user id resolves through the SDK without
+    //    returning the user object itself.
     if (parsedClerkUserId) {
       try {
-        const user = await clerk.users.getUser(parsedClerkUserId);
-        report["sdkUserLookup"] = {
-          ok: true,
-          userId: user.id,
-          primaryEmail: user.emailAddresses[0]?.emailAddress ?? null,
-        };
+        await clerk.users.getUser(parsedClerkUserId);
+        report["sdkUserLookup"] = { ok: true };
       } catch (err) {
         report["sdkUserLookup"] = {
           ok: false,

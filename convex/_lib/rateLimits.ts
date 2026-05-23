@@ -623,4 +623,22 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     rate: 5,
     period: MINUTE,
   },
+
+  /* ------------------------------------------------------------------ */
+  /*  Support tickets                                                    */
+  /* ------------------------------------------------------------------ */
+
+  /** Authenticated dashboard form — tight cap, real users don't submit
+   *  more than a handful per hour. */
+  "support:submitFromDashboard": {
+    kind: "fixed window",
+    rate: 10,
+    period: HOUR,
+  },
+  /** Marketing form is reachable without auth — tightest bucket. */
+  "support:submitFromMarketing": {
+    kind: "fixed window",
+    rate: 5,
+    period: HOUR,
+  },
 });

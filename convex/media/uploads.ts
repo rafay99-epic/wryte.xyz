@@ -47,6 +47,42 @@ function resolveActiveProvider(mode: string | undefined): ActiveProvider {
   return "github";
 }
 
+/**
+ * Reduces an untrusted filename to a single safe path segment. The result is
+ * concatenated into provider URLs and GitHub repo paths (`${mediaPath}/${filename}`),
+ * so any directory-traversal sequence would let a caller escape the configured
+ * media directory.
+ *
+ * Rules:
+ *  - Take only the last segment after splitting on both `/` and `\`
+ *  - Reject NUL bytes outright (no realistic legitimate use)
+ *  - Reject `.`, `..`, or empty results
+ *  - Cap at 255 chars (long enough for any reasonable upload, short enough to
+ *    fit any filesystem)
+ */
+function sanitizeFilename(input: string): string {
+  if (input.includes("\0")) {
+    throw new ConvexError({
+      code: "UNKNOWN" as MediaErrorCode,
+      message: "Filename contains invalid characters",
+    });
+  }
+  const lastSegment = input.split(/[\\/]/).pop()?.trim() ?? "";
+  if (!lastSegment || lastSegment === "." || lastSegment === "..") {
+    throw new ConvexError({
+      code: "UNKNOWN" as MediaErrorCode,
+      message: "Filename is required and must not be a directory reference",
+    });
+  }
+  if (lastSegment.length > 255) {
+    throw new ConvexError({
+      code: "UNKNOWN" as MediaErrorCode,
+      message: "Filename is too long (max 255 characters)",
+    });
+  }
+  return lastSegment;
+}
+
 /* ------------------------------------------------------------------ */
 /*  Upload                                                              */
 /* ------------------------------------------------------------------ */
@@ -90,6 +126,11 @@ export const upload = action({
         message: DEFAULT_MESSAGES.UNSUPPORTED_MIME,
       });
     }
+
+    // Path traversal guard. The filename is concatenated into provider URLs
+    // and GitHub repo paths — a `../` segment would let a caller escape the
+    // configured media directory and overwrite e.g. `.github/workflows/*`.
+    const safeFilename = sanitizeFilename(args.filename);
 
     // Rate limits — user, concurrency, and the global circuit breaker.
     await rateLimiter.limit(ctx, "media:upload", { key, throws: true });
@@ -179,7 +220,7 @@ export const upload = action({
         const res = await utUpload(token, {
           buffer,
           mime: args.mime,
-          filename: args.filename,
+          filename: safeFilename,
         });
         url = res.url;
         externalId = res.externalId;
@@ -206,7 +247,7 @@ export const upload = action({
         const folder = owned.project.mediaPath ?? owned.project.slug;
         const res = await cldUpload(
           rawSecret,
-          { buffer, mime: args.mime, filename: args.filename },
+          { buffer, mime: args.mime, filename: safeFilename },
           { folder },
         );
         url = res.url;
@@ -242,7 +283,7 @@ export const upload = action({
         const res = await ghUpload(token, spec, {
           buffer,
           mime: args.mime,
-          filename: args.filename,
+          filename: safeFilename,
         });
         url = res.url;
         externalId = res.externalId;
@@ -267,7 +308,7 @@ export const upload = action({
         provider,
         externalId,
         url,
-        filename: args.filename,
+        filename: safeFilename,
         mime: args.mime,
         bytes,
       };
@@ -708,6 +749,7 @@ export const deleteByRef = action({
     const row = await ctx.runQuery(
       internal.media.uploadsDb._findByProviderAndExternalId,
       {
+        projectId: args.projectId,
         provider: args.provider,
         externalId: args.externalId,
       },

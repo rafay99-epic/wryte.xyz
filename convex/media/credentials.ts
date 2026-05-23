@@ -87,6 +87,21 @@ export const setCredentials = action({
       { projectId: args.projectId, provider: args.provider },
     );
 
+    // Verify-first when replacing an existing credential — never destroy
+    // the working vault entry on a bad new secret.
+    const verify = await runProviderPing(args.provider, args.secret);
+    if (existing && !verify.ok) {
+      const failResult: {
+        credentialId: Id<"mediaCredentials">;
+        ok: false;
+        code?: string;
+        message?: string;
+      } = { credentialId: existing._id, ok: false };
+      if (verify.code) failResult.code = verify.code;
+      if (verify.message) failResult.message = verify.message;
+      return failResult;
+    }
+
     const created = await ctx.runAction(
       internal.integrations.secretStore._create,
       {
@@ -157,7 +172,6 @@ export const setCredentials = action({
       );
     }
 
-    const verify = await runProviderPing(args.provider, args.secret);
     const statusArgs: {
       credentialId: Id<"mediaCredentials">;
       status: "active" | "invalid" | "verifying" | "rotating";
@@ -270,6 +284,12 @@ export const rotate = action({
       }
     }
 
+    // Snapshot the prior status so the workflow can revert correctly on a
+    // failed verify — promoting a previously-invalid row to "active" was
+    // the B11 bug that this branch fixes for the ai/social paths too.
+    const priorStatus: "active" | "invalid" =
+      cred.status === "invalid" ? "invalid" : "active";
+
     await ctx.runMutation(internal.media.credentialsDb._setStatus, {
       credentialId: cred._id,
       status: "rotating" as const,
@@ -279,11 +299,13 @@ export const rotate = action({
       credentialId: Id<"mediaCredentials">;
       provider: ProviderName;
       newSecret: string;
+      priorStatus: "active" | "invalid";
       publicConfig?: string;
     } = {
       credentialId: cred._id,
       provider: args.provider,
       newSecret: args.secret,
+      priorStatus,
     };
     if (args.publicConfig !== undefined) {
       kickArgs.publicConfig = args.publicConfig;
@@ -346,7 +368,11 @@ async function loadOwnedCredential(
   ctx: ActionCtx,
   projectId: Id<"projects">,
   provider: ProviderName,
-): Promise<{ _id: Id<"mediaCredentials">; vaultSecretId: string }> {
+): Promise<{
+  _id: Id<"mediaCredentials">;
+  vaultSecretId: string;
+  status: "active" | "invalid" | "verifying" | "rotating";
+}> {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) throw new Error("Not authenticated");
   const user = await ctx.runQuery(internal.account.users.internalGetByToken, {
@@ -369,7 +395,11 @@ async function loadOwnedCredential(
       message: "No credentials configured for this provider.",
     });
   }
-  return { _id: cred._id, vaultSecretId: cred.vaultSecretId };
+  return {
+    _id: cred._id,
+    vaultSecretId: cred.vaultSecretId,
+    status: cred.status,
+  };
 }
 
 async function runProviderPing(

@@ -88,19 +88,27 @@ export const list = query({
       };
     }
 
-    const myUpvotes = await ctx.db
-      .query("feature_request_upvotes")
-      .withIndex("by_user_and_request", (q) =>
-        q.eq("clerkUserId", callerClerkId),
-      )
-      .take(500);
-    const upvotedSet = new Set(myUpvotes.map((u) => u.featureRequestId));
+    // Look up upvotes for exactly the rows on this page. The previous
+    // approach (.take(500) over all upvotes for this user) silently dropped
+    // upvotes beyond the cap, leaving heavy voters with false "not upvoted"
+    // markers on items they had actually upvoted.
+    const upvotedFlags = await Promise.all(
+      result.page.map((r) =>
+        ctx.db
+          .query("feature_request_upvotes")
+          .withIndex("by_user_and_request", (q) =>
+            q.eq("clerkUserId", callerClerkId).eq("featureRequestId", r._id),
+          )
+          .unique()
+          .then((row) => row !== null),
+      ),
+    );
 
     return {
       ...result,
-      page: result.page.map((r) => ({
+      page: result.page.map((r, idx) => ({
         ...r,
-        currentUserUpvoted: upvotedSet.has(r._id),
+        currentUserUpvoted: upvotedFlags[idx] ?? false,
       })),
     };
   },

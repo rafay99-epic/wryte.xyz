@@ -3,6 +3,7 @@
 import { useMutation, useQuery } from "convex/react";
 import { AnimatePresence, motion } from "framer-motion";
 import yaml from "js-yaml";
+import JSON5 from "json5";
 import {
   AlertCircle,
   Braces,
@@ -35,7 +36,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { findPubDateFieldName } from "@/lib/build-initial-frontmatter";
 import { generateSlug } from "@/lib/markdown";
 import { getTagFieldName } from "@/lib/parse-frontmatter";
 import { humanizeFieldName } from "@/lib/utils";
@@ -300,8 +300,9 @@ function valuesToMdx(
 }
 
 /** Parse an MDX-style export back to values. Accepts a bare object literal
- *  too (so pasting `{ title: "..." }` works), and uses `new Function` —
- *  not `eval` — so the parsed expression has no access to outer scope. */
+ *  too (so pasting `{ title: "..." }` works). Uses JSON5 — a permissive but
+ *  pure parser — so even a malicious payload pasted from an imported file
+ *  can never execute JS in the user's session. */
 function mdxToValues(mdxStr: string): {
   values: Record<string, string | boolean>;
   error: string | null;
@@ -315,9 +316,7 @@ function mdxToValues(mdxStr: string): {
   );
   const objStr = (match?.[1] ?? trimmed).trim().replace(/;\s*$/, "");
   try {
-    // Parenthesize so JS reads `{...}` as an object literal, not a block.
-    // `new Function` runs in its own scope with no closure access.
-    const parsed = new Function(`"use strict"; return (${objStr});`)();
+    const parsed = JSON5.parse(objStr);
     return normalizeParsedToValues(parsed);
   } catch (e) {
     return {
@@ -377,6 +376,13 @@ export function FrontmatterEditor({
   const [aiDrawerOpen, setAiDrawerOpen] = useState(false);
   const [codeError, setCodeError] = useState<string | null>(null);
   const codeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Debounce frontmatter saves so typing a 20-char description doesn't fire
+  // 20 mutations back-to-back. The pending callback is held in a ref so the
+  // unmount cleanup can flush the last edit instead of dropping it.
+  const valueSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const pendingValueSaveRef = useRef<(() => void) | null>(null);
 
   const project = useQuery(
     api.cms.projects.get,
@@ -499,18 +505,17 @@ export function FrontmatterEditor({
           .filter(Boolean);
       }
 
+      // Swallow errors at this layer so the debounced flush-on-unmount path
+      // doesn't surface unhandled-rejection toasts when the underlying
+      // document has been deleted or the user has navigated away. Real
+      // errors are still surfaced when the user clicks an explicit save.
       void updateDocument({
         documentId: documentId as Id<"documents">,
         frontmatter: JSON.stringify(newValues),
         ...(tags ? { tags } : {}),
-      });
+      }).catch(() => {});
     },
     [documentId, updateDocument, tagFieldName],
-  );
-
-  const pubDateFieldName = useMemo(
-    () => findPubDateFieldName(project?.frontmatterSchema),
-    [project?.frontmatterSchema],
   );
 
   function handleFieldChange(name: string, value: string | boolean) {
@@ -520,24 +525,23 @@ export function FrontmatterEditor({
       newValues["slug"] = generateSlug(value);
     }
 
-    // Sync pubDate changes back to scheduledAt when the document is scheduled
-    if (
-      name === pubDateFieldName &&
-      typeof value === "string" &&
-      value &&
-      document?.status === "scheduled"
-    ) {
-      const ts = new Date(value).getTime();
-      if (!Number.isNaN(ts) && ts > Date.now()) {
-        void updateDocument({
-          documentId: documentId as Id<"documents">,
-          scheduledAt: ts,
-        });
-      }
-    }
+    // Note: we intentionally do NOT push pubDate edits into `scheduledAt`
+    // here. Rescheduling has side effects (cancelling and re-arming a
+    // workflow) that only `integrations.scheduling.schedule` performs
+    // safely; a direct patch would leave the queue out of sync. Users
+    // change the firing time from the schedule dialog.
 
     setValues(newValues);
-    saveValues(newValues);
+
+    if (valueSaveTimeoutRef.current) {
+      clearTimeout(valueSaveTimeoutRef.current);
+    }
+    pendingValueSaveRef.current = () => saveValues(newValues);
+    valueSaveTimeoutRef.current = setTimeout(() => {
+      pendingValueSaveRef.current?.();
+      pendingValueSaveRef.current = null;
+      valueSaveTimeoutRef.current = null;
+    }, 500);
   }
 
   /** Merge AI-suggested values into the current frontmatter. */
@@ -626,11 +630,19 @@ export function FrontmatterEditor({
     [editorMode, saveValues],
   );
 
-  // Cleanup timeout on unmount
+  // Cleanup timeouts on unmount. Flush any pending frontmatter save so a
+  // quick navigation away doesn't drop the last keystrokes.
   useEffect(() => {
     return () => {
       if (codeTimeoutRef.current) {
         clearTimeout(codeTimeoutRef.current);
+      }
+      if (valueSaveTimeoutRef.current) {
+        clearTimeout(valueSaveTimeoutRef.current);
+      }
+      if (pendingValueSaveRef.current) {
+        pendingValueSaveRef.current();
+        pendingValueSaveRef.current = null;
       }
     };
   }, []);

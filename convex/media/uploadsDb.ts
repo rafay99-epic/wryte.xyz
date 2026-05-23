@@ -133,6 +133,7 @@ export const _getById = internalQuery({
 
 export const _findByProviderAndExternalId = internalQuery({
   args: {
+    projectId: v.id("projects"),
     provider: v.union(
       v.literal("github"),
       v.literal("uploadthing"),
@@ -142,12 +143,17 @@ export const _findByProviderAndExternalId = internalQuery({
     externalId: v.string(),
   },
   handler: async (ctx, args) => {
-    return await ctx.db
+    // externalIds can collide across projects (e.g. two Cloudinary accounts
+    // with the same public_id), so scope by projectId before returning the
+    // row. Without this filter `deleteByRef` could nuke a different
+    // project's media entry.
+    const matches = await ctx.db
       .query("media")
       .withIndex("by_provider_and_externalId", (q) =>
         q.eq("provider", args.provider).eq("externalId", args.externalId),
       )
-      .unique();
+      .take(10);
+    return matches.find((m) => m.projectId === args.projectId) ?? null;
   },
 });
 

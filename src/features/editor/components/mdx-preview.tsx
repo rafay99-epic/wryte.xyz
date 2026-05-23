@@ -208,6 +208,18 @@ function buildComponentMap(
 /*  Compile + run MDX with React in scope                              */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Trust boundary: this preview compiles arbitrary MDX with `new AsyncFunction`,
+ * which has no closure access but can still call browser globals (fetch,
+ * window, document.cookie). Treat any MDX that wasn't authored by the signed-
+ * in user as untrusted — in particular, content pulled from external GitHub
+ * repos via the import flow.
+ *
+ * For now we rely on the import flow only ingesting files from repos the user
+ * has explicitly connected. If we ever broaden import sources (public repo
+ * scraping, paste-from-URL, etc.) this preview must move into a sandboxed
+ * iframe with a restrictive CSP before that lands.
+ */
 const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor as new (
   body: string,
 ) => (...args: unknown[]) => Promise<unknown>;

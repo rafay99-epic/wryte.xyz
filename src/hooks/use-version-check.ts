@@ -27,7 +27,10 @@ function setDismissedVersion(version: string) {
 
 export function useVersionCheck() {
   const deployed = useQuery(api.cms.appVersion.current);
-  const shownRef = useRef(false);
+  // Track which version the toast was last shown for, not just "shown".
+  // A boolean flag stayed true forever after the first toast, so if a
+  // second deploy landed in the same session the user never saw it.
+  const shownForVersionRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (deployed === undefined) return;
@@ -36,11 +39,10 @@ export function useVersionCheck() {
     const serverVersion = deployed.version;
 
     if (serverVersion === APP_VERSION) return;
-
-    if (shownRef.current) return;
+    if (shownForVersionRef.current === serverVersion) return;
     if (getDismissedVersion() === serverVersion) return;
 
-    shownRef.current = true;
+    shownForVersionRef.current = serverVersion;
     toast.info(`Version ${serverVersion} is available`, {
       id: TOAST_ID,
       description:

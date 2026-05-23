@@ -154,6 +154,24 @@ async function resolveProjectAndCredential(
 /*  Mutations & queries                                                */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Records who owns the stream so `getStreamBody` can reject reads from
+ * other users. Called immediately after every `streaming.createStream`.
+ */
+async function trackStreamOwner(
+  ctx: MutationCtx,
+  streamId: string,
+  userId: Doc<"users">["_id"],
+  projectId: Doc<"projects">["_id"],
+): Promise<void> {
+  await ctx.db.insert("ai_stream_owners", {
+    streamId,
+    userId,
+    projectId,
+    createdAt: Date.now(),
+  });
+}
+
 export const createEnhanceStream = mutation({
   args: {
     projectId: v.id("projects"),
@@ -167,10 +185,12 @@ export const createEnhanceStream = mutation({
       throws: true,
     });
 
+    const user = await getCurrentUser(ctx);
     const { project, provider, model, vaultSecretId } =
       await resolveProjectAndCredential(ctx, args.projectId);
 
     const streamId = await streaming.createStream(ctx);
+    await trackStreamOwner(ctx, streamId, user._id, project._id);
 
     await ctx.scheduler.runAfter(0, internal.ai.enhanceActions.runEnhancement, {
       streamId,
@@ -194,6 +214,14 @@ export const getStreamBody = query({
   handler: async (ctx, args) => {
     const user = await getAuthedUserOrNull(ctx);
     if (!user) return null;
+
+    const streamIdStr = args.streamId as string;
+    const owner = await ctx.db
+      .query("ai_stream_owners")
+      .withIndex("by_streamId", (q) => q.eq("streamId", streamIdStr))
+      .unique();
+    if (!owner || owner.userId !== user._id) return null;
+
     return await streaming.getStreamBody(ctx, args.streamId as StreamId);
   },
 });
@@ -212,10 +240,12 @@ export const createInlineEnhanceStream = mutation({
       throws: true,
     });
 
+    const user = await getCurrentUser(ctx);
     const { project, provider, model, vaultSecretId } =
       await resolveProjectAndCredential(ctx, args.projectId);
 
     const streamId = await streaming.createStream(ctx);
+    await trackStreamOwner(ctx, streamId, user._id, project._id);
 
     await ctx.scheduler.runAfter(
       0,
@@ -251,10 +281,12 @@ export const createFrontmatterStream = mutation({
       throws: true,
     });
 
+    const user = await getCurrentUser(ctx);
     const { project, provider, model, vaultSecretId } =
       await resolveProjectAndCredential(ctx, args.projectId);
 
     const streamId = await streaming.createStream(ctx);
+    await trackStreamOwner(ctx, streamId, user._id, project._id);
 
     await ctx.scheduler.runAfter(
       0,
@@ -291,13 +323,13 @@ export const createFinalDraftStream = mutation({
       throws: true,
     });
 
+    const user = await getCurrentUser(ctx);
     const {
       project: aiProject,
       provider,
       model,
       vaultSecretId,
     } = await resolveProjectAndCredential(ctx, args.projectId);
-    const user = await getCurrentUser(ctx);
     const document = await ctx.db.get(args.documentId);
     if (
       !document ||
@@ -330,6 +362,7 @@ export const createFinalDraftStream = mutation({
     );
 
     const streamId = await streaming.createStream(ctx);
+    await trackStreamOwner(ctx, streamId, user._id, aiProject._id);
 
     await ctx.scheduler.runAfter(0, internal.ai.enhanceActions.runFinalDraft, {
       streamId,

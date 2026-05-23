@@ -94,19 +94,22 @@ export function MarkdownEditor() {
     onInlineAI,
   });
 
-  // Track whether the latest content change originated from the textarea itself.
-  // When true the sync effect skips the store→textarea write, preserving the
-  // browser's native undo stack.
-  const isInternalUpdateRef = useRef(false);
+  // Tracks the last content value that came from a textarea input event.
+  // The sync effect compares against this so it can distinguish "store
+  // change echoed from the textarea" (skip — preserves the native undo
+  // stack) from "store change came from elsewhere, e.g. AI apply" (write).
+  // A boolean flag was the original approach but it lost the distinction
+  // when an external setContent landed right after a keystroke, leaving
+  // the textarea stuck on stale content while the store advanced.
+  const lastInputContentRef = useRef<string | null>(null);
 
-  // Listen for native `input` events and push into Zustand store
   useEffect(() => {
     const textarea = textareaRef.current;
     if (!textarea) return;
 
     function handleInput(e: Event) {
       const target = e.target as HTMLTextAreaElement;
-      isInternalUpdateRef.current = true;
+      lastInputContentRef.current = target.value;
       setContent(target.value);
     }
 
@@ -116,14 +119,8 @@ export function MarkdownEditor() {
     };
   }, [textareaRef, setContent]);
 
-  // Sync store -> textarea only when content changes externally
-  // (e.g. document load, draft switch, AI enhance).
-  // Skipped for textarea-originated changes to preserve the undo stack.
   useEffect(() => {
-    if (isInternalUpdateRef.current) {
-      isInternalUpdateRef.current = false;
-      return;
-    }
+    if (content === lastInputContentRef.current) return;
     const textarea = textareaRef.current;
     if (textarea && textarea.value !== content) {
       textarea.value = content;
@@ -133,19 +130,21 @@ export function MarkdownEditor() {
   const handleAcceptInline = useCallback(
     (start: number, end: number, replacement: string) => {
       const current = useEditorStore.getState().content;
+      // Happy path: the captured range still points at the captured text.
       if (
         inlineAiSelection &&
-        current.slice(start, end) !== inlineAiSelection.text
+        current.slice(start, end) === inlineAiSelection.text
       ) {
-        const idx = current.indexOf(inlineAiSelection.text);
-        if (idx !== -1) {
-          replaceRange(idx, idx + inlineAiSelection.text.length, replacement);
-          return;
-        }
-        toast.error("Original text was modified — couldn't apply changes");
+        replaceRange(start, end, replacement);
         return;
       }
-      replaceRange(start, end, replacement);
+      // Content shifted while the AI ran. A bare `indexOf` would silently
+      // hit the wrong occurrence (the user's "the" picked from paragraph A
+      // could land in paragraph Z). Bail with a clear error and let the
+      // user re-trigger after re-selecting.
+      toast.error(
+        "Original text was modified while the AI was running — please re-select and try again",
+      );
     },
     [replaceRange, inlineAiSelection],
   );
