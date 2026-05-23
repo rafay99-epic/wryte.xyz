@@ -816,7 +816,32 @@ export const _wipeProjectChunk = internalMutation({
       }
     }
 
-    /* 13. documents */
+    /* 13. project_stats — subtract from writing_stats.totalWords before
+     *     deleting so the user's lifetime total stays accurate. */
+    if (budget > 0) {
+      const rows = await ctx.db
+        .query("project_stats")
+        .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
+        .take(budget);
+      for (const row of rows) {
+        if (row.totalWords > 0) {
+          const userStats = await ctx.db
+            .query("writing_stats")
+            .withIndex("by_userId", (q) => q.eq("userId", row.userId))
+            .unique();
+          if (userStats) {
+            await ctx.db.patch(userStats._id, {
+              totalWords: Math.max(0, userStats.totalWords - row.totalWords),
+              updatedAt: Date.now(),
+            });
+          }
+        }
+        await ctx.db.delete(row._id);
+        budget--;
+      }
+    }
+
+    /* 14. documents */
     if (budget > 0) {
       const rows = await ctx.db
         .query("documents")
@@ -923,6 +948,10 @@ async function countProjectRemaining(
       .take(1),
     ctx.db
       .query("ai_stream_owners")
+      .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+      .take(1),
+    ctx.db
+      .query("project_stats")
       .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
       .take(1),
   ]);

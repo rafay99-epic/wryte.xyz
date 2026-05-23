@@ -547,3 +547,44 @@ code.hljs {
   animation: border-rotate 4s linear infinite;
   pointer-events: none;
 }
+
+/* ── Confetti burst ────────────────────────────────────────────────── */
+@keyframes confetti-burst {
+  0% {
+    transform: translate(0, 0) rotate(0deg) scale(1);
+    opacity: 1;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--dx), calc(var(--dy) + 200px)) rotate(var(--rot))
+      scale(0.5);
+    opacity: 0;
+  }
+}
+
+.animate-confetti-burst {
+  animation: confetti-burst 1.6s cubic-bezier(0.22, 0.6, 0.36, 1) forwards;
+}
+
+/* ── Goal shimmer ──────────────────────────────────────────────────── */
+@keyframes goal-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.animate-goal-shimmer {
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.3) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: goal-shimmer 2s ease-in-out infinite;
+}

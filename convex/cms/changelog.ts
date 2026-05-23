@@ -46,6 +46,29 @@ export const listPublished = query({
 });
 
 /**
+ * Lightweight feed of published entries for the RSS route.
+ * Returns only the fields needed for XML generation, bounded to 50.
+ */
+export const listForFeed = query({
+  args: {},
+  handler: async (ctx) => {
+    const entries = await ctx.db
+      .query("changelog")
+      .withIndex("by_publishedAt", (q) => q.gt("publishedAt", 0))
+      .order("desc")
+      .take(50);
+
+    return entries.map((e) => ({
+      slug: e.slug,
+      title: e.title,
+      description: e.description,
+      version: e.version,
+      publishedAt: e.publishedAt,
+    }));
+  },
+});
+
+/**
  * Fetches a single entry by id for the admin editor. Admin-gated
  * because it returns drafts (unpublished entries) too.
  */

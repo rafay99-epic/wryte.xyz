@@ -1,4 +1,4 @@
-import { FEED_ENTRIES, type FeedEntry } from "@/lib/feed-entries";
+import { ConvexHttpClient } from "convex/browser";
 import {
   absoluteUrl,
   SITE_AUTHOR,
@@ -7,18 +7,16 @@ import {
   SITE_TITLE,
   SITE_URL,
 } from "@/lib/seo";
+import { api } from "../../../convex/_generated/api";
 
-/**
- * `/rss.xml` — RSS 2.0 feed of product updates.
- *
- * Entries live in `src/lib/feed-entries.ts`. The generator does not sort,
- * so keep that file newest-first.
- */
+type FeedEntry = {
+  slug: string;
+  title: string;
+  description: string;
+  version: string;
+  publishedAt: number | undefined;
+};
 
-export const dynamic = "force-static";
-
-// XML-escape characters that would otherwise produce invalid markup.
-// Source values are author-controlled, but feed readers are strict.
 function escapeXml(value: string): string {
   return value
     .replace(/&/g, "&amp;")
@@ -29,23 +27,37 @@ function escapeXml(value: string): string {
 }
 
 function renderItem(entry: FeedEntry): string {
-  const link = absoluteUrl(entry.url);
+  const link = absoluteUrl(`/changelog`);
+  const pubDate = entry.publishedAt
+    ? new Date(entry.publishedAt).toUTCString()
+    : new Date().toUTCString();
+
   return [
     "    <item>",
     `      <title>${escapeXml(entry.title)}</title>`,
     `      <link>${escapeXml(link)}</link>`,
-    `      <guid isPermaLink="false">${escapeXml(entry.id)}</guid>`,
-    `      <pubDate>${new Date(entry.date).toUTCString()}</pubDate>`,
+    `      <guid isPermaLink="false">${escapeXml(entry.slug)}</guid>`,
+    `      <pubDate>${pubDate}</pubDate>`,
     `      <description>${escapeXml(entry.description)}</description>`,
     `      <author>noreply@wryte.xyz (${escapeXml(SITE_AUTHOR)})</author>`,
     "    </item>",
   ].join("\n");
 }
 
-export function GET(): Response {
-  const latest = FEED_ENTRIES[0]?.date ?? new Date().toISOString();
-  const lastBuildDate = new Date(latest).toUTCString();
-  const items = FEED_ENTRIES.map(renderItem).join("\n");
+export async function GET(): Promise<Response> {
+  const convexUrl = process.env["NEXT_PUBLIC_CONVEX_URL"];
+  if (!convexUrl) {
+    return new Response("Convex URL not configured", { status: 500 });
+  }
+
+  const client = new ConvexHttpClient(convexUrl);
+  const entries = await client.query(api.cms.changelog.listForFeed, {});
+
+  const latest = entries[0]?.publishedAt;
+  const lastBuildDate = latest
+    ? new Date(latest).toUTCString()
+    : new Date().toUTCString();
+  const items = entries.map(renderItem).join("\n");
 
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0"

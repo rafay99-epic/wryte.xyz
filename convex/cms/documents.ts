@@ -10,7 +10,12 @@ import {
 } from "../_generated/server";
 import { getAuthedUserOrNull, getCurrentUser } from "../_lib/auth";
 import { adjustDocumentCount } from "../_lib/documentCount";
+import {
+  scheduleStatusChange,
+  scheduleWordActivity,
+} from "../_lib/projectStats";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
+import { countWords } from "../_lib/wordCount";
 
 /**
  * Verifies that a document exists and that the given user owns the parent project.
@@ -91,21 +96,30 @@ export const list = query({
   },
 });
 
-/** Returns the N most recently updated documents across all projects for the current user. */
+/** Returns the N most recently updated documents, optionally scoped to a project. */
 export const listRecent = query({
   args: {
     limit: v.optional(v.number()),
+    projectId: v.optional(v.id("projects")),
   },
   handler: async (ctx, args) => {
     const user = await getAuthedUserOrNull(ctx);
     if (!user) return [];
 
     const limit = args.limit ?? 5;
+    const pid = args.projectId;
 
-    const documents = await ctx.db
-      .query("documents")
-      .withIndex("by_userId", (q) => q.eq("userId", user._id))
-      .take(200);
+    const documents = pid
+      ? await ctx.db
+          .query("documents")
+          .withIndex("by_projectId_and_trashedAt", (q) =>
+            q.eq("projectId", pid).eq("trashedAt", undefined),
+          )
+          .take(200)
+      : await ctx.db
+          .query("documents")
+          .withIndex("by_userId", (q) => q.eq("userId", user._id))
+          .take(200);
 
     return documents
       .filter((d) => d.trashedAt === undefined)
@@ -205,13 +219,15 @@ export const create = mutation({
 
     const now = Date.now();
 
+    const status = args.status ?? "draft";
     const documentId = await ctx.db.insert("documents", {
       projectId: args.projectId,
       userId: user._id,
       title: args.title,
       slug: args.slug,
       content: "",
-      status: args.status ?? "draft",
+      wordCount: 0,
+      status,
       createdAt: now,
       updatedAt: now,
       ...(args.tags !== undefined ? { tags: args.tags } : {}),
@@ -220,6 +236,12 @@ export const create = mutation({
         : {}),
     });
     await adjustDocumentCount(ctx, args.projectId, 1);
+    await scheduleStatusChange(ctx, {
+      projectId: args.projectId,
+      userId: user._id,
+      oldStatus: null,
+      newStatus: status,
+    });
 
     return documentId;
   },
@@ -248,7 +270,11 @@ export const update = mutation({
     await rateLimiter.limit(ctx, "documents:update", { key, throws: true });
 
     const user = await getCurrentUser(ctx);
-    await verifyDocumentOwnership(ctx, args.documentId, user._id);
+    const document = await verifyDocumentOwnership(
+      ctx,
+      args.documentId,
+      user._id,
+    );
 
     // Status transitions that require side-effects (workflow scheduling /
     // cancellation, publish history, social cross-post) must go through
@@ -305,7 +331,29 @@ export const update = mutation({
       }
     }
 
+    let wordCountDelta = 0;
+    if (args.content !== undefined) {
+      const newWordCount = countWords(args.content);
+      fieldsToUpdate["wordCount"] = newWordCount;
+      wordCountDelta = newWordCount - (document.wordCount ?? 0);
+    }
+
     await ctx.db.patch(documentId, fieldsToUpdate);
+
+    await scheduleWordActivity(ctx, {
+      userId: user._id,
+      projectId: document.projectId,
+      wordCountDelta,
+    });
+
+    if (args.status !== undefined && args.status !== document.status) {
+      await scheduleStatusChange(ctx, {
+        projectId: document.projectId,
+        userId: user._id,
+        oldStatus: document.status,
+        newStatus: args.status,
+      });
+    }
   },
 });
 
@@ -338,17 +386,30 @@ export const duplicate = mutation({
     const newTitle = `${doc.title} (copy)`;
     const newSlug = `${doc.slug}-copy-${Date.now().toString(36)}`;
 
+    const wc = countWords(doc.content);
     const newId = await ctx.db.insert("documents", {
       projectId: doc.projectId,
       userId: user._id,
       title: newTitle,
       slug: newSlug,
       content: doc.content,
+      wordCount: wc,
       status: doc.status,
       createdAt: now,
       updatedAt: now,
       ...(doc.frontmatter ? { frontmatter: doc.frontmatter } : {}),
       ...(doc.tags ? { tags: doc.tags } : {}),
+    });
+    await scheduleWordActivity(ctx, {
+      userId: user._id,
+      projectId: doc.projectId,
+      wordCountDelta: wc,
+    });
+    await scheduleStatusChange(ctx, {
+      projectId: doc.projectId,
+      userId: user._id,
+      oldStatus: null,
+      newStatus: doc.status,
     });
     return { documentId: newId, title: newTitle };
   },
@@ -375,10 +436,9 @@ export const updateStatus = mutation({
     });
 
     const user = await getCurrentUser(ctx);
-    await verifyDocumentOwnership(ctx, args.documentId, user._id);
+    const doc = await verifyDocumentOwnership(ctx, args.documentId, user._id);
 
     const now = Date.now();
-    const doc = await ctx.db.get(args.documentId);
     const updates: Record<string, unknown> = {
       status: args.status,
       updatedAt: now,
@@ -388,11 +448,20 @@ export const updateStatus = mutation({
       updates["publishedAt"] = now;
     }
 
-    if (doc?.status === "scheduled" && args.status !== "scheduled") {
+    if (doc.status === "scheduled" && args.status !== "scheduled") {
       updates["scheduledAt"] = undefined;
     }
 
     await ctx.db.patch(args.documentId, updates);
+
+    if (args.status !== doc.status) {
+      await scheduleStatusChange(ctx, {
+        projectId: doc.projectId,
+        userId: user._id,
+        oldStatus: doc.status,
+        newStatus: args.status,
+      });
+    }
   },
 });
 
@@ -426,6 +495,17 @@ export const remove = mutation({
     await cascadeDeleteScheduledPublishesForDoc(ctx, args.documentId);
     await ctx.db.patch(args.documentId, { trashedAt: Date.now() });
     await adjustDocumentCount(ctx, document.projectId, -1);
+    await scheduleWordActivity(ctx, {
+      userId: user._id,
+      projectId: document.projectId,
+      wordCountDelta: -(document.wordCount ?? 0),
+    });
+    await scheduleStatusChange(ctx, {
+      projectId: document.projectId,
+      userId: user._id,
+      oldStatus: document.status,
+      newStatus: null,
+    });
   },
 });
 
@@ -482,41 +562,35 @@ export const importFromGithub = mutation({
 
     const now = Date.now();
 
-    const insertData: {
-      projectId: typeof args.projectId;
-      userId: typeof user._id;
-      title: string;
-      slug: string;
-      content: string;
-      status: string;
-      githubPath: string;
-      githubSha: string;
-      githubSyncedAt: number;
-      publishedAt: number;
-      createdAt: number;
-      updatedAt: number;
-      frontmatter?: string;
-    } = {
+    const wc = countWords(args.content);
+    const documentId = await ctx.db.insert("documents", {
       projectId: args.projectId,
       userId: user._id,
       title: args.title,
       slug: args.slug,
       content: args.content,
-      status: "published" as const,
+      wordCount: wc,
+      status: "published",
       githubPath: args.githubPath,
       githubSha: args.githubSha,
       githubSyncedAt: now,
       publishedAt: now,
       createdAt: now,
       updatedAt: now,
-    };
-
-    if (args.frontmatter !== undefined) {
-      insertData["frontmatter"] = args.frontmatter;
-    }
-
-    const documentId = await ctx.db.insert("documents", insertData);
+      ...(args.frontmatter !== undefined && { frontmatter: args.frontmatter }),
+    });
     await adjustDocumentCount(ctx, args.projectId, 1);
+    await scheduleWordActivity(ctx, {
+      userId: user._id,
+      projectId: args.projectId,
+      wordCountDelta: wc,
+    });
+    await scheduleStatusChange(ctx, {
+      projectId: args.projectId,
+      userId: user._id,
+      oldStatus: null,
+      newStatus: "published",
+    });
     return documentId;
   },
 });
@@ -556,26 +630,14 @@ export const _importFromGithubInternal = internalMutation({
     if (duplicate) return duplicate._id;
 
     const now = Date.now();
-    const insertData: {
-      projectId: typeof args.projectId;
-      userId: Id<"users">;
-      title: string;
-      slug: string;
-      content: string;
-      status: string;
-      githubPath: string;
-      githubSha: string;
-      githubSyncedAt: number;
-      publishedAt: number;
-      createdAt: number;
-      updatedAt: number;
-      frontmatter?: string;
-    } = {
+    const wc = countWords(args.content);
+    const id = await ctx.db.insert("documents", {
       projectId: args.projectId,
       userId: project.userId,
       title: args.title,
       slug: args.slug,
       content: args.content,
+      wordCount: wc,
       status: "published",
       githubPath: args.githubPath,
       githubSha: args.githubSha,
@@ -583,13 +645,20 @@ export const _importFromGithubInternal = internalMutation({
       publishedAt: now,
       createdAt: now,
       updatedAt: now,
-    };
-    if (args.frontmatter !== undefined) {
-      insertData.frontmatter = args.frontmatter;
-    }
-
-    const id = await ctx.db.insert("documents", insertData);
+      ...(args.frontmatter !== undefined && { frontmatter: args.frontmatter }),
+    });
     await adjustDocumentCount(ctx, args.projectId, 1);
+    await scheduleWordActivity(ctx, {
+      userId: project.userId,
+      projectId: args.projectId,
+      wordCountDelta: wc,
+    });
+    await scheduleStatusChange(ctx, {
+      projectId: args.projectId,
+      userId: project.userId,
+      oldStatus: null,
+      newStatus: "published",
+    });
     return id;
   },
 });
@@ -792,6 +861,16 @@ export const moveCard = mutation({
     }
 
     await ctx.db.patch(args.documentId, updates);
+
+    if (args.targetStatus !== document.status) {
+      await scheduleStatusChange(ctx, {
+        projectId: document.projectId,
+        userId: user._id,
+        oldStatus: document.status,
+        newStatus: args.targetStatus,
+      });
+    }
+
     return { behavior };
   },
 });
@@ -842,6 +921,7 @@ export const internalUpdateAfterPublish = internalMutation({
     publishedAt: v.number(),
   },
   handler: async (ctx, args) => {
+    const doc = await ctx.db.get(args.documentId);
     const patch: Record<string, unknown> = {
       githubPath: args.githubPath,
       githubSyncedAt: Date.now(),
@@ -853,6 +933,22 @@ export const internalUpdateAfterPublish = internalMutation({
       patch["githubSha"] = args.githubSha;
     }
     await ctx.db.patch(args.documentId, patch);
+
+    if (doc && args.status !== doc.status) {
+      await scheduleStatusChange(ctx, {
+        projectId: doc.projectId,
+        userId: doc.userId,
+        oldStatus: doc.status,
+        newStatus: args.status,
+      });
+    }
+    if (doc && args.status === "published") {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.analytics.writingStats._incrementPublished,
+        { userId: doc.userId },
+      );
+    }
   },
 });
 
@@ -1176,6 +1272,20 @@ export const _removeInternal = internalMutation({
     await cascadeDeleteScheduledPublishesForDoc(ctx, args.documentId);
     await ctx.db.patch(args.documentId, { trashedAt: Date.now() });
     await adjustDocumentCount(ctx, args.projectId, -1);
+    const project = await ctx.db.get(args.projectId);
+    if (project) {
+      await scheduleWordActivity(ctx, {
+        userId: project.userId,
+        projectId: args.projectId,
+        wordCountDelta: -(doc.wordCount ?? 0),
+      });
+      await scheduleStatusChange(ctx, {
+        projectId: args.projectId,
+        userId: project.userId,
+        oldStatus: doc.status,
+        newStatus: null,
+      });
+    }
   },
 });
 
@@ -1198,6 +1308,9 @@ export const _bulkSoftDeleteLocal = internalMutation({
   handler: async (ctx, args): Promise<{ trashed: number }> => {
     const now = Date.now();
     let trashed = 0;
+    let totalWordsDelta = 0;
+    const statusDeltas: Record<string, number> = {};
+    let userId: Id<"users"> | null = null;
     for (const id of args.documentIds) {
       const doc = await ctx.db.get(id);
       if (!doc) continue;
@@ -1206,7 +1319,29 @@ export const _bulkSoftDeleteLocal = internalMutation({
       await cascadeDeleteScheduledPublishesForDoc(ctx, id);
       await ctx.db.patch(id, { trashedAt: now });
       await adjustDocumentCount(ctx, args.projectId, -1);
+      totalWordsDelta -= doc.wordCount ?? 0;
+      statusDeltas[doc.status] = (statusDeltas[doc.status] ?? 0) - 1;
+      userId = doc.userId;
       trashed += 1;
+    }
+    if (userId && totalWordsDelta !== 0) {
+      await scheduleWordActivity(ctx, {
+        userId,
+        projectId: args.projectId,
+        wordCountDelta: totalWordsDelta,
+      });
+    }
+    if (userId) {
+      for (const [status, delta] of Object.entries(statusDeltas)) {
+        if (delta === 0) continue;
+        await scheduleStatusChange(ctx, {
+          projectId: args.projectId,
+          userId,
+          oldStatus: delta < 0 ? status : null,
+          newStatus: delta > 0 ? status : null,
+          count: Math.abs(delta),
+        });
+      }
     }
     return { trashed };
   },
@@ -1448,11 +1583,15 @@ export const _upsertImportedDocument = internalMutation({
 
     const now = Date.now();
 
+    const newWc = countWords(args.content);
+
     if (args.mode === "fastForward" && existing) {
+      const oldWc = existing.wordCount ?? 0;
       const patch: Record<string, unknown> = {
         title: args.title,
         slug: args.slug,
         content: args.content,
+        wordCount: newWc,
         githubSha: args.githubSha,
         githubSyncedAt: args.githubSyncedAt,
         updatedAt: now,
@@ -1461,16 +1600,19 @@ export const _upsertImportedDocument = internalMutation({
         patch["frontmatter"] = args.frontmatter;
       }
       await ctx.db.patch(existing._id, patch);
+      await scheduleWordActivity(ctx, {
+        userId: project.userId,
+        projectId: args.projectId,
+        wordCountDelta: newWc - oldWc,
+      });
       return existing._id;
     }
 
     if (existing) {
-      // `new` mode but the doc actually exists — the classifier raced
-      // with another sync. Patch instead of inserting a duplicate so
-      // we don't violate the (projectId, githubPath) implicit
-      // uniqueness expected by the rest of the codebase.
+      const oldWc = existing.wordCount ?? 0;
       const patch: Record<string, unknown> = {
         content: args.content,
+        wordCount: newWc,
         githubSha: args.githubSha,
         githubSyncedAt: args.githubSyncedAt,
         updatedAt: now,
@@ -1479,29 +1621,21 @@ export const _upsertImportedDocument = internalMutation({
         patch["frontmatter"] = args.frontmatter;
       }
       await ctx.db.patch(existing._id, patch);
+      await scheduleWordActivity(ctx, {
+        userId: project.userId,
+        projectId: args.projectId,
+        wordCountDelta: newWc - oldWc,
+      });
       return existing._id;
     }
 
-    const insertData: {
-      projectId: typeof args.projectId;
-      userId: Id<"users">;
-      title: string;
-      slug: string;
-      content: string;
-      status: string;
-      githubPath: string;
-      githubSha: string;
-      githubSyncedAt: number;
-      publishedAt: number;
-      createdAt: number;
-      updatedAt: number;
-      frontmatter?: string;
-    } = {
+    const id = await ctx.db.insert("documents", {
       projectId: args.projectId,
       userId: project.userId,
       title: args.title,
       slug: args.slug,
       content: args.content,
+      wordCount: newWc,
       status: "published",
       githubPath: args.githubPath,
       githubSha: args.githubSha,
@@ -1509,12 +1643,20 @@ export const _upsertImportedDocument = internalMutation({
       publishedAt: now,
       createdAt: now,
       updatedAt: now,
-    };
-    if (args.frontmatter !== undefined) {
-      insertData.frontmatter = args.frontmatter;
-    }
-    const id = await ctx.db.insert("documents", insertData);
+      ...(args.frontmatter !== undefined && { frontmatter: args.frontmatter }),
+    });
     await adjustDocumentCount(ctx, args.projectId, 1);
+    await scheduleWordActivity(ctx, {
+      userId: project.userId,
+      projectId: args.projectId,
+      wordCountDelta: newWc,
+    });
+    await scheduleStatusChange(ctx, {
+      projectId: args.projectId,
+      userId: project.userId,
+      oldStatus: null,
+      newStatus: "published",
+    });
     return id;
   },
 });

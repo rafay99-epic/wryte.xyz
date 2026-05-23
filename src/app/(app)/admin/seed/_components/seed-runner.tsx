@@ -2,23 +2,25 @@
 
 import { useAction } from "convex/react";
 import {
+  BarChart3,
   CheckCircle2,
   Database,
   Lightbulb,
   Newspaper,
   Play,
 } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
 import { api } from "../../../../../../convex/_generated/api";
 
 type SeedResult = {
   inserted: number;
-  skipped: number;
+  skipped?: number;
+  updated?: number;
   details: string[];
 };
 
-type SeedKey = "changelog" | "featureRequests";
+type SeedKey = "changelog" | "featureRequests" | "writingStats";
 
 const SEEDS: {
   key: SeedKey;
@@ -26,6 +28,7 @@ const SEEDS: {
   description: string;
   icon: typeof Newspaper;
   accent: string;
+  hasEmailInput?: boolean;
 }[] = [
   {
     key: "changelog",
@@ -43,40 +46,72 @@ const SEEDS: {
     icon: Lightbulb,
     accent: "text-blue-500",
   },
+  {
+    key: "writingStats",
+    title: "Writing analytics",
+    description:
+      "Seeds writing_stats and project_stats for a specific user — 30-day activity history, streak, daily word goal, and per-project status counts.",
+    icon: BarChart3,
+    accent: "text-emerald-500",
+    hasEmailInput: true,
+  },
 ];
 
 export function SeedRunner() {
   const seedChangelog = useAction(api._seed.changelog.seed);
   const seedFeatureRequests = useAction(api._seed.featureRequests.seed);
+  const seedWritingStats = useAction(api._seed.writingStats.seed);
 
   const [running, setRunning] = useState<SeedKey | null>(null);
   const [results, setResults] = useState<Partial<Record<SeedKey, SeedResult>>>(
     {},
   );
+  const emailRef = useRef<HTMLInputElement>(null);
 
   const run = useCallback(
     async (key: SeedKey) => {
       if (running) return;
+
+      if (key === "writingStats") {
+        const email = emailRef.current?.value.trim();
+        if (!email) {
+          toast.error("Enter an email address for the target user.");
+          emailRef.current?.focus();
+          return;
+        }
+      }
+
       setRunning(key);
       try {
-        const result =
-          key === "changelog"
-            ? await seedChangelog()
-            : await seedFeatureRequests();
+        let result: SeedResult;
+        if (key === "changelog") {
+          result = await seedChangelog();
+        } else if (key === "featureRequests") {
+          result = await seedFeatureRequests();
+        } else {
+          const email = emailRef.current?.value.trim() ?? "";
+          result = await seedWritingStats({ email });
+        }
         setResults((prev) => ({ ...prev, [key]: result }));
-        toast.success(
-          `${key === "changelog" ? "Changelog" : "Feature requests"} seeded`,
-          {
-            description: `${result.inserted} inserted · ${result.skipped} skipped`,
-          },
-        );
+        const name =
+          key === "changelog"
+            ? "Changelog"
+            : key === "featureRequests"
+              ? "Feature requests"
+              : "Writing analytics";
+        const parts = [`${String(result.inserted)} inserted`];
+        if (result.updated) parts.push(`${String(result.updated)} updated`);
+        if (result.skipped) parts.push(`${String(result.skipped)} skipped`);
+        toast.success(`${name} seeded`, {
+          description: parts.join(" · "),
+        });
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Seed failed");
       } finally {
         setRunning(null);
       }
     },
-    [running, seedChangelog, seedFeatureRequests],
+    [running, seedChangelog, seedFeatureRequests, seedWritingStats],
   );
 
   return (
@@ -119,11 +154,22 @@ export function SeedRunner() {
                   {seed.description}
                 </p>
 
+                {seed.hasEmailInput && (
+                  <input
+                    ref={emailRef}
+                    type="email"
+                    placeholder="user@example.com"
+                    className="mt-3 h-8 w-full max-w-xs rounded-lg border border-foreground/10 bg-background px-3 text-[13px] placeholder:text-foreground/30 focus:border-foreground/30 focus:outline-none"
+                  />
+                )}
+
                 {result && (
                   <div className="mt-3 flex items-center gap-2 rounded-lg bg-emerald-500/10 px-3 py-2 text-[12px] text-emerald-700 dark:text-emerald-300">
                     <CheckCircle2 className="size-3.5 shrink-0" />
                     <span className="font-mono">
-                      inserted {result.inserted} · skipped {result.skipped}
+                      {result.inserted} inserted
+                      {result.updated ? ` · ${result.updated} updated` : ""}
+                      {result.skipped ? ` · ${result.skipped} skipped` : ""}
                     </span>
                   </div>
                 )}

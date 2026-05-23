@@ -5,6 +5,7 @@ import { useQuery } from "convex/react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowLeft,
+  ArrowRightLeft,
   CalendarDays,
   Database,
   FilePlus,
@@ -177,6 +178,11 @@ export function AppSidebar() {
                         icon={Database}
                         label="Seed data"
                       />
+                      <NavLink
+                        href="/admin/migrations"
+                        icon={ArrowRightLeft}
+                        label="Migrations"
+                      />
                     </div>
                   </div>
                   <div className="my-3 h-px bg-sidebar-border" />
@@ -296,9 +302,14 @@ export function AppSidebar() {
               <div className="space-y-0.5">
                 <NavLink
                   href={`/projects/${activeProjectId}`}
+                  icon={LayoutDashboard}
+                  label="Overview"
+                  exact
+                />
+                <NavLink
+                  href={`/projects/${activeProjectId}/articles`}
                   icon={FileText}
                   label="Articles"
-                  exact
                 />
                 <NavLink
                   href={`/projects/${activeProjectId}/media`}

@@ -592,6 +592,47 @@ const ENTRIES: SeedEntry[] = [
 - Project-local \`bunfig.toml\` lowers \`minimumReleaseAge\` to 5 days to admit the qs patch ahead of the global gate.
 `,
   },
+  {
+    title: "Writing analytics, goals & streaks",
+    slug: "v0-9-0-writing-analytics-goals-and-streaks",
+    description:
+      "Account-wide writing streaks, daily word goals with confetti celebration, per-project dashboards, 30-day activity chart, and a full dashboard refactor.",
+    version: "0.9.0",
+    build: "d3b1b87",
+    publishedAt: Date.parse("2026-05-23T22:00:00+05:00"),
+    content: `## What's new
+
+- **Writing streaks** — consecutive-day tracking with flame icon color escalation (amber → orange → red) and milestone callouts at 7, 14, 30, 60, 100, and 365 days.
+- **Daily word goals** — set a target from presets (250/500/1k/2k) or a custom value. Progress bar color shifts from amber → blue → emerald as you approach the goal.
+- **Goal celebration** — confetti burst and shimmer animation when you hit your daily word target. The progress bar glows, the icon swaps to a party popper, and "Goal reached!" appears.
+- **30-day activity chart** — bar chart showing daily word output. When a goal is set, bars that met the target turn emerald with a dot above, a dashed goal line appears, and an "X/30 goals met" counter is shown.
+- **Per-project dashboard** — entering a project now lands on an overview page with project-scoped status counts, total word count, status distribution bar, recent activity, upcoming scheduled posts, and keyboard shortcuts. The articles board moves to a dedicated "Articles" tab.
+- **Project status distribution** — horizontal stacked bar chart showing the breakdown of draft/review/ready/scheduled/published articles, with hover highlighting and a legend.
+- **Upcoming scheduled posts** — next 5 scheduled articles shown on both the workspace and project dashboards with purple indicators and relative timestamps.
+- **Per-project mini stats** in the workspace dashboard sidebar — each project shows article count and total words.
+
+## Performance
+
+- **Dashboard no longer scans all documents** — the old \`listAllForUser\` query (up to 1,000 docs) is replaced by \`getDashboardStats\`, which reads ~5 small precomputed rows. Status counts, word totals, and streaks are denormalized on write.
+- **Stats update asynchronously** — word count deltas and status changes fire via \`ctx.scheduler.runAfter(0, ...)\` so the document save path stays fast (1 read + 1 write) with zero inline overhead.
+- **Bulk delete batches status changes** — soft-deleting N documents fires one \`scheduleStatusChange\` per status type with a count, not N individual mutations.
+
+## Architecture
+
+- **New tables**: \`writing_stats\` (one row per user) and \`project_stats\` (one row per project) — isolated from write-hot \`projects\` and \`users\` tables to avoid OCC contention.
+- **Reusable dashboard components** — \`StatPill\`, \`ActivityChart\`, \`RecentDocsList\`, \`ShortcutsPanel\`, \`WritingStreak\`, \`TodaysProgress\`, and \`UpcomingSchedule\` are shared between workspace and project dashboards.
+- **Hooks extract data fetching** — \`useDashboardStats\` and \`useProjectDashboard\` keep pages thin and logic testable.
+- **Cascade cleanup** — project deletion subtracts word counts from \`writing_stats\` and deletes \`project_stats\`; account self-destruct wipes both tables.
+- **Backfill mutations** — \`_backfillWordCounts\`, \`_backfillProjectStats\`, and \`_backfillWritingStats\` handle existing data migration.
+- **Daily maintenance cron** prunes \`recentActivity\` arrays to 30 days.
+
+## Routing
+
+- \`/projects/[id]\` now shows the project dashboard overview.
+- \`/projects/[id]/articles\` shows the articles board (previously at root).
+- Sidebar adds "Overview" as the first project nav item.
+`,
+  },
 ];
 
 export const seed = action({

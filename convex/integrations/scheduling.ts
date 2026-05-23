@@ -11,6 +11,7 @@ import { components, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { internalMutation, mutation, query } from "../_generated/server";
 import { getAuthedUserOrNull, getCurrentUser } from "../_lib/auth";
+import { scheduleStatusChange } from "../_lib/projectStats";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
 
 /* ------------------------------------------------------------------ */
@@ -240,11 +241,20 @@ export const schedule = mutation({
     // Store the workflow ID for cancellation
     await ctx.db.patch(publishId, { workflowId: workflowId as string });
 
+    const oldStatus = document.status;
+
     // Update document status to "scheduled"
     await ctx.db.patch(args.documentId, {
       status: "scheduled",
       scheduledAt: args.scheduledAt,
       updatedAt: Date.now(),
+    });
+
+    await scheduleStatusChange(ctx, {
+      projectId: document.projectId,
+      userId: user._id,
+      oldStatus,
+      newStatus: "scheduled",
     });
   },
 });
@@ -306,6 +316,13 @@ export const cancel = mutation({
       status: "draft",
       scheduledAt: undefined,
       updatedAt: Date.now(),
+    });
+
+    await scheduleStatusChange(ctx, {
+      projectId: document.projectId,
+      userId: user._id,
+      oldStatus: "scheduled",
+      newStatus: "draft",
     });
   },
 });

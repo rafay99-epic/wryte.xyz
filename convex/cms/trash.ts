@@ -19,6 +19,10 @@ import type { Doc, Id } from "../_generated/dataModel";
 import { internalMutation, mutation, query } from "../_generated/server";
 import { getAuthedUserOrNull, getCurrentUser } from "../_lib/auth";
 import { adjustDocumentCount } from "../_lib/documentCount";
+import {
+  scheduleStatusChange,
+  scheduleWordActivity,
+} from "../_lib/projectStats";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
 
 const DEFAULT_RETENTION_DAYS = 30;
@@ -101,15 +105,22 @@ export const restore = mutation({
     const doc = await loadOwnedTrashedDoc(ctx, args.documentId);
 
     await ctx.db.patch(doc._id, {
-      // Convex patches don't take `undefined` to clear optionals; use the
-      // null-then-omit trick: we replace with `trashedAt: undefined` via
-      // setting it explicitly. Convex accepts `undefined` for optional
-      // schema fields in patch payloads.
       trashedAt: undefined,
       updatedAt: Date.now(),
     });
 
     await adjustDocumentCount(ctx, doc.projectId, 1);
+    await scheduleWordActivity(ctx, {
+      userId: doc.userId,
+      projectId: doc.projectId,
+      wordCountDelta: doc.wordCount ?? 0,
+    });
+    await scheduleStatusChange(ctx, {
+      projectId: doc.projectId,
+      userId: doc.userId,
+      oldStatus: null,
+      newStatus: doc.status,
+    });
   },
 });
 

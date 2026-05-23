@@ -564,7 +564,31 @@ export const _wipeChunk = internalMutation({
       }
     }
 
-    /* 7. documents */
+    /* 7. project_stats */
+    if (budget > 0) {
+      const rows = await ctx.db
+        .query("project_stats")
+        .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+        .take(budget);
+      for (const row of rows) {
+        await ctx.db.delete(row._id);
+        budget--;
+      }
+    }
+
+    /* 7b. writing_stats */
+    if (budget > 0) {
+      const rows = await ctx.db
+        .query("writing_stats")
+        .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+        .take(budget);
+      for (const row of rows) {
+        await ctx.db.delete(row._id);
+        budget--;
+      }
+    }
+
+    /* 8. documents */
     if (budget > 0) {
       const rows = await ctx.db
         .query("documents")
@@ -577,7 +601,7 @@ export const _wipeChunk = internalMutation({
       }
     }
 
-    /* 8. projects */
+    /* 9. projects */
     if (budget > 0) {
       const rows = await ctx.db
         .query("projects")
@@ -648,6 +672,14 @@ async function countRemaining(
     ctx.db
       .query("ai_stream_owners")
       .withIndex("by_userId_and_createdAt", (q) => q.eq("userId", userId))
+      .take(1),
+    ctx.db
+      .query("project_stats")
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
+      .take(1),
+    ctx.db
+      .query("writing_stats")
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
       .take(1),
   ]);
 

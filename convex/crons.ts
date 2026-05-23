@@ -26,4 +26,16 @@ crons.cron(
   internal.cms.trash._cleanupExpired,
 );
 
+/**
+ * Daily pruning of the `recentActivity` array on `writing_stats` rows.
+ * Removes entries older than 30 days so the rolling activity chart stays
+ * bounded. Streaks and `wordsToday` are handled lazily on read — this
+ * cron is non-critical.
+ */
+crons.cron(
+  "writingStats:prune-activity",
+  "5 0 * * *",
+  internal.analytics.writingStats._dailyMaintenance,
+);
+
 export default crons;

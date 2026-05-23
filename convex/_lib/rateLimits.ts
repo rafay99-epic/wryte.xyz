@@ -617,6 +617,25 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
   /*  One-shot seed scripts                                              */
   /* ------------------------------------------------------------------ */
 
+  /* ------------------------------------------------------------------ */
+  /*  Writing stats                                                      */
+  /* ------------------------------------------------------------------ */
+
+  "writingStats:setGoal": {
+    kind: "fixed window",
+    rate: 10,
+    period: MINUTE,
+  },
+  "writingStats:setTimezone": {
+    kind: "fixed window",
+    rate: 10,
+    period: MINUTE,
+  },
+
+  /* ------------------------------------------------------------------ */
+  /*  Seed                                                               */
+  /* ------------------------------------------------------------------ */
+
   /** Tight cap — seeding is a one-off, accidental loops are the only risk. */
   "seed:run": {
     kind: "fixed window",

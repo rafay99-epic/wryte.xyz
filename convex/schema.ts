@@ -196,6 +196,7 @@ export default defineSchema({
     title: v.string(),
     slug: v.string(),
     content: v.string(),
+    wordCount: v.optional(v.number()),
     frontmatter: v.optional(v.string()),
     status: v.string(),
     tags: v.optional(v.array(v.string())),
@@ -750,6 +751,47 @@ export default defineSchema({
    * the binding here. Cleaned up by `projects.remove` (per-project) and
    * `account.selfDestruct` (per-user).
    */
+  /**
+   * Per-user writing analytics — streak tracking, daily progress, lifetime
+   * totals, and a rolling 30-day activity window for charts. One row per
+   * user, updated asynchronously via `ctx.scheduler.runAfter(0, ...)` from
+   * document save mutations so the primary save path stays fast.
+   */
+  writing_stats: defineTable({
+    userId: v.id("users"),
+    currentStreak: v.number(),
+    longestStreak: v.number(),
+    lastActiveDate: v.string(),
+    wordsToday: v.number(),
+    todayDate: v.string(),
+    dailyWordGoal: v.optional(v.number()),
+    totalWords: v.number(),
+    totalPublished: v.number(),
+    recentActivity: v.array(v.object({ date: v.string(), words: v.number() })),
+    timezone: v.optional(v.string()),
+    updatedAt: v.number(),
+  }).index("by_userId", ["userId"]),
+
+  /**
+   * Per-project denormalized stats — word counts and document status
+   * breakdowns. Isolates analytics writes from the `projects` table
+   * (which is already write-hot with settings, documentCount, cascades)
+   * to reduce OCC contention.
+   */
+  project_stats: defineTable({
+    projectId: v.id("projects"),
+    userId: v.id("users"),
+    totalWords: v.number(),
+    draftCount: v.number(),
+    reviewCount: v.number(),
+    readyCount: v.number(),
+    scheduledCount: v.number(),
+    publishedCount: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_projectId", ["projectId"])
+    .index("by_userId", ["userId"]),
+
   ai_stream_owners: defineTable({
     streamId: v.string(),
     userId: v.id("users"),
