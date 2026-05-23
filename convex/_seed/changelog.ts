@@ -543,6 +543,55 @@ const ENTRIES: SeedEntry[] = [
 - Frontend switched from \`useQuery\` to \`usePaginatedQuery\` with loading states for first page and subsequent pages.
 `,
   },
+  {
+    title: "Security & reliability audit",
+    slug: "v0-8-0-security-and-reliability-audit",
+    description:
+      "38 audit findings resolved across backend, frontend, and supply chain — vault hardening, AI stream ownership, project cascade, qs CVE patch.",
+    version: "0.8.0",
+    build: "7272349",
+    publishedAt: Date.parse("2026-05-23T12:57:00Z"),
+    content: `## Security
+
+- **GitHub OAuth token no longer crosses the network boundary** — \`/api/github/token\` now reports connection status only; every GitHub call resolves the token server-side. One XSS or extension would have captured the full \`repo\`-scoped token before.
+- **AI streams are now ownership-checked** — a new \`ai_stream_owners\` table binds each \`streamId\` to its creator, and \`getStreamBody\` rejects reads from anyone else. Previously any signed-in user with a stream id could subscribe to another tenant's AI output.
+- **Credential rotation is verify-first** — saving a new AI/media/social key verifies it before destroying the old vault entry. A typo no longer locks users out of their provider.
+- **Project deletion is now a real cascade** — \`projects.remove\` is a chunked action that cleans up documents, drafts, research, media, three flavours of credential (with vault entries), scheduled-publish workflows, and every other project-scoped table.
+- **Filename path-traversal closed** — uploads reject \`..\`, NUL, path separators, and oversize names before they reach any provider.
+- **Anonymous \`appVersion.stamp\` closed** — gated by \`VERSION_STAMP_SECRET\`; anyone hitting the Convex URL could previously trigger a "new version" toast on every connected client.
+- **Marketing support form hardened** — rate-limited (5/hr) with length caps and an email regex; was previously an open spam vector with no validation.
+- **SVG uploads removed** from \`ALLOWED_MIME\` — SVG can contain \`<script>\` and execute in the hosting origin.
+- **\`qs\` DoS patched** — pinned to 6.15.2 to clear GHSA-q8mj-m7cp-5q26 pulled in through Express.
+
+## Reliability
+
+- **Autosave race guard** — concurrent saves can no longer mark a stale snapshot as saved.
+- **Frontmatter editor debounced** — saves coalesce after 500ms of idle typing instead of firing one Convex mutation per keystroke.
+- **Document queries paginate trash-aware** — list/getBySlug/listForCalendar use \`by_projectId_and_trashedAt\` so active docs aren't hidden behind a window full of trash.
+- **Workflow rotation preserves prior status** — failed rotations no longer promote previously-invalid credentials to "active".
+- **\`getGithubToken\` fails closed** — transient WorkOS Vault and Clerk errors propagate so the workflow's retry policy can engage instead of silently using a stale legacy token.
+- **Documents.update locked down** — rejects \`status: "scheduled"/"published"\` and direct \`scheduledAt\` writes that previously bypassed the scheduling workflow. Adds a 500KB byte-aware content cap.
+- **\`_backfillGithubSyncedAt\` chunked** — switched to the self-scheduling pattern so large deployments don't risk per-transaction limits mid-backfill.
+
+## UX
+
+- **Pagination reset fixed** — changing filters/search/view no longer strands users on an empty page.
+- **Frontmatter reactive refresh** no longer wipes unsaved local edits when another tab saves the same project.
+- **Markdown editor desync fixed** — AI applies no longer get overwritten by a stale user keystroke.
+- **Inline AI bails on content shift** instead of silently replacing the wrong paragraph via \`indexOf\` fallback.
+- **Version-available toast retriggers** for a second deploy in the same session.
+- **Board view re-renders only on relevant store changes** (\`useShallow\` selector).
+
+## Under the hood
+
+- 38 audit findings closed across 4 commits + 1 self-review followup commit; lint and type-check are clean.
+- New \`ai_stream_owners\` table with \`by_streamId\`/\`by_userId_and_createdAt\`/\`by_projectId\` indexes, drained by both project delete and account self-destruct.
+- \`_wipeProjectChunk\` mirrors \`selfDestruct._wipeChunk\`'s budget accounting so a project with thousands of rows fans out across chunks instead of blowing a single transaction.
+- \`_deleteProjectRow\` is idempotent — retried delete passes are no-ops.
+- Frontmatter MDX/JS parsing uses JSON5 instead of \`new Function\`; the MDX preview's trust boundary is documented in source.
+- Project-local \`bunfig.toml\` lowers \`minimumReleaseAge\` to 5 days to admit the qs patch ahead of the global gate.
+`,
+  },
 ];
 
 export const seed = action({
