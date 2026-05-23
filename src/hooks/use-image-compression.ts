@@ -40,13 +40,22 @@ export function useImageCompression(
   const project = useQuery(api.cms.projects.get, { projectId });
   const [isCompressing, setIsCompressing] = useState(false);
 
+  // Convex reactive queries return fresh object identities on every
+  // snapshot even when the underlying fields are unchanged, which makes the
+  // naive `[user?.defaultCompressionSettings, project?.compressionSettings]`
+  // dep array churn on every server tick — downstream callbacks and effects
+  // see a new `resolvedSettings` ref each time. Key the memo off a
+  // serialized snapshot so it only changes when the values actually change.
+  const userKey = JSON.stringify(user?.defaultCompressionSettings ?? null);
+  const projectKey = JSON.stringify(project?.compressionSettings ?? null);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: derived from the JSON keys
   const resolvedSettings = useMemo<CompressionSettings>(
     () => ({
       ...DEFAULT_COMPRESSION_SETTINGS,
       ...(user?.defaultCompressionSettings ?? {}),
       ...(project?.compressionSettings ?? {}),
     }),
-    [user?.defaultCompressionSettings, project?.compressionSettings],
+    [userKey, projectKey],
   );
 
   const compress = useCallback(

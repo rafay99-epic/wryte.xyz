@@ -17,6 +17,11 @@ import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
 import { publishWorkflowManager } from "../integrations/scheduling";
 import { cascadeDeleteScheduledPublishesForDoc } from "./documents";
 
+/** Hard cap on projects per user. The dashboard's project list query also
+ *  uses `.take(100)`, so anything above this gets silently truncated in the
+ *  UI — the limit enforces the cap explicitly at create-time. */
+const MAX_PROJECTS_PER_USER = 100;
+
 function sortProjectsForList(projects: Doc<"projects">[]): Doc<"projects">[] {
   const hasAnySortOrder = projects.some((p) => p.sortOrder !== undefined);
   if (!hasAnySortOrder) {
@@ -166,7 +171,12 @@ export const create = mutation({
     const existing = await ctx.db
       .query("projects")
       .withIndex("by_userId", (q) => q.eq("userId", user._id))
-      .take(100);
+      .take(MAX_PROJECTS_PER_USER + 1);
+    if (existing.length >= MAX_PROJECTS_PER_USER) {
+      throw new Error(
+        `You've reached the limit of ${String(MAX_PROJECTS_PER_USER)} projects. Delete one before creating another.`,
+      );
+    }
     const anyOrdered = existing.some((p) => p.sortOrder !== undefined);
 
     const insertData: {
