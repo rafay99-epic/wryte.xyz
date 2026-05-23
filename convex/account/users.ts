@@ -115,6 +115,23 @@ export const updateGithubToken = action({
     });
     await rateLimiter.limit(ctx, "vault:write", { key, throws: true });
 
+    // Modern GitHub tokens are well below 256 chars and start with a known
+    // prefix. Reject anything outside that envelope to prevent garbage
+    // payloads (multi-MB pastes, accidental binary blobs) from being
+    // persisted to the vault.
+    const token = args.token.trim();
+    if (!token) {
+      throw new Error("Token is required");
+    }
+    if (token.length > 256) {
+      throw new Error("Token is too long");
+    }
+    if (!/^(ghp_|gho_|ghu_|ghs_|ghr_|github_pat_)/.test(token)) {
+      throw new Error(
+        "Token does not look like a GitHub PAT (expected ghp_/gho_/ghu_/ghs_/ghr_/github_pat_ prefix).",
+      );
+    }
+
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       throw new Error("Not authenticated");
@@ -132,7 +149,7 @@ export const updateGithubToken = action({
     const created = await ctx.runAction(
       internal.integrations.secretStore._create,
       {
-        value: args.token,
+        value: token,
         meta: {
           userId: user._id,
           label: "github-pat",

@@ -36,7 +36,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { findPubDateFieldName } from "@/lib/build-initial-frontmatter";
 import { generateSlug } from "@/lib/markdown";
 import { getTagFieldName } from "@/lib/parse-frontmatter";
 import { humanizeFieldName } from "@/lib/utils";
@@ -515,11 +514,6 @@ export function FrontmatterEditor({
     [documentId, updateDocument, tagFieldName],
   );
 
-  const pubDateFieldName = useMemo(
-    () => findPubDateFieldName(project?.frontmatterSchema),
-    [project?.frontmatterSchema],
-  );
-
   function handleFieldChange(name: string, value: string | boolean) {
     const newValues = { ...values, [name]: value };
 
@@ -527,21 +521,11 @@ export function FrontmatterEditor({
       newValues["slug"] = generateSlug(value);
     }
 
-    // Sync pubDate changes back to scheduledAt when the document is scheduled
-    if (
-      name === pubDateFieldName &&
-      typeof value === "string" &&
-      value &&
-      document?.status === "scheduled"
-    ) {
-      const ts = new Date(value).getTime();
-      if (!Number.isNaN(ts) && ts > Date.now()) {
-        void updateDocument({
-          documentId: documentId as Id<"documents">,
-          scheduledAt: ts,
-        });
-      }
-    }
+    // Note: we intentionally do NOT push pubDate edits into `scheduledAt`
+    // here. Rescheduling has side effects (cancelling and re-arming a
+    // workflow) that only `integrations.scheduling.schedule` performs
+    // safely; a direct patch would leave the queue out of sync. Users
+    // change the firing time from the schedule dialog.
 
     setValues(newValues);
 

@@ -749,6 +749,7 @@ export const deleteByRef = action({
     const row = await ctx.runQuery(
       internal.media.uploadsDb._findByProviderAndExternalId,
       {
+        projectId: args.projectId,
         provider: args.provider,
         externalId: args.externalId,
       },

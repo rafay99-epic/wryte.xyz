@@ -40,6 +40,11 @@ export function EditorLayout({
     (state) => state.toggleResearchPanel,
   );
   const previewRef = useRef<HTMLDivElement>(null);
+  // Ref to the editor pane so the preview→editor sync doesn't have to call
+  // querySelector on every scroll event (which fires at the refresh rate of
+  // the user's input device, easily thousands of times per second on a
+  // momentum scroll).
+  const editorPaneRef = useRef<HTMLDivElement>(null);
   const isSyncingScroll = useRef(false);
 
   const handleEditorScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
@@ -63,9 +68,7 @@ export function EditorLayout({
     (e: React.UIEvent<HTMLDivElement>) => {
       if (isSyncingScroll.current) return;
       const preview = e.currentTarget;
-      const editorPane = preview.parentElement?.querySelector(
-        "[data-editor-pane]",
-      ) as HTMLDivElement | null;
+      const editorPane = editorPaneRef.current;
       if (!editorPane) return;
 
       const scrollRatio =
@@ -123,6 +126,7 @@ export function EditorLayout({
             {viewMode === "split" && (
               <div key="split" className="editor-pane-enter flex h-full w-full">
                 <div
+                  ref={editorPaneRef}
                   data-editor-pane
                   className="h-full w-1/2 overflow-y-auto hide-scrollbar"
                   onScroll={handleEditorScroll}

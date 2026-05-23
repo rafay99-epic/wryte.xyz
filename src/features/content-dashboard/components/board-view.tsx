@@ -17,6 +17,7 @@ import { useAction, useMutation } from "convex/react";
 import { Plus } from "lucide-react";
 import { useCallback, useMemo } from "react";
 import { toast } from "sonner";
+import { useShallow } from "zustand/react/shallow";
 import { Button } from "@/components/ui/button";
 import { useBoardKeyboardNav } from "@/features/content-dashboard/hooks/use-board-keyboard-nav";
 import type { ParsedFrontmatter } from "@/lib/parse-frontmatter";
@@ -69,6 +70,9 @@ export function BoardView({
   selectedDocIds,
   onToggleDocSelect,
 }: BoardViewProps) {
+  // Pull exactly the slice this view cares about. A bare `useBoardStore()`
+  // would subscribe to every field — focusedCardId, draggedItem, overColumnId,
+  // settingsDialog, etc. — and re-render the whole board on every nudge.
   const {
     activeItem,
     optimisticMoves,
@@ -77,7 +81,17 @@ export function BoardView({
     applyOptimisticMove,
     clearOptimisticMove,
     setPendingSchedule,
-  } = useBoardStore();
+  } = useBoardStore(
+    useShallow((s) => ({
+      activeItem: s.activeItem,
+      optimisticMoves: s.optimisticMoves,
+      setActiveItem: s.setActiveItem,
+      setOverColumnId: s.setOverColumnId,
+      applyOptimisticMove: s.applyOptimisticMove,
+      clearOptimisticMove: s.clearOptimisticMove,
+      setPendingSchedule: s.setPendingSchedule,
+    })),
+  );
 
   const moveCard = useMutation(api.cms.documents.moveCard);
   const publishAction = useAction(api.integrations.github.publish);

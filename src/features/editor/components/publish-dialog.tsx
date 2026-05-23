@@ -2,7 +2,7 @@
 
 import { useAction, useMutation, useQuery } from "convex/react";
 import { Loader2, Send, Share2 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useShallow } from "zustand/react/shallow";
 import { SocialPostField } from "@/components/forms/social-post-field";
@@ -134,33 +134,34 @@ export function PublishDialog({
   const slug = document?.slug ?? "untitled";
   const filePath = `${contentPath}/${slug}${getFileExtension(project?.contentFormat)}`;
 
-  // Build a YAML frontmatter preview by merging the document's saved frontmatter
-  // with a title and current timestamp. This shows the user exactly what will be
-  // written to the file's front matter block.
-  let frontmatterPreview = "";
-  if (document?.frontmatter) {
-    try {
-      const parsed = JSON.parse(document.frontmatter) as Record<
-        string,
-        unknown
-      >;
-      frontmatterPreview = buildFrontmatter({
-        title,
-        ...parsed,
-        date: new Date().toISOString(),
-      });
-    } catch {
-      frontmatterPreview = buildFrontmatter({
-        title,
-        date: new Date().toISOString(),
-      });
+  // Capture a single "now" timestamp when the dialog opens so the preview
+  // stops ticking on every parent render. The action recomputes on the
+  // server at publish-time, so this value is just for display.
+  const openedAtRef = useRef<string>(new Date().toISOString());
+  useEffect(() => {
+    if (open) openedAtRef.current = new Date().toISOString();
+  }, [open]);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: re-key the memo on `open` so the snapshot timestamp refreshes per dialog session
+  const frontmatterPreview = useMemo(() => {
+    const dateIso = openedAtRef.current;
+    if (document?.frontmatter) {
+      try {
+        const parsed = JSON.parse(document.frontmatter) as Record<
+          string,
+          unknown
+        >;
+        return buildFrontmatter({
+          title,
+          ...parsed,
+          date: dateIso,
+        });
+      } catch {
+        return buildFrontmatter({ title, date: dateIso });
+      }
     }
-  } else {
-    frontmatterPreview = buildFrontmatter({
-      title,
-      date: new Date().toISOString(),
-    });
-  }
+    return buildFrontmatter({ title, date: dateIso });
+  }, [document?.frontmatter, title, open]);
 
   const contentPreview =
     content.length > 200 ? `${content.slice(0, 200)}...` : content;

@@ -16,14 +16,21 @@ export const QUOTAS = {
   MAX_CREDENTIALS_PER_PROJECT: 1,
   /** Soft cap enforced by the upload rate limiter (uploads:concurrency). */
   MAX_CONCURRENT_UPLOADS_PER_USER: 3,
-  /** Closed-list of accepted MIME types — rejects anything else early. */
+  /**
+   * Closed-list of accepted MIME types — rejects anything else early.
+   *
+   * SVGs are deliberately excluded: the XML grammar admits inline `<script>`
+   * and event handlers, so uploading one and then opening its hosted URL in
+   * the user's browser would execute arbitrary JS in the hosting origin.
+   * If we ever need vector support, route it through a server-side
+   * sanitiser (e.g. DOMPurify with the SVG profile) before persisting.
+   */
   ALLOWED_MIME: [
     "image/png",
     "image/jpeg",
     "image/jpg",
     "image/webp",
     "image/gif",
-    "image/svg+xml",
     "image/avif",
   ] as readonly string[],
 } as const;

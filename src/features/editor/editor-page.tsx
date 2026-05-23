@@ -63,6 +63,20 @@ export function EditorPage() {
   const hasInitialized = useRef(false);
   const initializedDocId = useRef<string | null>(null);
 
+  // Reset the editor store as soon as the URL switches between documents,
+  // before the new document query resolves. Without this the editor briefly
+  // shows the previous doc's content during the transition.
+  useEffect(() => {
+    if (
+      initializedDocId.current !== null &&
+      initializedDocId.current !== documentId
+    ) {
+      reset();
+      hasInitialized.current = false;
+      initializedDocId.current = null;
+    }
+  }, [documentId, reset]);
+
   useEffect(() => {
     if (
       document &&

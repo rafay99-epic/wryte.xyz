@@ -248,6 +248,12 @@ export const rotate = action({
       throw new ConvexError({ message: "API key is required." });
     }
 
+    // Snapshot the prior status so a failed rotation can revert correctly.
+    // Previously we always reverted to "active", which incorrectly promoted
+    // rows whose stored key was already known-bad ("invalid").
+    const priorStatus: "active" | "invalid" =
+      cred.status === "invalid" ? "invalid" : "active";
+
     // Mark as rotating up front so the UI can react.
     await ctx.runMutation(internal.ai.credentialsDb._setStatus, {
       credentialId: cred._id,
@@ -259,7 +265,7 @@ export const rotate = action({
     if (!verify.ok) {
       await ctx.runMutation(internal.ai.credentialsDb._setStatus, {
         credentialId: cred._id,
-        status: "active" as const,
+        status: priorStatus,
         lastVerifyError: verify.message,
       });
       return { credentialId: cred._id, ok: false, message: verify.message };
@@ -279,7 +285,7 @@ export const rotate = action({
     } catch (err) {
       await ctx.runMutation(internal.ai.credentialsDb._setStatus, {
         credentialId: cred._id,
-        status: "active" as const,
+        status: priorStatus,
       });
       throw err;
     }
@@ -361,6 +367,7 @@ async function loadOwnedCredential(
   _id: Id<"aiCredentials">;
   vaultSecretId: string;
   userId: Id<"users">;
+  status: "active" | "invalid" | "verifying" | "rotating";
 }> {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) throw new Error("Not authenticated");
@@ -387,6 +394,7 @@ async function loadOwnedCredential(
     _id: cred._id,
     vaultSecretId: cred.vaultSecretId,
     userId: cred.userId,
+    status: cred.status,
   };
 }
 

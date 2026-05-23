@@ -44,6 +44,32 @@ function normalizeSubreddit(raw: string): string {
   return raw.trim().replace(/^r\//i, "").replace(/\/+$/, "");
 }
 
+/**
+ * Upload-Post usernames are user identifiers in the third-party service,
+ * not free-form text — keep them to the same shape as a typical
+ * social handle. The previous validator was length-only, which let through
+ * control characters, newlines, and Unicode oddities that downstream form
+ * fields and rendered UI weren't expecting.
+ */
+const USERNAME_RE = /^[A-Za-z0-9_.-]+$/;
+
+function validateUsername(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    throw new ConvexError({ message: "Upload-Post username is required." });
+  }
+  if (trimmed.length > 100) {
+    throw new ConvexError({ message: "Username is too long." });
+  }
+  if (!USERNAME_RE.test(trimmed)) {
+    throw new ConvexError({
+      message:
+        "Username may only contain letters, numbers, dots, dashes, and underscores.",
+    });
+  }
+  return trimmed;
+}
+
 /* ------------------------------------------------------------------ */
 /*  Public actions                                                      */
 /* ------------------------------------------------------------------ */
@@ -78,11 +104,7 @@ export const setCredentials = action({
     if (!secret) throw new ConvexError({ message: "API key is required." });
     if (secret.length > 512)
       throw new ConvexError({ message: "API key is too long." });
-    const username = args.username.trim();
-    if (!username)
-      throw new ConvexError({ message: "Upload-Post username is required." });
-    if (username.length > 100)
-      throw new ConvexError({ message: "Username is too long." });
+    const username = validateUsername(args.username);
     const validPlatforms = validatePlatforms(args.platforms);
     if (args.postTemplate && args.postTemplate.length > 2000)
       throw new ConvexError({
@@ -266,6 +288,9 @@ export const rotate = action({
     const newSecret = args.secret.trim();
     if (!newSecret) throw new ConvexError({ message: "API key is required." });
 
+    const priorStatus: "active" | "invalid" =
+      cred.status === "invalid" ? "invalid" : "active";
+
     await ctx.runMutation(internal.social.credentialsDb._setStatus, {
       credentialId: cred._id,
       status: "rotating" as const,
@@ -275,7 +300,7 @@ export const rotate = action({
     if (!verify.ok) {
       await ctx.runMutation(internal.social.credentialsDb._setStatus, {
         credentialId: cred._id,
-        status: "active" as const,
+        status: priorStatus,
         lastVerifyError: verify.message,
       });
       return { credentialId: cred._id, ok: false, message: verify.message };
@@ -295,7 +320,7 @@ export const rotate = action({
     } catch (err) {
       await ctx.runMutation(internal.social.credentialsDb._setStatus, {
         credentialId: cred._id,
-        status: "active" as const,
+        status: priorStatus,
       });
       throw err;
     }
@@ -361,8 +386,8 @@ export const updateConfig = action({
 
     const cred = await loadOwnedCredential(ctx, args.projectId);
 
-    if (args.username !== undefined && args.username.trim().length > 100)
-      throw new ConvexError({ message: "Username is too long." });
+    const nextUsername =
+      args.username !== undefined ? validateUsername(args.username) : undefined;
     if (args.postTemplate !== undefined && args.postTemplate.length > 2000)
       throw new ConvexError({
         message: "Post template is too long (max 2000 characters).",
@@ -381,7 +406,7 @@ export const updateConfig = action({
       subreddit?: string;
     } = cred.publicConfig ? JSON.parse(cred.publicConfig) : {};
     const updated = {
-      username: args.username?.trim() ?? existing.username ?? "",
+      username: nextUsername ?? existing.username ?? "",
       platforms: args.platforms
         ? validatePlatforms(args.platforms)
         : (existing.platforms ?? []),
@@ -439,6 +464,7 @@ async function loadOwnedCredential(
   _id: Id<"socialCredentials">;
   vaultSecretId: string;
   userId: Id<"users">;
+  status: "active" | "invalid" | "verifying" | "rotating";
   publicConfig?: string;
 }> {
   await loadOwnerContext(ctx, projectId);
@@ -455,11 +481,13 @@ async function loadOwnedCredential(
     _id: Id<"socialCredentials">;
     vaultSecretId: string;
     userId: Id<"users">;
+    status: "active" | "invalid" | "verifying" | "rotating";
     publicConfig?: string;
   } = {
     _id: cred._id,
     vaultSecretId: cred.vaultSecretId,
     userId: cred.userId,
+    status: cred.status,
   };
   if (cred.publicConfig !== undefined) result.publicConfig = cred.publicConfig;
   return result;

@@ -120,20 +120,19 @@ export async function getGithubToken(
     // has a PAT in the vault.
   }
 
-  // 2. Vault PAT — manual override.
+  // 2. Vault PAT — manual override. Fail closed on read errors: a transient
+  // WorkOS outage must not silently downgrade the user to a stale legacy
+  // token (which is what the previous code did). The caller surfaces the
+  // error with a "Reconnect GitHub or try again" message.
   if (user.githubVaultSecretId) {
-    try {
-      return await ctx.runAction(internal.integrations.secretStore._read, {
-        id: user.githubVaultSecretId,
-      });
-    } catch (err) {
-      console.error("[Vault] PAT read failed:", err);
-      // Fall through to legacy/null rather than throw — gives a friendlier
-      // error at the call site than a vault-internal one.
-    }
+    return await ctx.runAction(internal.integrations.secretStore._read, {
+      id: user.githubVaultSecretId,
+    });
   }
 
-  // 3. Legacy plaintext — lazy migrate into the vault on first read.
+  // 3. Legacy plaintext — lazy migrate into the vault on first read. After
+  //    migration the next call goes through the vault branch above. Only
+  //    reached when the user has no vault entry yet.
   if (user.githubAccessToken) {
     const created = await ctx.runAction(
       internal.integrations.secretStore._create,
