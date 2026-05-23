@@ -42,6 +42,10 @@ export const rotateCredentialWorkflow = rotateWorkflowManager.define({
     credentialId: v.id("mediaCredentials"),
     provider: PROVIDER_VALIDATOR,
     newSecret: v.string(),
+    // Status to revert to if verification fails. Without this, a failed
+    // rotation of an `"invalid"` row was incorrectly promoting it to
+    // `"active"`.
+    priorStatus: v.union(v.literal("active"), v.literal("invalid")),
     publicConfig: v.optional(v.string()),
   },
   handler: async (step, args) => {
@@ -53,7 +57,7 @@ export const rotateCredentialWorkflow = rotateWorkflowManager.define({
     if (!verify.ok) {
       await step.runMutation(internal.media.credentialsDb._setStatus, {
         credentialId: args.credentialId,
-        status: "active" as const,
+        status: args.priorStatus,
         lastVerifyError: verify.message,
       });
       return;
@@ -112,6 +116,7 @@ export const kickRotation = internalMutation({
     credentialId: v.id("mediaCredentials"),
     provider: PROVIDER_VALIDATOR,
     newSecret: v.string(),
+    priorStatus: v.union(v.literal("active"), v.literal("invalid")),
     publicConfig: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<string> => {
@@ -119,11 +124,13 @@ export const kickRotation = internalMutation({
       credentialId: typeof args.credentialId;
       provider: typeof args.provider;
       newSecret: string;
+      priorStatus: "active" | "invalid";
       publicConfig?: string;
     } = {
       credentialId: args.credentialId,
       provider: args.provider,
       newSecret: args.newSecret,
+      priorStatus: args.priorStatus,
     };
     if (args.publicConfig !== undefined) {
       workflowArgs.publicConfig = args.publicConfig;

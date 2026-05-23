@@ -15,7 +15,6 @@ import { compressionSettingsValidator } from "../_lib/compression";
 import { contentFormatValidator } from "../_lib/contentFormat";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
 import { publishWorkflowManager } from "../integrations/scheduling";
-import { cascadeDeleteScheduledPublishesForDoc } from "./documents";
 
 /** Hard cap on projects per user. The dashboard's project list query also
  *  uses `.take(100)`, so anything above this gets silently truncated in the
@@ -443,7 +442,11 @@ export const remove = action({
       }
     }
 
-    /* -- Step C: chunked Convex wipe -- */
+    /* -- Step C: chunked Convex wipe. The chunk caps at 200 deletes per
+     *    transaction so a project with thousands of rows fans out across
+     *    multiple mutations instead of blowing the per-transaction limit.
+     *    The 200-iteration ceiling caps a single invocation at ~40k rows;
+     *    larger projects need a retry from the UI. */
     let documentsDeleted = 0;
     let mediaDeleted = 0;
     for (let i = 0; i < 200; i++) {
@@ -456,10 +459,18 @@ export const remove = action({
       if (chunk.remaining === 0) break;
     }
 
-    /* -- Step D: drop the project row itself -- */
-    await ctx.runMutation(internal.cms.projects._deleteProjectRow, {
-      projectId: args.projectId,
-    });
+    /* -- Step D: drop the project row itself. _deleteProjectRow is
+     *    idempotent — it returns { deleted, remaining } so we can surface
+     *    a partial-success summary instead of throwing into the UI. */
+    const finalize = await ctx.runMutation(
+      internal.cms.projects._deleteProjectRow,
+      { projectId: args.projectId },
+    );
+    if (!finalize.deleted && finalize.remaining > 0) {
+      throw new Error(
+        `Project has more dependent rows than this delete pass can handle (${String(finalize.remaining)} remaining). Try again to continue the cleanup.`,
+      );
+    }
 
     return {
       ok: true,
@@ -579,15 +590,25 @@ export const _wipeProjectChunk = internalMutation({
     let documentsDeleted = 0;
     let mediaDeleted = 0;
 
-    /* 1. scheduled_publishes via documents */
+    /* 1. scheduled_publishes via documents. Walks docs and decrements the
+     *    shared budget per scheduled_publish deleted so a project with many
+     *    docs × many SPs doesn't blow the per-transaction read/write limit
+     *    in a single chunk. Mirrors `selfDestruct._wipeChunk` step 1. */
     if (budget > 0) {
       const documents = await ctx.db
         .query("documents")
         .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
-        .take(5000);
+        .take(Math.min(budget + 1, 5000));
       for (const doc of documents) {
         if (budget <= 0) break;
-        await cascadeDeleteScheduledPublishesForDoc(ctx, doc._id);
+        const rows = await ctx.db
+          .query("scheduled_publishes")
+          .withIndex("by_documentId", (q) => q.eq("documentId", doc._id))
+          .take(budget);
+        for (const row of rows) {
+          await ctx.db.delete(row._id);
+          budget--;
+        }
       }
     }
 
@@ -779,7 +800,23 @@ export const _wipeProjectChunk = internalMutation({
       }
     }
 
-    /* 12. documents */
+    /* 12. ai_stream_owners — bookkeeping for AI stream ownership. Rows
+     *     here outlive the underlying stream blob (which the persistent-
+     *     text-streaming component cleans up on its own schedule), but
+     *     without this branch they accumulate forever when a project is
+     *     deleted. */
+    if (budget > 0) {
+      const rows = await ctx.db
+        .query("ai_stream_owners")
+        .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
+        .take(budget);
+      for (const row of rows) {
+        await ctx.db.delete(row._id);
+        budget--;
+      }
+    }
+
+    /* 13. documents */
     if (budget > 0) {
       const rows = await ctx.db
         .query("documents")
@@ -797,17 +834,26 @@ export const _wipeProjectChunk = internalMutation({
   },
 });
 
-/** Final teardown — refuses if the project still has dependent rows. */
+/**
+ * Final teardown. Idempotent — a re-run after partial failure is a no-op
+ * if the project row is already gone, and is allowed to return `false`
+ * (with a remaining count) if dependent rows still exist so the
+ * orchestrator can loop more chunks instead of throwing into the UI.
+ */
 export const _deleteProjectRow = internalMutation({
   args: { projectId: v.id("projects") },
-  handler: async (ctx, args) => {
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ deleted: boolean; remaining: number }> => {
+    const project = await ctx.db.get(args.projectId);
+    if (!project) return { deleted: false, remaining: 0 };
+
     const remaining = await countProjectRemaining(ctx, args.projectId);
-    if (remaining > 0) {
-      throw new Error(
-        `Cannot finalize delete: ${String(remaining)} dependent rows remain`,
-      );
-    }
+    if (remaining > 0) return { deleted: false, remaining };
+
     await ctx.db.delete(args.projectId);
+    return { deleted: true, remaining: 0 };
   },
 });
 
@@ -874,6 +920,10 @@ async function countProjectRemaining(
       .withIndex("by_projectId_and_createdAt", (q) =>
         q.eq("projectId", projectId),
       )
+      .take(1),
+    ctx.db
+      .query("ai_stream_owners")
+      .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
       .take(1),
   ]);
   let count = 0;

@@ -2,7 +2,7 @@
 
 import { useAction, useMutation, useQuery } from "convex/react";
 import { Loader2, Send, Share2 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useShallow } from "zustand/react/shallow";
 import { SocialPostField } from "@/components/forms/social-post-field";
@@ -134,17 +134,14 @@ export function PublishDialog({
   const slug = document?.slug ?? "untitled";
   const filePath = `${contentPath}/${slug}${getFileExtension(project?.contentFormat)}`;
 
-  // Capture a single "now" timestamp when the dialog opens so the preview
-  // stops ticking on every parent render. The action recomputes on the
-  // server at publish-time, so this value is just for display.
-  const openedAtRef = useRef<string>(new Date().toISOString());
-  useEffect(() => {
-    if (open) openedAtRef.current = new Date().toISOString();
-  }, [open]);
+  // Capture a single "now" timestamp keyed by `open` so the preview's date
+  // refreshes when the dialog reopens but doesn't tick on every parent
+  // render. The action recomputes on the server at publish-time, so this
+  // value is purely for the YAML preview shown in the dialog.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: ISO timestamp is intentionally re-computed per dialog open
+  const dateIso = useMemo(() => new Date().toISOString(), [open]);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: re-key the memo on `open` so the snapshot timestamp refreshes per dialog session
   const frontmatterPreview = useMemo(() => {
-    const dateIso = openedAtRef.current;
     if (document?.frontmatter) {
       try {
         const parsed = JSON.parse(document.frontmatter) as Record<
@@ -161,7 +158,7 @@ export function PublishDialog({
       }
     }
     return buildFrontmatter({ title, date: dateIso });
-  }, [document?.frontmatter, title, open]);
+  }, [document?.frontmatter, title, dateIso]);
 
   const contentPreview =
     content.length > 200 ? `${content.slice(0, 200)}...` : content;

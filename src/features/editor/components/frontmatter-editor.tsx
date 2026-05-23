@@ -505,11 +505,15 @@ export function FrontmatterEditor({
           .filter(Boolean);
       }
 
+      // Swallow errors at this layer so the debounced flush-on-unmount path
+      // doesn't surface unhandled-rejection toasts when the underlying
+      // document has been deleted or the user has navigated away. Real
+      // errors are still surfaced when the user clicks an explicit save.
       void updateDocument({
         documentId: documentId as Id<"documents">,
         frontmatter: JSON.stringify(newValues),
         ...(tags ? { tags } : {}),
-      });
+      }).catch(() => {});
     },
     [documentId, updateDocument, tagFieldName],
   );

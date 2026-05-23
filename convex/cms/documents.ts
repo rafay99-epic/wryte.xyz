@@ -269,10 +269,17 @@ export const update = mutation({
       }
     }
 
-    if (args.content !== undefined && args.content.length > MAX_CONTENT_BYTES) {
-      throw new Error(
-        `Document content is too large (max ${String(Math.round(MAX_CONTENT_BYTES / 1024))} KB).`,
-      );
+    if (args.content !== undefined) {
+      // Convex serializes documents as UTF-8 and enforces a 1MB per-document
+      // ceiling. A `.length` check would be off by ~3× for CJK or emoji-
+      // heavy content (UTF-16 code units vs UTF-8 bytes), so compute the
+      // real byte size before comparing to the cap.
+      const byteLength = new TextEncoder().encode(args.content).byteLength;
+      if (byteLength > MAX_CONTENT_BYTES) {
+        throw new Error(
+          `Document content is too large (max ${String(Math.round(MAX_CONTENT_BYTES / 1024))} KB).`,
+        );
+      }
     }
 
     // Defense-in-depth lock: if the doc has an unresolved sync
