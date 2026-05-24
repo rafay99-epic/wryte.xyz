@@ -73,36 +73,6 @@ export const getUsage = query({
   },
 });
 
-/**
- * Count of legacy `convex_legacy` rows for this project — drives the
- * "Configure media storage to migrate N legacy images" banner.
- */
-export const legacyCount = query({
-  args: { projectId: v.id("projects") },
-  handler: async (ctx, args) => {
-    const user = await getAuthedUserOrNull(ctx);
-    if (!user) return 0;
-    const project = await ctx.db.get(args.projectId);
-    if (!project || project.userId !== user._id) return 0;
-
-    let count = 0;
-    let cursor: string | null = null;
-    let done = false;
-    while (!done) {
-      const result = await ctx.db
-        .query("media")
-        .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
-        .paginate({ numItems: 200, cursor });
-      for (const r of result.page) {
-        if (r.provider === "convex_legacy" || r.storageId) count++;
-      }
-      done = result.isDone;
-      cursor = result.continueCursor;
-    }
-    return count;
-  },
-});
-
 /* ------------------------------------------------------------------ */
 /*  Internal queries                                                    */
 /* ------------------------------------------------------------------ */

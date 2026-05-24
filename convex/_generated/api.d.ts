@@ -19,7 +19,6 @@ import type * as _lib_quotas from "../_lib/quotas.js";
 import type * as _lib_rateLimits from "../_lib/rateLimits.js";
 import type * as _lib_wordCount from "../_lib/wordCount.js";
 import type * as _pools_import from "../_pools/import.js";
-import type * as _pools_upload from "../_pools/upload.js";
 import type * as _seed_changelog from "../_seed/changelog.js";
 import type * as _seed_featureRequests from "../_seed/featureRequests.js";
 import type * as _seed_writingStats from "../_seed/writingStats.js";
@@ -83,7 +82,6 @@ declare const fullApi: ApiFromModules<{
   "_lib/rateLimits": typeof _lib_rateLimits;
   "_lib/wordCount": typeof _lib_wordCount;
   "_pools/import": typeof _pools_import;
-  "_pools/upload": typeof _pools_upload;
   "_seed/changelog": typeof _seed_changelog;
   "_seed/featureRequests": typeof _seed_featureRequests;
   "_seed/writingStats": typeof _seed_writingStats;
@@ -160,7 +158,5 @@ export declare const components: {
   workflow: import("@convex-dev/workflow/_generated/component.js").ComponentApi<"workflow">;
   persistentTextStreaming: import("@convex-dev/persistent-text-streaming/_generated/component.js").ComponentApi<"persistentTextStreaming">;
   rateLimiter: import("@convex-dev/rate-limiter/_generated/component.js").ComponentApi<"rateLimiter">;
-  mediaUploadPool: import("@convex-dev/workpool/_generated/component.js").ComponentApi<"mediaUploadPool">;
-  mediaMaintenancePool: import("@convex-dev/workpool/_generated/component.js").ComponentApi<"mediaMaintenancePool">;
   githubImportPool: import("@convex-dev/workpool/_generated/component.js").ComponentApi<"githubImportPool">;
 };

@@ -14,7 +14,6 @@
 import { createClerkClient } from "@clerk/backend";
 import { v } from "convex/values";
 import { internalAction } from "../_generated/server";
-import { parseClerkUserId } from "../_lib/auth";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
 
 function buildClient() {
@@ -124,94 +123,5 @@ export const _isAdmin = internalAction({
       console.error("[Clerk] _isAdmin lookup failed:", err);
       return false;
     }
-  },
-});
-
-/**
- * One-shot diagnostic for the Clerk SDK ↔ Convex integration. Run it
- * from the Convex dashboard's function runner (or call it from the
- * client) to find out which side of the connection is misbehaving:
- *
- *   - "incoming JWT" → the identity Convex extracted from your session
- *   - "outgoing SDK"  → what Clerk's Backend SDK reports when we look
- *                       you up by that same user id
- *   - "sdk smoke test"→ a user-list call that proves the secret key
- *                       authenticates to *some* Clerk app (regardless
- *                       of whether your user lives in it)
- *
- * If the JWT user id matches the SDK lookup → integration is correct.
- * If the JWT user id is non-null but the SDK lookup 404s → JWT and
- * secret key belong to different Clerk apps. The smoke test will tell
- * you whether the secret key is valid at all.
- */
-export const debugAuth = internalAction({
-  args: {},
-  handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-
-    const parsedClerkUserId = identity?.tokenIdentifier
-      ? parseClerkUserId(identity.tokenIdentifier)
-      : null;
-
-    const report: Record<string, unknown> = {
-      incomingJwt: identity
-        ? {
-            tokenIdentifier: identity.tokenIdentifier,
-            subject: identity.subject,
-            issuer: identity.issuer,
-            parsedClerkUserId,
-          }
-        : null,
-    };
-
-    let clerk: ReturnType<typeof createClerkClient>;
-    try {
-      clerk = createClerkClient({
-        secretKey: process.env["CLERK_SECRET_KEY"] ?? "",
-      });
-    } catch (err) {
-      report["sdkInit"] = {
-        ok: false,
-        error: err instanceof Error ? err.message : String(err),
-      };
-      return report;
-    }
-
-    // 1. Does the secret key authenticate at all? We don't leak the first
-    //    user's id or email — anyone with Convex dashboard access could
-    //    otherwise dump arbitrary user PII through this diagnostic.
-    try {
-      const list = await clerk.users.getUserList({ limit: 1 });
-      report["sdkSmokeTest"] = {
-        ok: true,
-        totalUsersInApp: list.totalCount,
-      };
-    } catch (err) {
-      report["sdkSmokeTest"] = {
-        ok: false,
-        error: err instanceof Error ? err.message : String(err),
-      };
-    }
-
-    // 2. Confirm the JWT's user id resolves through the SDK without
-    //    returning the user object itself.
-    if (parsedClerkUserId) {
-      try {
-        await clerk.users.getUser(parsedClerkUserId);
-        report["sdkUserLookup"] = { ok: true };
-      } catch (err) {
-        report["sdkUserLookup"] = {
-          ok: false,
-          error: err instanceof Error ? err.message : String(err),
-        };
-      }
-    } else {
-      report["sdkUserLookup"] = {
-        ok: false,
-        error: "No parsable Clerk user id from JWT",
-      };
-    }
-
-    return report;
   },
 });
