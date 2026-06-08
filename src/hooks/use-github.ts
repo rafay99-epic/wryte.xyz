@@ -287,6 +287,16 @@ type DetectFrontmatterParams = {
 type DetectFrontmatterResponse = {
   fields: DetectedField[] | null;
   sourceFile?: string;
+  /** Detected static-site framework (astro/hugo/nextjs/jekyll/…). */
+  framework?: string;
+  /** Observed frontmatter delimiter style — "yaml" (---) or "toml" (+++). */
+  frontmatterFormat?: "yaml" | "toml";
+  /** Where the field types came from: framework-config | samples | mixed | none. */
+  basis?: string;
+  /** How many real posts were sampled to build the schema. */
+  sampledCount?: number;
+  /** Config + sampled files that informed the result. */
+  sources?: string[];
   error?: string;
 };
 

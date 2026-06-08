@@ -67,6 +67,10 @@ export type WizardState = {
   frontmatterFields: FrontmatterField[];
   /** If frontmatter fields were auto-detected from an existing file, its name is stored here. */
   detectedFromFile: string | null;
+  /** Static-site framework detected during schema detection (astro/hugo/…). */
+  detectedFramework: string | null;
+  /** Frontmatter delimiter style observed in the repo's posts. */
+  detectedFrontmatterFormat: "yaml" | "toml" | null;
 };
 
 /** Sensible defaults so the wizard is usable without touching every field. */
@@ -86,6 +90,8 @@ const INITIAL_STATE: WizardState = {
   cloudinaryFolder: "",
   frontmatterFields: DEFAULT_FRONTMATTER_FIELDS,
   detectedFromFile: null,
+  detectedFramework: null,
+  detectedFrontmatterFormat: null,
 };
 
 const STEPS = [
@@ -242,6 +248,8 @@ export function NewProjectPage() {
         mediaPath?: string;
         mediaStorageMode?: MediaStorageMode;
         frontmatterSchema?: string;
+        framework?: string;
+        frontmatterFormat?: "yaml" | "toml";
       } = {
         name: state.projectName.trim(),
         slug: state.projectSlug.trim(),
@@ -254,6 +262,15 @@ export function NewProjectPage() {
       if (state.selectedRepo) {
         args.githubRepo = state.selectedRepo.fullName;
         args.githubBranch = state.selectedRepo.defaultBranch;
+      }
+
+      // Persist what detection learned so publishing is framework-aware
+      // (e.g. Hugo → TOML frontmatter).
+      if (state.detectedFramework && state.detectedFramework !== "unknown") {
+        args.framework = state.detectedFramework;
+      }
+      if (state.detectedFrontmatterFormat) {
+        args.frontmatterFormat = state.detectedFrontmatterFormat;
       }
 
       const projectId = await createProject(args);

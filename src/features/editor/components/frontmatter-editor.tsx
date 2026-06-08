@@ -36,6 +36,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { ARRAY_FIELD_NAMES } from "@/lib/frontmatter-detection/registry";
+import { validateFrontmatter } from "@/lib/frontmatter-detection/validate";
 import { generateSlug } from "@/lib/markdown";
 import { getTagFieldName } from "@/lib/parse-frontmatter";
 import { humanizeFieldName } from "@/lib/utils";
@@ -47,6 +49,10 @@ import {
   isAiEligibleField,
 } from "./frontmatter-ai-drawer";
 import { FrontmatterImageField } from "./frontmatter-image-field";
+import {
+  FrontmatterValidationBadge,
+  FrontmatterValidationIssues,
+} from "./frontmatter-validation";
 
 type FrontmatterEditorProps = {
   projectId: string;
@@ -203,13 +209,15 @@ function buildSerializableObject(
   for (const [key, val] of Object.entries(values)) {
     if (val === "" || val === undefined) continue;
     const field = fields.find((f) => f.name === key);
-    if (
-      field &&
-      (field.type === "tags" ||
-        field.type === "list" ||
-        field.type === "multiselect") &&
-      typeof val === "string"
-    ) {
+    const isArrayType =
+      field?.type === "tags" ||
+      field?.type === "list" ||
+      field?.type === "multiselect";
+    // Names like tags/keywords/categories are list-valued across every
+    // framework — serialize them as arrays even if the schema mistyped them as
+    // a scalar string. Mirrors the publish-time guard in convex/_lib/frontmatter.
+    const isArrayName = ARRAY_FIELD_NAMES.has(key.toLowerCase());
+    if ((isArrayType || isArrayName) && typeof val === "string") {
       obj[key] = val
         .split(",")
         .map((v) => v.trim())
@@ -452,6 +460,13 @@ export function FrontmatterEditor({
     return count;
   }, [fields, values]);
 
+  // Pre-publish validation: catch required/type/option problems while the
+  // author is still writing, instead of after a failed GitHub build.
+  const validationIssues = useMemo(
+    () => validateFrontmatter(values, fields),
+    [values, fields],
+  );
+
   useEffect(() => {
     if (document && !hasLoadedInitial) {
       setHasLoadedInitial(true);
@@ -670,6 +685,9 @@ export function FrontmatterEditor({
           <span className="rounded-full bg-muted/60 px-1.5 py-px text-[10px] font-semibold tabular-nums">
             {filledCount}/{fields.length}
           </span>
+          {fields.length > 0 && (
+            <FrontmatterValidationBadge issues={validationIssues} />
+          )}
         </button>
         {aiReady && (
           <button
@@ -697,6 +715,8 @@ export function FrontmatterEditor({
             className="overflow-hidden"
           >
             <div className="border-t border-border/30 bg-muted/10">
+              {/* Pre-publish validation issues — surfaced before publish */}
+              <FrontmatterValidationIssues issues={validationIssues} />
               {/* Mode toggle bar — stays pinned above the scroll area */}
               <div className="flex items-center justify-between border-b border-border/20 px-4 py-1.5">
                 <div className="relative flex items-center gap-1 rounded-md bg-muted/50 p-0.5">

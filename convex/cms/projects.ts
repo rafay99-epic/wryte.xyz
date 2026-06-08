@@ -13,6 +13,7 @@ import {
 import { getAuthedUserOrNull, getCurrentUser } from "../_lib/auth";
 import { compressionSettingsValidator } from "../_lib/compression";
 import { contentFormatValidator } from "../_lib/contentFormat";
+import { normalizeSchemaArrayTypes } from "../_lib/frontmatter";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
 import { publishWorkflowManager } from "../integrations/scheduling";
 
@@ -149,6 +150,7 @@ export const create = mutation({
     frontmatterFormat: v.optional(
       v.union(v.literal("yaml"), v.literal("toml")),
     ),
+    framework: v.optional(v.string()),
     defaultAuthor: v.optional(v.string()),
     defaultAuthorAvatar: v.optional(v.string()),
     aiProvider: v.optional(
@@ -195,6 +197,7 @@ export const create = mutation({
       siteUrl?: string;
       deployHookUrl?: string;
       frontmatterFormat?: "yaml" | "toml";
+      framework?: string;
       defaultAuthor?: string;
       defaultAuthorAvatar?: string;
       aiProvider?: "anthropic" | "openai" | "openrouter";
@@ -241,6 +244,7 @@ export const create = mutation({
       insertData.deployHookUrl = args.deployHookUrl;
     if (args.frontmatterFormat !== undefined)
       insertData.frontmatterFormat = args.frontmatterFormat;
+    if (args.framework !== undefined) insertData.framework = args.framework;
     if (args.defaultAuthor !== undefined)
       insertData.defaultAuthor = args.defaultAuthor;
     if (args.defaultAuthorAvatar !== undefined)
@@ -287,6 +291,7 @@ export const update = mutation({
     frontmatterFormat: v.optional(
       v.union(v.literal("yaml"), v.literal("toml")),
     ),
+    framework: v.optional(v.string()),
     defaultAuthor: v.optional(v.string()),
     defaultAuthorAvatar: v.optional(v.string()),
     boardColumns: v.optional(v.string()),
@@ -356,6 +361,28 @@ export const update = mutation({
     }
 
     await ctx.db.patch(projectId, fieldsToUpdate);
+  },
+});
+
+/**
+ * Dismisses the one-time "we repaired your frontmatter schema" notice for a
+ * project. Records the acknowledgement timestamp; the banner hides once it is
+ * ≥ `schemaRepairedAt`.
+ *
+ * @requires Authentication + project ownership
+ */
+export const acknowledgeSchemaRepair = mutation({
+  args: { projectId: v.id("projects") },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    const project = await ctx.db.get(args.projectId);
+    if (!project) throw new Error("Project not found");
+    if (project.userId !== user._id) {
+      throw new Error("Unauthorized: you do not own this project");
+    }
+    await ctx.db.patch(args.projectId, {
+      schemaRepairAcknowledgedAt: Date.now(),
+    });
   },
 });
 
@@ -994,5 +1021,54 @@ export const _backfillDocumentCounts = internalMutation({
       }
     }
     return { total: projects.length, updated };
+  },
+});
+
+/**
+ * One-time backfill: repairs every existing project's stored `frontmatterSchema`
+ * so list fields (tags/keywords/categories/…) that were mistyped as scalars by
+ * the old single-file detection become array ("tags") fields. This brings
+ * projects created before framework-aware detection up to the same correct
+ * schema, fixing the editor UX (tag chips instead of a text box) and aligning
+ * the stored schema with the publish-time array guard.
+ *
+ * Paginated + self-continuing (matches `_backfillWordCounts`), so it scales to
+ * any number of projects without exceeding a single transaction. Idempotent —
+ * safe to re-run; only patches rows that actually change.
+ */
+export const _backfillFrontmatterSchemas = internalMutation({
+  args: { cursor: v.optional(v.union(v.string(), v.null())) },
+  handler: async (ctx, args) => {
+    const BATCH = 100;
+    const result = await ctx.db.query("projects").paginate({
+      numItems: BATCH,
+      cursor: args.cursor ?? null,
+    });
+
+    let patched = 0;
+    for (const project of result.page) {
+      const { json, changed } = normalizeSchemaArrayTypes(
+        project.frontmatterSchema,
+      );
+      if (changed && json !== null) {
+        // Stamp `schemaRepairedAt` so the project surfaces a one-time in-app
+        // notice telling the owner their schema was auto-fixed.
+        await ctx.db.patch(project._id, {
+          frontmatterSchema: json,
+          schemaRepairedAt: Date.now(),
+        });
+        patched++;
+      }
+    }
+
+    if (!result.isDone) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.cms.projects._backfillFrontmatterSchemas,
+        { cursor: result.continueCursor },
+      );
+    }
+
+    return { patched, scanned: result.page.length, isDone: result.isDone };
   },
 });

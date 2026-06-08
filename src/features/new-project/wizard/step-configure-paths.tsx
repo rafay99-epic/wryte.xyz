@@ -127,9 +127,21 @@ export function StepConfigurePaths({
         onChange({
           frontmatterFields: fields,
           detectedFromFile: data.sourceFile ?? null,
+          detectedFramework: data.framework ?? null,
+          detectedFrontmatterFormat: data.frontmatterFormat ?? null,
         });
+        const frameworkLabel =
+          data.framework && data.framework !== "unknown"
+            ? ` (${data.framework})`
+            : "";
+        const sampleLabel =
+          data.sampledCount && data.sampledCount > 1
+            ? ` from ${String(data.sampledCount)} posts`
+            : data.sourceFile
+              ? ` from ${data.sourceFile}`
+              : "";
         toast.success(
-          `Frontmatter detected from ${data.sourceFile ?? "repository"}`,
+          `Frontmatter schema detected${frameworkLabel}${sampleLabel}`,
         );
       } else {
         toast.warning(

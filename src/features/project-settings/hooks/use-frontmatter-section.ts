@@ -2,6 +2,7 @@ import { useMutation } from "convex/react";
 import yaml from "js-yaml";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { useDetectFrontmatter } from "@/hooks/use-github";
 import {
   FIELD_TYPE_OPTIONS,
   type FrontmatterField,
@@ -10,6 +11,14 @@ import {
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
 import { DEFAULT_FIELDS, type ProjectData } from "../types";
+
+/** Coerces a detected type string to a known field type, defaulting to string. */
+function normalizeDetectedType(type: string): FrontmatterFieldType {
+  const lower = type.toLowerCase();
+  return FIELD_TYPE_OPTIONS.some((o) => o.value === lower)
+    ? (lower as FrontmatterFieldType)
+    : "string";
+}
 
 function getPlaceholderForType(type: FrontmatterField["type"]): string {
   switch (type) {
@@ -56,6 +65,9 @@ export function useFrontmatterSection({
   project: ProjectData;
 }) {
   const updateProject = useMutation(api.cms.projects.update);
+  const detectMutation = useDetectFrontmatter();
+  const isDetecting = detectMutation.isPending;
+  const canReDetect = Boolean(project.githubRepo && project.contentPath);
 
   const initialFields = useMemo(() => {
     if (project.frontmatterSchema) {
@@ -256,6 +268,80 @@ export function useFrontmatterSection({
     });
   }, []);
 
+  /**
+   * Re-runs the framework-aware detection engine against the project's repo and
+   * replaces the schema with the result. This is the in-app path for EXISTING
+   * projects (created before framework-aware detection) to refresh their schema
+   * + framework + frontmatterFormat — the new-project wizard only runs once.
+   *
+   * It persists immediately (schema + framework + format in one write) because
+   * the caller gates it behind an explicit confirmation dialog.
+   */
+  const reDetect = useCallback(async () => {
+    if (!project.githubRepo || !project.contentPath) {
+      toast.error("Connect a GitHub repo and set a content path first");
+      return;
+    }
+    try {
+      const data = await detectMutation.mutateAsync({
+        repo: project.githubRepo,
+        branch: project.githubBranch ?? "main",
+        contentPath: project.contentPath,
+      });
+
+      if (!data.fields || data.fields.length === 0) {
+        toast.warning(data.error ?? "No frontmatter detected in the repo.");
+        return;
+      }
+
+      const detected: FrontmatterField[] = data.fields.map((f) => ({
+        name: f.name,
+        type: normalizeDetectedType(f.type),
+        required: f.required,
+        defaultValue: f.defaultValue ?? "",
+        options: f.options ?? "",
+      }));
+      setFields(detected);
+
+      const serialized = JSON.stringify(detected);
+      const updates: {
+        projectId: Id<"projects">;
+        frontmatterSchema: string;
+        framework?: string;
+        frontmatterFormat?: "yaml" | "toml";
+      } = { projectId, frontmatterSchema: serialized };
+      if (data.framework && data.framework !== "unknown") {
+        updates.framework = data.framework;
+      }
+      if (data.frontmatterFormat) {
+        updates.frontmatterFormat = data.frontmatterFormat;
+      }
+
+      setIsSaving(true);
+      await updateProject(updates);
+      lastSyncedRef.current = serialized;
+      const fw =
+        data.framework && data.framework !== "unknown"
+          ? ` (${data.framework})`
+          : "";
+      const count = data.sampledCount ?? 0;
+      toast.success(
+        `Schema re-detected${fw}${count > 0 ? ` from ${String(count)} post${count === 1 ? "" : "s"}` : ""}`,
+      );
+    } catch {
+      toast.error("Failed to re-detect from repo");
+    } finally {
+      setIsSaving(false);
+    }
+  }, [
+    project.githubRepo,
+    project.githubBranch,
+    project.contentPath,
+    projectId,
+    detectMutation,
+    updateProject,
+  ]);
+
   const handleSave = useCallback(async () => {
     if (editorMode === "code" && codeError) {
       toast.error("Fix JSON errors before saving");
@@ -315,5 +401,8 @@ export function useFrontmatterSection({
     clearAllDefaults,
     moveField,
     handleSave,
+    reDetect,
+    isDetecting,
+    canReDetect,
   };
 }

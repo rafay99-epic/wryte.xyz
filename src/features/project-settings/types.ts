@@ -41,6 +41,7 @@ export type ProjectData = {
   siteUrl?: string;
   deployHookUrl?: string;
   frontmatterFormat?: "yaml" | "toml";
+  framework?: string;
   defaultAuthor?: string;
   defaultAuthorAvatar?: string;
   aiProvider?: AiProvider;

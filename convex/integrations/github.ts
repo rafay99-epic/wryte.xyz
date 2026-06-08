@@ -17,11 +17,13 @@
 
 import { Octokit } from "@octokit/rest";
 import { v } from "convex/values";
+import { stringify as stringifyToml } from "smol-toml";
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import type { ActionCtx } from "../_generated/server";
 import { action, internalAction } from "../_generated/server";
 import { getGithubToken } from "../_lib/auth";
+import { coerceFrontmatterArrays } from "../_lib/frontmatter";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
 import { importPool } from "../_pools/import";
 
@@ -79,6 +81,10 @@ function serializeYamlEntry(
     return [`${prefix}${key}: ${quoted}`];
   }
   if (Array.isArray(value)) {
+    // An empty block sequence (`key:` with no items) parses back as YAML null,
+    // which breaks typed schemas like Astro's `z.array(...)`. Emit flow-style
+    // `[]` so an empty list round-trips as an empty list.
+    if (value.length === 0) return [`${prefix}${key}: []`];
     const result = [`${prefix}${key}:`];
     for (const item of value) {
       if (typeof item === "object" && item !== null && !Array.isArray(item)) {
@@ -127,6 +133,39 @@ function buildMarkdownFile(
   return `---\n${yamlBlock}\n---\n\n${content}\n`;
 }
 
+/** Drops null/undefined keys — smol-toml's stringify throws on them. */
+function stripNullish(
+  frontmatter: Record<string, unknown>,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(frontmatter)) {
+    if (value !== null && value !== undefined) out[key] = value;
+  }
+  return out;
+}
+
+/**
+ * Builds the published file, honoring the project's frontmatter delimiter
+ * format. Hugo and other TOML-frontmatter sites use `+++` fences; everyone else
+ * uses YAML `---`. TOML serialization falls back to YAML if any value can't be
+ * represented, so publishing never hard-fails on an exotic value.
+ */
+function buildContentFile(
+  frontmatter: Record<string, unknown>,
+  content: string,
+  format: "yaml" | "toml" | undefined,
+): string {
+  if (format === "toml") {
+    try {
+      const toml = stringifyToml(stripNullish(frontmatter)).trim();
+      return `+++\n${toml}\n+++\n\n${content}\n`;
+    } catch {
+      // Fall through to YAML on any serialization error.
+    }
+  }
+  return buildMarkdownFile(frontmatter, content);
+}
+
 /**
  * Field names a project may use for the publish date. Order matters — the
  * first match wins, so `pubDate` is preferred over the generic `date`. Mirrors
@@ -164,6 +203,29 @@ function findPubDateField(
   } catch {
     return null;
   }
+}
+
+/**
+ * Decides whether to stamp the publish moment onto the pubDate field.
+ *
+ * We stamp when:
+ *   - a scheduled publish passes an explicit `publishedAtMs` (the user chose
+ *     that moment), OR
+ *   - the document has no existing pubDate value (first publish).
+ *
+ * We DON'T stamp when the document already carries a pubDate — re-publishing an
+ * already-dated post then preserves its original date. This makes re-publishing
+ * an old post to fix its formatting safe: the date never moves.
+ */
+function shouldStampPubDate(
+  docFrontmatter: Record<string, unknown>,
+  pubDateFieldName: string,
+  publishedAtMs?: number,
+): boolean {
+  if (publishedAtMs !== undefined) return true;
+  const existing = docFrontmatter[pubDateFieldName];
+  if (existing === undefined || existing === null) return true;
+  return String(existing).trim() === "";
 }
 
 function getFileExtension(contentFormat?: string): string {
@@ -417,24 +479,33 @@ export const publishToGithub = internalAction({
       draft: false,
     };
 
+    let parsedDocFrontmatter: Record<string, unknown> = {};
     if (document.frontmatter) {
       try {
-        const parsed = JSON.parse(document.frontmatter);
-        frontmatterData = { ...frontmatterData, ...parsed };
+        parsedDocFrontmatter = JSON.parse(document.frontmatter) ?? {};
+        frontmatterData = { ...frontmatterData, ...parsedDocFrontmatter };
       } catch {
         // If frontmatter JSON is invalid, use defaults only
       }
     }
 
     // The user's frontmatter spread above wins by design, but two fields
-    // are publish-time side effects that must reflect *this* publish:
-    //   - the schema's pubDate field (whatever it's named) becomes the
-    //     publish moment so future-scheduled posts don't ship with the
-    //     date the author drafted them on
+    // are publish-time side effects:
+    //   - the schema's pubDate field is stamped with the publish moment ONLY on
+    //     a first publish (the post has no date yet) or when a scheduled publish
+    //     passes an explicit moment. Re-publishing an already-dated post
+    //     preserves its original date — so fixing an old post never moves it.
     //   - draft flips to false because, well, we're publishing
     const publishMoment = new Date(args.publishedAtMs ?? Date.now());
     const pubDateField = findPubDateField(project.frontmatterSchema);
-    if (pubDateField) {
+    if (
+      pubDateField &&
+      shouldStampPubDate(
+        parsedDocFrontmatter,
+        pubDateField.name,
+        args.publishedAtMs,
+      )
+    ) {
       frontmatterData[pubDateField.name] =
         pubDateField.type === "date"
           ? publishMoment.toISOString().slice(0, 10)
@@ -442,7 +513,19 @@ export const publishToGithub = internalAction({
     }
     frontmatterData["draft"] = false;
 
-    const fileContent = buildMarkdownFile(frontmatterData, document.content);
+    // Guard: list-valued keys (tags/keywords/…) must serialize as arrays even
+    // when the schema mistyped them as scalars — otherwise typed frameworks
+    // (Astro's z.array, etc.) reject the build. See convex/_lib/frontmatter.ts.
+    frontmatterData = coerceFrontmatterArrays(
+      frontmatterData,
+      project.frontmatterSchema,
+    );
+
+    const fileContent = buildContentFile(
+      frontmatterData,
+      document.content,
+      project.frontmatterFormat,
+    );
     const base64Content = Buffer.from(fileContent).toString("base64");
 
     const pathChanged =
@@ -819,21 +902,27 @@ export const bulkPublish = action({
           date: new Date().toISOString(),
           draft: false,
         };
+        let parsedDocFrontmatter: Record<string, unknown> = {};
         if (doc.frontmatter) {
           try {
+            parsedDocFrontmatter = JSON.parse(doc.frontmatter) ?? {};
             frontmatterData = {
               ...frontmatterData,
-              ...JSON.parse(doc.frontmatter),
+              ...parsedDocFrontmatter,
             };
           } catch {
             // Use defaults
           }
         }
 
-        // Same pubDate/draft side-effect as the single-doc publish path.
+        // Same pubDate/draft side-effect as the single-doc publish path:
+        // stamp the date only on a first publish, preserve it on re-publish.
         const bulkPublishMoment = new Date();
         const bulkPubDateField = findPubDateField(project.frontmatterSchema);
-        if (bulkPubDateField) {
+        if (
+          bulkPubDateField &&
+          shouldStampPubDate(parsedDocFrontmatter, bulkPubDateField.name)
+        ) {
           frontmatterData[bulkPubDateField.name] =
             bulkPubDateField.type === "date"
               ? bulkPublishMoment.toISOString().slice(0, 10)
@@ -841,7 +930,17 @@ export const bulkPublish = action({
         }
         frontmatterData["draft"] = false;
 
-        const fileContent = buildMarkdownFile(frontmatterData, doc.content);
+        // Same array guard as the single-doc publish path.
+        frontmatterData = coerceFrontmatterArrays(
+          frontmatterData,
+          project.frontmatterSchema,
+        );
+
+        const fileContent = buildContentFile(
+          frontmatterData,
+          doc.content,
+          project.frontmatterFormat,
+        );
 
         const { data: blobData } = await octokit.git.createBlob({
           owner,
