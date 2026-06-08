@@ -85,7 +85,6 @@
     "unrs-resolver"
   ],
   "overrides": {
-    "hono": "^4.12.18",
     "@hono/node-server": "1.19.13",
     "postcss": "^8.5.14",
     "ip-address": "^10.2.0",
