@@ -7,13 +7,23 @@ import {
   Code2,
   FileText,
   GripVertical,
+  Loader2,
   Plus,
   RotateCcw,
+  ScanSearch,
   Settings2,
   Trash2,
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -58,7 +68,12 @@ export function FrontmatterSection({
     clearAllDefaults,
     moveField,
     handleSave,
+    reDetect,
+    isDetecting,
+    canReDetect,
   } = useFrontmatterSection({ projectId, project });
+
+  const [showReDetectConfirm, setShowReDetectConfirm] = useState(false);
 
   return (
     <motion.div variants={staggerContainer} initial="initial" animate="animate">
@@ -123,19 +138,75 @@ export function FrontmatterSection({
                 ? "Edit schema as YAML — `name: type` pairs, like real frontmatter"
                 : `${fields.length} field${fields.length !== 1 ? "s" : ""} defined`}
           </span>
-          {hasAnyDefaults && editorMode === "visual" ? (
-            <button
-              type="button"
-              onClick={clearAllDefaults}
-              className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-border/60 bg-muted/30 px-2 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:border-destructive/40 hover:bg-destructive/5 hover:text-destructive"
-              title="Wipe every field's default value — useful for cleaning up values that auto-detect copied from an existing post"
-            >
-              <RotateCcw className="size-3" />
-              Clear default values
-            </button>
-          ) : null}
+          <div className="ml-auto flex items-center gap-2">
+            {canReDetect ? (
+              <button
+                type="button"
+                onClick={() => setShowReDetectConfirm(true)}
+                disabled={isDetecting}
+                className="inline-flex items-center gap-1.5 rounded-md border border-border/60 bg-muted/30 px-2 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-primary disabled:opacity-60"
+                title="Re-scan your repo with framework-aware detection and replace this schema"
+              >
+                {isDetecting ? (
+                  <Loader2 className="size-3 animate-spin" />
+                ) : (
+                  <ScanSearch className="size-3" />
+                )}
+                {isDetecting ? "Detecting…" : "Re-detect from repo"}
+              </button>
+            ) : null}
+            {hasAnyDefaults && editorMode === "visual" ? (
+              <button
+                type="button"
+                onClick={clearAllDefaults}
+                className="inline-flex items-center gap-1.5 rounded-md border border-border/60 bg-muted/30 px-2 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:border-destructive/40 hover:bg-destructive/5 hover:text-destructive"
+                title="Wipe every field's default value — useful for cleaning up values that auto-detect copied from an existing post"
+              >
+                <RotateCcw className="size-3" />
+                Clear default values
+              </button>
+            ) : null}
+          </div>
         </div>
       </motion.div>
+
+      {/* Re-detect confirmation — replaces the current schema, so confirm first */}
+      <Dialog open={showReDetectConfirm} onOpenChange={setShowReDetectConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Re-detect schema from repo?</DialogTitle>
+            <DialogDescription>
+              This scans{" "}
+              <span className="font-medium text-foreground">
+                {project.githubRepo}
+              </span>{" "}
+              and <span className="font-medium">replaces</span> the current
+              frontmatter schema with what it finds — including detected
+              framework and format. Any manual edits to the schema will be lost.
+              Your posts are not changed.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => setShowReDetectConfirm(false)}
+              disabled={isDetecting}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                setShowReDetectConfirm(false);
+                void reDetect();
+              }}
+              disabled={isDetecting}
+            >
+              <ScanSearch className="size-3.5" />
+              Re-detect &amp; replace
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <motion.div variants={staggerItem} transition={smoothTransition}>
         {editorMode === "visual" ? (

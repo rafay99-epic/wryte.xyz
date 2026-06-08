@@ -633,6 +633,39 @@ const ENTRIES: SeedEntry[] = [
 - Sidebar adds "Overview" as the first project nav item.
 `,
   },
+  {
+    title: "Framework-aware frontmatter detection & validation",
+    slug: "v0-10-0-framework-aware-frontmatter",
+    description:
+      "Schema detection now reads each framework's real config (Astro, Hugo, Next/Contentlayer, Jekyll), a publish-time guard keeps list fields valid so builds never break, the editor validates frontmatter before publish, and existing projects self-repair with an in-app notice.",
+    version: "0.10.0",
+    build: "c0c1e16",
+    publishedAt: Date.parse("2026-06-08T12:00:00+05:00"),
+    content: `## What's new
+
+- **Framework-aware schema detection** — connecting a repo now identifies the framework (Astro, Hugo, Next.js/Contentlayer, Jekyll, Gatsby, Eleventy, SvelteKit) and reads its *authoritative* config as the source of truth: Astro's Zod content schema, Contentlayer \`fields\`, Hugo taxonomies + archetypes, and Jekyll \`defaults\`.
+- **Multi-file sampling** — detection samples many posts and types each field by majority vote instead of trusting a single file, so one unusual post can't poison the schema.
+- **Inline pre-publish validation** — the editor's Frontmatter panel shows a live "Ready / warnings / issues" badge and flags problems (missing required fields, invalid dates, out-of-range \`select\` values, malformed URLs) *before* you publish — no more discovering a broken build minutes later.
+- **TOML frontmatter** — Hugo and other \`+++\`-fenced sites now publish real TOML frontmatter (the previously-declared format option is now implemented).
+- **Re-detect from repo** — a button in Project Settings → Frontmatter re-runs framework-aware detection on demand and refreshes the schema, framework, and format.
+
+## Fixes
+
+- **List fields can no longer break builds.** A publish-time guard guarantees \`tags\`, \`keywords\`, \`categories\`, \`topics\`, \`authors\`, and \`aliases\` always serialize as YAML/TOML arrays — even if the stored schema mistyped them — fixing failures like Astro's \`Expected array, received string\`.
+- **Empty lists** now serialize as \`[]\` instead of a bare key that parses back as \`null\`.
+- **Re-publishing preserves the original date** — fixing or re-shipping an old post no longer stamps it with today's date (first publishes and scheduled posts still stamp as expected).
+
+## Existing projects
+
+- **One-time repair migration** (\`/admin/migrations\` → "Repair frontmatter schemas") fixes every existing project's stored schema, paginated and idempotent.
+- **In-app notice** — each repaired project shows a dismissible banner so owners know their schema was updated, with a deep link straight to the Frontmatter settings.
+
+## Performance & scale
+
+- Detection enumerates a repo with a **single recursive Git Trees call** (instead of walking directories) and fetches a bounded, parallel sample of files — each request uses the caller's own GitHub token, so there's no shared rate-limit bottleneck.
+- The publish-time array guard is pure and in-memory: zero extra database reads or writes on the publish path.
+`,
+  },
 ];
 
 export const seed = action({

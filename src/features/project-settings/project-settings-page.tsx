@@ -31,6 +31,16 @@ export function ProjectSettingsPage() {
   const projectDeleted = project === null;
   const [activeTab, setActiveTab] = useState<SettingsTab>("general");
 
+  // Deep-link support: open a specific tab from `?tab=frontmatter`. Read on the
+  // client (avoids useSearchParams' static-prerender Suspense requirement);
+  // runs once on mount, so a banner's "Review schema" link lands on the right tab.
+  useEffect(() => {
+    const tabParam = new URLSearchParams(window.location.search).get("tab");
+    if (tabParam && TABS.some((t) => t.id === tabParam)) {
+      setActiveTab(tabParam as SettingsTab);
+    }
+  }, []);
+
   useEffect(() => {
     useEditorStore.getState().setActiveProjectId(projectId);
   }, [projectId]);

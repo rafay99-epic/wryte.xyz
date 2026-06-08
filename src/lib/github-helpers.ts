@@ -5,11 +5,6 @@
  */
 
 import { auth, clerkClient } from "@clerk/nextjs/server";
-import type { FrontmatterFieldType } from "@/types/frontmatter";
-
-// Matches ISO 8601 dates: "2024-01-15" or "2024-01-15T10:30:00Z" etc.
-const ISO_DATE_RE =
-  /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})?)?$/;
 
 /**
  * Retrieves the current user's GitHub OAuth access token via Clerk.
@@ -45,92 +40,9 @@ export async function getGithubToken(): Promise<
   return { token };
 }
 
-/**
- * Infers a frontmatter field type from its runtime value and optional key name.
- * Used during auto-detection to map existing frontmatter values
- * to the UI field types.
- *
- * Heuristics:
- * - boolean values -> "boolean"
- * - number values -> "number"
- * - arrays -> "tags"
- * - objects -> "json"
- * - ISO datetime strings (with T) -> "datetime"
- * - ISO date strings -> "date"
- * - hex color strings -> "color"
- * - URL strings -> "url"
- * - image-like key names or file extensions -> "image"
- * - slug/permalink key names -> "slug"
- * - long strings (100+ chars) -> "text" (textarea in UI)
- * - everything else -> "string" (single-line input)
- */
-export function inferFieldType(
-  value: unknown,
-  key?: string,
-): FrontmatterFieldType {
-  if (typeof value === "boolean") {
-    return "boolean";
-  }
-
-  if (typeof value === "number") {
-    return "number";
-  }
-
-  if (Array.isArray(value)) {
-    return "tags";
-  }
-
-  if (typeof value === "object" && value !== null) {
-    return "json";
-  }
-
-  if (typeof value === "string") {
-    // Full ISO datetime with time component
-    if (/^\d{4}-\d{2}-\d{2}T/.test(value)) {
-      return "datetime";
-    }
-    // Date-only
-    if (ISO_DATE_RE.test(value)) {
-      return "date";
-    }
-    // Hex color
-    if (/^#[0-9a-fA-F]{3,8}$/.test(value)) {
-      return "color";
-    }
-    // Image paths first — a key named heroImage / authorAvatar / cover
-    // should be typed "image" even when the value is a full URL like
-    // "https://cdn.example.com/hero.jpg". Without this ordering the URL
-    // check below would steal the field and downstream code would render
-    // a plain URL input instead of the media picker.
-    const lowerKey = key?.toLowerCase() ?? "";
-    const keyHintsImage =
-      lowerKey.includes("image") ||
-      lowerKey.includes("avatar") ||
-      lowerKey.includes("cover") ||
-      lowerKey.includes("thumbnail") ||
-      lowerKey.includes("hero") ||
-      lowerKey.includes("photo") ||
-      lowerKey.includes("picture") ||
-      lowerKey.endsWith("pic");
-    if (keyHintsImage || /\.(jpe?g|png|gif|webp|svg|avif)$/i.test(value)) {
-      return "image";
-    }
-    // URLs (after image-specific URLs have been claimed)
-    if (/^https?:\/\//i.test(value)) {
-      return "url";
-    }
-    // Slug-like keys
-    if (lowerKey === "slug" || lowerKey === "permalink") {
-      return "slug";
-    }
-    // Long strings are likely descriptions/summaries — use a textarea
-    if (value.length >= 100) {
-      return "text";
-    }
-  }
-
-  return "string";
-}
+// NOTE: frontmatter type inference now lives in the detection engine at
+// `src/lib/frontmatter-detection/infer.ts` (name-registry aware, used by the
+// detect-frontmatter route). This file keeps only GitHub auth/repo helpers.
 
 /**
  * Splits a "owner/repo" string into its component parts.

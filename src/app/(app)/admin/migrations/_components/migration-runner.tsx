@@ -8,6 +8,7 @@ import {
   FolderOpen,
   Play,
   Rocket,
+  Tags,
   Users,
 } from "lucide-react";
 import { useCallback, useState } from "react";
@@ -24,7 +25,8 @@ type MigrationKey =
   | "wordCounts"
   | "projectStats"
   | "writingStats"
-  | "fullMigration";
+  | "fullMigration"
+  | "frontmatterSchemas";
 
 const MIGRATIONS: {
   key: MigrationKey;
@@ -65,6 +67,14 @@ const MIGRATIONS: {
     icon: Users,
     accent: "text-emerald-500",
   },
+  {
+    key: "frontmatterSchemas",
+    title: "Repair frontmatter schemas",
+    description:
+      "Fixes existing projects whose list fields (tags/keywords/categories/…) were mistyped as scalar strings by the old detection — flips them to array type so the editor and publishing are correct. Does not touch GitHub.",
+    icon: Tags,
+    accent: "text-violet-500",
+  },
 ];
 
 export function MigrationRunner() {
@@ -78,6 +88,9 @@ export function MigrationRunner() {
     api.migrations.analytics.backfillWritingStats,
   );
   const runFullMigration = useAction(api.migrations.analytics.runFullMigration);
+  const backfillFrontmatterSchemas = useAction(
+    api.migrations.frontmatter.backfillFrontmatterSchemas,
+  );
 
   const [running, setRunning] = useState<MigrationKey | null>(null);
   const [results, setResults] = useState<
@@ -96,6 +109,8 @@ export function MigrationRunner() {
           result = await backfillProjectStats();
         } else if (key === "writingStats") {
           result = await backfillWritingStats();
+        } else if (key === "frontmatterSchemas") {
+          result = await backfillFrontmatterSchemas();
         } else {
           result = await runFullMigration();
         }
@@ -115,6 +130,7 @@ export function MigrationRunner() {
       backfillProjectStats,
       backfillWritingStats,
       runFullMigration,
+      backfillFrontmatterSchemas,
     ],
   );
 
@@ -127,8 +143,8 @@ export function MigrationRunner() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Migrations</h1>
           <p className="mt-1 text-sm text-foreground/60">
-            Data migrations for the analytics feature. Re-running is safe — rows
-            are upserted, not duplicated.
+            One-off data migrations. Re-running is safe — every migration is
+            idempotent (rows are upserted or only changed rows are patched).
           </p>
         </div>
       </div>

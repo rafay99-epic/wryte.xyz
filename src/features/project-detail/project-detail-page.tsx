@@ -8,6 +8,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { SyncConflictsBanner } from "@/components/editor/sync-conflicts-banner";
+import { SchemaRepairBanner } from "@/components/feedback/schema-repair-banner";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BoardSettingsDialog } from "@/features/content-dashboard/components/board-settings-dialog";
@@ -577,6 +578,13 @@ export function ProjectDetailPage() {
           </Button>
         </div>
       </motion.div>
+
+      {/* One-time notice when the migration auto-repaired this schema */}
+      <SchemaRepairBanner
+        projectId={projectId}
+        repairedAt={project.schemaRepairedAt}
+        acknowledgedAt={project.schemaRepairAcknowledgedAt}
+      />
 
       {/* Pending sync conflicts banner */}
       <SyncConflictsBanner projectId={projectId} />

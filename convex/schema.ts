@@ -111,6 +111,22 @@ export default defineSchema({
     frontmatterFormat: v.optional(
       v.union(v.literal("yaml"), v.literal("toml")),
     ),
+    /**
+     * Static-site framework detected at connect time (astro/nextjs/hugo/jekyll/
+     * gatsby/eleventy/sveltekit/unknown). Stored as a free string so adding a
+     * new detector never requires a schema migration. Drives framework-aware
+     * publishing (e.g. Hugo defaults to TOML frontmatter).
+     */
+    framework: v.optional(v.string()),
+    /**
+     * Set by the frontmatter-schema repair migration when it auto-fixes this
+     * project's stored schema (mistyped list fields → array). Drives a one-time
+     * in-app notice so the user knows their schema changed without having to
+     * dig through settings. Paired with `schemaRepairAcknowledgedAt`.
+     */
+    schemaRepairedAt: v.optional(v.number()),
+    /** When the user dismissed the schema-repair notice (≥ repairedAt = hidden). */
+    schemaRepairAcknowledgedAt: v.optional(v.number()),
     /** Default author name injected into frontmatter for new posts. */
     defaultAuthor: v.optional(v.string()),
     /**
