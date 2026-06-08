@@ -185,10 +185,17 @@ export const createEnhanceStream = mutation({
       key,
       throws: true,
     });
+    // Deployment-wide backstop (no key → shared bucket across all users).
+    await rateLimiter.limit(ctx, "ai:global", { throws: true });
 
     const user = await getCurrentUser(ctx);
     const { project, provider, model, vaultSecretId } =
       await resolveProjectAndCredential(ctx, args.projectId);
+    // Per-provider deployment-wide cap (keyed by provider id).
+    await rateLimiter.limit(ctx, "ai:provider", {
+      key: provider,
+      throws: true,
+    });
 
     const streamId = await streaming.createStream(ctx);
     await trackStreamOwner(ctx, streamId, user._id, project._id);
@@ -240,10 +247,16 @@ export const createInlineEnhanceStream = mutation({
       key,
       throws: true,
     });
+    await rateLimiter.limit(ctx, "ai:global", { throws: true });
 
     const user = await getCurrentUser(ctx);
     const { project, provider, model, vaultSecretId } =
       await resolveProjectAndCredential(ctx, args.projectId);
+    // Per-provider deployment-wide cap (keyed by provider id).
+    await rateLimiter.limit(ctx, "ai:provider", {
+      key: provider,
+      throws: true,
+    });
 
     const streamId = await streaming.createStream(ctx);
     await trackStreamOwner(ctx, streamId, user._id, project._id);
@@ -281,10 +294,16 @@ export const createFrontmatterStream = mutation({
       key,
       throws: true,
     });
+    await rateLimiter.limit(ctx, "ai:global", { throws: true });
 
     const user = await getCurrentUser(ctx);
     const { project, provider, model, vaultSecretId } =
       await resolveProjectAndCredential(ctx, args.projectId);
+    // Per-provider deployment-wide cap (keyed by provider id).
+    await rateLimiter.limit(ctx, "ai:provider", {
+      key: provider,
+      throws: true,
+    });
 
     const streamId = await streaming.createStream(ctx);
     await trackStreamOwner(ctx, streamId, user._id, project._id);
@@ -323,6 +342,7 @@ export const createFinalDraftStream = mutation({
       key,
       throws: true,
     });
+    await rateLimiter.limit(ctx, "ai:global", { throws: true });
 
     const user = await getCurrentUser(ctx);
     const {
@@ -331,6 +351,11 @@ export const createFinalDraftStream = mutation({
       model,
       vaultSecretId,
     } = await resolveProjectAndCredential(ctx, args.projectId);
+    // Per-provider deployment-wide cap (keyed by provider id).
+    await rateLimiter.limit(ctx, "ai:provider", {
+      key: provider,
+      throws: true,
+    });
     const document = await ctx.db.get(args.documentId);
     if (
       !document ||

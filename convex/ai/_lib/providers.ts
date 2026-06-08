@@ -75,6 +75,7 @@ export const PROVIDER_IDS = [
   "openai",
   "openrouter",
   "google",
+  "groq",
 ] as const;
 
 export type AiProvider = (typeof PROVIDER_IDS)[number];
@@ -188,6 +189,32 @@ export const PROVIDERS: Record<AiProvider, ProviderEntry> = {
       },
     ],
   },
+  groq: {
+    id: "groq",
+    label: "Groq",
+    kind: "openai-compatible",
+    baseURL: "https://api.groq.com/openai/v1",
+    keyPrefixHint: "gsk_...",
+    dashboardUrl: "https://console.groq.com/keys",
+    defaultModel: "llama-3.3-70b-versatile",
+    models: [
+      {
+        value: "llama-3.3-70b-versatile",
+        label: "Llama 3.3 70B",
+        description: "Best for content writing — fast on Groq",
+      },
+      {
+        value: "openai/gpt-oss-120b",
+        label: "GPT-OSS 120B",
+        description: "Most capable open model",
+      },
+      {
+        value: "openai/gpt-oss-20b",
+        label: "GPT-OSS 20B",
+        description: "Fastest, lightweight",
+      },
+    ],
+  },
 };
 
 /**
@@ -203,6 +230,7 @@ export const providerValidator = v.union(
   v.literal("openai"),
   v.literal("openrouter"),
   v.literal("google"),
+  v.literal("groq"),
 );
 
 /**

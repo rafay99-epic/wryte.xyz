@@ -1,4 +1,4 @@
-import { Orbit } from "lucide-react";
+import { Orbit, Zap } from "lucide-react";
 import type { ComponentType } from "react";
 import { cn } from "@/lib/utils";
 import type { AiProvider } from "@/types/ai";
@@ -98,10 +98,26 @@ export function GeminiMark({ className }: MarkProps) {
   );
 }
 
+/** Groq doesn't publish a shippable brand mark — a lightning tile nods to its fast LPU inference. */
+export function GroqMark({ className }: MarkProps) {
+  return (
+    <div
+      className={cn(
+        "flex size-6 shrink-0 items-center justify-center rounded-md border border-border/60 bg-muted/40",
+        className,
+      )}
+      aria-hidden
+    >
+      <Zap className="size-3.5 text-orange-500" strokeWidth={1.75} />
+    </div>
+  );
+}
+
 /** Lookup of brand marks by AiProvider — useful in dynamic grids. */
 export const AI_PROVIDER_MARKS: Record<AiProvider, ComponentType<MarkProps>> = {
   anthropic: AnthropicMark,
   openai: OpenAIMark,
   openrouter: OpenRouterMark,
   google: GeminiMark,
+  groq: GroqMark,
 };

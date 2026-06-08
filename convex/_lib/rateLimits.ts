@@ -420,7 +420,36 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
   /*  AI enhancement                                                     */
   /* ------------------------------------------------------------------ */
 
-  /** AI calls are expensive — tight limits. */
+  /**
+   * Deployment-wide AI backstop (load shedding). Applied with NO key, so all
+   * four stream mutations share ONE global bucket across every user. The
+   * per-user limits below are the primary control; this is a safety valve that
+   * only trips on a thundering-herd spike, protecting Convex action scheduling
+   * and our function-call budget. Generous on purpose — raise it if real peak
+   * traffic legitimately exceeds it (it caps aggregate AI throughput, so don't
+   * set it low). Token bucket so brief bursts pass.
+   */
+  "ai:global": {
+    kind: "token bucket",
+    rate: 3000,
+    period: MINUTE,
+    capacity: 600,
+  },
+  /**
+   * Per-provider deployment-wide cap. Applied with `key: provider`, so each
+   * provider (anthropic / openai / openrouter / google / groq / any future one)
+   * gets its OWN shared bucket across all users — one provider's spike can't
+   * monopolise AI throughput or starve the others. One config entry covers
+   * every provider via the dynamic key, so adding a provider needs no
+   * rate-limit change. Sized below `ai:global`; tune per real traffic.
+   */
+  "ai:provider": {
+    kind: "token bucket",
+    rate: 1500,
+    period: MINUTE,
+    capacity: 400,
+  },
+  /** AI calls are expensive — tight per-user limits. */
   "ai:createEnhanceStream": {
     kind: "fixed window",
     rate: 10,

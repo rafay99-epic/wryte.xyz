@@ -715,6 +715,34 @@ const ENTRIES: SeedEntry[] = [
 - First provider to use the new \`gemini-native\` kind in the provider registry — added via a single registry entry plus one streaming adapter (\`@google/genai\` \`generateContentStream\`) and a free key-verification ping. No schema migration; the validator widened automatically.
 `,
   },
+  {
+    title: "Groq AI provider & layered rate limiting",
+    slug: "v0-13-0-groq-and-layered-rate-limits",
+    description:
+      "Bring your own Groq key for blazing-fast Llama 3.3 70B and GPT-OSS models, plus a three-layer rate-limit system (per-user, per-provider, and a deployment-wide cap) that keeps the backend safe under load.",
+    version: "0.13.0",
+    build: "86d0201",
+    publishedAt: Date.parse("2026-06-09T18:00:00+05:00"),
+    content: `## What's new
+
+- **Groq support** — add your own [Groq](https://console.groq.com/keys) key in Settings → AI for fast LPU inference, alongside Anthropic, OpenAI, OpenRouter, and Google Gemini.
+- **Groq models** — **Llama 3.3 70B** (default, best for content writing), **GPT-OSS 120B**, and **GPT-OSS 20B**, all production models with 131K context.
+- Bring-your-own-key as usual — the key is stored encrypted in WorkOS Vault and every call runs server-side.
+
+## Performance & scale
+
+- **Three-layer AI rate limiting** keeps the backend safe as call volume grows:
+  - **Per-user** limits (already in place) cap how fast any one user can start enhancements.
+  - **Per-provider** caps — one shared bucket per provider, so a spike on one provider can't starve the others.
+  - A **deployment-wide global cap** as a load-shedding backstop against thundering-herd spikes.
+- All caps are generous safety valves, not throughput ceilings, and tune from a single config file.
+
+## Under the hood
+
+- Groq needed **no new backend code** — it's OpenAI-compatible, so it slots into the provider registry as a config-only entry (base URL + models) reusing the existing OpenAI adapter and SDK. No new dependency.
+- The per-provider rate limit is a single config entry keyed by provider id, so it already covers every current and future provider with no per-provider duplication.
+`,
+  },
 ];
 
 export const seed = action({
