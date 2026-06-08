@@ -15,6 +15,11 @@ import OpenAI from "openai";
 import { components, internal } from "../_generated/api";
 import { internalAction } from "../_generated/server";
 import { contentFormatValidator } from "../_lib/contentFormat";
+import {
+  type AiProvider,
+  getProvider,
+  providerValidator,
+} from "./_lib/providers";
 import { getEnhanceSystemPrompt, getFinalDraftSystemPrompt } from "./enhance";
 
 /* ------------------------------------------------------------------ */
@@ -70,18 +75,6 @@ Field-specific hints when the schema includes them:
 - excerpt     → 1–2 sentences, max ~200 characters, a teaser that hooks the reader
 - keywords    → array of 5–10 SEO phrases — long-tail beats generic`;
 
-const OPENROUTER_HEADERS = {
-  "HTTP-Referer": "https://wryte.xyz",
-  "X-Title": "Wryte",
-} as const;
-
-const PROVIDER_VALIDATOR = v.union(
-  v.literal("anthropic"),
-  v.literal("openai"),
-  v.literal("openrouter"),
-);
-
-type ProviderName = "anthropic" | "openai" | "openrouter";
 type DraftContext = {
   label: string;
   title: string;
@@ -161,27 +154,28 @@ async function streamWithOpenAI(
 }
 
 /**
- * Dispatch by provider. Wraps the SDK-specific helpers so callers don't
- * have to know what the underlying client looks like.
+ * Dispatch by provider. Looks up the registry entry and branches on its
+ * `kind`: anthropic-native uses the Anthropic SDK; every openai-compatible
+ * provider (OpenAI, OpenRouter, and any future one) reuses the OpenAI adapter
+ * with the entry's `baseURL`/`extraHeaders`.
  */
 async function streamByProvider(
-  provider: ProviderName,
+  provider: AiProvider,
   apiKey: string,
   model: string,
   userContent: string,
   systemPrompt: string,
   writer: ChunkWriter,
 ): Promise<void> {
-  if (provider === "anthropic") {
+  const entry = getProvider(provider);
+  if (entry.kind === "anthropic-native") {
     await streamWithAnthropic(apiKey, model, userContent, writer, systemPrompt);
-  } else if (provider === "openai") {
-    await streamWithOpenAI(apiKey, model, userContent, writer, systemPrompt);
-  } else {
-    await streamWithOpenAI(apiKey, model, userContent, writer, systemPrompt, {
-      baseURL: "https://openrouter.ai/api/v1",
-      extraHeaders: OPENROUTER_HEADERS,
-    });
+    return;
   }
+  await streamWithOpenAI(apiKey, model, userContent, writer, systemPrompt, {
+    ...(entry.baseURL ? { baseURL: entry.baseURL } : {}),
+    ...(entry.extraHeaders ? { extraHeaders: entry.extraHeaders } : {}),
+  });
 }
 
 function hasSentenceDelimiter(text: string): boolean {
@@ -212,10 +206,10 @@ function extractApiMessage(err: unknown): string | undefined {
   return e?.message ?? undefined;
 }
 
-function describeProviderError(err: unknown, provider: ProviderName): string {
+function describeProviderError(err: unknown, provider: AiProvider): string {
   const e = err as { status?: number; code?: string };
   const detail = extractApiMessage(err);
-  const prefix = provider === "openrouter" ? "OpenRouter" : provider;
+  const prefix = getProvider(provider).label;
 
   if (e?.status === 401) {
     return `${prefix} rejected the API key — update it in Project Settings → AI.`;
@@ -279,7 +273,7 @@ async function writeStreamError(
 export const runEnhancement = internalAction({
   args: {
     streamId: StreamIdValidator,
-    provider: PROVIDER_VALIDATOR,
+    provider: providerValidator,
     model: v.string(),
     content: v.string(),
     vaultSecretId: v.string(),
@@ -395,7 +389,7 @@ Write the final markdown article now.`;
 export const runFinalDraft = internalAction({
   args: {
     streamId: StreamIdValidator,
-    provider: PROVIDER_VALIDATOR,
+    provider: providerValidator,
     model: v.string(),
     vaultSecretId: v.string(),
     title: v.string(),
@@ -487,7 +481,7 @@ export const runFinalDraft = internalAction({
 export const runInlineEnhancement = internalAction({
   args: {
     streamId: StreamIdValidator,
-    provider: PROVIDER_VALIDATOR,
+    provider: providerValidator,
     model: v.string(),
     selectedText: v.string(),
     instruction: v.string(),
@@ -655,7 +649,7 @@ function buildSchemaPromptFragment(schemaJson: string): {
 export const runFrontmatterSuggestion = internalAction({
   args: {
     streamId: StreamIdValidator,
-    provider: PROVIDER_VALIDATOR,
+    provider: providerValidator,
     model: v.string(),
     content: v.string(),
     frontmatterSchema: v.string(),

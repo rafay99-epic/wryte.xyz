@@ -38,4 +38,17 @@ crons.cron(
   internal.analytics.writingStats._dailyMaintenance,
 );
 
+/**
+ * Daily sweep of the `ai_stream_owners` bookkeeping table at 03:30 UTC.
+ * Deletes ownership rows older than their TTL; the mutation self-reschedules
+ * while a full batch remains, so the whole day's backlog drains regardless of
+ * volume. Daily (not hourly) keeps cron-trigger overhead minimal — consistent
+ * with the 24h patch on the streaming component's own GC. See `ai/aiStreams.ts`.
+ */
+crons.cron(
+  "aiStreams:cleanup-owners",
+  "30 3 * * *",
+  internal.ai.aiStreams._cleanupOwners,
+);
+
 export default crons;

@@ -24,14 +24,11 @@ import type { Id } from "../_generated/dataModel";
 import type { ActionCtx } from "../_generated/server";
 import { action } from "../_generated/server";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
-
-const PROVIDER_VALIDATOR = v.union(
-  v.literal("anthropic"),
-  v.literal("openai"),
-  v.literal("openrouter"),
-);
-
-type ProviderName = "anthropic" | "openai" | "openrouter";
+import {
+  type AiProvider,
+  getProvider,
+  providerValidator,
+} from "./_lib/providers";
 
 /* ------------------------------------------------------------------ */
 /*  Public actions                                                      */
@@ -45,7 +42,7 @@ type ProviderName = "anthropic" | "openai" | "openrouter";
 export const setCredentials = action({
   args: {
     projectId: v.id("projects"),
-    provider: PROVIDER_VALIDATOR,
+    provider: providerValidator,
     secret: v.string(),
   },
   handler: async (
@@ -139,7 +136,7 @@ export const setCredentials = action({
       const insertArgs: {
         projectId: Id<"projects">;
         userId: Id<"users">;
-        provider: ProviderName;
+        provider: AiProvider;
         vaultSecretId: string;
         vaultVersionId?: string;
       } = {
@@ -184,7 +181,7 @@ export const setCredentials = action({
 export const testCredentials = action({
   args: {
     projectId: v.id("projects"),
-    provider: PROVIDER_VALIDATOR,
+    provider: providerValidator,
   },
   handler: async (ctx, args): Promise<{ ok: boolean; message?: string }> => {
     const key = await getRateLimitKey(ctx);
@@ -224,7 +221,7 @@ export const testCredentials = action({
 export const rotate = action({
   args: {
     projectId: v.id("projects"),
-    provider: PROVIDER_VALIDATOR,
+    provider: providerValidator,
     secret: v.string(),
   },
   handler: async (
@@ -322,7 +319,7 @@ export const rotate = action({
 export const deleteCredentials = action({
   args: {
     projectId: v.id("projects"),
-    provider: PROVIDER_VALIDATOR,
+    provider: providerValidator,
   },
   handler: async (ctx, args): Promise<void> => {
     const key = await getRateLimitKey(ctx);
@@ -362,7 +359,7 @@ export const deleteCredentials = action({
 async function loadOwnedCredential(
   ctx: ActionCtx,
   projectId: Id<"projects">,
-  provider: ProviderName,
+  provider: AiProvider,
 ): Promise<{
   _id: Id<"aiCredentials">;
   vaultSecretId: string;
@@ -404,20 +401,19 @@ async function loadOwnedCredential(
  * a key without charging the user.
  */
 async function runProviderPing(
-  provider: ProviderName,
+  provider: AiProvider,
   apiKey: string,
 ): Promise<{ ok: true } | { ok: false; message: string }> {
   try {
-    if (provider === "anthropic") {
+    const entry = getProvider(provider);
+    if (entry.kind === "anthropic-native") {
       const client = new Anthropic({ apiKey });
       await client.models.list({ limit: 1 });
-    } else if (provider === "openai") {
-      const client = new OpenAI({ apiKey });
-      await client.models.list();
     } else {
       const client = new OpenAI({
         apiKey,
-        baseURL: "https://openrouter.ai/api/v1",
+        ...(entry.baseURL ? { baseURL: entry.baseURL } : {}),
+        ...(entry.extraHeaders ? { defaultHeaders: entry.extraHeaders } : {}),
       });
       await client.models.list();
     }

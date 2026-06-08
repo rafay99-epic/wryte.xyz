@@ -666,6 +666,36 @@ const ENTRIES: SeedEntry[] = [
 - The publish-time array guard is pure and in-memory: zero extra database reads or writes on the publish path.
 `,
   },
+  {
+    title: "AI provider registry & scalable stream cleanup",
+    slug: "v0-11-0-ai-provider-registry",
+    description:
+      "The AI provider concept is now a single source of truth — adding a provider is a one-file config change. Stale model ids are corrected to current models, a one-time migration upgrades existing projects, and AI stream bookkeeping is drained by a budget-aware daily cron.",
+    version: "0.11.0",
+    build: "0d7b6f1",
+    publishedAt: Date.parse("2026-06-08T18:00:00+05:00"),
+    content: `## What's new
+
+- **Single source of truth for AI providers** — provider id, label, models, base URL, and key/dashboard metadata all live in one registry (\`convex/ai/_lib/providers.ts\`). The Convex validators, schema, credential lifecycle, and settings UI all derive from it, replacing a provider union that was duplicated across seven files.
+- **Adding a provider is now a one-file change** — for any OpenAI-compatible provider (Groq, DeepSeek, Together, Ollama, …) it's a single registry entry with a base URL and model list; no new backend code. A compile-time assertion fails the type-check if the provider list and the Convex validator ever drift apart.
+- **Current model ids** — the model picker now offers real, current models (Claude Opus 4.8 / Sonnet 4.6 / Haiku 4.5, the GPT-4.1 family, and live OpenRouter free models) instead of stale or invented ids.
+
+## Existing projects
+
+- **One-time AI model upgrade** (\`/admin/migrations\` → "Upgrade AI models") rewrites every project's saved model to a current, valid id for its provider — fixing projects pinned to soon-retired ids (e.g. \`claude-sonnet-4-20250514\`) while preserving the chosen tier (Opus→Opus, Sonnet→Sonnet, Haiku→Haiku). Paginated, self-scheduling, and idempotent.
+
+## Performance & scale
+
+- **AI stream ownership rows are now garbage-collected** — a daily, self-draining cron clears \`ai_stream_owners\` bookkeeping (which previously only disappeared on project/user deletion), so the table stays bounded under heavy use at scale. The cleanup batches and re-schedules itself, so its function-call cost tracks the real backlog rather than wall-clock — consistent with the streaming component's 24h GC.
+
+## Under the hood
+
+- New \`convex/ai/_lib/providers.ts\` registry (\`PROVIDER_IDS\`, \`providerValidator\`, \`getProvider\`, \`ALL_PROVIDERS\`); \`src/types/ai.ts\` is now a thin re-export so the \`@/types/ai\` import path is unchanged.
+- \`streamByProvider\` and \`runProviderPing\` branch on a registry \`kind\` (anthropic-native vs openai-compatible) and read base URL/headers from the entry — OpenRouter is just an openai-compatible entry, not a special case.
+- Removed duplicated provider unions and the copy-pasted brand-mark components from the settings UI; bring-your-own-key and WorkOS Vault storage are unchanged.
+- Added a \`by_createdAt\` index on \`ai_stream_owners\` plus \`ai/aiStreams.ts:_cleanupOwners\`.
+`,
+  },
 ];
 
 export const seed = action({

@@ -15,6 +15,11 @@ import { compressionSettingsValidator } from "../_lib/compression";
 import { contentFormatValidator } from "../_lib/contentFormat";
 import { normalizeSchemaArrayTypes } from "../_lib/frontmatter";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
+import {
+  type AiProvider,
+  getProvider,
+  providerValidator,
+} from "../ai/_lib/providers";
 import { publishWorkflowManager } from "../integrations/scheduling";
 
 /** Hard cap on projects per user. The dashboard's project list query also
@@ -153,13 +158,7 @@ export const create = mutation({
     framework: v.optional(v.string()),
     defaultAuthor: v.optional(v.string()),
     defaultAuthorAvatar: v.optional(v.string()),
-    aiProvider: v.optional(
-      v.union(
-        v.literal("anthropic"),
-        v.literal("openai"),
-        v.literal("openrouter"),
-      ),
-    ),
+    aiProvider: v.optional(providerValidator),
     aiModel: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -200,7 +199,7 @@ export const create = mutation({
       framework?: string;
       defaultAuthor?: string;
       defaultAuthorAvatar?: string;
-      aiProvider?: "anthropic" | "openai" | "openrouter";
+      aiProvider?: AiProvider;
       aiModel?: string;
       sortOrder?: number;
       createdAt: number;
@@ -295,13 +294,7 @@ export const update = mutation({
     defaultAuthor: v.optional(v.string()),
     defaultAuthorAvatar: v.optional(v.string()),
     boardColumns: v.optional(v.string()),
-    aiProvider: v.optional(
-      v.union(
-        v.literal("anthropic"),
-        v.literal("openai"),
-        v.literal("openrouter"),
-      ),
-    ),
+    aiProvider: v.optional(providerValidator),
     aiModel: v.optional(v.string()),
     timezone: v.optional(v.string()),
     autoSaveEnabled: v.optional(v.boolean()),
@@ -1067,6 +1060,101 @@ export const _backfillFrontmatterSchemas = internalMutation({
         internal.cms.projects._backfillFrontmatterSchemas,
         { cursor: result.continueCursor },
       );
+    }
+
+    return { patched, scanned: result.page.length, isDone: result.isDone };
+  },
+});
+
+/**
+ * Explicit old→new model id map, intent-preserving. Keys are model ids that
+ * used to be selectable (or were stale/invented) before the provider-registry
+ * refactor; values are the current equivalent that keeps the user's tier
+ * (Opus→Opus, Sonnet→Sonnet, Haiku→Haiku; removed free OpenRouter slugs → the
+ * current free default). Anything not listed here AND not a current registry
+ * model falls back to the provider's `defaultModel` (see `migrateAiModel`).
+ */
+const LEGACY_AI_MODEL_MAP: Record<string, string> = {
+  // Anthropic — preserve the chosen tier
+  "claude-opus-4-20250514": "claude-opus-4-8",
+  "claude-opus-4-0": "claude-opus-4-8",
+  "claude-opus-4": "claude-opus-4-8",
+  "claude-opus-4-1": "claude-opus-4-8",
+  "claude-opus-4-1-20250805": "claude-opus-4-8",
+  "claude-opus-4-5": "claude-opus-4-8",
+  "claude-sonnet-4-20250514": "claude-sonnet-4-6",
+  "claude-sonnet-4-0": "claude-sonnet-4-6",
+  "claude-sonnet-4-5": "claude-sonnet-4-6",
+  "claude-haiku-4-20250414": "claude-haiku-4-5",
+  // OpenRouter — removed/invented free slugs → current free default
+  "google/gemma-4-26b-a4b-it:free": "meta-llama/llama-3.3-70b-instruct:free",
+  "google/gemma-4-31b-it:free": "meta-llama/llama-3.3-70b-instruct:free",
+  "minimax/minimax-m2.5:free": "meta-llama/llama-3.3-70b-instruct:free",
+};
+
+/**
+ * Returns the model id this project should use, or `null` if no change is
+ * needed. A model that's still a valid current registry model for its provider
+ * is left untouched (idempotent). Otherwise we map it via
+ * {@link LEGACY_AI_MODEL_MAP} when the target is valid for that provider, and
+ * fall back to the provider's `defaultModel` for anything unknown — so any
+ * stale or invalid id self-heals to a working model.
+ */
+function migrateAiModel(
+  provider: AiProvider,
+  currentModel: string,
+): string | null {
+  const entry = getProvider(provider);
+  const valid = new Set(entry.models.map((m) => m.value));
+  if (valid.has(currentModel)) return null;
+
+  const mapped = LEGACY_AI_MODEL_MAP[currentModel];
+  if (mapped && valid.has(mapped)) return mapped;
+
+  return entry.defaultModel;
+}
+
+/**
+ * One-time backfill: rewrites every project's stored `aiModel` to a current,
+ * valid model id for its `aiProvider`. Before the provider-registry refactor
+ * the model dropdown offered stale/soon-retired ids (e.g.
+ * `claude-sonnet-4-20250514`, which Anthropic retires 2026-06-15) and a couple
+ * of invented ones — projects saved with those would fail at generation time.
+ * This brings them onto the registry's current ids while preserving the chosen
+ * tier (see {@link migrateAiModel}).
+ *
+ * Paginated + self-continuing (matches `_backfillFrontmatterSchemas`), so it
+ * scales to any number of projects within a single transaction. Idempotent —
+ * only patches projects whose model actually changes; a second run is a no-op.
+ */
+export const _backfillAiModels = internalMutation({
+  args: { cursor: v.optional(v.union(v.string(), v.null())) },
+  handler: async (ctx, args) => {
+    const BATCH = 100;
+    const result = await ctx.db.query("projects").paginate({
+      numItems: BATCH,
+      cursor: args.cursor ?? null,
+    });
+
+    let patched = 0;
+    for (const project of result.page) {
+      // Nothing to migrate unless both a provider and a model are configured.
+      if (!project.aiProvider || !project.aiModel) continue;
+
+      const next = migrateAiModel(project.aiProvider, project.aiModel);
+      if (next !== null && next !== project.aiModel) {
+        await ctx.db.patch(project._id, {
+          aiModel: next,
+          updatedAt: Date.now(),
+        });
+        patched++;
+      }
+    }
+
+    if (!result.isDone) {
+      await ctx.scheduler.runAfter(0, internal.cms.projects._backfillAiModels, {
+        cursor: result.continueCursor,
+      });
     }
 
     return { patched, scanned: result.page.length, isDone: result.isDone };

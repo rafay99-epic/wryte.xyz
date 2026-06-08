@@ -8,12 +8,7 @@
 import { v } from "convex/values";
 import { internalMutation, internalQuery, query } from "../_generated/server";
 import { getAuthedUserOrNull } from "../_lib/auth";
-
-const PROVIDER_VALIDATOR = v.union(
-  v.literal("anthropic"),
-  v.literal("openai"),
-  v.literal("openrouter"),
-);
+import { providerValidator } from "./_lib/providers";
 
 /**
  * Public read for the settings UI. Never returns the secret — only the
@@ -22,7 +17,7 @@ const PROVIDER_VALIDATOR = v.union(
 export const getPublicConfig = query({
   args: {
     projectId: v.id("projects"),
-    provider: PROVIDER_VALIDATOR,
+    provider: providerValidator,
   },
   handler: async (ctx, args) => {
     const user = await getAuthedUserOrNull(ctx);
@@ -59,7 +54,7 @@ export const getPublicConfig = query({
 export const _findByProjectAndProvider = internalQuery({
   args: {
     projectId: v.id("projects"),
-    provider: PROVIDER_VALIDATOR,
+    provider: providerValidator,
   },
   handler: async (ctx, args) => {
     return await ctx.db
@@ -80,7 +75,7 @@ export const _insert = internalMutation({
   args: {
     projectId: v.id("projects"),
     userId: v.id("users"),
-    provider: PROVIDER_VALIDATOR,
+    provider: providerValidator,
     vaultSecretId: v.string(),
     vaultVersionId: v.optional(v.string()),
   },

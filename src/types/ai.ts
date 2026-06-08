@@ -1,19 +1,32 @@
 /**
- * Shared AI provider types.
+ * Shared AI provider types — re-exported from the single source of truth in
+ * `convex/ai/_lib/providers.ts`.
  *
- * The Convex backend in `convex/ai/*` accepts these provider names as
- * validator unions. Keeping the FE type in sync with the BE validator
- * means every place that touches AI credentials, model selection, or
- * status pulls from the same source of truth.
+ * The Convex backend validators, the schema, and this file all derive from the
+ * same registry, so adding a provider there flows through to the frontend with
+ * no edits here. The `@/types/ai` import path stays stable for existing
+ * consumers (`provider-logos.tsx`, `project-settings/types.ts`, …).
  */
 
-export type AiProvider = "anthropic" | "openai" | "openrouter";
+import {
+  type AiProvider,
+  ALL_PROVIDERS,
+  PROVIDER_IDS,
+} from "../../convex/ai/_lib/providers";
 
-export const AI_PROVIDERS: readonly AiProvider[] = [
-  "anthropic",
-  "openai",
-  "openrouter",
-] as const;
+export type {
+  AiProvider,
+  ProviderEntry,
+  ProviderModel,
+} from "../../convex/ai/_lib/providers";
+export {
+  ALL_PROVIDERS,
+  getProvider,
+  isProviderId,
+  PROVIDER_IDS,
+} from "../../convex/ai/_lib/providers";
+
+export const AI_PROVIDERS: readonly AiProvider[] = PROVIDER_IDS;
 
 export type AiCredentialStatus =
   | "active"
@@ -22,18 +35,13 @@ export type AiCredentialStatus =
   | "rotating";
 
 /** Display labels used in dropdowns, badges, and toasts. */
-export const AI_PROVIDER_LABELS: Record<AiProvider, string> = {
-  anthropic: "Anthropic",
-  openai: "OpenAI",
-  openrouter: "OpenRouter",
-};
+export const AI_PROVIDER_LABELS: Record<AiProvider, string> =
+  Object.fromEntries(ALL_PROVIDERS.map((p) => [p.id, p.label])) as Record<
+    AiProvider,
+    string
+  >;
 
-/** Friendly model labels for the common default models. */
-export const AI_MODEL_LABELS: Record<string, string> = {
-  "claude-sonnet-4-5": "Claude Sonnet 4.5",
-  "claude-opus-4": "Claude Opus 4",
-  "claude-haiku-4-5": "Claude Haiku 4.5",
-  "gpt-5": "GPT-5",
-  "gpt-4o": "GPT-4o",
-  "gpt-4o-mini": "GPT-4o mini",
-};
+/** Friendly model labels, keyed by model id, across every provider. */
+export const AI_MODEL_LABELS: Record<string, string> = Object.fromEntries(
+  ALL_PROVIDERS.flatMap((p) => p.models.map((m) => [m.value, m.label])),
+);

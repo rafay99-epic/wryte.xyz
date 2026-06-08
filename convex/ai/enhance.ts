@@ -23,6 +23,7 @@ import {
 } from "../_generated/server";
 import { getAuthedUserOrNull, getCurrentUser } from "../_lib/auth";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
+import type { AiProvider } from "./_lib/providers";
 
 /* ------------------------------------------------------------------ */
 /*  Streaming instance                                                 */
@@ -91,7 +92,7 @@ async function resolveProjectAndCredential(
   projectId: Doc<"projects">["_id"],
 ): Promise<{
   project: Doc<"projects">;
-  provider: "anthropic" | "openai" | "openrouter";
+  provider: AiProvider;
   model: string;
   vaultSecretId: string;
 }> {
@@ -420,7 +421,7 @@ export const isAiReady = query({
       | "verifying"
       | "invalid"
       | "rotating";
-    provider?: "anthropic" | "openai" | "openrouter";
+    provider?: AiProvider;
     model?: string;
   }> => {
     const user = await getAuthedUserOrNull(ctx);

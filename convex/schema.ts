@@ -14,6 +14,7 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import { compressionSettingsValidator } from "./_lib/compression";
+import { providerValidator } from "./ai/_lib/providers";
 
 export default defineSchema({
   /**
@@ -137,14 +138,8 @@ export default defineSchema({
     defaultAuthorAvatar: v.optional(v.string()),
     /** JSON-serialized BoardColumnDef[] for custom kanban columns */
     boardColumns: v.optional(v.string()),
-    /** AI provider for content enhancement: "anthropic" | "openai" | "openrouter" */
-    aiProvider: v.optional(
-      v.union(
-        v.literal("anthropic"),
-        v.literal("openai"),
-        v.literal("openrouter"),
-      ),
-    ),
+    /** AI provider for content enhancement — see convex/ai/_lib/providers.ts */
+    aiProvider: v.optional(providerValidator),
     /** AI model identifier, e.g. "claude-sonnet-4-20250514" */
     aiModel: v.optional(v.string()),
     /** JSON-serialized AiPromptTemplate[] for reusable AI instructions */
@@ -419,11 +414,7 @@ export default defineSchema({
   aiCredentials: defineTable({
     projectId: v.id("projects"),
     userId: v.id("users"),
-    provider: v.union(
-      v.literal("anthropic"),
-      v.literal("openai"),
-      v.literal("openrouter"),
-    ),
+    provider: providerValidator,
     vaultSecretId: v.string(),
     vaultVersionId: v.optional(v.string()),
     status: v.union(
@@ -816,5 +807,7 @@ export default defineSchema({
   })
     .index("by_streamId", ["streamId"])
     .index("by_userId_and_createdAt", ["userId", "createdAt"])
-    .index("by_projectId", ["projectId"]),
+    .index("by_projectId", ["projectId"])
+    // Global time-ordered sweep for the hourly cleanup cron (see ai/aiStreams.ts).
+    .index("by_createdAt", ["createdAt"]),
 });

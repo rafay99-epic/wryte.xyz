@@ -8,6 +8,7 @@ import {
   FolderOpen,
   Play,
   Rocket,
+  Sparkles,
   Tags,
   Users,
 } from "lucide-react";
@@ -26,7 +27,8 @@ type MigrationKey =
   | "projectStats"
   | "writingStats"
   | "fullMigration"
-  | "frontmatterSchemas";
+  | "frontmatterSchemas"
+  | "aiModels";
 
 const MIGRATIONS: {
   key: MigrationKey;
@@ -75,6 +77,14 @@ const MIGRATIONS: {
     icon: Tags,
     accent: "text-violet-500",
   },
+  {
+    key: "aiModels",
+    title: "Upgrade AI models",
+    description:
+      "Rewrites every project's saved AI model to a current, valid id for its provider — fixes projects pinned to stale/retired ids (e.g. claude-sonnet-4-20250514, retired 2026-06-15) while preserving the chosen tier. Idempotent and self-scheduling.",
+    icon: Sparkles,
+    accent: "text-purple-500",
+  },
 ];
 
 export function MigrationRunner() {
@@ -91,6 +101,7 @@ export function MigrationRunner() {
   const backfillFrontmatterSchemas = useAction(
     api.migrations.frontmatter.backfillFrontmatterSchemas,
   );
+  const backfillAiModels = useAction(api.migrations.aiModels.backfillAiModels);
 
   const [running, setRunning] = useState<MigrationKey | null>(null);
   const [results, setResults] = useState<
@@ -111,6 +122,8 @@ export function MigrationRunner() {
           result = await backfillWritingStats();
         } else if (key === "frontmatterSchemas") {
           result = await backfillFrontmatterSchemas();
+        } else if (key === "aiModels") {
+          result = await backfillAiModels();
         } else {
           result = await runFullMigration();
         }
@@ -131,6 +144,7 @@ export function MigrationRunner() {
       backfillWritingStats,
       runFullMigration,
       backfillFrontmatterSchemas,
+      backfillAiModels,
     ],
   );
 
