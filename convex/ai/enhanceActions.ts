@@ -10,6 +10,7 @@
  */
 import Anthropic from "@anthropic-ai/sdk";
 import { StreamIdValidator } from "@convex-dev/persistent-text-streaming";
+import { GoogleGenAI } from "@google/genai";
 import { v } from "convex/values";
 import OpenAI from "openai";
 import { components, internal } from "../_generated/api";
@@ -153,11 +154,34 @@ async function streamWithOpenAI(
   }
 }
 
+async function streamWithGemini(
+  apiKey: string,
+  model: string,
+  userContent: string,
+  writer: ChunkWriter,
+  systemPrompt: string,
+): Promise<void> {
+  const ai = new GoogleGenAI({ apiKey });
+  const stream = await ai.models.generateContentStream({
+    model,
+    contents: userContent,
+    config: { systemInstruction: systemPrompt },
+  });
+
+  for await (const chunk of stream) {
+    const text = chunk.text;
+    if (text) {
+      await writer.addChunk(text);
+    }
+  }
+}
+
 /**
  * Dispatch by provider. Looks up the registry entry and branches on its
- * `kind`: anthropic-native uses the Anthropic SDK; every openai-compatible
- * provider (OpenAI, OpenRouter, and any future one) reuses the OpenAI adapter
- * with the entry's `baseURL`/`extraHeaders`.
+ * `kind`: anthropic-native uses the Anthropic SDK, gemini-native uses the
+ * Google GenAI SDK, and every openai-compatible provider (OpenAI, OpenRouter,
+ * and any future one) reuses the OpenAI adapter with the entry's
+ * `baseURL`/`extraHeaders`.
  */
 async function streamByProvider(
   provider: AiProvider,
@@ -170,6 +194,10 @@ async function streamByProvider(
   const entry = getProvider(provider);
   if (entry.kind === "anthropic-native") {
     await streamWithAnthropic(apiKey, model, userContent, writer, systemPrompt);
+    return;
+  }
+  if (entry.kind === "gemini-native") {
+    await streamWithGemini(apiKey, model, userContent, writer, systemPrompt);
     return;
   }
   await streamWithOpenAI(apiKey, model, userContent, writer, systemPrompt, {

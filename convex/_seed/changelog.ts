@@ -696,6 +696,25 @@ const ENTRIES: SeedEntry[] = [
 - Added a \`by_createdAt\` index on \`ai_stream_owners\` plus \`ai/aiStreams.ts:_cleanupOwners\`.
 `,
   },
+  {
+    title: "Google Gemini AI provider",
+    slug: "v0-12-0-google-gemini-provider",
+    description:
+      "Bring your own Google Gemini key alongside Anthropic, OpenAI, and OpenRouter — with Gemini 3.5 Flash and 2.5 Flash, ideal for content writing.",
+    version: "0.12.0",
+    build: "5e22f4d",
+    publishedAt: Date.parse("2026-06-09T12:00:00+05:00"),
+    content: `## What's new
+
+- **Google Gemini support** — add your own [Google AI Studio](https://aistudio.google.com/apikey) key in Settings → AI and enhance with Gemini, alongside the existing Anthropic, OpenAI, and OpenRouter providers.
+- **Flash models** — **Gemini 3.5 Flash** (default) and **Gemini 2.5 Flash**, both tuned for fast, high-volume content writing.
+- Bring-your-own-key as usual — the key is stored encrypted in WorkOS Vault and the Gemini call runs entirely server-side; it never touches the browser.
+
+## Under the hood
+
+- First provider to use the new \`gemini-native\` kind in the provider registry — added via a single registry entry plus one streaming adapter (\`@google/genai\` \`generateContentStream\`) and a free key-verification ping. No schema migration; the validator widened automatically.
+`,
+  },
 ];
 
 export const seed = action({

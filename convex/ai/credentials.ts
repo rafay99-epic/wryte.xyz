@@ -17,6 +17,7 @@
 "use node";
 
 import Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenAI } from "@google/genai";
 import { ConvexError, v } from "convex/values";
 import OpenAI from "openai";
 import { internal } from "../_generated/api";
@@ -409,6 +410,10 @@ async function runProviderPing(
     if (entry.kind === "anthropic-native") {
       const client = new Anthropic({ apiKey });
       await client.models.list({ limit: 1 });
+    } else if (entry.kind === "gemini-native") {
+      const ai = new GoogleGenAI({ apiKey });
+      // Free, no-token call — fetches one page of models to verify the key.
+      await ai.models.list({ config: { pageSize: 1 } });
     } else {
       const client = new OpenAI({
         apiKey,

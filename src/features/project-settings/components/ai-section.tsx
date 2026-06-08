@@ -78,6 +78,7 @@ export function AiSection({
                     className={cn(
                       p.kind === "anthropic-native" && "size-6",
                       p.id === "openai" && "size-6",
+                      p.id === "google" && "size-6",
                     )}
                   />
                   {p.label}

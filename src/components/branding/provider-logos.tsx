@@ -62,9 +62,46 @@ export function OpenRouterMark({ className }: MarkProps) {
   );
 }
 
+/**
+ * Google Gemini brand mark — the four-point "spark" with Gemini's
+ * blue→purple→pink gradient. Self-contained gradient so it renders correctly
+ * in both light and dark themes.
+ */
+export function GeminiMark({ className }: MarkProps) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      className={cn("shrink-0", className)}
+      aria-hidden
+    >
+      <title>Google Gemini</title>
+      <defs>
+        <linearGradient
+          id="gemini-spark-gradient"
+          x1="0"
+          y1="0"
+          x2="24"
+          y2="24"
+          gradientUnits="userSpaceOnUse"
+        >
+          <stop offset="0" stopColor="#4796E3" />
+          <stop offset="0.5" stopColor="#9177C7" />
+          <stop offset="1" stopColor="#D56F76" />
+        </linearGradient>
+      </defs>
+      <path
+        fill="url(#gemini-spark-gradient)"
+        d="M12 0C12 6.627 6.627 12 0 12c6.627 0 12 5.373 12 12 0-6.627 5.373-12 12-12-6.627 0-12-5.373-12-12Z"
+      />
+    </svg>
+  );
+}
+
 /** Lookup of brand marks by AiProvider — useful in dynamic grids. */
 export const AI_PROVIDER_MARKS: Record<AiProvider, ComponentType<MarkProps>> = {
   anthropic: AnthropicMark,
   openai: OpenAIMark,
   openrouter: OpenRouterMark,
+  google: GeminiMark,
 };

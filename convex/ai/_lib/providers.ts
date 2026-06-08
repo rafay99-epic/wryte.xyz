@@ -30,8 +30,13 @@ import { v } from "convex/values";
  * - `openai-compatible`: the OpenAI SDK pointed at the provider's `baseURL`
  *   (the chat-completions + models-list shape). OpenAI itself uses the default
  *   base URL; OpenRouter et al. set a custom one.
+ * - `gemini-native`: the Google `@google/genai` SDK
+ *   (`models.generateContentStream`, `models.list`).
  */
-export type ProviderKind = "anthropic-native" | "openai-compatible";
+export type ProviderKind =
+  | "anthropic-native"
+  | "openai-compatible"
+  | "gemini-native";
 
 export type ProviderModel = {
   /** Model id sent to the provider, e.g. "claude-sonnet-4-6". */
@@ -65,7 +70,12 @@ export type ProviderEntry = {
  * `v.literal` in {@link providerValidator}) is the entire surface for a new
  * provider.
  */
-export const PROVIDER_IDS = ["anthropic", "openai", "openrouter"] as const;
+export const PROVIDER_IDS = [
+  "anthropic",
+  "openai",
+  "openrouter",
+  "google",
+] as const;
 
 export type AiProvider = (typeof PROVIDER_IDS)[number];
 
@@ -158,6 +168,26 @@ export const PROVIDERS: Record<AiProvider, ProviderEntry> = {
       },
     ],
   },
+  google: {
+    id: "google",
+    label: "Google Gemini",
+    kind: "gemini-native",
+    keyPrefixHint: "AIza...",
+    dashboardUrl: "https://aistudio.google.com/apikey",
+    defaultModel: "gemini-3.5-flash",
+    models: [
+      {
+        value: "gemini-3.5-flash",
+        label: "Gemini 3.5 Flash",
+        description: "Newest Flash — best for content writing",
+      },
+      {
+        value: "gemini-2.5-flash",
+        label: "Gemini 2.5 Flash",
+        description: "Fast, high-volume, lower cost",
+      },
+    ],
+  },
 };
 
 /**
@@ -172,6 +202,7 @@ export const providerValidator = v.union(
   v.literal("anthropic"),
   v.literal("openai"),
   v.literal("openrouter"),
+  v.literal("google"),
 );
 
 /**
