@@ -3,6 +3,7 @@ import {
   FolderTree,
   GitBranch,
   ImageIcon,
+  PenLine,
   Rocket,
   Settings2,
   Share2,
@@ -52,6 +53,8 @@ export type ProjectData = {
   maxUploadBytes?: number;
   trashRetentionDays?: number;
   socialPostOnPublish?: boolean;
+  readabilityLensEnabled?: boolean;
+  slashCommandsEnabled?: boolean;
 };
 
 export const DEFAULT_FIELDS: FrontmatterField[] = [
@@ -94,6 +97,7 @@ export type SettingsTab =
   | "frontmatter"
   | "media"
   | "ai"
+  | "editor"
   | "social";
 
 export const TABS: {
@@ -108,6 +112,7 @@ export const TABS: {
   { id: "publishing", label: "Publishing", icon: Rocket },
   { id: "frontmatter", label: "Frontmatter", icon: Code2 },
   { id: "ai", label: "AI", icon: Sparkles },
+  { id: "editor", label: "Editor", icon: PenLine },
   { id: "social", label: "Social", icon: Share2 },
 ];
 

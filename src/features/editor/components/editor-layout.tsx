@@ -12,6 +12,7 @@ import { FrontmatterEditor } from "./frontmatter-editor";
 import { MarkdownEditor } from "./markdown-editor";
 import { MarkdownPreview } from "./markdown-preview";
 import { MdxPreview } from "./mdx-preview";
+import { ReadabilityPanel } from "./readability-panel";
 import { ResearchPanel } from "./research-panel";
 
 type EditorLayoutProps = {
@@ -31,6 +32,10 @@ export function EditorLayout({
     projectId: projectId as Id<"projects">,
   });
   const isMdx = project?.contentFormat === "mdx";
+  // Per-project editor feature toggles (default off). Read from the
+  // already-fetched project doc — no extra query.
+  const readabilityEnabled = project?.readabilityLensEnabled ?? false;
+  const slashEnabled = project?.slashCommandsEnabled ?? false;
 
   const viewMode = useEditorStore((state) => state.viewMode);
   const focusMode = useEditorStore((state) => state.focusMode);
@@ -38,6 +43,12 @@ export function EditorLayout({
   const researchPanelOpen = useEditorStore((state) => state.researchPanelOpen);
   const toggleResearchPanel = useEditorStore(
     (state) => state.toggleResearchPanel,
+  );
+  const readabilityPanelOpen = useEditorStore(
+    (state) => state.readabilityPanelOpen,
+  );
+  const toggleReadabilityPanel = useEditorStore(
+    (state) => state.toggleReadabilityPanel,
   );
   const previewRef = useRef<HTMLDivElement>(null);
   // Ref to the editor pane so the preview→editor sync doesn't have to call
@@ -88,7 +99,11 @@ export function EditorLayout({
     <EditorProvider>
       <div className="flex h-full flex-col">
         {!focusMode && (
-          <EditorToolbar documentId={documentId} projectId={projectId} />
+          <EditorToolbar
+            documentId={documentId}
+            projectId={projectId}
+            readabilityEnabled={readabilityEnabled}
+          />
         )}
         {!focusMode && (
           <DraftTabBar
@@ -108,7 +123,7 @@ export function EditorLayout({
                 key="edit"
                 className="editor-pane-enter h-full w-full overflow-y-auto slim-scrollbar"
               >
-                <MarkdownEditor />
+                <MarkdownEditor slashEnabled={slashEnabled} />
               </div>
             )}
 
@@ -131,7 +146,7 @@ export function EditorLayout({
                   className="h-full w-1/2 overflow-y-auto hide-scrollbar"
                   onScroll={handleEditorScroll}
                 >
-                  <MarkdownEditor />
+                  <MarkdownEditor slashEnabled={slashEnabled} />
                 </div>
                 <div className="split-divider" />
                 <div
@@ -152,6 +167,13 @@ export function EditorLayout({
             open={researchPanelOpen}
             onClose={toggleResearchPanel}
           />
+
+          {readabilityEnabled && (
+            <ReadabilityPanel
+              open={readabilityPanelOpen}
+              onClose={toggleReadabilityPanel}
+            />
+          )}
         </div>
       </div>
     </EditorProvider>

@@ -743,6 +743,35 @@ const ENTRIES: SeedEntry[] = [
 - The per-provider rate limit is a single config entry keyed by provider id, so it already covers every current and future provider with no per-provider duplication.
 `,
   },
+  {
+    title: "Editor: readability lens & slash commands",
+    slug: "v0-14-0-readability-and-slash-commands",
+    description:
+      "Two opt-in writing aids — a Hemingway-style readability panel and a Notion-style slash (/) command menu — plus a board horizontal-scroll fix. Both editor features are off by default to keep the editor fast.",
+    version: "0.14.0",
+    build: "88204db",
+    publishedAt: Date.parse("2026-06-09T22:00:00+05:00"),
+    content: `## What's new
+
+### Readability lens
+- A toggleable side panel showing a **reading-ease score**, grade level, word/sentence stats, and a clickable list of **long, passive, and adverb-heavy sentences** to tighten — click one to jump straight to it in the editor.
+- Pure, client-side analysis (Flesch reading ease + Flesch–Kincaid grade) — **no AI cost**. Debounced, and offloaded to a Web Worker on large documents so typing never stutters.
+
+### Slash commands
+- Type **\`/\`** at the start of a line for a Notion-style menu to insert headings, lists, quotes, code blocks, dividers, tables, and links — plus an **"Ask AI to write…"** action that opens the inline-AI flow at the cursor.
+- Caret-anchored popover with keyboard navigation, smart filtering, and a light open/close animation.
+
+### Editor settings
+- New **Editor** tab in Project Settings to toggle each feature. **Both default off** — when disabled, nothing mounts and no listeners attach, so the editor stays exactly as fast as before.
+
+## Fixes
+- **Board horizontal scroll** — the kanban board now scrolls sideways with a normal mouse wheel (hover the board and scroll), so the rightmost columns are reachable when the sidebar is open. Individual columns still scroll vertically.
+
+## Under the hood
+- New modular editor lib (\`src/features/editor/lib/{readability,slash,caret}\`) with framework-free analysis, a textarea caret-measurement utility, and a self-contained slash-command registry.
+- The slash menu renders through a portal to dodge transformed-ancestor \`position: fixed\` issues; a single \`min-w-0\` on the app shell lets inner overflow regions scroll correctly.
+`,
+  },
 ];
 
 export const seed = action({

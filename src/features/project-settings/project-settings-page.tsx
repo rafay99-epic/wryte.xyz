@@ -12,6 +12,7 @@ import type { Id } from "../../../convex/_generated/dataModel";
 import { AiSection } from "./components/ai-section";
 import { ContentSection } from "./components/content-section";
 import { DangerZoneSection } from "./components/danger-zone-section";
+import { EditorSection } from "./components/editor-section";
 import { FrontmatterSection } from "./components/frontmatter-section";
 import { GeneralSection } from "./components/general-section";
 import { GitHubSection } from "./components/github-section";
@@ -142,6 +143,9 @@ export function ProjectSettingsPage() {
               )}
               {activeTab === "ai" && (
                 <AiSection projectId={projectId} project={project} />
+              )}
+              {activeTab === "editor" && (
+                <EditorSection projectId={projectId} project={project} />
               )}
               {activeTab === "social" && (
                 <SocialSection projectId={projectId} project={project} />

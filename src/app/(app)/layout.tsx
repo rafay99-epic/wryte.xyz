@@ -156,7 +156,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
         <main
           className={cn(
-            "flex-1",
+            // `min-w-0` lets this flex item stay within the viewport instead of
+            // being stretched by wide content (e.g. the kanban board), so inner
+            // `overflow-x-auto` regions can actually scroll.
+            "min-w-0 flex-1",
             isEditorPage ? "overflow-hidden" : "overflow-y-auto slim-scrollbar",
           )}
         >

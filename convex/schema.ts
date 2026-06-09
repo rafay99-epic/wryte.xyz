@@ -146,6 +146,10 @@ export default defineSchema({
     aiPromptTemplates: v.optional(v.string()),
     /** Auto-post to connected social media when publishing */
     socialPostOnPublish: v.optional(v.boolean()),
+    /** Editor: show the readability lens side panel (default off) */
+    readabilityLensEnabled: v.optional(v.boolean()),
+    /** Editor: enable the slash (/) command menu (default off) */
+    slashCommandsEnabled: v.optional(v.boolean()),
     /**
      * IANA timezone identifier (e.g. "America/New_York"). Drives how
      * scheduled publish times are interpreted and how the publish-date

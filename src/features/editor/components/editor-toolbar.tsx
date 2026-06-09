@@ -6,6 +6,7 @@ import {
   Bold,
   Braces,
   Code,
+  Gauge,
   Heading1,
   Heading2,
   Heading3,
@@ -50,6 +51,7 @@ import { ImageInsertDialog } from "./image-insert-dialog";
 type EditorToolbarProps = {
   documentId: string;
   projectId: string;
+  readabilityEnabled?: boolean;
 };
 
 type ViewMode = "edit" | "split" | "preview";
@@ -65,13 +67,19 @@ const VIEW_MODES: { value: ViewMode; label: string }[] = [
  * Left: Undo/Redo + Text dropdown + formatting buttons
  * Right: Word count + View mode switcher + AI Assistant button
  */
-export function EditorToolbar({ documentId, projectId }: EditorToolbarProps) {
+export function EditorToolbar({
+  documentId,
+  projectId,
+  readabilityEnabled = false,
+}: EditorToolbarProps) {
   const {
     viewMode,
     setViewMode,
     content,
     researchPanelOpen,
     toggleResearchPanel,
+    readabilityPanelOpen,
+    toggleReadabilityPanel,
   } = useEditorStore(
     useShallow((state) => ({
       viewMode: state.viewMode,
@@ -79,6 +87,8 @@ export function EditorToolbar({ documentId, projectId }: EditorToolbarProps) {
       content: state.content,
       researchPanelOpen: state.researchPanelOpen,
       toggleResearchPanel: state.toggleResearchPanel,
+      readabilityPanelOpen: state.readabilityPanelOpen,
+      toggleReadabilityPanel: state.toggleReadabilityPanel,
     })),
   );
   const { insertAtCursor, wrapSelection } = useEditorContext();
@@ -320,6 +330,22 @@ export function EditorToolbar({ documentId, projectId }: EditorToolbarProps) {
               </button>
             ))}
           </div>
+
+          {readabilityEnabled && (
+            <button
+              type="button"
+              onClick={toggleReadabilityPanel}
+              className={cn(
+                "flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all active:scale-[0.97]",
+                readabilityPanelOpen
+                  ? "border-primary/30 bg-primary/5 text-primary"
+                  : "border-border/60 text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+              )}
+            >
+              <Gauge className="size-3.5" />
+              <span>Readability</span>
+            </button>
+          )}
 
           <button
             type="button"

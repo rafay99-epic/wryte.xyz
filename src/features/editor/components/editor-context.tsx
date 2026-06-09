@@ -8,6 +8,7 @@ import {
   useContext,
   useRef,
 } from "react";
+import { caretRect } from "../lib/caret/textarea-caret";
 
 /**
  * Shape of the editor context value shared across all editor sub-components.
@@ -19,6 +20,23 @@ type SelectionSnapshot = {
   end: number;
 };
 
+/** Nearest scrollable ancestor of `el`, or null. */
+function getScrollParent(el: HTMLElement | null): HTMLElement | null {
+  let node = el?.parentElement ?? null;
+  while (node) {
+    const style = window.getComputedStyle(node);
+    const overflowY = style.overflowY;
+    if (
+      (overflowY === "auto" || overflowY === "scroll") &&
+      node.scrollHeight > node.clientHeight
+    ) {
+      return node;
+    }
+    node = node.parentElement;
+  }
+  return null;
+}
+
 type EditorContextValue = {
   /** Ref to the underlying <textarea> so toolbar/shortcuts can manipulate it directly */
   textareaRef: RefObject<HTMLTextAreaElement | null>;
@@ -29,6 +47,8 @@ type EditorContextValue = {
   getSelection: () => SelectionSnapshot | null;
   /** Replaces a specific character range in the textarea with new text */
   replaceRange: (start: number, end: number, replacement: string) => void;
+  /** Selects a character range and scrolls it into view. Selection-only — never mutates content. */
+  selectRange: (start: number, end: number) => void;
 };
 
 const EditorContext = createContext<EditorContextValue | null>(null);
@@ -121,6 +141,27 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  /**
+   * Select a character range and scroll it into view. Used by the readability
+   * panel's jump-to-sentence. Pure selection (no `setRangeText`), so it never
+   * touches the undo stack.
+   */
+  const selectRange = useCallback((start: number, end: number) => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    textarea.focus();
+    textarea.setSelectionRange(start, end);
+
+    const rect = caretRect(textarea, start);
+    const scroller = getScrollParent(textarea);
+    if (!rect || !scroller) return;
+    const caretViewportTop = textarea.getBoundingClientRect().top + rect.top;
+    const scrollerTop = scroller.getBoundingClientRect().top;
+    // Bring the caret to roughly the upper third of the scroll viewport.
+    const delta = caretViewportTop - scrollerTop - scroller.clientHeight / 3;
+    scroller.scrollBy({ top: delta, behavior: "smooth" });
+  }, []);
+
   return (
     <EditorContext.Provider
       value={{
@@ -130,6 +171,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
         replaceContent,
         getSelection,
         replaceRange,
+        selectRange,
       }}
     >
       {children}

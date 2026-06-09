@@ -24,6 +24,7 @@ type EditorState = {
   _preFocusSidebarOpen: boolean | null;
   activeDraftId: string | null;
   researchPanelOpen: boolean;
+  readabilityPanelOpen: boolean;
 
   setContent: (content: string) => void;
   setTitle: (title: string) => void;
@@ -37,6 +38,7 @@ type EditorState = {
   toggleHistoryPanel: () => void;
   setActiveDraftId: (id: string | null) => void;
   toggleResearchPanel: () => void;
+  toggleReadabilityPanel: () => void;
   reset: () => void;
 };
 
@@ -54,6 +56,7 @@ const initialState = {
   _preFocusSidebarOpen: null as boolean | null,
   activeDraftId: null as string | null,
   researchPanelOpen: false,
+  readabilityPanelOpen: false,
 };
 
 /**
@@ -124,6 +127,9 @@ export const useEditorStore = create<EditorState>()((set) => ({
 
   toggleResearchPanel: () =>
     set((state) => ({ researchPanelOpen: !state.researchPanelOpen })),
+
+  toggleReadabilityPanel: () =>
+    set((state) => ({ readabilityPanelOpen: !state.readabilityPanelOpen })),
 
   reset: () => set(initialState),
 }));

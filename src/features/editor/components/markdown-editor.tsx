@@ -12,6 +12,7 @@ import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
 import { useEditorContext } from "./editor-context";
 import { InlineAiPopover } from "./inline-ai-popover";
+import { SlashMenu } from "./slash-menu";
 
 /**
  * Raw markdown textarea editor matching the Seospace reference feel:
@@ -20,7 +21,11 @@ import { InlineAiPopover } from "./inline-ai-popover";
  * - Slightly larger text for readability
  * - Cmd+J inline AI enhancement for selected text
  */
-export function MarkdownEditor() {
+export function MarkdownEditor({
+  slashEnabled = false,
+}: {
+  slashEnabled?: boolean;
+}) {
   const { content, setContent } = useEditorStore(
     useShallow((state) => ({
       content: state.content,
@@ -55,23 +60,24 @@ export function MarkdownEditor() {
   );
   const aiReady = aiReadiness?.ready ?? false;
 
+  const notifyAiNotReady = useCallback(() => {
+    const reason = aiReadiness?.reason;
+    const message =
+      reason === "no-credential" || reason === "invalid"
+        ? "Add your API key in Project Settings → AI to enable inline AI."
+        : reason === "no-provider" || reason === "no-model"
+          ? "Pick an AI provider and model in Project Settings → AI."
+          : reason === "verifying"
+            ? "Your API key is still being verified — try again in a moment."
+            : reason === "rotating"
+              ? "Your API key is being rotated — try again in a moment."
+              : "AI isn't ready yet for this project.";
+    toast("AI is not configured", { description: message, duration: 3500 });
+  }, [aiReadiness?.reason]);
+
   const onInlineAI = useCallback(() => {
     if (!aiReady) {
-      const reason = aiReadiness?.reason;
-      const message =
-        reason === "no-credential" || reason === "invalid"
-          ? "Add your API key in Project Settings → AI to enable inline AI."
-          : reason === "no-provider" || reason === "no-model"
-            ? "Pick an AI provider and model in Project Settings → AI."
-            : reason === "verifying"
-              ? "Your API key is still being verified — try again in a moment."
-              : reason === "rotating"
-                ? "Your API key is being rotated — try again in a moment."
-                : "AI isn't ready yet for this project.";
-      toast("AI is not configured", {
-        description: message,
-        duration: 3500,
-      });
+      notifyAiNotReady();
       return;
     }
     const sel = getSelection();
@@ -84,7 +90,21 @@ export function MarkdownEditor() {
     }
     setInlineAiSelection(sel);
     setInlineAiOpen(true);
-  }, [aiReady, aiReadiness?.reason, getSelection, inlineAiLabel]);
+  }, [aiReady, notifyAiNotReady, getSelection, inlineAiLabel]);
+
+  // Slash-menu "Ask AI to write…" — opens the inline-AI popover with a
+  // collapsed selection at the caret, so the generated text inserts there.
+  const handleSlashAi = useCallback(
+    (caretIndex: number) => {
+      if (!aiReady) {
+        notifyAiNotReady();
+        return;
+      }
+      setInlineAiSelection({ text: "", start: caretIndex, end: caretIndex });
+      setInlineAiOpen(true);
+    },
+    [aiReady, notifyAiNotReady],
+  );
 
   useKeyboardShortcuts(textareaRef, {
     onBold,
@@ -157,6 +177,12 @@ export function MarkdownEditor() {
         onOpenChange={setInlineAiOpen}
         selection={inlineAiSelection}
         onAccept={handleAcceptInline}
+      />
+
+      <SlashMenu
+        enabled={slashEnabled}
+        aiReady={aiReady}
+        onAiAction={handleSlashAi}
       />
 
       <textarea
