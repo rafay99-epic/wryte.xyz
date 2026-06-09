@@ -799,6 +799,24 @@ const ENTRIES: SeedEntry[] = [
 - New standalone \`convex/cms/snippets.ts\` module (paginated list, full-text search, rate-limited create/update/remove) with a dedicated \`snippets\` table and \`search_name\` index.
 `,
   },
+  {
+    title: "Performance: lighter editor, leaner data",
+    slug: "v0-15-1-performance-tier-1",
+    description:
+      "First performance pass — the editor ships less JavaScript up front and the content board stops shuttling full article bodies over the wire, so the app loads faster and stays smoother.",
+    version: "0.15.1",
+    build: "9db054d",
+    publishedAt: Date.parse("2026-06-09T23:55:00+05:00"),
+    content: `## Performance
+
+- **Smaller editor load** — the Markdown preview, MDX preview, and the diff viewer (sync-conflicts page) now load on demand instead of up front, trimming a large chunk of JavaScript from the initial editor bundle. You'll briefly see "Loading preview…" the first time you open preview or split mode.
+- **Leaner board & lists** — the document list no longer ships full article bodies to the board, sidebar, and header on every keystroke; it sends only what those views render (title, status, a short excerpt, word count). Recent-document lists are trimmed the same way — less data over the wire, less work on every save.
+- **Fewer wasted re-renders** — the board's tag-filter bar now subscribes to only the state it actually uses.
+- **Tighter bundles** — per-module imports enabled for \`framer-motion\` so only the animation code actually used ships to the browser.
+
+No behavior changes — everything works exactly as before, just lighter and faster.
+`,
+  },
 ];
 
 export const seed = action({
