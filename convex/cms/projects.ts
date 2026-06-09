@@ -321,6 +321,7 @@ export const update = mutation({
     socialPostOnPublish: v.optional(v.boolean()),
     readabilityLensEnabled: v.optional(v.boolean()),
     slashCommandsEnabled: v.optional(v.boolean()),
+    snippetsEnabled: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const key = await getRateLimitKey(ctx);

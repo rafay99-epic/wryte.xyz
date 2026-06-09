@@ -25,16 +25,25 @@ export function useEditorSection({
   const [slashCommandsEnabled, setSlashCommandsEnabled] = useState(
     project.slashCommandsEnabled ?? false,
   );
+  const [snippetsEnabled, setSnippetsEnabled] = useState(
+    project.snippetsEnabled ?? false,
+  );
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     setReadabilityLensEnabled(project.readabilityLensEnabled ?? false);
     setSlashCommandsEnabled(project.slashCommandsEnabled ?? false);
-  }, [project.readabilityLensEnabled, project.slashCommandsEnabled]);
+    setSnippetsEnabled(project.snippetsEnabled ?? false);
+  }, [
+    project.readabilityLensEnabled,
+    project.slashCommandsEnabled,
+    project.snippetsEnabled,
+  ]);
 
   const hasChanges =
     readabilityLensEnabled !== (project.readabilityLensEnabled ?? false) ||
-    slashCommandsEnabled !== (project.slashCommandsEnabled ?? false);
+    slashCommandsEnabled !== (project.slashCommandsEnabled ?? false) ||
+    snippetsEnabled !== (project.snippetsEnabled ?? false);
 
   const handleSave = useCallback(async () => {
     setIsSaving(true);
@@ -43,6 +52,7 @@ export function useEditorSection({
         projectId,
         readabilityLensEnabled,
         slashCommandsEnabled,
+        snippetsEnabled,
       });
       toast.success("Editor settings saved");
     } catch {
@@ -50,13 +60,21 @@ export function useEditorSection({
     } finally {
       setIsSaving(false);
     }
-  }, [updateProject, projectId, readabilityLensEnabled, slashCommandsEnabled]);
+  }, [
+    updateProject,
+    projectId,
+    readabilityLensEnabled,
+    slashCommandsEnabled,
+    snippetsEnabled,
+  ]);
 
   return {
     readabilityLensEnabled,
     setReadabilityLensEnabled,
     slashCommandsEnabled,
     setSlashCommandsEnabled,
+    snippetsEnabled,
+    setSnippetsEnabled,
     isSaving,
     hasChanges,
     handleSave,

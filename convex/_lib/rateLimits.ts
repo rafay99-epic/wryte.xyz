@@ -308,6 +308,27 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
   },
 
   /* ------------------------------------------------------------------ */
+  /*  Editor snippets (reusable text blocks)                             */
+  /* ------------------------------------------------------------------ */
+
+  "snippets:create": {
+    kind: "fixed window",
+    rate: 30,
+    period: MINUTE,
+  },
+  /** Edits debounce-save from the manager — slightly more generous. */
+  "snippets:update": {
+    kind: "fixed window",
+    rate: 60,
+    period: MINUTE,
+  },
+  "snippets:remove": {
+    kind: "fixed window",
+    rate: 30,
+    period: MINUTE,
+  },
+
+  /* ------------------------------------------------------------------ */
   /*  Media                                                              */
   /* ------------------------------------------------------------------ */
 

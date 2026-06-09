@@ -55,6 +55,8 @@ export type ProjectData = {
   socialPostOnPublish?: boolean;
   readabilityLensEnabled?: boolean;
   slashCommandsEnabled?: boolean;
+  snippetsEnabled?: boolean;
+  snippetCount?: number;
 };
 
 export const DEFAULT_FIELDS: FrontmatterField[] = [

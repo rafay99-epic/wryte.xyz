@@ -8,6 +8,7 @@ import type { Id } from "../../../../convex/_generated/dataModel";
 import { useEditorSection } from "../hooks/use-editor-section";
 import type { ProjectData } from "../types";
 import { SaveButton, SectionHeader } from "./shared";
+import { SnippetsManager } from "./snippets-manager";
 
 export function EditorSection({
   projectId,
@@ -21,6 +22,8 @@ export function EditorSection({
     setReadabilityLensEnabled,
     slashCommandsEnabled,
     setSlashCommandsEnabled,
+    snippetsEnabled,
+    setSnippetsEnabled,
     isSaving,
     hasChanges,
     handleSave,
@@ -69,11 +72,35 @@ export function EditorSection({
           />
         </div>
 
+        <div className="flex items-center justify-between rounded-xl border border-border/40 bg-card px-4 py-3">
+          <div className="pr-4">
+            <p className="text-sm font-medium">Snippets</p>
+            <p className="text-xs text-muted-foreground">
+              Reusable text blocks (sign-offs, bios, CTAs, disclaimers) you can
+              paste from the editor's{" "}
+              <code className="rounded bg-muted px-1 py-px text-[10px]">/</code>{" "}
+              menu under <span className="font-medium">Snippets</span>. Manage
+              them below.
+            </p>
+          </div>
+          <Switch
+            checked={snippetsEnabled}
+            onCheckedChange={(checked) => setSnippetsEnabled(checked)}
+          />
+        </div>
+
         <SaveButton
           isSaving={isSaving}
           disabled={!hasChanges}
           onClick={() => void handleSave()}
         />
+
+        <div className="border-t border-border/40 pt-4">
+          <SnippetsManager
+            projectId={projectId}
+            snippetCount={project.snippetCount ?? 0}
+          />
+        </div>
       </motion.div>
     </motion.div>
   );

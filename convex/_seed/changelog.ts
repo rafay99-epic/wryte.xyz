@@ -772,6 +772,30 @@ const ENTRIES: SeedEntry[] = [
 - The slash menu renders through a portal to dodge transformed-ancestor \`position: fixed\` issues; a single \`min-w-0\` on the app shell lets inner overflow regions scroll correctly.
 `,
   },
+  {
+    title: "Snippets: reusable text blocks",
+    slug: "v0-15-0-snippets",
+    description:
+      "Save reusable blocks per project — sign-offs, bios, CTAs, disclaimers — and paste any of them straight from the editor's / menu under a searchable Snippets submenu. Opt-in, scales to thousands per project.",
+    version: "0.15.0",
+    build: "620c4e2",
+    publishedAt: Date.parse("2026-06-09T23:45:00+05:00"),
+    content: `## What's new
+
+### Snippets
+- Define **named, reusable text blocks** per project — sign-offs, bios, CTAs, disclaimers, recurring endings — and stop retyping them.
+- In the editor, open **\`/\`** → **Snippets ▸**, type to find one (e.g. \`exit\`), and its text is pasted at the cursor. Arrow/Enter to pick, ArrowLeft/Backspace/Esc to back out.
+- Manage them in **Project Settings → Editor**: create, edit, and delete with live character counters, all from plain name + content fields (no JSON, ever).
+
+### Built to scale, cheap to run
+- Snippets live in their own searchable, paginated table, so a project can hold **thousands** without slowing anything down — the \`/\` menu searches as you type and shows the top matches.
+- Has its own **on/off toggle** (off by default), independent of the readability and slash-command toggles.
+
+## Under the hood
+- The snippet search query is gated so it only runs while the Snippets submenu is open (and is debounced) — a denormalized per-project count decides the submenu's visibility, so normal editing fires **zero extra queries**.
+- New standalone \`convex/cms/snippets.ts\` module (paginated list, full-text search, rate-limited create/update/remove) with a dedicated \`snippets\` table and \`search_name\` index.
+`,
+  },
 ];
 
 export const seed = action({

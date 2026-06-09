@@ -150,6 +150,16 @@ export default defineSchema({
     readabilityLensEnabled: v.optional(v.boolean()),
     /** Editor: enable the slash (/) command menu (default off) */
     slashCommandsEnabled: v.optional(v.boolean()),
+    /** Editor: enable per-project reusable text snippets in the / menu (default off) */
+    snippetsEnabled: v.optional(v.boolean()),
+    /**
+     * Denormalized count of rows in the `snippets` table for this project.
+     * Maintained transactionally by the snippet create/remove mutations so the
+     * editor's `/` menu can decide whether to show "Snippets ▸" — and the
+     * settings UI can render the counter — without an extra read. Optional for
+     * backwards compat — absent means 0.
+     */
+    snippetCount: v.optional(v.number()),
     /**
      * IANA timezone identifier (e.g. "America/New_York"). Drives how
      * scheduled publish times are interpreted and how the publish-date
@@ -814,4 +824,25 @@ export default defineSchema({
     .index("by_projectId", ["projectId"])
     // Global time-ordered sweep for the hourly cleanup cron (see ai/aiStreams.ts).
     .index("by_createdAt", ["createdAt"]),
+
+  /**
+   * Per-project reusable text snippets — sign-offs, bios, CTAs, disclaimers,
+   * recurring endings. Stored in their own table (not a blob on `projects`) so
+   * a project can hold thousands without bloating the hot project document or
+   * hitting the 1MB doc limit. Surfaced in the editor's `/` menu via the
+   * `search_name` full-text index (top matches as the user types) and managed
+   * — paginated — in Project Settings → Editor. `projects.snippetCount` is the
+   * denormalized counter that gates the `/` submenu's visibility without a read.
+   */
+  snippets: defineTable({
+    projectId: v.id("projects"),
+    name: v.string(),
+    content: v.string(),
+    updatedAt: v.number(),
+  })
+    .index("by_project", ["projectId"])
+    .searchIndex("search_name", {
+      searchField: "name",
+      filterFields: ["projectId"],
+    }),
 });

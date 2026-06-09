@@ -36,6 +36,11 @@ export function EditorLayout({
   // already-fetched project doc — no extra query.
   const readabilityEnabled = project?.readabilityLensEnabled ?? false;
   const slashEnabled = project?.slashCommandsEnabled ?? false;
+  const snippetsEnabled = project?.snippetsEnabled ?? false;
+  // Whether to show the "Snippets ▸" entry — decided from the denormalized
+  // count on the already-fetched project doc, so the slash menu fires no query
+  // at the root level.
+  const hasSnippets = (project?.snippetCount ?? 0) > 0;
 
   const viewMode = useEditorStore((state) => state.viewMode);
   const focusMode = useEditorStore((state) => state.focusMode);
@@ -123,7 +128,11 @@ export function EditorLayout({
                 key="edit"
                 className="editor-pane-enter h-full w-full overflow-y-auto slim-scrollbar"
               >
-                <MarkdownEditor slashEnabled={slashEnabled} />
+                <MarkdownEditor
+                  slashEnabled={slashEnabled}
+                  snippetsEnabled={snippetsEnabled}
+                  hasSnippets={hasSnippets}
+                />
               </div>
             )}
 
@@ -146,7 +155,11 @@ export function EditorLayout({
                   className="h-full w-1/2 overflow-y-auto hide-scrollbar"
                   onScroll={handleEditorScroll}
                 >
-                  <MarkdownEditor slashEnabled={slashEnabled} />
+                  <MarkdownEditor
+                    slashEnabled={slashEnabled}
+                    snippetsEnabled={snippetsEnabled}
+                    hasSnippets={hasSnippets}
+                  />
                 </div>
                 <div className="split-divider" />
                 <div

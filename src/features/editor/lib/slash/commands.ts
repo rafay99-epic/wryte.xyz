@@ -1,8 +1,10 @@
 import {
   Braces,
+  FileText,
   Heading1,
   Heading2,
   Heading3,
+  Library,
   Link as LinkIcon,
   List,
   ListOrdered,
@@ -12,15 +14,23 @@ import {
   Sparkles,
   Table,
 } from "lucide-react";
+import type { Snippet } from "@/types/snippets";
 
 /**
  * Slash-command registry (pure data). `block` commands insert a line-level
  * marker (a leading newline is added by the menu when not already at line
  * start); `inline` inserts at the caret; `ai` opens the existing inline-AI
- * flow at the caret instead of inserting text.
+ * flow at the caret instead of inserting text; `snippet` pastes a reusable
+ * block (treated like `block` for newline handling); `submenu` drills into a
+ * nested list instead of inserting anything.
  */
 
-export type SlashCommandKind = "block" | "inline" | "ai";
+export type SlashCommandKind =
+  | "block"
+  | "inline"
+  | "ai"
+  | "snippet"
+  | "submenu";
 
 export type SlashCommand = {
   id: string;
@@ -29,9 +39,36 @@ export type SlashCommand = {
   keywords: string[];
   icon: LucideIcon;
   kind: SlashCommandKind;
-  /** Text inserted for `block`/`inline` commands. */
+  /** Text inserted for `block`/`inline`/`snippet` commands. */
   insert?: string;
 };
+
+/**
+ * The `Snippets ▸` parent entry shown at the slash-menu root. Selecting it
+ * drills into the project's snippets (see slash-menu.tsx). Only appended when
+ * the project actually has snippets — the menu owns that gating.
+ */
+export const SNIPPETS_SUBMENU: SlashCommand = {
+  id: "snippets",
+  label: "Snippets",
+  hint: "▸",
+  keywords: ["snippet", "snippets", "reusable", "template"],
+  icon: Library,
+  kind: "submenu",
+};
+
+/** Maps project snippets (from the search query) into insertable commands. */
+export function snippetCommands(snippets: Snippet[]): SlashCommand[] {
+  return snippets.map((s) => ({
+    id: `snippet:${s._id}`,
+    label: s.name,
+    hint: "Snippet",
+    keywords: [s.name.toLowerCase(), "snippet"],
+    icon: FileText,
+    kind: "snippet" as const,
+    insert: s.content,
+  }));
+}
 
 export const SLASH_COMMANDS: SlashCommand[] = [
   {

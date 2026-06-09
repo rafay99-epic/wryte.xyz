@@ -23,8 +23,12 @@ import { SlashMenu } from "./slash-menu";
  */
 export function MarkdownEditor({
   slashEnabled = false,
+  snippetsEnabled = false,
+  hasSnippets = false,
 }: {
   slashEnabled?: boolean;
+  snippetsEnabled?: boolean;
+  hasSnippets?: boolean;
 }) {
   const { content, setContent } = useEditorStore(
     useShallow((state) => ({
@@ -180,7 +184,10 @@ export function MarkdownEditor({
       />
 
       <SlashMenu
-        enabled={slashEnabled}
+        blockCommandsEnabled={slashEnabled}
+        snippetsEnabled={snippetsEnabled}
+        hasSnippets={hasSnippets}
+        projectId={activeProjectId ? (activeProjectId as Id<"projects">) : null}
         aiReady={aiReady}
         onAiAction={handleSlashAi}
       />
