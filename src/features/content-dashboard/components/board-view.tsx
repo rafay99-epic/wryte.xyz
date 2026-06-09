@@ -15,7 +15,7 @@ import {
 } from "@dnd-kit/core";
 import { useAction, useMutation } from "convex/react";
 import { Plus } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useMemo } from "react";
 import { toast } from "sonner";
 import { useShallow } from "zustand/react/shallow";
 import { Button } from "@/components/ui/button";
@@ -95,44 +95,6 @@ export function BoardView({
 
   const moveCard = useMutation(api.cms.documents.moveCard);
   const publishAction = useAction(api.integrations.github.publish);
-
-  // Let a vertical mouse wheel scroll the board horizontally (most people use a
-  // wheel mouse, which can't scroll sideways). We yield to a column that can
-  // still scroll vertically under the cursor, and only act when the board
-  // actually has horizontal overflow. Native non-passive listener so we can
-  // preventDefault (React's onWheel is passive).
-  const boardRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const board = boardRef.current;
-    if (!board) return;
-
-    const overCursorColumnScrolls = (target: EventTarget | null): boolean => {
-      let node = target instanceof Element ? target : null;
-      while (node && node !== board) {
-        const style = window.getComputedStyle(node);
-        if (
-          (style.overflowY === "auto" || style.overflowY === "scroll") &&
-          node.scrollHeight > node.clientHeight
-        ) {
-          return true;
-        }
-        node = node.parentElement;
-      }
-      return false;
-    };
-
-    const onWheel = (e: WheelEvent) => {
-      // Only redirect predominantly-vertical wheels.
-      if (e.deltaY === 0 || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
-      if (board.scrollWidth <= board.clientWidth) return;
-      if (overCursorColumnScrolls(e.target)) return;
-      board.scrollLeft += e.deltaY;
-      e.preventDefault();
-    };
-
-    board.addEventListener("wheel", onWheel, { passive: false });
-    return () => board.removeEventListener("wheel", onWheel);
-  }, []);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -345,10 +307,7 @@ export function BoardView({
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
     >
-      <div
-        ref={boardRef}
-        className="flex flex-col gap-4 pb-4 md:flex-row md:overflow-x-auto"
-      >
+      <div className="flex flex-col gap-4 pb-4 md:flex-row md:overflow-x-auto">
         {columns.map((col) => (
           <BoardColumn
             key={col.id}

@@ -791,6 +791,9 @@ const ENTRIES: SeedEntry[] = [
 - Snippets live in their own searchable, paginated table, so a project can hold **thousands** without slowing anything down — the \`/\` menu searches as you type and shows the top matches.
 - Has its own **on/off toggle** (off by default), independent of the readability and slash-command toggles.
 
+## Fixes
+- **Board scrolling** — the content board now scrolls naturally in every direction: vertical gestures scroll up/down and horizontal gestures (trackpad swipe, the bottom scrollbar, or Shift+wheel) scroll the board sideways. A previous build redirected vertical scrolling into horizontal, which broke up/down scrolling on trackpads.
+
 ## Under the hood
 - The snippet search query is gated so it only runs while the Snippets submenu is open (and is debounced) — a denormalized per-project count decides the submenu's visibility, so normal editing fires **zero extra queries**.
 - New standalone \`convex/cms/snippets.ts\` module (paginated list, full-text search, rate-limited create/update/remove) with a dedicated \`snippets\` table and \`search_name\` index.
