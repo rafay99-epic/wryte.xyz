@@ -1,6 +1,7 @@
 "use client";
 
 import { Filter, X } from "lucide-react";
+import { useShallow } from "zustand/react/shallow";
 import { getTagColor } from "@/lib/tag-colors";
 import { cn } from "@/lib/utils";
 import { useBoardStore } from "@/stores/board-store";
@@ -11,8 +12,15 @@ type TagFilterBarProps = {
 };
 
 export function TagFilterBar({ allTags }: TagFilterBarProps) {
-  const { activeTagFilters, toggleTagFilter, clearTagFilters } =
-    useBoardStore();
+  // Subscribe to only the slice this bar needs — a bare `useBoardStore()` would
+  // re-render on every board state change (drag, focus, dialog toggles).
+  const { activeTagFilters, toggleTagFilter, clearTagFilters } = useBoardStore(
+    useShallow((s) => ({
+      activeTagFilters: s.activeTagFilters,
+      toggleTagFilter: s.toggleTagFilter,
+      clearTagFilters: s.clearTagFilters,
+    })),
+  );
 
   if (allTags.length === 0) return null;
 

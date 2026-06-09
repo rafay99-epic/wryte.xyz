@@ -9,12 +9,11 @@ import {
   Loader2,
   PencilLine,
 } from "lucide-react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import ReactDiffViewer, {
-  type ReactDiffViewerStylesOverride,
-} from "react-diff-viewer-continued";
+import type { ReactDiffViewerStylesOverride } from "react-diff-viewer-continued";
 import { toast } from "sonner";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -23,6 +22,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
+
+// react-diff-viewer-continued is ~1.2 MB and only renders on this rarely-hit
+// conflict page — load it lazily so it never ships in the main app bundle.
+const ReactDiffViewer = dynamic(() => import("react-diff-viewer-continued"), {
+  ssr: false,
+  loading: () => <Skeleton className="h-64 w-full rounded-lg" />,
+});
 
 type ViewMode = "diff" | "merge";
 

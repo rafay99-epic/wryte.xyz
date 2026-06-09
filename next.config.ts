@@ -27,6 +27,12 @@ const buildSha =
 
 const nextConfig: NextConfig = {
   reactCompiler: true,
+  // Tree-shake barrel imports to per-module paths. `lucide-react` is already in
+  // Next's built-in default list; `framer-motion` is not, so we add it here
+  // (it's imported across ~80 files).
+  experimental: {
+    optimizePackageImports: ["framer-motion"],
+  },
   env: {
     NEXT_PUBLIC_APP_VERSION: packageJson.version,
     NEXT_PUBLIC_BUILD_NUMBER: buildNumber,

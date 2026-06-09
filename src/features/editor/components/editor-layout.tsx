@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "convex/react";
+import dynamic from "next/dynamic";
 import { useCallback, useRef } from "react";
 import { useEditorStore } from "@/stores/editor-store";
 import { api } from "../../../../convex/_generated/api";
@@ -10,10 +11,23 @@ import { EditorProvider } from "./editor-context";
 import { EditorToolbar } from "./editor-toolbar";
 import { FrontmatterEditor } from "./frontmatter-editor";
 import { MarkdownEditor } from "./markdown-editor";
-import { MarkdownPreview } from "./markdown-preview";
-import { MdxPreview } from "./mdx-preview";
 import { ReadabilityPanel } from "./readability-panel";
 import { ResearchPanel } from "./research-panel";
+
+// The previews pull heavy libraries — react-markdown + rehype/remark (~400 KB)
+// and @mdx-js/mdx (~370 KB). They only render in preview/split mode, so load
+// them lazily: edit mode (the default) never pays for them.
+const previewLoading = () => (
+  <div className="p-8 text-sm text-muted-foreground/50">Loading preview…</div>
+);
+const MarkdownPreview = dynamic(
+  () => import("./markdown-preview").then((m) => m.MarkdownPreview),
+  { ssr: false, loading: previewLoading },
+);
+const MdxPreview = dynamic(
+  () => import("./mdx-preview").then((m) => m.MdxPreview),
+  { ssr: false, loading: previewLoading },
+);
 
 type EditorLayoutProps = {
   documentId: string;

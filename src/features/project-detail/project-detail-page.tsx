@@ -137,10 +137,9 @@ export function ProjectDetailPage() {
     const items: ContentItem[] = [];
 
     for (const doc of documents ?? []) {
-      const excerpt =
-        doc.content.length > 200
-          ? `${doc.content.slice(0, 200)}...`
-          : doc.content;
+      // `excerpt` + `wordCount` are derived server-side now (the list query no
+      // longer ships full `content` — see convex/cms/documents.ts:list).
+      const excerpt = doc.excerpt;
       const hasGithubPath = Boolean(doc.githubPath);
       const isSynced =
         hasGithubPath &&
@@ -162,7 +161,7 @@ export function ProjectDetailPage() {
         excerpt,
         updatedAt: doc.updatedAt,
         tags: doc.tags ?? [],
-        wordCount: doc.content.split(/\s+/).filter(Boolean).length,
+        wordCount: doc.wordCount,
       };
       if (doc.boardPosition !== undefined) {
         item.boardPosition = doc.boardPosition;

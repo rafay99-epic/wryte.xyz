@@ -92,7 +92,23 @@ export const list = query({
         .take(500);
     }
 
-    return documents.sort((a, b) => b.updatedAt - a.updatedAt);
+    // Drop the big `content` blob from this hot reactive subscription — the
+    // board, sidebar, and header all subscribe at once, so without this an
+    // autosave on ANY doc re-pushes every full article body to every
+    // subscriber. We keep every other field (incl. the small `frontmatter`)
+    // and derive `excerpt` + `wordCount` server-side so the client still gets
+    // exactly what it renders, minus the heaviest payload.
+    return documents
+      .sort((a, b) => b.updatedAt - a.updatedAt)
+      .map((d) => {
+        const { content, ...rest } = d;
+        return {
+          ...rest,
+          wordCount: content.split(/\s+/).filter(Boolean).length,
+          excerpt:
+            content.length > 200 ? `${content.slice(0, 200)}...` : content,
+        };
+      });
   },
 });
 
@@ -121,10 +137,20 @@ export const listRecent = query({
           .withIndex("by_userId", (q) => q.eq("userId", user._id))
           .take(200);
 
+    // Metadata projection — consumers (command palette, dashboard recents) only
+    // render title/status/time, so never ship the full `content` blob (this
+    // reads up to 200 docs and would otherwise serialize all their bodies).
     return documents
       .filter((d) => d.trashedAt === undefined)
       .sort((a, b) => b.updatedAt - a.updatedAt)
-      .slice(0, limit);
+      .slice(0, limit)
+      .map((d) => ({
+        _id: d._id,
+        title: d.title,
+        status: d.status,
+        projectId: d.projectId,
+        updatedAt: d.updatedAt,
+      }));
   },
 });
 
