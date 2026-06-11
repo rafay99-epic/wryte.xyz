@@ -24,6 +24,7 @@ import {
   Strikethrough,
   Type,
   Undo2,
+  Video,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
@@ -47,6 +48,7 @@ import type { Id } from "../../../../convex/_generated/dataModel";
 import { AiEnhanceButton } from "./ai-enhance-button";
 import { useEditorContext } from "./editor-context";
 import { ImageInsertDialog } from "./image-insert-dialog";
+import { VideoInsertDialog } from "./video-insert-dialog";
 
 type EditorToolbarProps = {
   documentId: string;
@@ -94,6 +96,7 @@ export function EditorToolbar({
   const { insertAtCursor, wrapSelection } = useEditorContext();
 
   const [imageDialogOpen, setImageDialogOpen] = useState(false);
+  const [videoDialogOpen, setVideoDialogOpen] = useState(false);
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
 
   // Gate the AI Assistant pill: hide entirely until the project has a
@@ -148,8 +151,8 @@ export function EditorToolbar({
   function handleDivider() {
     insertAtCursor("\n---\n");
   }
-  function handleImageInsert(markdown: string) {
-    insertAtCursor(markdown);
+  function handleMediaInsert(markup: string) {
+    insertAtCursor(markup);
   }
 
   return (
@@ -284,6 +287,11 @@ export function EditorToolbar({
               tooltip="Image"
               onClick={() => setImageDialogOpen(true)}
             />
+            <ToolbarButton
+              icon={Video}
+              tooltip="Video"
+              onClick={() => setVideoDialogOpen(true)}
+            />
           </div>
         </TooltipProvider>
 
@@ -377,7 +385,15 @@ export function EditorToolbar({
       <ImageInsertDialog
         open={imageDialogOpen}
         onOpenChange={setImageDialogOpen}
-        onInsert={handleImageInsert}
+        onInsert={handleMediaInsert}
+        documentId={documentId}
+        projectId={projectId}
+      />
+
+      <VideoInsertDialog
+        open={videoDialogOpen}
+        onOpenChange={setVideoDialogOpen}
+        onInsert={handleMediaInsert}
         documentId={documentId}
         projectId={projectId}
       />

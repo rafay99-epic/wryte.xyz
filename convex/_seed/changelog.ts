@@ -817,6 +817,26 @@ const ENTRIES: SeedEntry[] = [
 No behavior changes — everything works exactly as before, just lighter and faster.
 `,
   },
+  {
+    title: "Video embeds",
+    slug: "v0-16-0-video-embeds",
+    description:
+      "Embed videos in your posts — pick from the media library, paste a hosted URL, or upload through your project's media provider, with playback right in the preview.",
+    version: "0.16.0",
+    build: "6f3f8b1",
+    publishedAt: Date.parse("2026-06-12T00:27:26+05:00"),
+    content: `## What's new
+
+- **Video embeds** — a new Video button in the editor toolbar (next to Image) opens a dialog with three ways in: pick a video from your project's media library, paste a hosted URL (UploadThing, Cloudinary, anywhere), or upload one through the project's configured media provider. Inserts a portable \`<video>\` tag that GitHub and most static-site renderers understand.
+- **\`/video\` slash command** — type \`/video\` to drop an embed skeleton at the cursor.
+- **Playback in preview** — both the Markdown and MDX previews now render embedded videos with controls, styled to match preview images.
+- **Video uploads** — \`mp4\`, \`webm\`, \`mov\`, and \`ogg\` files are accepted by the upload pipeline (up to the project upload limit; host larger files externally and embed by URL).
+
+## Under the hood
+
+- The Markdown preview now parses raw HTML (via \`rehype-raw\`) and sanitizes it — \`<video>\` is whitelisted with \`src\` restricted to http/https, and scripts or unknown tags are still stripped.
+`,
+  },
 ];
 
 export const seed = action({

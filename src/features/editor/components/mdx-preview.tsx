@@ -24,6 +24,7 @@ import * as runtime from "react/jsx-runtime";
 import rehypeHighlight from "rehype-highlight";
 import remarkGfm from "remark-gfm";
 import { useEditorStore } from "@/stores/editor-store";
+import { VideoEmbed } from "./video-embed";
 
 type MdxModule = { default: React.ComponentType };
 type MdxComponentProps = Record<string, unknown> & { children?: ReactNode };
@@ -102,6 +103,9 @@ function getPlaceholder(name: string): React.ComponentType<MdxComponentProps> {
 /* ------------------------------------------------------------------ */
 
 const baseComponents: Record<string, React.ComponentType<MdxComponentProps>> = {
+  video: (props: MdxComponentProps) => (
+    <VideoEmbed {...(props as React.VideoHTMLAttributes<HTMLVideoElement>)} />
+  ),
   img: ({ alt, src, ...props }: MdxComponentProps) => (
     // eslint-disable-next-line @next/next/no-img-element
     <img

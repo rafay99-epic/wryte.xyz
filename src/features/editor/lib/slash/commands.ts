@@ -13,8 +13,10 @@ import {
   Quote,
   Sparkles,
   Table,
+  Video,
 } from "lucide-react";
 import type { Snippet } from "@/types/snippets";
+import { videoEmbedMarkup } from "../video";
 
 /**
  * Slash-command registry (pure data). `block` commands insert a line-level
@@ -150,6 +152,15 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     icon: LinkIcon,
     kind: "inline",
     insert: "[text](url)",
+  },
+  {
+    id: "video",
+    label: "Video",
+    hint: "Embed a hosted video",
+    keywords: ["video", "embed", "mp4", "webm", "movie"],
+    icon: Video,
+    kind: "block",
+    insert: `${videoEmbedMarkup("url")}\n`,
   },
   {
     id: "ai",

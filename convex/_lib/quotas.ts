@@ -32,6 +32,13 @@ export const QUOTAS = {
     "image/webp",
     "image/gif",
     "image/avif",
+    // Video uploads still ride the MAX_UPLOAD_BYTES ceiling above (the
+    // Convex action arg cap) — larger files must be hosted externally and
+    // embedded by URL.
+    "video/mp4",
+    "video/webm",
+    "video/quicktime",
+    "video/ogg",
   ] as readonly string[],
 } as const;
 

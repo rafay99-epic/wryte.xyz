@@ -4,15 +4,20 @@ import { motion } from "framer-motion";
 import type { Components } from "react-markdown";
 import ReactMarkdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
+import rehypeRaw from "rehype-raw";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
 import { useEditorStore } from "@/stores/editor-store";
+import { VideoEmbed } from "./video-embed";
 
 /**
- * Extend the default sanitize schema to allow highlight.js class names.
+ * Extend the default sanitize schema to allow highlight.js class names and
+ * `<video>` embeds (raw HTML is parsed by rehype-raw, then sanitized here —
+ * `src` stays restricted to http/https by the default protocol rules).
  */
 const sanitizeSchema = {
   ...defaultSchema,
+  tagNames: [...(defaultSchema.tagNames ?? []), "video"],
   attributes: {
     ...defaultSchema.attributes,
     ["code"]: [
@@ -23,6 +28,18 @@ const sanitizeSchema = {
       ...(defaultSchema.attributes?.["span"] ?? []),
       ["className", /^hljs/],
     ],
+    ["video"]: [
+      "src",
+      "title",
+      "poster",
+      "controls",
+      "loop",
+      "muted",
+      "playsInline",
+      "preload",
+      "width",
+      "height",
+    ],
   },
 };
 
@@ -30,6 +47,7 @@ const sanitizeSchema = {
  * Custom component overrides for polished markdown rendering.
  */
 const components: Components = {
+  video: ({ node: _node, ...props }) => <VideoEmbed {...props} />,
   img: ({ alt, src, ...props }) => (
     // eslint-disable-next-line @next/next/no-img-element
     <img
@@ -140,7 +158,11 @@ export function MarkdownPreview() {
     <article className="prose prose-neutral dark:prose-invert max-w-none px-8 py-6 prose-headings:font-heading prose-headings:tracking-tight prose-headings:font-semibold prose-h1:text-[1.75rem] prose-h1:leading-tight prose-h2:text-[1.35rem] prose-h3:text-[1.15rem] prose-p:leading-[1.8] prose-p:text-foreground/90 prose-li:leading-[1.8] prose-pre:bg-transparent prose-pre:p-0 prose-pre:border-0 prose-img:rounded-xl prose-strong:text-foreground prose-strong:font-semibold">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
-        rehypePlugins={[[rehypeSanitize, sanitizeSchema], rehypeHighlight]}
+        rehypePlugins={[
+          rehypeRaw,
+          [rehypeSanitize, sanitizeSchema],
+          rehypeHighlight,
+        ]}
         components={components}
       >
         {content}
