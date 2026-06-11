@@ -337,6 +337,36 @@ export default defineSchema({
     .index("by_projectId", ["projectId"]),
 
   /**
+   * Shareable draft-preview links. The token is the secret: anyone with
+   * `{app-url}/preview/{token}` can read the document's live content
+   * (read-only) until the link is revoked. One active link per document.
+   */
+  share_links: defineTable({
+    documentId: v.id("documents"),
+    projectId: v.id("projects"),
+    userId: v.id("users"),
+    token: v.string(),
+    createdAt: v.number(),
+    revokedAt: v.optional(v.number()),
+  })
+    .index("by_token", ["token"])
+    .index("by_documentId", ["documentId"])
+    .index("by_projectId", ["projectId"]),
+
+  /**
+   * Idea inbox — lightweight per-project capture (a title and an optional
+   * note) for posts that aren't worth a full document yet. Converting an
+   * idea creates a draft document and deletes the idea row.
+   */
+  ideas: defineTable({
+    projectId: v.id("projects"),
+    userId: v.id("users"),
+    title: v.string(),
+    note: v.optional(v.string()),
+    createdAt: v.number(),
+  }).index("by_projectId", ["projectId"]),
+
+  /**
    * Research/context notes attached to a document. `selectedForAi` lets the
    * editor build a deliberate context packet without sending every note.
    */

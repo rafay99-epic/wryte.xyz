@@ -11,6 +11,7 @@ import {
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
+import { useMutation } from "convex/react";
 import { AnimatePresence } from "framer-motion";
 import { useCallback, useMemo } from "react";
 import { toast } from "sonner";
@@ -19,10 +20,13 @@ import {
   formatLocalDate,
   getPartsInTimezone,
   resolveTimezone,
+  zonedTimeToUtc,
 } from "@/lib/timezone";
 import type { CalendarDoc } from "@/stores/calendar-store";
 import { useCalendarStore } from "@/stores/calendar-store";
 import type { BoardColumnDef } from "@/types/board";
+import { api } from "../../../../convex/_generated/api";
+import type { Id } from "../../../../convex/_generated/dataModel";
 import { CalendarDocCard } from "./calendar-doc-card";
 import { CalendarGrid } from "./calendar-grid";
 import { ScheduleTimePopover } from "./schedule-time-popover";
@@ -45,6 +49,7 @@ export function CalendarView({
   const resolvedTimezone = resolveTimezone(timezone);
   const { activeDocument, setActiveDocument, setPendingDrop, pendingDrop } =
     useCalendarStore();
+  const schedulePublish = useMutation(api.integrations.scheduling.schedule);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -140,13 +145,53 @@ export function CalendarView({
 
       if (doc.scheduledAt) {
         const parts = getPartsInTimezone(doc.scheduledAt, resolvedTimezone);
+
+        // Already-scheduled docs reschedule instantly on drop, keeping
+        // their time of day — no confirm popover. The popover only takes
+        // over when the preserved time would land in the past (e.g.
+        // dragging onto today after that hour), where a new time is
+        // genuinely needed.
+        const timestamp = zonedTimeToUtc(
+          targetDate.getFullYear(),
+          targetDate.getMonth() + 1,
+          targetDate.getDate(),
+          parts.hour,
+          parts.minute,
+          resolvedTimezone,
+        );
+        if (timestamp > Date.now()) {
+          void schedulePublish({
+            documentId: doc._id as Id<"documents">,
+            scheduledAt: timestamp,
+          })
+            .then(() => {
+              toast.success("Rescheduled", {
+                description: new Date(timestamp).toLocaleString(undefined, {
+                  weekday: "short",
+                  month: "short",
+                  day: "numeric",
+                  hour: "numeric",
+                  minute: "2-digit",
+                  hour12: true,
+                  timeZone: resolvedTimezone,
+                }),
+              });
+            })
+            .catch(() => {
+              toast.error("Couldn't reschedule this article", {
+                description: "Something went wrong. Please try again.",
+              });
+            });
+          return;
+        }
+
         pendingDropData.existingHour = parts.hour;
         pendingDropData.existingMinute = parts.minute;
       }
 
       setPendingDrop(pendingDropData);
     },
-    [setActiveDocument, setPendingDrop, resolvedTimezone],
+    [setActiveDocument, setPendingDrop, resolvedTimezone, schedulePublish],
   );
 
   return (

@@ -20,6 +20,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { fadeSlideUp, smoothTransition } from "@/lib/motion";
 import { useEditorStore } from "@/stores/editor-store";
 import { ActivityChart } from "./components/activity-chart";
+import { ActivityHeatmap } from "./components/activity-heatmap";
 import { RecentDocsList } from "./components/recent-docs-list";
 import { ShortcutsPanel } from "./components/shortcuts-panel";
 import { StatPill } from "./components/stat-pill";
@@ -214,6 +215,18 @@ export function DashboardPage() {
                 data={dashStats.recentActivity}
                 dailyWordGoal={dashStats.dailyWordGoal}
               />
+            </motion.div>
+          )}
+
+          {dashStats && dashStats.recentActivity.length > 0 && (
+            <motion.div
+              variants={fadeSlideUp}
+              initial="initial"
+              animate="animate"
+              transition={{ ...smoothTransition, delay: 0.11 }}
+              className="rounded-xl border border-border/30 bg-card/50 px-5 py-4"
+            >
+              <ActivityHeatmap data={dashStats.recentActivity} />
             </motion.div>
           )}
 

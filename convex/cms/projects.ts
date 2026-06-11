@@ -684,6 +684,30 @@ export const _wipeProjectChunk = internalMutation({
       }
     }
 
+    /* 4c. ideas */
+    if (budget > 0) {
+      const rows = await ctx.db
+        .query("ideas")
+        .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
+        .take(budget);
+      for (const row of rows) {
+        await ctx.db.delete(row._id);
+        budget--;
+      }
+    }
+
+    /* 4d. share_links */
+    if (budget > 0) {
+      const rows = await ctx.db
+        .query("share_links")
+        .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
+        .take(budget);
+      for (const row of rows) {
+        await ctx.db.delete(row._id);
+        budget--;
+      }
+    }
+
     /* 5. media (+ legacy storage blobs) */
     if (budget > 0) {
       const rows = await ctx.db
@@ -946,6 +970,14 @@ async function countProjectRemaining(
       .take(1),
     ctx.db
       .query("document_snapshots")
+      .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+      .take(1),
+    ctx.db
+      .query("ideas")
+      .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+      .take(1),
+    ctx.db
+      .query("share_links")
       .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
       .take(1),
     ctx.db

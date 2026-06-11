@@ -232,6 +232,29 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     rate: 10,
     period: MINUTE,
   },
+  /** Share links — deliberate one-off actions. */
+  "shareLinks:create": {
+    kind: "fixed window",
+    rate: 20,
+    period: MINUTE,
+  },
+  "shareLinks:revoke": {
+    kind: "fixed window",
+    rate: 20,
+    period: MINUTE,
+  },
+  /** Idea inbox — quick captures, deliberate but possibly rapid-fire. */
+  "ideas:create": {
+    kind: "token bucket",
+    rate: 30,
+    period: MINUTE,
+    capacity: 10,
+  },
+  "ideas:remove": {
+    kind: "fixed window",
+    rate: 30,
+    period: MINUTE,
+  },
   "documentResearch:create": {
     kind: "token bucket",
     rate: 60,
@@ -436,6 +459,20 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     kind: "fixed window",
     rate: 30,
     period: MINUTE,
+  },
+
+  /* ------------------------------------------------------------------ */
+  /*  Project tools                                                      */
+  /* ------------------------------------------------------------------ */
+
+  /**
+   * On-demand link checker — fans out HTTP requests, so deliberately
+   * tight. Strictly user-initiated (no cron).
+   */
+  "tools:linkCheck": {
+    kind: "fixed window",
+    rate: 6,
+    period: HOUR,
   },
 
   /* ------------------------------------------------------------------ */

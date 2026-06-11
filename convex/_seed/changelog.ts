@@ -880,6 +880,30 @@ No behavior changes — everything works exactly as before, just lighter and fas
 - Snapshots, the selection toolbar toggle, and the editor-stats query all follow the function-budget rules: deduped writes, queries gated on visible UI, no per-keystroke calls.
 `,
   },
+  {
+    title: "Share previews, project tools & planning upgrades",
+    slug: "v0-19-0-share-previews-and-tools",
+    description:
+      "Share read-only draft previews with anyone, export your whole project as markdown, hunt down dead links, capture ideas, drag posts across the calendar, and watch your writing streak fill in a heatmap.",
+    version: "0.19.0",
+    build: "2b6616e",
+    publishedAt: Date.parse("2026-06-12T02:35:40+05:00"),
+    content: `## What's new
+
+- **Shareable draft previews** — a new Share button in the editor header creates a read-only preview link on your app's own URL (\`/preview/…\`). Anyone with the link sees the latest saved draft — no account needed — and you can revoke it at any time. Preview pages are hidden from search engines.
+- **Project export** — Settings → Tools → "Export all articles" downloads your entire project as a zip of markdown files with YAML frontmatter. Your content is never locked in.
+- **Link checker** — also in Tools: one click probes every external link across your articles and reports the dead ones, with jump-links to the affected posts. Strictly on-demand — it never runs in the background.
+- **Idea inbox** — capture post ideas on the project overview with a single keystroke, and convert one into a ready-to-write draft (slug + frontmatter included) when its time comes.
+- **Instant calendar rescheduling** — drag an already-scheduled post to another day and it reschedules immediately, keeping its publish time. The time picker now only appears when it's actually needed.
+- **Writing heatmap** — a GitHub-style activity grid on the dashboard. Activity history now spans 12 weeks (up from 30 days), so the heatmap fills in as you write.
+
+## Under the hood
+
+- New \`share_links\` and \`ideas\` tables, both wired into project-deletion cleanup; preview pages resolve tokens through a single public query.
+- Export walks documents in pages of 50 via one-shot queries and zips client-side — nothing reactive, only paid on click.
+- The link checker is a single rate-limited action with a bounded worker pool (8 parallel probes, HEAD-with-GET-fallback, private hosts skipped, 150-link cap reported rather than silently truncated).
+`,
+  },
 ];
 
 export const seed = action({

@@ -14,6 +14,7 @@ import {
   Maximize2,
   PanelLeftClose,
   PanelLeftOpen,
+  Share2,
   Star,
   Trash2,
 } from "lucide-react";
@@ -38,6 +39,7 @@ import {
 import { DeleteDocumentDialog } from "@/features/content-dashboard/components/delete-document-dialog";
 import { PublishDialog } from "@/features/editor/components/publish-dialog";
 import { ScheduleDialog } from "@/features/editor/components/schedule-dialog";
+import { ShareLinkDialog } from "@/features/editor/components/share-link-dialog";
 import { getColorClasses } from "@/lib/board-colors";
 import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/stores/editor-store";
@@ -58,6 +60,7 @@ export function AppHeader() {
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
 
   const {
     title,
@@ -510,6 +513,23 @@ export function AppHeader() {
               </DropdownMenu>
             )}
 
+            {/* Share preview link */}
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => setShareOpen(true)}
+                    className="text-muted-foreground hover:text-foreground"
+                  />
+                }
+              >
+                <Share2 className="size-3.5" />
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Share preview</TooltipContent>
+            </Tooltip>
+
             {/* Schedule */}
             <Tooltip>
               <TooltipTrigger
@@ -555,6 +575,12 @@ export function AppHeader() {
             >
               <span className="text-xs">Publish</span>
             </Button>
+
+            <ShareLinkDialog
+              open={shareOpen}
+              onOpenChange={setShareOpen}
+              documentId={documentId}
+            />
 
             <ScheduleDialog
               open={scheduleOpen}

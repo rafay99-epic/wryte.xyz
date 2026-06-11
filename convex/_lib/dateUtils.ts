@@ -24,6 +24,13 @@ export function yesterdayStr(todayYMD: string): string {
   return d.toISOString().slice(0, 10);
 }
 
+/**
+ * Days of per-day word activity retained on `writing_stats.recentActivity`.
+ * 12 weeks feeds the dashboard heatmap; the 30-day bar chart slices what
+ * it needs. Still one small array on one row — no extra reads or writes.
+ */
+export const RECENT_ACTIVITY_DAYS = 84;
+
 export function updateRecentActivity(
   existing: Array<{ date: string; words: number }>,
   todayStr: string,
@@ -37,6 +44,8 @@ export function updateRecentActivity(
     copy.push({ date: todayStr, words: Math.max(0, delta) });
   }
   copy.sort((a, b) => a.date.localeCompare(b.date));
-  if (copy.length > 30) copy.splice(0, copy.length - 30);
+  if (copy.length > RECENT_ACTIVITY_DAYS) {
+    copy.splice(0, copy.length - RECENT_ACTIVITY_DAYS);
+  }
   return copy;
 }

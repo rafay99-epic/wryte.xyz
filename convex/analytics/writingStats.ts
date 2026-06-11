@@ -5,6 +5,7 @@ import { getAuthedUserOrNull, getCurrentUser } from "../_lib/auth";
 import {
   dateInTimezone,
   isValidTimezone,
+  RECENT_ACTIVITY_DAYS,
   updateRecentActivity,
   yesterdayStr,
 } from "../_lib/dateUtils";
@@ -576,14 +577,14 @@ export const _dailyMaintenance = internalMutation({
   args: {},
   handler: async (ctx) => {
     const now = Date.now();
-    const cutoff30 = new Date(now - 30 * 24 * 60 * 60 * 1000)
+    const cutoff = new Date(now - RECENT_ACTIVITY_DAYS * 24 * 60 * 60 * 1000)
       .toISOString()
       .slice(0, 10);
 
     const allStats = await ctx.db.query("writing_stats").take(1000);
     let updated = 0;
     for (const row of allStats) {
-      const pruned = row.recentActivity.filter((e) => e.date >= cutoff30);
+      const pruned = row.recentActivity.filter((e) => e.date >= cutoff);
       if (pruned.length !== row.recentActivity.length) {
         await ctx.db.patch(row._id, {
           recentActivity: pruned,

@@ -24,6 +24,7 @@ import { UpcomingSchedule } from "@/features/dashboard/components/upcoming-sched
 import { fadeSlideUp, smoothTransition } from "@/lib/motion";
 import { useEditorStore } from "@/stores/editor-store";
 import type { Id } from "../../../convex/_generated/dataModel";
+import { IdeasPanel } from "./components/ideas-panel";
 import { StatusDistribution } from "./components/status-distribution";
 import { useProjectDashboard } from "./hooks/use-project-dashboard";
 
@@ -241,6 +242,7 @@ export function ProjectDashboardPage() {
           transition={{ ...smoothTransition, delay: 0.15 }}
           className="space-y-5"
         >
+          <IdeasPanel projectId={projectId} />
           <ShortcutsPanel />
         </motion.div>
       </div>

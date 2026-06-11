@@ -183,6 +183,81 @@ export const searchForLink = query({
   },
 });
 
+/**
+ * Paginated full-content feed for the one-shot project export in
+ * settings. Unlike `list` this DOES ship content + frontmatter — callers
+ * walk pages imperatively (no reactive subscription), so the payload is
+ * only ever paid when the user clicks Export.
+ */
+export const listForExport = query({
+  args: {
+    projectId: v.id("projects"),
+    paginationOpts: paginationOptsValidator,
+  },
+  handler: async (ctx, args) => {
+    const empty = { page: [], isDone: true, continueCursor: "" };
+    const user = await getAuthedUserOrNull(ctx);
+    if (!user) return empty;
+
+    const project = await ctx.db.get(args.projectId);
+    if (!project || project.userId !== user._id) return empty;
+
+    const result = await ctx.db
+      .query("documents")
+      .withIndex("by_projectId_and_trashedAt", (q) =>
+        q.eq("projectId", args.projectId).eq("trashedAt", undefined),
+      )
+      .paginate(args.paginationOpts);
+
+    return {
+      ...result,
+      page: result.page.map((doc) => ({
+        _id: doc._id,
+        title: doc.title,
+        slug: doc.slug,
+        status: doc.status,
+        content: doc.content,
+        frontmatter: doc.frontmatter ?? null,
+        updatedAt: doc.updatedAt,
+      })),
+    };
+  },
+});
+
+/**
+ * Documents for the on-demand link checker action — ownership verified
+ * via tokenIdentifier since actions can't touch the DB directly.
+ */
+export const _listForLinkCheck = internalQuery({
+  args: {
+    tokenIdentifier: v.string(),
+    projectId: v.id("projects"),
+  },
+  handler: async (ctx, args) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_tokenIdentifier", (q) =>
+        q.eq("tokenIdentifier", args.tokenIdentifier),
+      )
+      .unique();
+    if (!user) return null;
+    const project = await ctx.db.get(args.projectId);
+    if (!project || project.userId !== user._id) return null;
+
+    const docs = await ctx.db
+      .query("documents")
+      .withIndex("by_projectId_and_trashedAt", (q) =>
+        q.eq("projectId", args.projectId).eq("trashedAt", undefined),
+      )
+      .take(500);
+    return docs.map((doc) => ({
+      _id: doc._id,
+      title: doc.title,
+      content: doc.content,
+    }));
+  },
+});
+
 /** Returns the N most recently updated documents, optionally scoped to a project. */
 export const listRecent = query({
   args: {

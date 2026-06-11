@@ -8,6 +8,7 @@ import {
   Settings2,
   Share2,
   Sparkles,
+  Wrench,
 } from "lucide-react";
 import type { CompressionSettings } from "@/lib/image-compression";
 import type { AiProvider } from "@/types/ai";
@@ -101,7 +102,8 @@ export type SettingsTab =
   | "media"
   | "ai"
   | "editor"
-  | "social";
+  | "social"
+  | "tools";
 
 export const TABS: {
   id: SettingsTab;
@@ -117,6 +119,7 @@ export const TABS: {
   { id: "ai", label: "AI", icon: Sparkles },
   { id: "editor", label: "Editor", icon: PenLine },
   { id: "social", label: "Social", icon: Share2 },
+  { id: "tools", label: "Tools", icon: Wrench },
 ];
 
 export const UPLOAD_POST_PLATFORMS = [
