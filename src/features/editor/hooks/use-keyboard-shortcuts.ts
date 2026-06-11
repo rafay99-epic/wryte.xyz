@@ -1,5 +1,6 @@
 import { type RefObject, useEffect, useRef } from "react";
 import { useShortcutsStore } from "@/stores/shortcuts-store";
+import { listEnterAction, listIndentAction } from "../lib/lists";
 
 /** Callback map for notifying the parent component when a shortcut fires. */
 type KeyboardShortcutCallbacks = {
@@ -76,7 +77,9 @@ function matchesBinding(event: KeyboardEvent, binding: string): boolean {
  * - **Ctrl+K** — Link: wraps selection in `[text](url)` (defaults to "link" if nothing selected)
  * - **Ctrl+Shift+K** — Code block: wraps selection in fenced triple-backtick block
  * - **Configurable** — Inline AI: transform selected text with custom prompt (default Mod+J)
- * - **Tab** — Inserts two spaces (soft indent) instead of moving focus
+ * - **Enter** — Continues markdown lists/quotes/checkboxes (incrementing numbers);
+ *   on an empty item, removes the marker instead
+ * - **Tab / Shift+Tab** — Indent/outdent list lines; otherwise Tab inserts two spaces
  *
  * Each shortcut also fires the corresponding callback so the parent can
  * run side-effects (e.g. analytics, toast notifications).
@@ -178,6 +181,74 @@ export function useKeyboardShortcuts(
         event.preventDefault();
         cb.onInlineAI();
         return;
+      }
+
+      // --- Enter: continue markdown lists / quotes / checkboxes ---
+      // Skipped when the slash menu already consumed the key (it listens in
+      // the capture phase and calls preventDefault), during IME composition,
+      // and when a range is selected (Enter should just replace it).
+      if (
+        event.key === "Enter" &&
+        !isCtrl &&
+        !event.shiftKey &&
+        !event.altKey &&
+        !event.defaultPrevented &&
+        !event.isComposing &&
+        target.selectionStart === target.selectionEnd
+      ) {
+        const action = listEnterAction(target.value, target.selectionStart);
+        if (action) {
+          event.preventDefault();
+          if (action.type === "continue") {
+            target.setRangeText(
+              action.insert,
+              target.selectionStart,
+              target.selectionStart,
+              "end",
+            );
+          } else {
+            target.setRangeText("", action.start, action.end, "end");
+          }
+          target.dispatchEvent(new Event("input", { bubbles: true }));
+          return;
+        }
+      }
+
+      // --- Tab / Shift+Tab: indent or outdent list lines ---
+      if (
+        event.key === "Tab" &&
+        !isCtrl &&
+        !event.altKey &&
+        !event.defaultPrevented &&
+        target.selectionStart === target.selectionEnd
+      ) {
+        const action = listIndentAction(
+          target.value,
+          target.selectionStart,
+          event.shiftKey,
+        );
+        if (action) {
+          event.preventDefault();
+          if (action.insert !== undefined) {
+            // "preserve" shifts the caret by the inserted length since the
+            // edit happens before it on the same line.
+            target.setRangeText(
+              action.insert,
+              action.lineStart,
+              action.lineStart,
+              "preserve",
+            );
+          } else if (action.remove !== undefined) {
+            target.setRangeText(
+              "",
+              action.lineStart,
+              action.lineStart + action.remove,
+              "preserve",
+            );
+          }
+          target.dispatchEvent(new Event("input", { bubbles: true }));
+          return;
+        }
       }
 
       // --- Tab: Soft indent (2 spaces) instead of default focus-switch ---

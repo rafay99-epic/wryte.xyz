@@ -837,6 +837,25 @@ No behavior changes — everything works exactly as before, just lighter and fas
 - The Markdown preview now parses raw HTML (via \`rehype-raw\`) and sanitizes it — \`<video>\` is whitelisted with \`src\` restricted to http/https, and scripts or unknown tags are still stripped.
 `,
   },
+  {
+    title: "Faster writing: paste uploads, smart lists, find & replace",
+    slug: "v0-17-0-editor-workflow",
+    description:
+      "A batch of editor workflow upgrades — paste or drop media to upload, lists that continue themselves, find & replace, a document outline, media slash commands, and a decluttered toolbar.",
+    version: "0.17.0",
+    build: "b1c241e",
+    publishedAt: Date.parse("2026-06-12T00:48:43+05:00"),
+    content: `## What's new
+
+- **Paste & drop to upload** — paste a screenshot (or drop an image/video file) straight into the editor. It uploads through your project's media provider and inserts the markup at the cursor, with a placeholder while the upload runs. Images respect your compression settings.
+- **Smart lists** — Enter continues bullets, numbered lists (auto-incrementing), checkboxes, and quotes; Enter on an empty item exits the list; Tab / Shift+Tab indent and outdent list lines.
+- **Paste a link onto text** — select a word, paste a URL, get a markdown link.
+- **Find & replace** — \`Ctrl/Cmd+F\` opens a floating bar with live match count, next/previous, case toggle, replace one, or replace all.
+- **Outline panel** — the heading tree of your draft in a side panel; click any heading to jump there.
+- **\`/image\` and \`/video\` slash commands** — both open the full insert dialog (library / URL / upload) right at the caret, and they work in focus mode too.
+- **Decluttered toolbar** — lists, quote, divider, code, link, image, and video moved into a single Insert menu; the side-panel toggles became compact icon buttons. Everything is still one click away, with a lot less noise.
+`,
+  },
 ];
 
 export const seed = action({

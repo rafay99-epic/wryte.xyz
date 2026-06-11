@@ -14,6 +14,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
+import { useEditorStore } from "@/stores/editor-store";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
 import { useSlashMenu } from "../hooks/use-slash-menu";
@@ -193,6 +194,13 @@ export const SlashMenu = memo(function SlashMenu({
       if (cmd.kind === "ai") {
         replaceRange(m.queryStart, m.caretIndex, "");
         onAiAction(m.queryStart);
+      } else if (cmd.kind === "image" || cmd.kind === "video") {
+        // Remove the trigger text, then open the media dialog — it inserts
+        // at the caret (which now sits where the `/` was) on confirm.
+        replaceRange(m.queryStart, m.caretIndex, "");
+        const store = useEditorStore.getState();
+        if (cmd.kind === "image") store.setImageDialogOpen(true);
+        else store.setVideoDialogOpen(true);
       } else if (cmd.kind === "block" || cmd.kind === "snippet") {
         // Block-level content: drop a leading newline when not at line start.
         const needsNewline =

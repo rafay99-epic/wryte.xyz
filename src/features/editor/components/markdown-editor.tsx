@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useShallow } from "zustand/react/shallow";
 import { useKeyboardShortcuts } from "@/features/editor/hooks/use-keyboard-shortcuts";
+import { useMediaPaste } from "@/features/editor/hooks/use-media-paste";
 import { splitShortcutKeys } from "@/lib/shortcuts";
 import { useEditorStore } from "@/stores/editor-store";
 import { useShortcutsStore } from "@/stores/shortcuts-store";
@@ -22,10 +23,14 @@ import { SlashMenu } from "./slash-menu";
  * - Cmd+J inline AI enhancement for selected text
  */
 export function MarkdownEditor({
+  documentId,
+  projectId,
   slashEnabled = false,
   snippetsEnabled = false,
   hasSnippets = false,
 }: {
+  documentId: string;
+  projectId: string;
   slashEnabled?: boolean;
   snippetsEnabled?: boolean;
   hasSnippets?: boolean;
@@ -117,6 +122,9 @@ export function MarkdownEditor({
     onCodeBlock,
     onInlineAI,
   });
+
+  // Paste/drop media upload + paste-URL-over-selection linking.
+  useMediaPaste({ documentId, projectId });
 
   // Tracks the last content value that came from a textarea input event.
   // The sync effect compares against this so it can distinguish "store

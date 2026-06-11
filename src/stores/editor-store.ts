@@ -25,6 +25,10 @@ type EditorState = {
   activeDraftId: string | null;
   researchPanelOpen: boolean;
   readabilityPanelOpen: boolean;
+  outlinePanelOpen: boolean;
+  findReplaceOpen: boolean;
+  imageDialogOpen: boolean;
+  videoDialogOpen: boolean;
 
   setContent: (content: string) => void;
   setTitle: (title: string) => void;
@@ -39,6 +43,10 @@ type EditorState = {
   setActiveDraftId: (id: string | null) => void;
   toggleResearchPanel: () => void;
   toggleReadabilityPanel: () => void;
+  toggleOutlinePanel: () => void;
+  setFindReplaceOpen: (open: boolean) => void;
+  setImageDialogOpen: (open: boolean) => void;
+  setVideoDialogOpen: (open: boolean) => void;
   reset: () => void;
 };
 
@@ -57,6 +65,10 @@ const initialState = {
   activeDraftId: null as string | null,
   researchPanelOpen: false,
   readabilityPanelOpen: false,
+  outlinePanelOpen: false,
+  findReplaceOpen: false,
+  imageDialogOpen: false,
+  videoDialogOpen: false,
 };
 
 /**
@@ -130,6 +142,15 @@ export const useEditorStore = create<EditorState>()((set) => ({
 
   toggleReadabilityPanel: () =>
     set((state) => ({ readabilityPanelOpen: !state.readabilityPanelOpen })),
+
+  toggleOutlinePanel: () =>
+    set((state) => ({ outlinePanelOpen: !state.outlinePanelOpen })),
+
+  setFindReplaceOpen: (open) => set({ findReplaceOpen: open }),
+
+  setImageDialogOpen: (open) => set({ imageDialogOpen: open }),
+
+  setVideoDialogOpen: (open) => set({ videoDialogOpen: open }),
 
   reset: () => set(initialState),
 }));

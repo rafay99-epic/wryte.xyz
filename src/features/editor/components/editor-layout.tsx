@@ -8,9 +8,12 @@ import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
 import { DraftTabBar } from "./draft-tab-bar";
 import { EditorProvider } from "./editor-context";
+import { EditorMediaDialogs } from "./editor-media-dialogs";
 import { EditorToolbar } from "./editor-toolbar";
+import { FindReplaceBar } from "./find-replace-bar";
 import { FrontmatterEditor } from "./frontmatter-editor";
 import { MarkdownEditor } from "./markdown-editor";
+import { OutlinePanel } from "./outline-panel";
 import { ReadabilityPanel } from "./readability-panel";
 import { ResearchPanel } from "./research-panel";
 
@@ -69,6 +72,10 @@ export function EditorLayout({
   const toggleReadabilityPanel = useEditorStore(
     (state) => state.toggleReadabilityPanel,
   );
+  const outlinePanelOpen = useEditorStore((state) => state.outlinePanelOpen);
+  const toggleOutlinePanel = useEditorStore(
+    (state) => state.toggleOutlinePanel,
+  );
   const previewRef = useRef<HTMLDivElement>(null);
   // Ref to the editor pane so the preview→editor sync doesn't have to call
   // querySelector on every scroll event (which fires at the refresh rate of
@@ -116,10 +123,10 @@ export function EditorLayout({
 
   return (
     <EditorProvider>
+      <EditorMediaDialogs documentId={documentId} projectId={projectId} />
       <div className="flex h-full flex-col">
         {!focusMode && (
           <EditorToolbar
-            documentId={documentId}
             projectId={projectId}
             readabilityEnabled={readabilityEnabled}
           />
@@ -136,13 +143,16 @@ export function EditorLayout({
         )}
 
         <div className="flex min-h-0 flex-1">
-          <div className="flex min-w-0 flex-1 flex-col">
+          <div className="relative flex min-w-0 flex-1 flex-col">
+            <FindReplaceBar />
             {viewMode === "edit" && (
               <div
                 key="edit"
                 className="editor-pane-enter h-full w-full overflow-y-auto slim-scrollbar"
               >
                 <MarkdownEditor
+                  documentId={documentId}
+                  projectId={projectId}
                   slashEnabled={slashEnabled}
                   snippetsEnabled={snippetsEnabled}
                   hasSnippets={hasSnippets}
@@ -170,6 +180,8 @@ export function EditorLayout({
                   onScroll={handleEditorScroll}
                 >
                   <MarkdownEditor
+                    documentId={documentId}
+                    projectId={projectId}
                     slashEnabled={slashEnabled}
                     snippetsEnabled={snippetsEnabled}
                     hasSnippets={hasSnippets}
@@ -188,6 +200,8 @@ export function EditorLayout({
               </div>
             )}
           </div>
+
+          <OutlinePanel open={outlinePanelOpen} onClose={toggleOutlinePanel} />
 
           <ResearchPanel
             documentId={documentId}

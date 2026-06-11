@@ -4,6 +4,7 @@ import {
   Heading1,
   Heading2,
   Heading3,
+  ImagePlus,
   Library,
   Link as LinkIcon,
   List,
@@ -16,21 +17,23 @@ import {
   Video,
 } from "lucide-react";
 import type { Snippet } from "@/types/snippets";
-import { videoEmbedMarkup } from "../video";
 
 /**
  * Slash-command registry (pure data). `block` commands insert a line-level
  * marker (a leading newline is added by the menu when not already at line
  * start); `inline` inserts at the caret; `ai` opens the existing inline-AI
- * flow at the caret instead of inserting text; `snippet` pastes a reusable
- * block (treated like `block` for newline handling); `submenu` drills into a
- * nested list instead of inserting anything.
+ * flow at the caret instead of inserting text; `image`/`video` open the
+ * media insert dialogs (library / URL / upload) at the caret; `snippet`
+ * pastes a reusable block (treated like `block` for newline handling);
+ * `submenu` drills into a nested list instead of inserting anything.
  */
 
 export type SlashCommandKind =
   | "block"
   | "inline"
   | "ai"
+  | "image"
+  | "video"
   | "snippet"
   | "submenu";
 
@@ -154,13 +157,20 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     insert: "[text](url)",
   },
   {
+    id: "image",
+    label: "Image",
+    hint: "Library, URL, or upload",
+    keywords: ["image", "img", "photo", "picture", "media", "upload"],
+    icon: ImagePlus,
+    kind: "image",
+  },
+  {
     id: "video",
     label: "Video",
-    hint: "Embed a hosted video",
+    hint: "Library, URL, or upload",
     keywords: ["video", "embed", "mp4", "webm", "movie"],
     icon: Video,
-    kind: "block",
-    insert: `${videoEmbedMarkup("url")}\n`,
+    kind: "video",
   },
   {
     id: "ai",
