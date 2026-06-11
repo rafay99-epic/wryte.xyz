@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { Bold, Italic, Link, type LucideIcon, Sparkles } from "lucide-react";
-import { memo, useEffect, useState } from "react";
+import { memo, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 import { caretRect } from "../lib/caret/textarea-caret";
@@ -56,10 +56,28 @@ export const SelectionToolbar = memo(function SelectionToolbar({
   onAiAction,
 }: SelectionToolbarProps) {
   const { textareaRef, wrapSelection } = useEditorContext();
+  // `anchorX` is the point the toolbar centers itself on; the final left
+  // is computed after render from the toolbar's measured width.
   const [position, setPosition] = useState<{
     top: number;
-    left: number;
+    anchorX: number;
   } | null>(null);
+  const barRef = useRef<HTMLDivElement>(null);
+
+  // Center on the anchor and clamp to the viewport using the REAL width —
+  // the toolbar varies (AI buttons present or not, label lengths), so a
+  // fixed-width clamp either clips it or leaves it hugging an edge.
+  // Layout effect: runs before paint, so no visible jump.
+  useLayoutEffect(() => {
+    const el = barRef.current;
+    if (!el || !position) return;
+    const width = el.offsetWidth;
+    const left = Math.min(
+      Math.max(8, position.anchorX - width / 2),
+      window.innerWidth - width - 8,
+    );
+    el.style.left = `${left}px`;
+  }, [position]);
 
   useEffect(() => {
     const textarea = textareaRef.current;
@@ -75,18 +93,28 @@ export const SelectionToolbar = memo(function SelectionToolbar({
       if (document.activeElement !== textarea) return hide();
       const { selectionStart, selectionEnd } = textarea;
       if (selectionStart === selectionEnd) return hide();
-      const rect = caretRect(textarea, selectionStart);
-      if (!rect) return hide();
+      const startRect = caretRect(textarea, selectionStart);
+      const endRect = caretRect(textarea, selectionEnd);
+      if (!startRect || !endRect) return hide();
       const taRect = textarea.getBoundingClientRect();
-      const top = taRect.top + rect.top;
+
+      // Single-line selection → center between its ends. Multi-line →
+      // center on the text column, which reads as "above this passage"
+      // instead of jumping to wherever the drag happened to start.
+      const sameLine = Math.abs(endRect.top - startRect.top) < 1;
+      const anchorX = sameLine
+        ? taRect.left + (startRect.left + endRect.left) / 2
+        : taRect.left + taRect.width / 2;
+
+      const top = taRect.top + startRect.top;
       setPosition({
         // Above the selection's first line; below it when too close to the
         // viewport top.
         top:
           top - TOOLBAR_HEIGHT - 8 > 8
             ? top - TOOLBAR_HEIGHT - 8
-            : top + rect.height + 8,
-        left: taRect.left + rect.left,
+            : top + startRect.height + 8,
+        anchorX,
       });
     };
 
@@ -111,6 +139,15 @@ export const SelectionToolbar = memo(function SelectionToolbar({
       hide();
     };
 
+    // Trigger set: the textarea's native `select` event is the reliable
+    // signal for selections inside a text control (document-level
+    // `selectionchange` is NOT guaranteed to fire for textareas in every
+    // Chromium build). `mouseup`/`keyup` re-evaluate after clicks and
+    // Shift+Arrow changes — including collapses, which `select` never
+    // reports. `selectionchange` stays as a best-effort extra.
+    textarea.addEventListener("select", schedule);
+    textarea.addEventListener("mouseup", schedule);
+    textarea.addEventListener("keyup", schedule);
     document.addEventListener("selectionchange", onSelectionChange);
     textarea.addEventListener("blur", hide);
     window.addEventListener("scroll", onScroll, {
@@ -121,6 +158,9 @@ export const SelectionToolbar = memo(function SelectionToolbar({
 
     return () => {
       if (timer) clearTimeout(timer);
+      textarea.removeEventListener("select", schedule);
+      textarea.removeEventListener("mouseup", schedule);
+      textarea.removeEventListener("keyup", schedule);
       document.removeEventListener("selectionchange", onSelectionChange);
       textarea.removeEventListener("blur", hide);
       window.removeEventListener("scroll", onScroll, true);
@@ -152,16 +192,15 @@ export const SelectionToolbar = memo(function SelectionToolbar({
   const overlay = position && (
     <motion.div
       key="selection-toolbar"
+      ref={barRef}
       data-selection-toolbar
       initial={{ opacity: 0, y: 4, scale: 0.97 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: 4, scale: 0.97 }}
       transition={{ duration: 0.12, ease: [0.16, 1, 0.3, 1] }}
-      style={{
-        top: position.top,
-        left: Math.max(8, Math.min(position.left, window.innerWidth - 320)),
-      }}
-      className="fixed z-50 flex items-center gap-0.5 rounded-lg border border-border/60 bg-popover p-1 shadow-lg"
+      // `left` is set pre-paint by the measuring layout effect above.
+      style={{ top: position.top, left: -9999 }}
+      className="fixed z-50 flex items-center gap-0.5 whitespace-nowrap rounded-lg border border-border/60 bg-popover p-1 shadow-lg"
     >
       <FormatButton
         icon={Bold}
