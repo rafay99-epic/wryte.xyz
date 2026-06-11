@@ -107,6 +107,52 @@ export const getDashboardStats = query({
   },
 });
 
+/**
+ * Lean per-user stats for the editor toolbar: today's words, streak, and
+ * goal. One indexed row read — intentionally much lighter than
+ * `getDashboardStats` so the editor can subscribe without dragging in
+ * project stats.
+ */
+export const getEditorStats = query({
+  args: {},
+  handler: async (
+    ctx,
+  ): Promise<{
+    wordsToday: number;
+    currentStreak: number;
+    dailyWordGoal: number | null;
+  } | null> => {
+    const user = await getAuthedUserOrNull(ctx);
+    if (!user) return null;
+
+    const stats = await ctx.db
+      .query("writing_stats")
+      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .unique();
+    if (!stats) {
+      return { wordsToday: 0, currentStreak: 0, dailyWordGoal: null };
+    }
+
+    const tz = stats.timezone ?? "UTC";
+    const todayStr = dateInTimezone(Date.now(), tz);
+    const yesterday = yesterdayStr(todayStr);
+
+    let currentStreak = stats.currentStreak;
+    if (
+      stats.lastActiveDate !== todayStr &&
+      stats.lastActiveDate !== yesterday
+    ) {
+      currentStreak = 0;
+    }
+
+    return {
+      wordsToday: stats.todayDate === todayStr ? stats.wordsToday : 0,
+      currentStreak,
+      dailyWordGoal: stats.dailyWordGoal ?? null,
+    };
+  },
+});
+
 export const getUpcomingScheduled = query({
   args: {
     limit: v.optional(v.number()),

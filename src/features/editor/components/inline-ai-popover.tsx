@@ -33,6 +33,12 @@ type InlineAiPopoverProps = {
   onOpenChange: (open: boolean) => void;
   selection: SelectionSnapshot | null;
   onAccept: (start: number, end: number, replacement: string) => void;
+  /**
+   * When set, the popover runs this instruction immediately on open
+   * instead of waiting for the user to type one — the path used by the
+   * selection toolbar's quick actions (Improve, Shorten, …).
+   */
+  presetInstruction?: string | null;
 };
 
 /* ------------------------------------------------------------------ */
@@ -44,6 +50,7 @@ export function InlineAiPopover({
   onOpenChange,
   selection,
   onAccept,
+  presetInstruction = null,
 }: InlineAiPopoverProps) {
   const activeProjectId = useEditorStore((s) => s.activeProjectId);
 
@@ -131,6 +138,48 @@ export function InlineAiPopover({
     selectionSnapshot,
     activeProjectId,
     createInlineStream,
+    inlineSystemPrompt,
+  ]);
+
+  // Auto-run a preset instruction (selection-toolbar quick actions) once
+  // per open, as soon as the selection snapshot has been captured.
+  const presetFiredRef = useRef(false);
+  useEffect(() => {
+    if (!open) {
+      presetFiredRef.current = false;
+      return;
+    }
+    if (
+      presetFiredRef.current ||
+      !presetInstruction ||
+      !selectionSnapshot ||
+      streamId
+    ) {
+      return;
+    }
+    presetFiredRef.current = true;
+    setInstruction(presetInstruction);
+    void (async () => {
+      try {
+        const result = await createInlineStream({
+          projectId: activeProjectId as Id<"projects">,
+          selectedText: selectionSnapshot.text,
+          instruction: presetInstruction,
+          ...(inlineSystemPrompt ? { systemPrompt: inlineSystemPrompt } : {}),
+        });
+        setStreamId(result.streamId);
+      } catch (error: unknown) {
+        const err = error as { message?: string };
+        toast.error(err.message ?? "Failed to start AI transformation");
+      }
+    })();
+  }, [
+    open,
+    presetInstruction,
+    selectionSnapshot,
+    streamId,
+    createInlineStream,
+    activeProjectId,
     inlineSystemPrompt,
   ]);
 

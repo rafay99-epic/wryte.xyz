@@ -6,9 +6,11 @@ import type { Id } from "../../../../convex/_generated/dataModel";
 import type { ProjectData } from "../types";
 
 /**
- * State + save for the per-project Editor feature toggles. Both features
- * default to OFF so the editor stays maximally fast unless a user opts in.
- * Mirrors `use-publishing-section.ts`.
+ * State + save for the per-project Editor feature toggles. The heavier
+ * aids (readability lens, slash commands, snippets) default to OFF so the
+ * editor stays maximally fast unless a user opts in; the lightweight
+ * selection toolbar defaults to ON (it does no work until text is
+ * selected). Mirrors `use-publishing-section.ts`.
  */
 export function useEditorSection({
   projectId,
@@ -28,22 +30,28 @@ export function useEditorSection({
   const [snippetsEnabled, setSnippetsEnabled] = useState(
     project.snippetsEnabled ?? false,
   );
+  const [selectionToolbarEnabled, setSelectionToolbarEnabled] = useState(
+    project.selectionToolbarEnabled ?? true,
+  );
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     setReadabilityLensEnabled(project.readabilityLensEnabled ?? false);
     setSlashCommandsEnabled(project.slashCommandsEnabled ?? false);
     setSnippetsEnabled(project.snippetsEnabled ?? false);
+    setSelectionToolbarEnabled(project.selectionToolbarEnabled ?? true);
   }, [
     project.readabilityLensEnabled,
     project.slashCommandsEnabled,
     project.snippetsEnabled,
+    project.selectionToolbarEnabled,
   ]);
 
   const hasChanges =
     readabilityLensEnabled !== (project.readabilityLensEnabled ?? false) ||
     slashCommandsEnabled !== (project.slashCommandsEnabled ?? false) ||
-    snippetsEnabled !== (project.snippetsEnabled ?? false);
+    snippetsEnabled !== (project.snippetsEnabled ?? false) ||
+    selectionToolbarEnabled !== (project.selectionToolbarEnabled ?? true);
 
   const handleSave = useCallback(async () => {
     setIsSaving(true);
@@ -53,6 +61,7 @@ export function useEditorSection({
         readabilityLensEnabled,
         slashCommandsEnabled,
         snippetsEnabled,
+        selectionToolbarEnabled,
       });
       toast.success("Editor settings saved");
     } catch {
@@ -66,6 +75,7 @@ export function useEditorSection({
     readabilityLensEnabled,
     slashCommandsEnabled,
     snippetsEnabled,
+    selectionToolbarEnabled,
   ]);
 
   return {
@@ -75,6 +85,8 @@ export function useEditorSection({
     setSlashCommandsEnabled,
     snippetsEnabled,
     setSnippetsEnabled,
+    selectionToolbarEnabled,
+    setSelectionToolbarEnabled,
     isSaving,
     hasChanges,
     handleSave,

@@ -330,7 +330,7 @@ export const SlashMenu = memo(function SlashMenu({
           maxHeight: MENU_MAX_HEIGHT,
           transformOrigin: flipAbove ? "bottom center" : "top center",
         }}
-        className="fixed z-50 overflow-y-auto rounded-lg border border-border/60 bg-popover p-1 shadow-lg slim-scrollbar"
+        className="fixed z-50 overflow-y-auto overscroll-contain rounded-lg border border-border/60 bg-popover p-1 shadow-lg slim-scrollbar"
       >
         {level === "snippets" && (
           <button

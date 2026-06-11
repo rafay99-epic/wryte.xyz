@@ -1,3 +1,4 @@
+import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
@@ -109,6 +110,76 @@ export const list = query({
             content.length > 200 ? `${content.slice(0, 200)}...` : content,
         };
       });
+  },
+});
+
+/**
+ * Paginated lean listing for the editor's `[[` internal-link menu —
+ * id/title/slug only, newest first, trash excluded via the composite
+ * index. The menu pulls a handful of rows at a time as the user scrolls,
+ * so a project with hundreds of posts never ships its whole list at once.
+ */
+export const listForLink = query({
+  args: {
+    projectId: v.id("projects"),
+    paginationOpts: paginationOptsValidator,
+  },
+  handler: async (ctx, args) => {
+    const empty = { page: [], isDone: true, continueCursor: "" };
+    const user = await getAuthedUserOrNull(ctx);
+    if (!user) return empty;
+
+    const project = await ctx.db.get(args.projectId);
+    if (!project || project.userId !== user._id) return empty;
+
+    const result = await ctx.db
+      .query("documents")
+      .withIndex("by_projectId_and_trashedAt", (q) =>
+        q.eq("projectId", args.projectId).eq("trashedAt", undefined),
+      )
+      .order("desc")
+      .paginate(args.paginationOpts);
+
+    return {
+      ...result,
+      page: result.page.map((doc) => ({
+        _id: doc._id,
+        title: doc.title,
+        slug: doc.slug,
+      })),
+    };
+  },
+});
+
+/**
+ * Title typeahead for the `[[` internal-link menu, backed by the
+ * `search_title` index. Bounded result set; trash filtered post-take.
+ */
+export const searchForLink = query({
+  args: {
+    projectId: v.id("projects"),
+    term: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const user = await getAuthedUserOrNull(ctx);
+    if (!user) return [];
+
+    const project = await ctx.db.get(args.projectId);
+    if (!project || project.userId !== user._id) return [];
+
+    const term = args.term.trim();
+    if (!term) return [];
+
+    const docs = await ctx.db
+      .query("documents")
+      .withSearchIndex("search_title", (q) =>
+        q.search("title", term).eq("projectId", args.projectId),
+      )
+      .take(10);
+
+    return docs
+      .filter((doc) => doc.trashedAt === undefined)
+      .map((doc) => ({ _id: doc._id, title: doc.title, slug: doc.slug }));
   },
 });
 

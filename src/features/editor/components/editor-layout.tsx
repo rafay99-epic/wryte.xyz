@@ -54,6 +54,9 @@ export function EditorLayout({
   const readabilityEnabled = project?.readabilityLensEnabled ?? false;
   const slashEnabled = project?.slashCommandsEnabled ?? false;
   const snippetsEnabled = project?.snippetsEnabled ?? false;
+  // The selection toolbar is on unless explicitly disabled — it costs
+  // nothing until text is actually selected.
+  const selectionToolbarEnabled = project?.selectionToolbarEnabled ?? true;
   // Whether to show the "Snippets ▸" entry — decided from the denormalized
   // count on the already-fetched project doc, so the slash menu fires no query
   // at the root level.
@@ -156,6 +159,7 @@ export function EditorLayout({
                   slashEnabled={slashEnabled}
                   snippetsEnabled={snippetsEnabled}
                   hasSnippets={hasSnippets}
+                  selectionToolbarEnabled={selectionToolbarEnabled}
                 />
               </div>
             )}
@@ -185,6 +189,7 @@ export function EditorLayout({
                     slashEnabled={slashEnabled}
                     snippetsEnabled={snippetsEnabled}
                     hasSnippets={hasSnippets}
+                    selectionToolbarEnabled={selectionToolbarEnabled}
                   />
                 </div>
                 <div className="split-divider" />

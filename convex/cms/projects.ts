@@ -322,6 +322,7 @@ export const update = mutation({
     readabilityLensEnabled: v.optional(v.boolean()),
     slashCommandsEnabled: v.optional(v.boolean()),
     snippetsEnabled: v.optional(v.boolean()),
+    selectionToolbarEnabled: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const key = await getRateLimitKey(ctx);
@@ -671,6 +672,18 @@ export const _wipeProjectChunk = internalMutation({
       }
     }
 
+    /* 4b. document_snapshots */
+    if (budget > 0) {
+      const rows = await ctx.db
+        .query("document_snapshots")
+        .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
+        .take(budget);
+      for (const row of rows) {
+        await ctx.db.delete(row._id);
+        budget--;
+      }
+    }
+
     /* 5. media (+ legacy storage blobs) */
     if (budget > 0) {
       const rows = await ctx.db
@@ -929,6 +942,10 @@ async function countProjectRemaining(
       .take(1),
     ctx.db
       .query("document_research")
+      .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+      .take(1),
+    ctx.db
+      .query("document_snapshots")
       .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
       .take(1),
     ctx.db

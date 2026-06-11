@@ -12,9 +12,10 @@ import { ConflictLockView } from "@/components/editor/conflict-lock-view";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EditorLayout } from "@/features/editor/components/editor-layout";
-import { PublishHistoryPanel } from "@/features/editor/components/publish-history-panel";
+import { HistoryPanel } from "@/features/editor/components/history-panel";
 import { useAutosave } from "@/features/editor/hooks/use-autosave";
 import { useSaveShortcut } from "@/features/editor/hooks/use-save-shortcut";
+import { useVersionSnapshots } from "@/features/editor/hooks/use-version-snapshots";
 import { fadeSlideUp, smoothTransition } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/stores/editor-store";
@@ -152,6 +153,13 @@ export function EditorPage() {
     }
   }, [saveNow]);
 
+  // Version snapshots: captured after manual saves and on a coarse
+  // interval while editing the main stream. Deduped server-side.
+  const { snapshotNow } = useVersionSnapshots({
+    documentId,
+    enabled: hasInitialized.current && openConflict == null,
+  });
+
   const handleManualSave = useCallback(() => {
     if (!useEditorStore.getState().isDirty) {
       toast.info("Nothing to save", { id: "manual-save" });
@@ -160,11 +168,12 @@ export function EditorPage() {
     void saveNow()
       .then(() => {
         toast.success("Saved", { id: "manual-save", duration: 1500 });
+        snapshotNow("manual");
       })
       .catch(() => {
         toast.error("Save failed", { id: "manual-save" });
       });
-  }, [saveNow]);
+  }, [saveNow, snapshotNow]);
   useSaveShortcut(handleManualSave);
 
   useEffect(() => {
@@ -220,7 +229,7 @@ export function EditorPage() {
         onRequestSave={handleRequestSave}
         onSynthesisOpen={() => setSynthesisOpen(true)}
       />
-      <PublishHistoryPanel
+      <HistoryPanel
         documentId={documentId}
         open={historyPanelOpen}
         onClose={toggleHistoryPanel}

@@ -9,6 +9,7 @@ import {
   useRef,
 } from "react";
 import { caretRect } from "../lib/caret/textarea-caret";
+import { getScrollParent } from "../lib/scroll";
 
 /**
  * Shape of the editor context value shared across all editor sub-components.
@@ -19,23 +20,6 @@ type SelectionSnapshot = {
   start: number;
   end: number;
 };
-
-/** Nearest scrollable ancestor of `el`, or null. */
-function getScrollParent(el: HTMLElement | null): HTMLElement | null {
-  let node = el?.parentElement ?? null;
-  while (node) {
-    const style = window.getComputedStyle(node);
-    const overflowY = style.overflowY;
-    if (
-      (overflowY === "auto" || overflowY === "scroll") &&
-      node.scrollHeight > node.clientHeight
-    ) {
-      return node;
-    }
-    node = node.parentElement;
-  }
-  return null;
-}
 
 type EditorContextValue = {
   /** Ref to the underlying <textarea> so toolbar/shortcuts can manipulate it directly */

@@ -152,6 +152,8 @@ export default defineSchema({
     slashCommandsEnabled: v.optional(v.boolean()),
     /** Editor: enable per-project reusable text snippets in the / menu (default off) */
     snippetsEnabled: v.optional(v.boolean()),
+    /** Editor: floating toolbar on text selection (default ON — absent means enabled) */
+    selectionToolbarEnabled: v.optional(v.boolean()),
     /**
      * Denormalized count of rows in the `snippets` table for this project.
      * Maintained transactionally by the snippet create/remove mutations so the
@@ -256,7 +258,13 @@ export default defineSchema({
     // Powers the trash list view and the daily cleanup cron. Filtering
     // `trashedAt` server-side on the indexed range avoids a full project
     // scan for projects with thousands of active docs.
-    .index("by_projectId_and_trashedAt", ["projectId", "trashedAt"]),
+    .index("by_projectId_and_trashedAt", ["projectId", "trashedAt"])
+    // Title typeahead for the editor's `[[` internal-link menu — search
+    // scoped to the project so results never leak across projects.
+    .searchIndex("search_title", {
+      searchField: "title",
+      filterFields: ["projectId"],
+    }),
 
   /**
    * Publish history table — tracks every publish to GitHub for a document.
@@ -303,6 +311,30 @@ export default defineSchema({
     .index("by_documentId", ["documentId"])
     .index("by_projectId", ["projectId"])
     .index("by_userId", ["userId"]),
+
+  /**
+   * Automatic version snapshots of the main document content — the safety
+   * net behind the editor's version history. Created on manual save and on
+   * a coarse editing interval (never per keystroke), deduped by content,
+   * and pruned to a fixed cap per document. Distinct from `document_drafts`
+   * (deliberate, named parallel streams) and `publish_history` (publishes).
+   */
+  document_snapshots: defineTable({
+    documentId: v.id("documents"),
+    projectId: v.id("projects"),
+    userId: v.id("users"),
+    reason: v.union(
+      v.literal("manual"),
+      v.literal("interval"),
+      v.literal("restore"),
+    ),
+    title: v.string(),
+    content: v.string(),
+    wordCount: v.number(),
+    createdAt: v.number(),
+  })
+    .index("by_documentId", ["documentId"])
+    .index("by_projectId", ["projectId"]),
 
   /**
    * Research/context notes attached to a document. `selectedForAi` lets the

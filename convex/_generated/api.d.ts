@@ -41,6 +41,7 @@ import type * as cms_documentDrafts from "../cms/documentDrafts.js";
 import type * as cms_documentResearch from "../cms/documentResearch.js";
 import type * as cms_documents from "../cms/documents.js";
 import type * as cms_projects from "../cms/projects.js";
+import type * as cms_snapshots from "../cms/snapshots.js";
 import type * as cms_snippets from "../cms/snippets.js";
 import type * as cms_trash from "../cms/trash.js";
 import type * as crons from "../crons.js";
@@ -110,6 +111,7 @@ declare const fullApi: ApiFromModules<{
   "cms/documentResearch": typeof cms_documentResearch;
   "cms/documents": typeof cms_documents;
   "cms/projects": typeof cms_projects;
+  "cms/snapshots": typeof cms_snapshots;
   "cms/snippets": typeof cms_snippets;
   "cms/trash": typeof cms_trash;
   crons: typeof crons;

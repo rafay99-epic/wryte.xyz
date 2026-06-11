@@ -216,6 +216,22 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     rate: 10,
     period: MINUTE,
   },
+  /**
+   * Version snapshots — created on manual save and on a 10-minute editing
+   * interval, deduped server-side. The bucket allows save-spamming without
+   * errors while keeping the write volume bounded.
+   */
+  "snapshots:create": {
+    kind: "token bucket",
+    rate: 20,
+    period: MINUTE,
+    capacity: 6,
+  },
+  "snapshots:restore": {
+    kind: "fixed window",
+    rate: 10,
+    period: MINUTE,
+  },
   "documentResearch:create": {
     kind: "token bucket",
     rate: 60,

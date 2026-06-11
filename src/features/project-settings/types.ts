@@ -56,6 +56,7 @@ export type ProjectData = {
   readabilityLensEnabled?: boolean;
   slashCommandsEnabled?: boolean;
   snippetsEnabled?: boolean;
+  selectionToolbarEnabled?: boolean;
   snippetCount?: number;
 };
 

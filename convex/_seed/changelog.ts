@@ -856,6 +856,30 @@ No behavior changes — everything works exactly as before, just lighter and fas
 - **Decluttered toolbar** — lists, quote, divider, code, link, image, and video moved into a single Insert menu; the side-panel toggles became compact icon buttons. Everything is still one click away, with a lot less noise.
 `,
   },
+  {
+    title: "Version snapshots, selection toolbar & writing insights",
+    slug: "v0-18-0-snapshots-selection-toolbar",
+    description:
+      "Your drafts now have a real safety net — automatic version snapshots with diff and restore — plus a floating selection toolbar with one-click AI actions, internal [[ links, SEO checks, typewriter focus mode, and session writing stats.",
+    version: "0.18.0",
+    build: "c6e4d13",
+    publishedAt: Date.parse("2026-06-12T01:45:23+05:00"),
+    content: `## What's new
+
+- **Version snapshots** — the editor automatically snapshots your draft on every manual save (Ctrl+S) and every 10 minutes of active writing. The History panel's new **Snapshots** tab shows them all with a line-by-line **diff** of what restoring would change and **one-click restore** — and restoring snapshots your current draft first, so even a restore is reversible. A bad AI rewrite or accidental deletion is no longer permanent.
+- **Selection toolbar** — select text and a floating toolbar appears: Bold, Italic, Link, plus one-click AI actions (**Improve, Shorten, Expand, Fix grammar**) that run instantly through inline AI. On by default; toggle it in Project Settings → Editor.
+- **Internal links** — type \`[[\` to link to another post in the project. Browse loads a few documents at a time as you scroll, and typing searches every post by title server-side.
+- **Structure & SEO checks** — the readability panel now flags multiple H1s, heading-level jumps, images missing alt text, very long paragraphs, and link-less long posts. Click any issue to jump to it.
+- **Typewriter focus mode** — in focus mode the caret line stays vertically centered while you type, and everything outside the current paragraph gently dims.
+- **Session writing stats** — the word count shows the words you've added this session; hover it for today's total, your daily goal, and your writing streak.
+
+## Under the hood
+
+- New \`document_snapshots\` table (content-deduped, capped at 30 per document, pruned automatically) with rate-limited create/restore mutations.
+- New \`search_title\` search index on documents powering the \`[[\` menu's typeahead; browsing uses a lean paginated query so large projects never ship their full document list at once.
+- Snapshots, the selection toolbar toggle, and the editor-stats query all follow the function-budget rules: deduped writes, queries gated on visible UI, no per-keystroke calls.
+`,
+  },
 ];
 
 export const seed = action({

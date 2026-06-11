@@ -24,6 +24,8 @@ export function EditorSection({
     setSlashCommandsEnabled,
     snippetsEnabled,
     setSnippetsEnabled,
+    selectionToolbarEnabled,
+    setSelectionToolbarEnabled,
     isSaving,
     hasChanges,
     handleSave,
@@ -86,6 +88,21 @@ export function EditorSection({
           <Switch
             checked={snippetsEnabled}
             onCheckedChange={(checked) => setSnippetsEnabled(checked)}
+          />
+        </div>
+
+        <div className="flex items-center justify-between rounded-xl border border-border/40 bg-card px-4 py-3">
+          <div className="pr-4">
+            <p className="text-sm font-medium">Selection toolbar</p>
+            <p className="text-xs text-muted-foreground">
+              A floating toolbar that appears when you select text — quick
+              Bold/Italic/Link plus one-click AI actions (Improve, Shorten,
+              Expand, Fix grammar). On by default.
+            </p>
+          </div>
+          <Switch
+            checked={selectionToolbarEnabled}
+            onCheckedChange={(checked) => setSelectionToolbarEnabled(checked)}
           />
         </div>
 

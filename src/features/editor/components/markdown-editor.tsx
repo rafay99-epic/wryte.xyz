@@ -6,14 +6,18 @@ import { toast } from "sonner";
 import { useShallow } from "zustand/react/shallow";
 import { useKeyboardShortcuts } from "@/features/editor/hooks/use-keyboard-shortcuts";
 import { useMediaPaste } from "@/features/editor/hooks/use-media-paste";
+import { useTypewriterScroll } from "@/features/editor/hooks/use-typewriter-scroll";
 import { splitShortcutKeys } from "@/lib/shortcuts";
 import { useEditorStore } from "@/stores/editor-store";
 import { useShortcutsStore } from "@/stores/shortcuts-store";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
 import { useEditorContext } from "./editor-context";
+import { FocusParagraphOverlay } from "./focus-paragraph-overlay";
 import { InlineAiPopover } from "./inline-ai-popover";
+import { type SelectionRange, SelectionToolbar } from "./selection-toolbar";
 import { SlashMenu } from "./slash-menu";
+import { WikiLinkMenu } from "./wiki-link-menu";
 
 /**
  * Raw markdown textarea editor matching the Seospace reference feel:
@@ -28,12 +32,14 @@ export function MarkdownEditor({
   slashEnabled = false,
   snippetsEnabled = false,
   hasSnippets = false,
+  selectionToolbarEnabled = true,
 }: {
   documentId: string;
   projectId: string;
   slashEnabled?: boolean;
   snippetsEnabled?: boolean;
   hasSnippets?: boolean;
+  selectionToolbarEnabled?: boolean;
 }) {
   const { content, setContent } = useEditorStore(
     useShallow((state) => ({
@@ -50,6 +56,10 @@ export function MarkdownEditor({
     start: number;
     end: number;
   } | null>(null);
+  // Set by the selection toolbar's quick actions — runs immediately on open.
+  const [presetInstruction, setPresetInstruction] = useState<string | null>(
+    null,
+  );
 
   const onBold = useCallback(() => {}, []);
   const onItalic = useCallback(() => {}, []);
@@ -97,9 +107,30 @@ export function MarkdownEditor({
       });
       return;
     }
+    setPresetInstruction(null);
     setInlineAiSelection(sel);
     setInlineAiOpen(true);
   }, [aiReady, notifyAiNotReady, getSelection, inlineAiLabel]);
+
+  // Selection-toolbar quick actions: open the inline-AI popover with a
+  // preset instruction that runs immediately.
+  const handleQuickAiAction = useCallback(
+    (instruction: string, selection: SelectionRange) => {
+      if (!aiReady) {
+        notifyAiNotReady();
+        return;
+      }
+      setInlineAiSelection(selection);
+      setPresetInstruction(instruction);
+      setInlineAiOpen(true);
+    },
+    [aiReady, notifyAiNotReady],
+  );
+
+  const handleInlineAiOpenChange = useCallback((open: boolean) => {
+    setInlineAiOpen(open);
+    if (!open) setPresetInstruction(null);
+  }, []);
 
   // Slash-menu "Ask AI to write…" — opens the inline-AI popover with a
   // collapsed selection at the caret, so the generated text inserts there.
@@ -109,6 +140,7 @@ export function MarkdownEditor({
         notifyAiNotReady();
         return;
       }
+      setPresetInstruction(null);
       setInlineAiSelection({ text: "", start: caretIndex, end: caretIndex });
       setInlineAiOpen(true);
     },
@@ -125,6 +157,10 @@ export function MarkdownEditor({
 
   // Paste/drop media upload + paste-URL-over-selection linking.
   useMediaPaste({ documentId, projectId });
+
+  // Typewriter scrolling — focus mode only.
+  const focusMode = useEditorStore((s) => s.focusMode);
+  useTypewriterScroll(textareaRef, focusMode);
 
   // Tracks the last content value that came from a textarea input event.
   // The sync effect compares against this so it can distinguish "store
@@ -186,9 +222,19 @@ export function MarkdownEditor({
       {/* Inline AI popover — floats above the editor */}
       <InlineAiPopover
         open={inlineAiOpen}
-        onOpenChange={setInlineAiOpen}
+        onOpenChange={handleInlineAiOpenChange}
         selection={inlineAiSelection}
         onAccept={handleAcceptInline}
+        presetInstruction={presetInstruction}
+      />
+
+      {selectionToolbarEnabled && (
+        <SelectionToolbar aiReady={aiReady} onAiAction={handleQuickAiAction} />
+      )}
+
+      <WikiLinkMenu
+        projectId={activeProjectId ? (activeProjectId as Id<"projects">) : null}
+        documentId={documentId}
       />
 
       <SlashMenu
@@ -199,6 +245,8 @@ export function MarkdownEditor({
         aiReady={aiReady}
         onAiAction={handleSlashAi}
       />
+
+      {focusMode && <FocusParagraphOverlay />}
 
       <textarea
         ref={textareaRef}

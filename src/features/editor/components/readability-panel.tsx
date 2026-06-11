@@ -1,7 +1,8 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { X } from "lucide-react";
+import { CheckCircle2, X } from "lucide-react";
+import { useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/stores/editor-store";
 import { useReadability } from "../hooks/use-readability";
@@ -10,6 +11,7 @@ import type {
   HardSentence,
   ReadabilityStats,
 } from "../lib/readability/types";
+import { lintStructure } from "../lib/seo-lint";
 import { useEditorContext } from "./editor-context";
 
 type ReadabilityPanelProps = {
@@ -95,6 +97,62 @@ function ReadabilityPanelBody() {
         content={content}
         onJump={selectRange}
       />
+      <StructureLintSection content={content} onJump={selectRange} />
+    </div>
+  );
+}
+
+function StructureLintSection({
+  content,
+  onJump,
+}: {
+  content: string;
+  onJump: (start: number, end: number) => void;
+}) {
+  const issues = useMemo(() => lintStructure(content), [content]);
+
+  return (
+    <div className="space-y-1.5">
+      <p className="text-[11px] font-medium text-muted-foreground">
+        Structure & SEO
+      </p>
+      {issues.length === 0 ? (
+        <p className="flex items-center gap-1.5 rounded-lg border border-dashed border-border/50 px-3 py-3 text-[11px] text-muted-foreground/50">
+          <CheckCircle2 className="size-3.5 text-emerald-500/70" />
+          No structure issues found.
+        </p>
+      ) : (
+        issues.map((issue) => {
+          const jumpable = issue.start !== undefined && issue.end !== undefined;
+          return (
+            <button
+              key={issue.id}
+              type="button"
+              disabled={!jumpable}
+              onClick={() => {
+                if (jumpable)
+                  onJump(issue.start as number, issue.end as number);
+              }}
+              className={cn(
+                "flex w-full items-start gap-1.5 rounded-lg border border-border/40 px-2.5 py-2 text-left transition-colors",
+                jumpable
+                  ? "hover:border-border hover:bg-muted/30"
+                  : "cursor-default",
+              )}
+            >
+              <span
+                className={cn(
+                  "mt-1 size-1.5 shrink-0 rounded-full",
+                  issue.severity === "warn" ? "bg-amber-500" : "bg-sky-500",
+                )}
+              />
+              <span className="text-[11px] leading-snug text-foreground/80">
+                {issue.message}
+              </span>
+            </button>
+          );
+        })
+      )}
     </div>
   );
 }

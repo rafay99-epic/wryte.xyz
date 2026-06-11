@@ -120,6 +120,11 @@ export function EditorToolbar({
   });
   const aiReady = aiReadiness?.ready ?? false;
 
+  // Today's words / streak / goal — one lean indexed read, kept fresh by
+  // the same saves that update it.
+  const writingStats = useQuery(api.analytics.writingStats.getEditorStats, {});
+  const sessionStartWords = useEditorStore((s) => s.sessionStartWords);
+
   // Word count
   const stats = useMemo(() => {
     const trimmed = content.trim();
@@ -130,6 +135,7 @@ export function EditorToolbar({
       readTime: Math.max(1, Math.ceil(words / 238)),
     };
   }, [content]);
+  const sessionWords = Math.max(0, stats.words - sessionStartWords);
 
   return (
     <TooltipProvider>
@@ -295,17 +301,43 @@ export function EditorToolbar({
 
         {/* ── Right: Stats + View mode + Panels + AI ── */}
         <div className="flex items-center gap-2">
-          {/* Word count */}
+          {/* Word count + session stats */}
           <AnimatePresence mode="wait">
             {stats.words > 0 && (
-              <motion.span
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="hidden text-[11px] tabular-nums text-muted-foreground/60 lg:inline"
-              >
-                {stats.words.toLocaleString()} words
-              </motion.span>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <motion.span
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="hidden cursor-default text-[11px] tabular-nums text-muted-foreground/60 lg:inline"
+                    />
+                  }
+                >
+                  {stats.words.toLocaleString()} words
+                  {sessionWords > 0 && (
+                    <span className="ml-1 font-medium text-emerald-600/80">
+                      +{sessionWords.toLocaleString()}
+                    </span>
+                  )}
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="text-xs">
+                  <span className="tabular-nums">
+                    {sessionWords.toLocaleString()} words this session
+                    {writingStats && (
+                      <>
+                        {" · "}
+                        {writingStats.wordsToday.toLocaleString()} today
+                        {writingStats.dailyWordGoal !== null &&
+                          ` / ${writingStats.dailyWordGoal.toLocaleString()} goal`}
+                        {writingStats.currentStreak > 0 &&
+                          ` · ${writingStats.currentStreak}-day streak`}
+                      </>
+                    )}
+                  </span>
+                </TooltipContent>
+              </Tooltip>
             )}
           </AnimatePresence>
 

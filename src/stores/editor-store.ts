@@ -29,6 +29,8 @@ type EditorState = {
   findReplaceOpen: boolean;
   imageDialogOpen: boolean;
   videoDialogOpen: boolean;
+  /** Word count at document load — baseline for "words this session". */
+  sessionStartWords: number;
 
   setContent: (content: string) => void;
   setTitle: (title: string) => void;
@@ -69,7 +71,13 @@ const initialState = {
   findReplaceOpen: false,
   imageDialogOpen: false,
   videoDialogOpen: false,
+  sessionStartWords: 0,
 };
+
+function countWords(text: string): number {
+  const trimmed = text.trim();
+  return trimmed ? trimmed.split(/\s+/).length : 0;
+}
 
 /**
  * Global editor store.
@@ -97,6 +105,7 @@ export const useEditorStore = create<EditorState>()((set) => ({
       isDirty: false,
       isSaving: false,
       lastSavedAt: null,
+      sessionStartWords: countWords(content),
     }),
 
   // Snapshot the save timestamp so the UI can display "saved X seconds ago"

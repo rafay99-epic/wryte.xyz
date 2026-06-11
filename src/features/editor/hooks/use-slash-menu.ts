@@ -15,7 +15,7 @@ type CaretPosition = {
   caretHeight: number;
 };
 
-type SlashMenuState = {
+type TriggerMenuState = {
   open: boolean;
   query: string;
   queryStart: number;
@@ -23,7 +23,12 @@ type SlashMenuState = {
   position: CaretPosition | null;
 };
 
-const CLOSED: SlashMenuState = {
+type TriggerDetect = (
+  text: string,
+  caret: number,
+) => { queryStart: number; query: string } | null;
+
+const CLOSED: TriggerMenuState = {
   open: false,
   query: "",
   queryStart: 0,
@@ -41,8 +46,28 @@ const CLOSED: SlashMenuState = {
 export function useSlashMenu(
   textareaRef: RefObject<HTMLTextAreaElement | null>,
   enabled: boolean,
-): SlashMenuState & { close: () => void } {
-  const [state, setState] = useState<SlashMenuState>(CLOSED);
+): TriggerMenuState & { close: () => void } {
+  return useTriggerMenu(
+    textareaRef,
+    enabled,
+    detectTrigger,
+    "[data-slash-menu]",
+  );
+}
+
+/**
+ * Generic caret-trigger menu watcher — the machinery behind the slash menu
+ * and the `[[` internal-link menu. `detect` decides whether the caret sits
+ * in an active trigger context; `ownSelector` identifies the menu's DOM so
+ * scrolling inside it doesn't close it.
+ */
+export function useTriggerMenu(
+  textareaRef: RefObject<HTMLTextAreaElement | null>,
+  enabled: boolean,
+  detect: TriggerDetect,
+  ownSelector: string,
+): TriggerMenuState & { close: () => void } {
+  const [state, setState] = useState<TriggerMenuState>(CLOSED);
   const composingRef = useRef(false);
   // Stable so consumers can use it in effect deps without re-running.
   const close = useCallback(() => setState((s) => (s.open ? CLOSED : s)), []);
@@ -60,7 +85,7 @@ export function useSlashMenu(
         return;
       }
       const caret = ta.selectionStart;
-      const trigger = detectTrigger(ta.value, caret);
+      const trigger = detect(ta.value, caret);
       if (!trigger) {
         close();
         return;
@@ -96,7 +121,7 @@ export function useSlashMenu(
     const onScroll = (e: Event) => {
       // Let the menu scroll its own list; only an editor/page scroll closes it.
       const target = e.target;
-      if (target instanceof Element && target.closest("[data-slash-menu]")) {
+      if (target instanceof Element && target.closest(ownSelector)) {
         return;
       }
       close();
@@ -124,7 +149,7 @@ export function useSlashMenu(
       window.removeEventListener("scroll", onScroll, true);
       window.removeEventListener("resize", onScroll);
     };
-  }, [enabled, textareaRef, close]);
+  }, [enabled, textareaRef, close, detect, ownSelector]);
 
   return { ...state, close };
 }
