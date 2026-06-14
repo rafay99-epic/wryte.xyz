@@ -14,7 +14,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { useState } from "react";
+import { type MouseEvent as ReactMouseEvent, useState } from "react";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import {
@@ -46,6 +46,13 @@ type BoardCardProps = {
   allProjectTags?: string[] | undefined;
   selected?: boolean | undefined;
   onSelect?: ((checked: boolean) => void) | undefined;
+  /**
+   * True when any card is currently selected. In this "selection mode" a
+   * plain card click toggles the card's selection instead of opening it —
+   * mirrors Notion/Gmail, so users can't accidentally open a document while
+   * picking several.
+   */
+  selectionActive?: boolean | undefined;
   onOpen: () => void;
   onDelete?: (() => void) | undefined;
   onDeleteRemote?: (() => void) | undefined;
@@ -61,6 +68,7 @@ export function BoardCard({
   allProjectTags,
   selected,
   onSelect,
+  selectionActive,
   onOpen,
   onDelete,
   onDeleteRemote,
@@ -74,6 +82,7 @@ export function BoardCard({
         tags={tags}
         selected={selected}
         onSelect={onSelect}
+        selectionActive={selectionActive}
         onOpen={onOpen}
         onDeleteRemote={onDeleteRemote}
       />
@@ -99,6 +108,7 @@ export function BoardCard({
       allProjectTags={allProjectTags}
       selected={selected}
       onSelect={onSelect}
+      selectionActive={selectionActive}
       onOpen={onOpen}
       onDelete={onDelete}
       onDeleteRemote={onDeleteRemote}
@@ -115,6 +125,7 @@ function DraggableBoardCard({
   allProjectTags,
   selected,
   onSelect,
+  selectionActive,
   onOpen,
   onDelete,
   onDeleteRemote,
@@ -127,6 +138,7 @@ function DraggableBoardCard({
   allProjectTags?: string[] | undefined;
   selected?: boolean | undefined;
   onSelect?: ((checked: boolean) => void) | undefined;
+  selectionActive?: boolean | undefined;
   onOpen: () => void;
   onDelete?: (() => void) | undefined;
   onDeleteRemote?: (() => void) | undefined;
@@ -188,6 +200,29 @@ function DraggableBoardCard({
     opacity: isDragging || isBeingDragged ? 0.4 : 1,
   };
 
+  // Click behavior:
+  //  • renaming / editing tags → swallow the click
+  //  • already in selection mode, OR a modifier-click (⌘/Ctrl/Shift) →
+  //    toggle this card's selection. The modifier path lets you START a
+  //    selection from anywhere on the card without hunting for the tiny
+  //    checkbox (Finder/Gmail/Notion convention).
+  //  • otherwise → open the document
+  const handleCardClick =
+    rename.isRenaming || isEditingTags
+      ? undefined
+      : (e: ReactMouseEvent) => {
+          if (
+            onSelect &&
+            (selectionActive || e.metaKey || e.ctrlKey || e.shiftKey)
+          ) {
+            e.preventDefault();
+            e.stopPropagation();
+            onSelect(!selected);
+            return;
+          }
+          onOpen();
+        };
+
   return (
     <div ref={setNodeRef} style={style} {...attributes}>
       <motion.div
@@ -196,11 +231,14 @@ function DraggableBoardCard({
           ? { variants: staggerItem, transition: smoothTransition }
           : {})}
         className={cn(
-          "group relative cursor-grab rounded-lg border border-border/60 bg-card px-3.5 py-3 transition-colors hover:bg-muted/40 active:cursor-grabbing",
+          "group relative rounded-lg border border-border/60 bg-card px-3.5 py-3 transition-colors hover:bg-muted/40",
+          selectionActive
+            ? "cursor-pointer"
+            : "cursor-grab active:cursor-grabbing",
           isFocused && "ring-2 ring-primary/60 border-primary/40",
           selected && "border-primary/50 bg-primary/5 ring-1 ring-primary/20",
         )}
-        onClick={rename.isRenaming || isEditingTags ? undefined : onOpen}
+        onClick={handleCardClick}
         {...listeners}
       >
         {/* Preview popover — portaled to escape column overflow clipping */}
@@ -336,12 +374,17 @@ function DraggableBoardCard({
 
         {/* Card content with optional checkbox */}
         <div className="flex items-start gap-2">
+          {/* Padded <label> = generous click target without shifting
+              layout; toggles the checkbox natively. stopPropagation keeps
+              the click from opening the card instead. */}
           {onSelect && (
-            <div
+            <label
               className={cn(
-                "flex-none pt-1 transition-opacity",
+                "-m-1.5 flex-none cursor-pointer p-1.5 transition-opacity",
                 !selected && "opacity-0 group-hover:opacity-100",
               )}
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
             >
               <input
                 type="checkbox"
@@ -350,11 +393,9 @@ function DraggableBoardCard({
                   e.stopPropagation();
                   onSelect(e.target.checked);
                 }}
-                onClick={(e) => e.stopPropagation()}
-                onPointerDown={(e) => e.stopPropagation()}
                 className="size-3.5 cursor-pointer accent-primary"
               />
-            </div>
+            </label>
           )}
           <div className="min-w-0 flex-1">
             {rename.isRenaming ? (
@@ -472,6 +513,7 @@ function StaticBoardCard({
   tags,
   selected,
   onSelect,
+  selectionActive,
   onOpen,
   onDeleteRemote,
 }: {
@@ -479,9 +521,20 @@ function StaticBoardCard({
   tags: string[];
   selected?: boolean | undefined;
   onSelect?: ((checked: boolean) => void) | undefined;
+  selectionActive?: boolean | undefined;
   onOpen: () => void;
   onDeleteRemote?: (() => void) | undefined;
 }) {
+  // Selection mode OR a modifier-click toggles selection; plain click opens.
+  const handleCardClick = (e: ReactMouseEvent) => {
+    if (onSelect && (selectionActive || e.metaKey || e.ctrlKey || e.shiftKey)) {
+      e.preventDefault();
+      e.stopPropagation();
+      onSelect(!selected);
+      return;
+    }
+    onOpen();
+  };
   return (
     <motion.div
       variants={staggerItem}
@@ -490,7 +543,7 @@ function StaticBoardCard({
         "group relative cursor-pointer rounded-lg border border-border/60 bg-card px-3.5 py-3 transition-colors hover:bg-muted/40",
         selected && "border-primary/50 bg-primary/5 ring-1 ring-primary/20",
       )}
-      onClick={onOpen}
+      onClick={handleCardClick}
     >
       {(onDeleteRemote || onSelect) && (
         <div className="absolute right-2 top-2 opacity-0 transition-opacity group-hover:opacity-100">

@@ -218,6 +218,21 @@ export function ContentDashboard({
     setSelectedDocIds(new Set());
   }, [viewFilter, searchQuery]);
 
+  // True when any card is selected. Drives Notion-style "selection mode":
+  // while active, clicking a card toggles it instead of opening it.
+  const selectionActive = selectedPaths.size > 0 || selectedDocIds.size > 0;
+
+  // Opening a document clears any active selection so returning to the
+  // board doesn't leave stale cards selected (Gmail-style).
+  const handleOpenItem = useCallback(
+    (item: ContentItem) => {
+      setSelectedPaths(new Set());
+      setSelectedDocIds(new Set());
+      onOpenItem(item);
+    },
+    [onOpenItem],
+  );
+
   const handleToggleSelect = useCallback((path: string, checked: boolean) => {
     setSelectedPaths((prev) => {
       const next = new Set(prev);
@@ -752,7 +767,7 @@ export function ContentDashboard({
                     onToggleSelectAllLocal={
                       onBulkPublish ? handleToggleSelectAllLocal : undefined
                     }
-                    onOpenItem={onOpenItem}
+                    onOpenItem={handleOpenItem}
                     onDeleteLocal={onDeleteLocal}
                     onDeleteRemote={onDeleteRemote}
                   />
@@ -798,7 +813,8 @@ export function ContentDashboard({
                         ? handleToggleDocSelect
                         : undefined
                     }
-                    onOpenItem={onOpenItem}
+                    selectionActive={selectionActive}
+                    onOpenItem={handleOpenItem}
                     onDeleteLocal={onDeleteLocal}
                     onDeleteRemote={onDeleteRemote}
                     onCreateClick={(status) => onCreateClick(status)}

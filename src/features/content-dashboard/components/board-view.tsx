@@ -52,6 +52,8 @@ type BoardViewProps = {
   onSettingsClick: () => void;
   selectedDocIds?: Set<string> | undefined;
   onToggleDocSelect?: ((docId: string, checked: boolean) => void) | undefined;
+  /** True when any card is selected — enables Notion-style selection mode. */
+  selectionActive?: boolean | undefined;
 };
 
 export function BoardView({
@@ -69,6 +71,7 @@ export function BoardView({
   onSettingsClick,
   selectedDocIds,
   onToggleDocSelect,
+  selectionActive,
 }: BoardViewProps) {
   // Pull exactly the slice this view cares about. A bare `useBoardStore()`
   // would subscribe to every field — focusedCardId, draggedItem, overColumnId,
@@ -318,6 +321,7 @@ export function BoardView({
             allProjectTags={allProjectTags}
             selectedDocIds={selectedDocIds}
             onToggleDocSelect={onToggleDocSelect}
+            selectionActive={selectionActive}
             onOpenItem={onOpenItem}
             onDeleteLocal={onDeleteLocal}
             onDeleteRemote={onDeleteRemote}
@@ -334,6 +338,7 @@ export function BoardView({
             allProjectTags={allProjectTags}
             selectedPaths={selectedPaths}
             onToggleSelect={onToggleSelect}
+            selectionActive={selectionActive}
             onOpenItem={onOpenItem}
             onDeleteLocal={onDeleteLocal}
             onDeleteRemote={onDeleteRemote}

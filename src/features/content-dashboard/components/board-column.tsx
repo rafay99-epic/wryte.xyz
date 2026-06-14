@@ -39,6 +39,8 @@ type BoardColumnProps = {
   onToggleSelect?: ((path: string, checked: boolean) => void) | undefined;
   selectedDocIds?: Set<string> | undefined;
   onToggleDocSelect?: ((docId: string, checked: boolean) => void) | undefined;
+  /** True when any card across the board is selected (selection mode). */
+  selectionActive?: boolean | undefined;
   onOpenItem: (item: ContentItem) => void;
   onDeleteLocal: (item: ContentItem) => void;
   onDeleteRemote: (item: ContentItem) => void;
@@ -57,6 +59,7 @@ export function BoardColumn({
   onToggleSelect,
   selectedDocIds,
   onToggleDocSelect,
+  selectionActive,
   onOpenItem,
   onDeleteLocal,
   onDeleteRemote,
@@ -216,6 +219,7 @@ export function BoardColumn({
                               onToggleDocSelect(item.id as string, checked)
                           : undefined
                     }
+                    selectionActive={selectionActive}
                     onOpen={() => onOpenItem(item)}
                     onDelete={
                       item.kind === "local" && item.id
