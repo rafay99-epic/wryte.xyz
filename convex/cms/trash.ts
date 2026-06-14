@@ -24,6 +24,7 @@ import {
   scheduleWordActivity,
 } from "../_lib/projectStats";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
+import { deleteContent } from "./_lib/documentContent";
 
 const DEFAULT_RETENTION_DAYS = 30;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -138,6 +139,7 @@ export const permanentDelete = mutation({
     });
 
     const doc = await loadOwnedTrashedDoc(ctx, args.documentId);
+    await deleteContent(ctx, doc._id);
     await ctx.db.delete(doc._id);
   },
 });
@@ -171,6 +173,7 @@ export const emptyTrash = mutation({
       )
       .take(200);
     for (const d of trashed) {
+      await deleteContent(ctx, d._id);
       await ctx.db.delete(d._id);
     }
     return { deleted: trashed.length };
@@ -241,6 +244,7 @@ export const _cleanupExpired = internalMutation({
 
       for (const d of expired) {
         if (deleted >= PER_RUN_CAP) break;
+        await deleteContent(ctx, d._id);
         await ctx.db.delete(d._id);
         deleted += 1;
       }

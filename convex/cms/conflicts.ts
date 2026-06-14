@@ -21,6 +21,12 @@ import type { Doc, Id } from "../_generated/dataModel";
 import { internalMutation, mutation, query } from "../_generated/server";
 import { getAuthedUserOrNull, getCurrentUser } from "../_lib/auth";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
+import { countWords } from "../_lib/wordCount";
+import {
+  buildExcerpt,
+  readContent,
+  writeContent,
+} from "./_lib/documentContent";
 
 /**
  * Internal-only writer called by `startBulkImport` during conflict
@@ -193,7 +199,7 @@ export const get = query({
         _id: document._id,
         title: document.title,
         slug: document.slug,
-        content: document.content,
+        content: await readContent(ctx, document),
         frontmatter: document.frontmatter,
         githubSha: document.githubSha,
         githubSyncedAt: document.githubSyncedAt,
@@ -243,11 +249,16 @@ export const resolveUseGithub = mutation({
     const key = await getRateLimitKey(ctx);
     await rateLimiter.limit(ctx, "conflicts:resolve", { key, throws: true });
 
-    const { conflict } = await loadOpenConflictForOwner(ctx, args.conflictId);
+    const { conflict, doc } = await loadOpenConflictForOwner(
+      ctx,
+      args.conflictId,
+    );
     const now = Date.now();
 
     const patch: Record<string, unknown> = {
-      content: conflict.remoteContent,
+      excerpt: buildExcerpt(conflict.remoteContent),
+      wordCount: countWords(conflict.remoteContent),
+      content: undefined,
       githubSha: conflict.remoteSha,
       githubSyncedAt: now,
       updatedAt: now,
@@ -257,6 +268,12 @@ export const resolveUseGithub = mutation({
     }
 
     await ctx.db.patch(conflict.documentId, patch);
+    await writeContent(ctx, {
+      documentId: conflict.documentId,
+      projectId: doc.projectId,
+      userId: doc.userId,
+      content: conflict.remoteContent,
+    });
     await ctx.db.patch(conflict._id, {
       resolvedAt: now,
       resolution: "github" as const,
@@ -308,11 +325,16 @@ export const resolveMerge = mutation({
     const key = await getRateLimitKey(ctx);
     await rateLimiter.limit(ctx, "conflicts:resolve", { key, throws: true });
 
-    const { conflict } = await loadOpenConflictForOwner(ctx, args.conflictId);
+    const { conflict, doc } = await loadOpenConflictForOwner(
+      ctx,
+      args.conflictId,
+    );
     const now = Date.now();
 
     const patch: Record<string, unknown> = {
-      content: args.mergedContent,
+      excerpt: buildExcerpt(args.mergedContent),
+      wordCount: countWords(args.mergedContent),
+      content: undefined,
       githubSha: conflict.remoteSha,
       githubSyncedAt: now,
       updatedAt: now,
@@ -322,6 +344,12 @@ export const resolveMerge = mutation({
     }
 
     await ctx.db.patch(conflict.documentId, patch);
+    await writeContent(ctx, {
+      documentId: conflict.documentId,
+      projectId: doc.projectId,
+      userId: doc.userId,
+      content: args.mergedContent,
+    });
     await ctx.db.patch(conflict._id, {
       resolvedAt: now,
       resolution: "merge" as const,

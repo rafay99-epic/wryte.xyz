@@ -14,6 +14,11 @@ import { mutation, query } from "../_generated/server";
 import { getAuthedUserOrNull, getCurrentUser } from "../_lib/auth";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
 import { countWords } from "../_lib/wordCount";
+import {
+  buildExcerpt,
+  readContent,
+  writeContent,
+} from "./_lib/documentContent";
 
 /** Hard cap per document — oldest snapshots are pruned past this. */
 const MAX_SNAPSHOTS_PER_DOCUMENT = 30;
@@ -168,21 +173,30 @@ export const restore = mutation({
       user._id,
     );
 
-    if (document.content !== snapshot.content) {
+    const currentContent = await readContent(ctx, document);
+    if (currentContent !== snapshot.content) {
       await insertSnapshot(
         ctx,
         document,
         user._id,
         "restore",
         document.title,
-        document.content,
+        currentContent,
       );
     }
 
     await ctx.db.patch(document._id, {
       title: snapshot.title,
-      content: snapshot.content,
+      excerpt: buildExcerpt(snapshot.content),
+      wordCount: countWords(snapshot.content),
+      content: undefined,
       updatedAt: Date.now(),
+    });
+    await writeContent(ctx, {
+      documentId: document._id,
+      projectId: document.projectId,
+      userId: user._id,
+      content: snapshot.content,
     });
 
     return { restoredFrom: snapshot.createdAt };

@@ -901,6 +901,19 @@ export const _wipeProjectChunk = internalMutation({
       }
     }
 
+    /* 13b. document_content — drain bodies before the parent documents so
+     *      a re-run never leaves orphaned content rows. */
+    if (budget > 0) {
+      const rows = await ctx.db
+        .query("document_content")
+        .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
+        .take(budget);
+      for (const row of rows) {
+        await ctx.db.delete(row._id);
+        budget--;
+      }
+    }
+
     /* 14. documents */
     if (budget > 0) {
       const rows = await ctx.db
@@ -950,6 +963,10 @@ async function countProjectRemaining(
   const heads = await Promise.all([
     ctx.db
       .query("documents")
+      .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+      .take(1),
+    ctx.db
+      .query("document_content")
       .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
       .take(1),
     ctx.db
