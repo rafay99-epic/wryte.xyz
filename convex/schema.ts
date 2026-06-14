@@ -858,7 +858,11 @@ export default defineSchema({
     slug: v.string(),
     description: v.string(),
     content: v.string(),
-    version: v.string(),
+    // Changelog is date-based (entries are headed by `publishedAt`). `version`
+    // is an optional cosmetic milestone label — most entries omit it. `build`
+    // is the git SHA kept for traceability. Neither drives update detection,
+    // which runs on the deployed SHA (see src/hooks/use-version-check.ts).
+    version: v.optional(v.string()),
     build: v.string(),
     publishedAt: v.optional(v.number()),
     authorClerkUserId: v.string(),

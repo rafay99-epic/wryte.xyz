@@ -47,9 +47,11 @@ export function ChangelogList() {
                   day: "numeric",
                 })}
               </time>
-              <span className="rounded-full bg-amber-500/10 px-2.5 py-0.5 font-mono text-[11px] font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">
-                v{entry.version}
-              </span>
+              {entry.version ? (
+                <span className="rounded-full bg-amber-500/10 px-2.5 py-0.5 font-mono text-[11px] font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                  v{entry.version}
+                </span>
+              ) : null}
               <span className="font-mono text-[11px] text-foreground/40">
                 build {entry.build}
               </span>

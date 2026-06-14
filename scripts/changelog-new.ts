@@ -4,12 +4,15 @@
  *
  *   bun run changelog:new
  *
- * Prompts for title, description, and version (defaults to the current
- * package.json version). Auto-fills the build SHA via `git rev-parse
- * --short HEAD` and publishedAt from now. Opens $EDITOR for the
- * markdown body using a template, appends the entry to
- * `convex/_seed/changelog.ts`, and bumps `package.json` if the version
- * changed.
+ * Prompts for title and description, opens $EDITOR for the markdown body,
+ * and appends the entry to `convex/_seed/changelog.ts`. The build SHA is
+ * auto-filled via `git rev-parse --short HEAD` and `publishedAt` from now.
+ *
+ * The changelog is date-based: entries carry NO hand-typed version number,
+ * and this script does NOT bump `package.json`. Versioning is automatic —
+ * the deployed git SHA is the release identity (see
+ * `src/hooks/use-version-check.ts`). Add an optional milestone label by
+ * hand to the generated entry only if you're marking something like a 1.0.
  *
  * After running, push to Convex with:
  *
@@ -23,7 +26,6 @@ import { stdin as input, stdout as output } from "node:process";
 import { createInterface } from "node:readline/promises";
 
 const REPO_ROOT = process.cwd();
-const PACKAGE_JSON = join(REPO_ROOT, "package.json");
 const SEED_FILE = join(REPO_ROOT, "convex", "_seed", "changelog.ts");
 const ARRAY_TERMINATOR = "];\n\nexport const seed";
 
@@ -36,14 +38,12 @@ const TEMPLATE = `## What's new
 -${" "}
 `;
 
-function slugify(version: string, title: string): string {
-  const versionSlug = `v${version.replace(/\./g, "-")}`;
-  const titleSlug = title
+function slugify(title: string): string {
+  return title
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
-    .slice(0, 50);
-  return `${versionSlug}-${titleSlug}`;
+    .slice(0, 60);
 }
 
 function escapeTemplateLiteral(content: string): string {
@@ -61,11 +61,6 @@ function ask(
 }
 
 async function main(): Promise<void> {
-  const pkg = JSON.parse(readFileSync(PACKAGE_JSON, "utf8")) as {
-    version: string;
-  };
-  const currentVersion = pkg.version;
-
   const rl = createInterface({ input, output });
   const title = await ask(rl, "Title: ");
   if (!title) {
@@ -74,17 +69,9 @@ async function main(): Promise<void> {
     process.exit(1);
   }
   const description = await ask(rl, "Description (one line): ");
-  if (!description) {
-    rl.close();
-    console.error("Description is required.");
-    process.exit(1);
-  }
-  const versionInput = await ask(rl, `Version [${currentVersion}]: `);
   rl.close();
-
-  const version = versionInput || currentVersion;
-  if (!/^\d+\.\d+\.\d+$/.test(version)) {
-    console.error(`Invalid semver: "${version}".`);
+  if (!description) {
+    console.error("Description is required.");
     process.exit(1);
   }
 
@@ -109,7 +96,7 @@ async function main(): Promise<void> {
   const build = execSync("git rev-parse --short HEAD", { cwd: REPO_ROOT })
     .toString()
     .trim();
-  const slug = slugify(version, title);
+  const slug = slugify(title);
   const publishedAtIso = new Date().toISOString();
 
   const seedSource = readFileSync(SEED_FILE, "utf8");
@@ -129,7 +116,6 @@ async function main(): Promise<void> {
     title: ${JSON.stringify(title)},
     slug: ${JSON.stringify(slug)},
     description: ${JSON.stringify(description)},
-    version: ${JSON.stringify(version)},
     build: ${JSON.stringify(build)},
     publishedAt: Date.parse("${publishedAtIso}"),
     content: \`${escapeTemplateLiteral(content)}
@@ -141,20 +127,13 @@ async function main(): Promise<void> {
   writeFileSync(SEED_FILE, updatedSeed);
   console.info(`Appended entry "${slug}" to ${SEED_FILE}.`);
 
-  if (version !== currentVersion) {
-    const pkgSource = readFileSync(PACKAGE_JSON, "utf8");
-    const bumped = pkgSource.replace(
-      /"version":\s*"[^"]+"/,
-      `"version": ${JSON.stringify(version)}`,
-    );
-    writeFileSync(PACKAGE_JSON, bumped);
-    console.info(`Bumped package.json: ${currentVersion} → ${version}.`);
-  }
-
   console.info("\nNext steps:");
   console.info("  1. Review the diff for convex/_seed/changelog.ts.");
-  console.info("  2. bun run format && bun run lint && bun run type");
-  console.info("  3. Push to Convex: bunx convex run _seed/changelog:seed");
+  console.info(
+    "  2. (Optional) add a `version:` line to the entry to mark a milestone.",
+  );
+  console.info("  3. bun run format && bun run lint && bun run type");
+  console.info("  4. Push to Convex: bunx convex run _seed/changelog:seed");
 }
 
 main().catch((err: unknown) => {

@@ -62,7 +62,6 @@ export const listForFeed = query({
       slug: e.slug,
       title: e.title,
       description: e.description,
-      version: e.version,
       publishedAt: e.publishedAt,
     }));
   },
@@ -83,7 +82,7 @@ export const getByIdForAdmin = action({
     slug: string;
     description: string;
     content: string;
-    version: string;
+    version?: string;
     build: string;
     publishedAt?: number;
     authorClerkUserId: string;
@@ -137,7 +136,7 @@ export const listAllForAdmin = action({
       slug: string;
       description: string;
       content: string;
-      version: string;
+      version?: string;
       build: string;
       publishedAt?: number;
       authorClerkUserId: string;
@@ -167,7 +166,7 @@ export const create = action({
     slug: v.string(),
     description: v.string(),
     content: v.string(),
-    version: v.string(),
+    version: v.optional(v.string()),
     build: v.string(),
     publish: v.boolean(),
   },
@@ -190,7 +189,7 @@ export const update = action({
     slug: v.string(),
     description: v.string(),
     content: v.string(),
-    version: v.string(),
+    version: v.optional(v.string()),
     build: v.string(),
     publish: v.boolean(),
   },
@@ -226,7 +225,7 @@ export const _create = internalMutation({
     slug: v.string(),
     description: v.string(),
     content: v.string(),
-    version: v.string(),
+    version: v.optional(v.string()),
     build: v.string(),
     publish: v.boolean(),
     authorClerkUserId: v.string(),
@@ -247,11 +246,12 @@ export const _create = internalMutation({
       slug: args.slug,
       description: args.description,
       content: args.content,
-      version: args.version,
       build: args.build,
       authorClerkUserId: args.authorClerkUserId,
       createdAt: now,
       updatedAt: now,
+      // Optional milestone label — omit the field entirely when blank.
+      ...(args.version ? { version: args.version } : {}),
       ...(args.publish ? { publishedAt: now } : {}),
     });
   },
@@ -264,7 +264,7 @@ export const _update = internalMutation({
     slug: v.string(),
     description: v.string(),
     content: v.string(),
-    version: v.string(),
+    version: v.optional(v.string()),
     build: v.string(),
     publish: v.boolean(),
   },

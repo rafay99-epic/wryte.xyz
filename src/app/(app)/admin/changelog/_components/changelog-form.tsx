@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { generateSlug } from "@/lib/markdown";
+import { APP_BUILD_SHA } from "@/lib/release";
 import { api } from "../../../../../../convex/_generated/api";
 import type { Id } from "../../../../../../convex/_generated/dataModel";
 
@@ -19,7 +20,7 @@ export type ChangelogFormInitial = {
   slug: string;
   description: string;
   content: string;
-  version: string;
+  version?: string;
   build: string;
   publish: boolean;
 };
@@ -41,7 +42,9 @@ export function ChangelogForm({ initial }: { initial?: ChangelogFormInitial }) {
   const [description, setDescription] = useState(initial?.description ?? "");
   const [content, setContent] = useState(initial?.content ?? "");
   const [version, setVersion] = useState(initial?.version ?? "");
-  const [build, setBuild] = useState(initial?.build ?? "");
+  // Auto-fill the build SHA from the deployed build so admins don't hand-type
+  // it; still editable for backdating entries about an older build.
+  const [build, setBuild] = useState(initial?.build ?? APP_BUILD_SHA);
   const [publish, setPublish] = useState(initial?.publish ?? true);
   const [previewMode, setPreviewMode] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -58,8 +61,8 @@ export function ChangelogForm({ initial }: { initial?: ChangelogFormInitial }) {
       if (saving) return;
 
       const finalSlug = autoSlug;
-      if (!title || !finalSlug || !version || !build) {
-        toast.error("Title, slug, version, and build are required");
+      if (!title || !finalSlug || !build) {
+        toast.error("Title, slug, and build are required");
         return;
       }
 
@@ -72,9 +75,9 @@ export function ChangelogForm({ initial }: { initial?: ChangelogFormInitial }) {
             slug: finalSlug,
             description,
             content,
-            version,
             build,
             publish,
+            ...(version ? { version } : {}),
           });
           toast.success("Entry updated");
         } else {
@@ -83,9 +86,9 @@ export function ChangelogForm({ initial }: { initial?: ChangelogFormInitial }) {
             slug: finalSlug,
             description,
             content,
-            version,
             build,
             publish,
+            ...(version ? { version } : {}),
           });
           toast.success("Entry created");
         }
@@ -140,13 +143,12 @@ export function ChangelogForm({ initial }: { initial?: ChangelogFormInitial }) {
           />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="version">Version</Label>
+          <Label htmlFor="version">Milestone label (optional)</Label>
           <Input
             id="version"
             value={version}
             onChange={(e) => setVersion(e.target.value)}
-            placeholder="0.5.2"
-            required
+            placeholder="e.g. 1.0 — leave blank for date-based"
           />
         </div>
         <div className="space-y-1.5">

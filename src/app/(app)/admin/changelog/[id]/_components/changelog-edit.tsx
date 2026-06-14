@@ -29,9 +29,9 @@ export function ChangelogEdit({ id }: { id: Id<"changelog"> }) {
         slug: entry.slug,
         description: entry.description,
         content: entry.content,
-        version: entry.version,
         build: entry.build,
         publish: entry.publishedAt !== undefined,
+        ...(entry.version ? { version: entry.version } : {}),
       });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to load entry");

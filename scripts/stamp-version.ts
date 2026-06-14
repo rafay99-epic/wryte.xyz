@@ -18,6 +18,10 @@ if (!stampSecret) {
   process.exit(0);
 }
 
+// `version` is a cosmetic label (footer/sidebar/OG). `build` is the git SHA
+// and the real release identity: `use-version-check` compares it to the
+// client's NEXT_PUBLIC_BUILD_SHA to decide whether to prompt a refresh. Both
+// are derived automatically — no manual bump is required for updates to work.
 const version = packageJson.version;
 
 const build =

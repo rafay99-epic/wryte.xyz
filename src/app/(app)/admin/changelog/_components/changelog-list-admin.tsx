@@ -12,7 +12,7 @@ type Entry = {
   _id: Id<"changelog">;
   title: string;
   slug: string;
-  version: string;
+  version?: string;
   build: string;
   description: string;
   publishedAt?: number;
@@ -134,8 +134,12 @@ export function ChangelogListAdmin() {
                   </p>
                 )}
                 <div className="mt-2 flex items-center gap-3 font-mono text-[11px] text-foreground/45">
-                  <span>v{entry.version}</span>
-                  <span>·</span>
+                  {entry.version ? (
+                    <>
+                      <span>v{entry.version}</span>
+                      <span>·</span>
+                    </>
+                  ) : null}
                   <span className="truncate">build {entry.build}</span>
                   <span>·</span>
                   <span>

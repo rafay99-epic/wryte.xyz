@@ -34,7 +34,7 @@ const SEEDS: {
     key: "changelog",
     title: "Changelog",
     description:
-      "Backfills every release from v0.1.1 through v0.5.3 — the full history before the changelog admin existed.",
+      "Backfills the full date-based changelog history. Re-running upserts: existing entries are updated in place (and any stale version label is cleared), so it doubles as the migration to the version-free structure.",
     icon: Newspaper,
     accent: "text-amber-500",
   },
@@ -124,7 +124,7 @@ export function SeedRunner() {
           <h1 className="text-2xl font-semibold tracking-tight">Seed data</h1>
           <p className="mt-1 text-sm text-foreground/60">
             One-shot scripts that backfill starter content. Re-running is safe —
-            already-present rows are skipped.
+            existing rows are upserted or skipped depending on the seed.
           </p>
         </div>
       </div>

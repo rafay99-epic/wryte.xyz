@@ -13,7 +13,6 @@ type FeedEntry = {
   slug: string;
   title: string;
   description: string;
-  version: string;
   publishedAt: number | undefined;
 };
 

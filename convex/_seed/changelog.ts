@@ -1,10 +1,15 @@
 /**
  * ONE-SHOT SEED — delete `convex/_seed/changelog.ts` after running.
  *
- * Backfills the changelog with every release from v0.1.1 through the
- * current version. Triggered from the admin UI (`/admin/seed`) or:
+ * Backfills the date-based changelog with every historical entry.
+ * Triggered from the admin UI (`/admin/seed`) or:
  *
  *   bunx convex run _seed/changelog:seed
+ *
+ * Entries are ordered by `publishedAt` (date), not by version — the
+ * changelog is date-based and carries no version numbers. Each entry keeps
+ * its `build` (git SHA) for traceability. A `version` milestone label is
+ * optional and omitted by default.
  *
  * Gated by `publicMetadata.role === "admin"` (see `convex/_lib/admin.ts`)
  * and rate-limited so accidental loops can't blow up the changelog
@@ -22,17 +27,17 @@ type SeedEntry = {
   slug: string;
   description: string;
   content: string;
-  version: string;
+  /** Optional cosmetic milestone label (e.g. "1.0") — omitted by default. */
+  version?: string;
   build: string;
-  /** Unix ms — when this version actually shipped. */
+  /** Unix ms — when this entry actually shipped. */
   publishedAt: number;
 };
 
 /**
- * Every published release, oldest first. Build hashes come from the
- * commit that ships each version; dates from that commit's author
- * timestamp. Edit through the admin UI afterwards if any of this needs
- * to be reworded.
+ * Every published entry, oldest first. Build hashes come from the commit
+ * that shipped each entry; dates from that commit's author timestamp. Edit
+ * through the admin UI afterwards if any of this needs to be reworded.
  */
 const ENTRIES: SeedEntry[] = [
   {
@@ -40,7 +45,6 @@ const ENTRIES: SeedEntry[] = [
     slug: "v0-1-1-board-and-command-palette",
     description:
       "First polished iteration after the MVP — drag-and-drop board, settings surface, and the command palette every page now uses.",
-    version: "0.1.1",
     build: "9b7074d",
     publishedAt: Date.parse("2026-04-08T02:07:26+05:00"),
     content: `## What's new
@@ -60,7 +64,6 @@ const ENTRIES: SeedEntry[] = [
     slug: "v0-2-0-scheduling-and-ai",
     description:
       "Schedule posts for the future, and pull in AI assistance for rewriting and enhancing your prose without leaving the editor.",
-    version: "0.2.0",
     build: "545a551",
     publishedAt: Date.parse("2026-04-09T04:33:16+05:00"),
     content: `## What's new
@@ -80,7 +83,6 @@ const ENTRIES: SeedEntry[] = [
     slug: "v0-2-1-dashboard-and-history",
     description:
       "New dashboard with better search, document history for every project, and multi-select for bulk GitHub imports.",
-    version: "0.2.1",
     build: "61a326d",
     publishedAt: Date.parse("2026-04-09T17:39:47+05:00"),
     content: `## What's new
@@ -101,7 +103,6 @@ const ENTRIES: SeedEntry[] = [
     slug: "v0-3-0-storage-and-rate-limits",
     description:
       "First-class file storage for media, application-wide rate limiting on every mutation, and a redesigned publish flow.",
-    version: "0.3.0",
     build: "3a5a659",
     publishedAt: Date.parse("2026-04-10T19:35:28+05:00"),
     content: `## What's new
@@ -120,7 +121,6 @@ const ENTRIES: SeedEntry[] = [
     slug: "v0-3-1-favorites",
     description:
       "Star your most-used projects to keep them at the top of the sidebar.",
-    version: "0.3.1",
     build: "83e2f5f",
     publishedAt: Date.parse("2026-04-11T19:57:08+05:00"),
     content: `## What's new
@@ -134,7 +134,6 @@ const ENTRIES: SeedEntry[] = [
     slug: "v0-4-0-providers-and-byok",
     description:
       "Plug your own UploadThing or Cloudinary into each project, bring your own AI provider keys, and reset accounts cleanly via self-destruct.",
-    version: "0.4.0",
     build: "4881c67",
     publishedAt: Date.parse("2026-05-13T17:44:50+05:00"),
     content: `## What's new
@@ -158,7 +157,6 @@ const ENTRIES: SeedEntry[] = [
     slug: "v0-4-1-compression-oauth-analytics",
     description:
       "Client-side image compression before upload, server-side Clerk OAuth for GitHub, timezone-aware scheduling, and Vercel Web Analytics.",
-    version: "0.4.1",
     build: "e367f99",
     publishedAt: Date.parse("2026-05-13T23:40:43+05:00"),
     content: `## What's new
@@ -181,7 +179,6 @@ const ENTRIES: SeedEntry[] = [
     slug: "v0-4-2-backend-refactor",
     description:
       "Convex functions now live under clear domain folders (cms, media, ai, integrations, account) with end-to-end type safety from schema to client.",
-    version: "0.4.2",
     build: "97b8664",
     publishedAt: Date.parse("2026-05-14T02:10:30+05:00"),
     content: `## What's new
@@ -200,7 +197,6 @@ const ENTRIES: SeedEntry[] = [
     slug: "v0-4-3-frontend-refactor-and-frontmatter",
     description:
       "Eight phases of front-end refactoring, a smarter GitHub repo connector with branch picker, and a long list of frontmatter editor improvements.",
-    version: "0.4.3",
     build: "184914c",
     publishedAt: Date.parse("2026-05-15T04:40:28+05:00"),
     content: `## What's new
@@ -241,7 +237,6 @@ const ENTRIES: SeedEntry[] = [
     slug: "v0-4-4-ai-schema-and-sync",
     description:
       "AI frontmatter suggestions respect your project schema, and bulk imports now detect and resolve sync conflicts before overwriting work.",
-    version: "0.4.4",
     build: "c9ec78b",
     publishedAt: Date.parse("2026-05-15T23:37:25+05:00"),
     content: `## What's new
@@ -260,7 +255,6 @@ const ENTRIES: SeedEntry[] = [
     slug: "v0-5-0-production-and-marketing",
     description:
       "Production-readiness hardening, end-to-end support tickets, fresh marketing pages, and a long list of editor + board improvements.",
-    version: "0.5.0",
     build: "e12803e",
     publishedAt: Date.parse("2026-05-16T03:02:45+05:00"),
     content: `## What's new
@@ -289,7 +283,6 @@ const ENTRIES: SeedEntry[] = [
     slug: "v0-5-1-open-source",
     description:
       "Wryte is now open source under MIT. New README, contributing guide, OG image, and a polished marketing surface.",
-    version: "0.5.1",
     build: "2b7b7af",
     publishedAt: Date.parse("2026-05-16T03:27:04+05:00"),
     content: `## What's new
@@ -308,7 +301,6 @@ const ENTRIES: SeedEntry[] = [
     slug: "v0-5-2-changelog-admin",
     description:
       "A public changelog page powered by an admin-only authoring surface, with markdown rendering and role-gated access via Clerk.",
-    version: "0.5.2",
     build: "73",
     publishedAt: Date.parse("2026-05-16T15:00:00+05:00"),
     content: `## What's new
@@ -325,7 +317,6 @@ const ENTRIES: SeedEntry[] = [
     slug: "v0-5-3-feature-requests-and-hardening",
     description:
       "A public feature request board with Clerk-gated upvoting, admin moderation, and a final round of refactor work to bring the new admin surface up to the rest of the codebase.",
-    version: "0.5.3",
     build: "73",
     publishedAt: Date.parse("2026-05-16T18:00:00+05:00"),
     content: `## What's new
@@ -353,7 +344,6 @@ const ENTRIES: SeedEntry[] = [
     slug: "v0-6-0-drafts-tabs-and-research-panel",
     description:
       "Open multiple drafts as tabs in the editor with a built-in research panel, surface AI errors inline, and a structural refactor that colocates hooks with the features that own them.",
-    version: "0.6.0",
     build: "0d507b9",
     publishedAt: Date.parse("2026-05-19T22:00:00+05:00"),
     content: `## What's new
@@ -383,7 +373,6 @@ const ENTRIES: SeedEntry[] = [
     slug: "v0-6-1-changelog-pagination-and-dialog-fix",
     description:
       "Paginated changelog on both backend and frontend, added the marketing footer to the changelog page, and fixed text overflow in the new article dialog.",
-    version: "0.6.1",
     build: "e6d3814",
     publishedAt: Date.parse("2026-05-19T22:30:00+05:00"),
     content: `## What's new
@@ -402,7 +391,6 @@ const ENTRIES: SeedEntry[] = [
     slug: "v0-6-2-convex-query-safety-audit",
     description:
       "Replaced every unbounded .collect() across the Convex backend with bounded .take(n) calls to prevent runaway reads as tables grow.",
-    version: "0.6.2",
     build: "76b9a1e",
     publishedAt: Date.parse("2026-05-19T23:00:00+05:00"),
     content: `## Under the hood
@@ -416,7 +404,6 @@ const ENTRIES: SeedEntry[] = [
     slug: "v0-6-3-editor-undo-redo-fix",
     description:
       "Fixed Cmd+Z / Ctrl+Z undo and redo not working in the markdown editor by preserving the browser's native undo stack.",
-    version: "0.6.3",
     build: "907c5e5",
     publishedAt: Date.parse("2026-05-19T23:30:00+05:00"),
     content: `## Fixes
@@ -430,7 +417,6 @@ const ENTRIES: SeedEntry[] = [
     slug: "v0-7-0-mdx-file-format-support",
     description:
       "Projects can now use MDX as their content format — live React component rendering in the editor preview, MDX-aware AI prompts, and correct .mdx extensions in GitHub publishes.",
-    version: "0.7.0",
     build: "12c0177",
     publishedAt: Date.parse("2026-05-20T20:00:00+05:00"),
     content: `## What's new
@@ -452,7 +438,6 @@ const ENTRIES: SeedEntry[] = [
     slug: "v0-7-2-atomic-deploys-version-notifications",
     description:
       "Frontend and backend now deploy atomically through Vercel. Connected clients get a real-time toast when a new version is available.",
-    version: "0.7.2",
     build: "4166076",
     publishedAt: Date.parse("2026-05-20T21:00:00+05:00"),
     content: `## What's new
@@ -474,7 +459,6 @@ const ENTRIES: SeedEntry[] = [
     slug: "v0-7-3-ai-prompt-templates",
     description:
       "Save reusable AI prompts per project and one-click apply them. All AI flows — enhance, inline, and final draft — now use customizable system prompts instead of hardcoded ones.",
-    version: "0.7.3",
     build: "d2389be",
     publishedAt: Date.parse("2026-05-20T23:00:00+05:00"),
     content: `## What's new
@@ -498,7 +482,6 @@ const ENTRIES: SeedEntry[] = [
     slug: "v0-7-4-social-posting-and-settings-refactor",
     description:
       "Auto-announce new blog posts to X, LinkedIn, Bluesky, Threads, Facebook, and Reddit via Upload-Post. Account and project settings pages refactored into modular components.",
-    version: "0.7.4",
     build: "38b7ee5",
     publishedAt: Date.parse("2026-05-20T23:59:00+05:00"),
     content: `## What's new
@@ -529,7 +512,6 @@ const ENTRIES: SeedEntry[] = [
     slug: "v0-7-5-paginated-feature-requests",
     description:
       "The public feature requests board now uses cursor-based pagination instead of loading all entries at once.",
-    version: "0.7.5",
     build: "628f48e",
     publishedAt: Date.parse("2026-05-21T00:30:00+05:00"),
     content: `## What's new
@@ -548,7 +530,6 @@ const ENTRIES: SeedEntry[] = [
     slug: "v0-8-0-security-and-reliability-audit",
     description:
       "38 audit findings resolved across backend, frontend, and supply chain — vault hardening, AI stream ownership, project cascade, qs CVE patch.",
-    version: "0.8.0",
     build: "7272349",
     publishedAt: Date.parse("2026-05-23T12:57:00Z"),
     content: `## Security
@@ -597,7 +578,6 @@ const ENTRIES: SeedEntry[] = [
     slug: "v0-9-0-writing-analytics-goals-and-streaks",
     description:
       "Account-wide writing streaks, daily word goals with confetti celebration, per-project dashboards, 30-day activity chart, and a full dashboard refactor.",
-    version: "0.9.0",
     build: "d3b1b87",
     publishedAt: Date.parse("2026-05-23T22:00:00+05:00"),
     content: `## What's new
@@ -638,7 +618,6 @@ const ENTRIES: SeedEntry[] = [
     slug: "v0-10-0-framework-aware-frontmatter",
     description:
       "Schema detection now reads each framework's real config (Astro, Hugo, Next/Contentlayer, Jekyll), a publish-time guard keeps list fields valid so builds never break, the editor validates frontmatter before publish, and existing projects self-repair with an in-app notice.",
-    version: "0.10.0",
     build: "c0c1e16",
     publishedAt: Date.parse("2026-06-08T12:00:00+05:00"),
     content: `## What's new
@@ -671,7 +650,6 @@ const ENTRIES: SeedEntry[] = [
     slug: "v0-11-0-ai-provider-registry",
     description:
       "The AI provider concept is now a single source of truth — adding a provider is a one-file config change. Stale model ids are corrected to current models, a one-time migration upgrades existing projects, and AI stream bookkeeping is drained by a budget-aware daily cron.",
-    version: "0.11.0",
     build: "0d7b6f1",
     publishedAt: Date.parse("2026-06-08T18:00:00+05:00"),
     content: `## What's new
@@ -701,7 +679,6 @@ const ENTRIES: SeedEntry[] = [
     slug: "v0-12-0-google-gemini-provider",
     description:
       "Bring your own Google Gemini key alongside Anthropic, OpenAI, and OpenRouter — with Gemini 3.5 Flash and 2.5 Flash, ideal for content writing.",
-    version: "0.12.0",
     build: "5e22f4d",
     publishedAt: Date.parse("2026-06-09T12:00:00+05:00"),
     content: `## What's new
@@ -720,7 +697,6 @@ const ENTRIES: SeedEntry[] = [
     slug: "v0-13-0-groq-and-layered-rate-limits",
     description:
       "Bring your own Groq key for blazing-fast Llama 3.3 70B and GPT-OSS models, plus a three-layer rate-limit system (per-user, per-provider, and a deployment-wide cap) that keeps the backend safe under load.",
-    version: "0.13.0",
     build: "86d0201",
     publishedAt: Date.parse("2026-06-09T18:00:00+05:00"),
     content: `## What's new
@@ -748,7 +724,6 @@ const ENTRIES: SeedEntry[] = [
     slug: "v0-14-0-readability-and-slash-commands",
     description:
       "Two opt-in writing aids — a Hemingway-style readability panel and a Notion-style slash (/) command menu — plus a board horizontal-scroll fix. Both editor features are off by default to keep the editor fast.",
-    version: "0.14.0",
     build: "88204db",
     publishedAt: Date.parse("2026-06-09T22:00:00+05:00"),
     content: `## What's new
@@ -777,7 +752,6 @@ const ENTRIES: SeedEntry[] = [
     slug: "v0-15-0-snippets",
     description:
       "Save reusable blocks per project — sign-offs, bios, CTAs, disclaimers — and paste any of them straight from the editor's / menu under a searchable Snippets submenu. Opt-in, scales to thousands per project.",
-    version: "0.15.0",
     build: "620c4e2",
     publishedAt: Date.parse("2026-06-09T23:45:00+05:00"),
     content: `## What's new
@@ -804,7 +778,6 @@ const ENTRIES: SeedEntry[] = [
     slug: "v0-15-1-performance-tier-1",
     description:
       "First performance pass — the editor ships less JavaScript up front and the content board stops shuttling full article bodies over the wire, so the app loads faster and stays smoother.",
-    version: "0.15.1",
     build: "9db054d",
     publishedAt: Date.parse("2026-06-09T23:55:00+05:00"),
     content: `## Performance
@@ -822,7 +795,6 @@ No behavior changes — everything works exactly as before, just lighter and fas
     slug: "v0-16-0-video-embeds",
     description:
       "Embed videos in your posts — pick from the media library, paste a hosted URL, or upload through your project's media provider, with playback right in the preview.",
-    version: "0.16.0",
     build: "6f3f8b1",
     publishedAt: Date.parse("2026-06-12T00:27:26+05:00"),
     content: `## What's new
@@ -842,7 +814,6 @@ No behavior changes — everything works exactly as before, just lighter and fas
     slug: "v0-17-0-editor-workflow",
     description:
       "A batch of editor workflow upgrades — paste or drop media to upload, lists that continue themselves, find & replace, a document outline, media slash commands, and a decluttered toolbar.",
-    version: "0.17.0",
     build: "b1c241e",
     publishedAt: Date.parse("2026-06-12T00:48:43+05:00"),
     content: `## What's new
@@ -861,7 +832,6 @@ No behavior changes — everything works exactly as before, just lighter and fas
     slug: "v0-18-0-snapshots-selection-toolbar",
     description:
       "Your drafts now have a real safety net — automatic version snapshots with diff and restore — plus a floating selection toolbar with one-click AI actions, internal [[ links, SEO checks, typewriter focus mode, and session writing stats.",
-    version: "0.18.0",
     build: "c6e4d13",
     publishedAt: Date.parse("2026-06-12T01:45:23+05:00"),
     content: `## What's new
@@ -885,7 +855,6 @@ No behavior changes — everything works exactly as before, just lighter and fas
     slug: "v0-19-0-share-previews-and-tools",
     description:
       "Share read-only draft previews with anyone, export your whole project as markdown, hunt down dead links, capture ideas, drag posts across the calendar, and watch your writing streak fill in a heatmap.",
-    version: "0.19.0",
     build: "2b6616e",
     publishedAt: Date.parse("2026-06-12T02:35:40+05:00"),
     content: `## What's new
@@ -904,13 +873,88 @@ No behavior changes — everything works exactly as before, just lighter and fas
 - The link checker is a single rate-limited action with a bounded worker pool (8 parallel probes, HEAD-with-GET-fallback, private hosts skipped, 150-link cap reported rather than silently truncated).
 `,
   },
+  {
+    title: "Leaner data path, smarter board selection & social fixes",
+    slug: "v0-20-0-document-body-split-and-board-selection",
+    description:
+      "The big one: writing no longer re-reads every article in your project, cutting DB bandwidth dramatically. Plus a Notion-style board selection mode and social template variables that actually resolve in custom text.",
+    build: "33a00ab",
+    publishedAt: Date.parse("2026-06-14T21:00:00+05:00"),
+    content: `## Performance
+
+- **Writing no longer re-reads your whole project.** The heavy article body now lives in its own \`document_content\` table, separated from the lightweight metadata (title, status, excerpt, word count) that the board, sidebar, calendar, and lists subscribe to. Those hot paths used to pay to read *every* article body in the project on each reactive invalidation — a single autosave could re-read up to 500 full bodies. Now they read metadata only.
+- **Autosave writes only the body.** The periodic 3-second autosave touches the \`document_content\` row alone and leaves the always-mounted sidebar/board subscriptions untouched, so typing no longer invalidates the project's metadata. The full metadata refresh (word count, \`updatedAt\`) fires once on manual save and when you leave the editor, so lists still reflect the final state. Per-save cost during a writing session drops from ~500 metadata rows + body to a single body write.
+- **No behavior change** — the editor, AI synthesis, drafts, frontmatter, preview, and GitHub publish all join the body back transparently. This is the bandwidth fix the whole project has been building toward.
+
+## What's new
+
+- **Notion-style board selection.** Once any card is selected, plain clicks toggle selection instead of opening the document, so you can never accidentally open a post mid-selection. Modifier-click (\`Cmd\`/\`Ctrl\`/\`Shift\`) anywhere on a card toggles it — no need to hit the small checkbox — and the checkbox hit target is now larger. Opening a document clears the active selection, so returning to the board never leaves stale cards selected.
+
+## Fixes
+
+- **Social template variables now resolve in custom text.** \`{{title}}\` and \`{{url}}\` typed into a *custom* announcement message are now substituted at publish time, for both publish-now and scheduled flows. Previously substitution only ran on the default template, so a \`{{url}}\` in custom text went out verbatim (or got dropped) and had to be pasted in by hand. Scheduled posts resolve the title and URL as they exist when the post actually goes out.
+- **Polished announcement UI** — the Social Announcement section is now a flat layout with labeled variable-insert chips, a live resolved preview, and a clear "Will publish on" callout.
+
+## Under the hood
+
+- New \`document_content\` table (\`by_documentId\`/\`by_projectId\`/\`by_userId\`), with \`documents.content\` made optional and \`documents.excerpt\` denormalized for list views. A single \`cms/_lib/documentContent.ts\` helper owns every read/write/delete/excerpt path, with a legacy-inline fallback for the backfill window.
+- Body rows cascade-delete on trash purge, project wipe, and account self-destruct. A resumable \`_backfillDocumentContent\` migration (body-size-safe batches of 25) is driven to completion from \`/admin/migrations\` → "Migrate document bodies," reporting an accurate migrated count.
+- Autosave split into \`onSave\` (body-only) and \`onFlush\` (full metadata refresh); shared social-template helpers extracted to \`src/lib/social-template.ts\` mirroring the server's \`renderPostTemplate\`.
+`,
+  },
+  {
+    title: "A redesigned landing page",
+    slug: "landing-page-v2-diff-hero-and-product-canvas",
+    description:
+      "A brand-new landing page built around what makes Wryte different — your content is real diffs in your own Git repo. Diff-driven hero, a live commit ticker, parallax product canvas, and an honest CMS comparison.",
+    build: "33a00ab",
+    publishedAt: Date.parse("2026-06-14T21:15:00+05:00"),
+    content: `## What's new
+
+- **A new landing page**, designed around the one thing that sets Wryte apart: your writing lives as real diffs in your own Git repo. It leads with a diff — not a screenshot.
+  - **Diff-driven hero** with an animated unified-diff card.
+  - **Commit ticker** — a marquee of git commits scrolling beneath the fold.
+  - **Product canvas** — editor and board sections that tilt in 3D parallax as you move.
+  - **Connected-flow** section that walks through how capture → board → AI → publish fit together.
+  - **Honest CMS comparison** — a readable matrix versus Payload, TinaCMS, Sanity, and Contentful, framed as a diff narrative rather than a feature checklist.
+  - **Diff-themed call to action** to close.
+
+## Under the hood
+
+- The redesign lives in \`features/marketing/components\` with its constants in \`features/marketing/constants\`, reusing the shared navbar, footer, page background, and magnetic button. The old landing sections (hero, marquee, statement, editor, board, features, workflow, CTA) and their private dependencies were removed.
+`,
+  },
+  {
+    title: "Automatic versioning & a date-based changelog",
+    slug: "automatic-versioning-and-date-based-changelog",
+    description:
+      "Wryte no longer has a hand-typed version number — the deployed git commit SHA is the release identity, so update detection is fully automatic and can't be forgotten. The changelog is now organized by date and stamped with the build that shipped it.",
+    build: "33a00ab",
+    publishedAt: Date.parse("2026-06-14T23:30:00+05:00"),
+    content: `## What's new
+
+- **Automatic versioning.** There's no version number to bump by hand anymore. The deployed git commit SHA is the release identity, and the "new version available" prompt compares the build your tab loaded against the one that's live — so every deploy is detected automatically, and a release can never ship without the version being updated.
+- **Date-based changelog.** Releases are now organized by date and tagged with the build (commit SHA) that shipped them, instead of a semver label. An optional milestone label (e.g. \`1.0\`) is still supported for the rare release you want to name.
+
+## Why
+
+- The old flow required hand-bumping \`package.json\` *and* writing a version-numbered changelog entry on every release — a manual step that was easy to forget (and was, for several commits in a row). Tying update detection to the commit SHA makes it automatic and reliable, the way continuously-deployed apps actually ship: the SHA is the version, and the human-facing label is optional.
+
+## Under the hood
+
+- \`use-version-check\` now compares the deployed build SHA (\`app_version.build\`) against the client's \`NEXT_PUBLIC_BUILD_SHA\` rather than the semver string; \`package.json\` version is demoted to a cosmetic label that's allowed to go stale.
+- The changelog \`version\` field is optional end-to-end — schema, create/update mutations, admin form, public page, and RSS — and entries are keyed on \`publishedAt\` + \`build\`.
+- The changelog seed is now an idempotent **upsert migration**: re-running it reconciles already-imported rows to the version-free structure (clearing any stale label) instead of skipping them.
+- The admin "New entry" form auto-fills the build SHA from the live deploy, and the \`changelog:new\` CLI no longer prompts for a version or touches \`package.json\`.
+`,
+  },
 ];
 
 export const seed = action({
   args: {},
   handler: async (
     ctx,
-  ): Promise<{ inserted: number; skipped: number; details: string[] }> => {
+  ): Promise<{ inserted: number; updated: number; details: string[] }> => {
     const key = await getRateLimitKey(ctx);
     await rateLimiter.limit(ctx, "seed:run", { key, throws: true });
 
@@ -931,7 +975,7 @@ export const _seedInternal = internalMutation({
         slug: v.string(),
         description: v.string(),
         content: v.string(),
-        version: v.string(),
+        version: v.optional(v.string()),
         build: v.string(),
         publishedAt: v.number(),
       }),
@@ -939,7 +983,7 @@ export const _seedInternal = internalMutation({
   },
   handler: async (ctx, args) => {
     let inserted = 0;
-    let skipped = 0;
+    let updated = 0;
     const details: string[] = [];
 
     for (const entry of args.entries) {
@@ -948,29 +992,45 @@ export const _seedInternal = internalMutation({
         .withIndex("by_slug", (q) => q.eq("slug", entry.slug))
         .unique();
 
+      const now = Date.now();
+
       if (existing) {
-        skipped += 1;
-        details.push(`skipped (already exists): ${entry.slug}`);
+        // Upsert (migration): reconcile a row that was seeded under the old
+        // version-based structure with the current entry definition. We
+        // explicitly patch `version: entry.version` (which is `undefined` for
+        // date-based entries) so Convex clears any stale version label left on
+        // the existing row — `patch` treats `undefined` as "remove this field".
+        // `createdAt` and `authorClerkUserId` are preserved.
+        await ctx.db.patch(existing._id, {
+          title: entry.title,
+          description: entry.description,
+          content: entry.content,
+          build: entry.build,
+          publishedAt: entry.publishedAt,
+          version: entry.version,
+          updatedAt: now,
+        });
+        updated += 1;
+        details.push(`updated: ${entry.slug}`);
         continue;
       }
 
-      const now = Date.now();
       await ctx.db.insert("changelog", {
         title: entry.title,
         slug: entry.slug,
         description: entry.description,
         content: entry.content,
-        version: entry.version,
         build: entry.build,
         publishedAt: entry.publishedAt,
         authorClerkUserId: args.authorClerkUserId,
         createdAt: now,
         updatedAt: now,
+        ...(entry.version ? { version: entry.version } : {}),
       });
       inserted += 1;
       details.push(`inserted: ${entry.slug}`);
     }
 
-    return { inserted, skipped, details };
+    return { inserted, updated, details };
   },
 });
