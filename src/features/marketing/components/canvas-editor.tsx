@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import { Check, FileText, Sparkles } from "lucide-react";
-import { CanvasSurface } from "@/features/marketing/v2/components/canvas-surface";
-import { SectionHeading } from "@/features/marketing/v2/components/section-heading";
+import { CanvasSurface } from "@/features/marketing/components/canvas-surface";
+import { SectionHeading } from "@/features/marketing/components/section-heading";
 
 const frontmatter = [
   { key: "title", value: '"Shipping Faster"', type: "string" },

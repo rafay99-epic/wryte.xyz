@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import { CalendarClock, GripVertical } from "lucide-react";
-import { CanvasSurface } from "@/features/marketing/v2/components/canvas-surface";
-import { SectionHeading } from "@/features/marketing/v2/components/section-heading";
+import { CanvasSurface } from "@/features/marketing/components/canvas-surface";
+import { SectionHeading } from "@/features/marketing/components/section-heading";
 
 type Card = { title: string; slug: string; words: string; tag?: string };
 

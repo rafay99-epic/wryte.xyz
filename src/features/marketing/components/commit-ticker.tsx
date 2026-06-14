@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { commitTicker } from "@/features/marketing/v2/constants";
+import { commitTicker } from "@/features/marketing/constants";
 
 /**
  * A git-flavoured marquee: a continuous stream of commit pills, evoking the

@@ -1,14 +1,14 @@
 import { motion } from "framer-motion";
 import { Check, Minus, X } from "lucide-react";
 import { BrandIcon } from "@/components/branding/brand-icon";
-import { SectionHeading } from "@/features/marketing/v2/components/section-heading";
+import { SectionHeading } from "@/features/marketing/components/section-heading";
 import {
   type Cell,
   comparisonColumns,
   comparisonRows,
   oldWaySteps,
   wryteWaySteps,
-} from "@/features/marketing/v2/constants";
+} from "@/features/marketing/constants";
 
 /* ------------------------------------------------------------------ */
 /*  Verdict icon                                                        */

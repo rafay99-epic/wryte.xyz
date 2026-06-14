@@ -3,10 +3,7 @@ import { ArrowRight, ArrowUpRight, Check, GitBranch } from "lucide-react";
 import { useRef } from "react";
 import { BrandIcon } from "@/components/branding/brand-icon";
 import { MagneticButton } from "@/features/marketing/components/magnetic-button";
-import {
-  type DiffLine,
-  heroDiffLines,
-} from "@/features/marketing/v2/constants";
+import { type DiffLine, heroDiffLines } from "@/features/marketing/constants";
 
 /* ------------------------------------------------------------------ */
 /*  Diff card                                                          */

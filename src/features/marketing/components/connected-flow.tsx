@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import { ArrowRight, GitMerge, RefreshCw, ShieldCheck } from "lucide-react";
-import { SectionHeading } from "@/features/marketing/v2/components/section-heading";
-import { flowNodes } from "@/features/marketing/v2/constants";
+import { SectionHeading } from "@/features/marketing/components/section-heading";
+import { flowNodes } from "@/features/marketing/constants";
 
 const guarantees = [
   {
