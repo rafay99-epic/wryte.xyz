@@ -4,6 +4,7 @@ import { useAction } from "convex/react";
 import {
   BarChart3,
   CheckCircle2,
+  Database,
   FileText,
   FolderOpen,
   Play,
@@ -28,7 +29,8 @@ type MigrationKey =
   | "writingStats"
   | "fullMigration"
   | "frontmatterSchemas"
-  | "aiModels";
+  | "aiModels"
+  | "documentContent";
 
 const MIGRATIONS: {
   key: MigrationKey;
@@ -85,6 +87,14 @@ const MIGRATIONS: {
     icon: Sparkles,
     accent: "text-purple-500",
   },
+  {
+    key: "documentContent",
+    title: "Migrate document bodies",
+    description:
+      "Moves every document's body out of the documents row into the dedicated document_content table (and backfills excerpt/wordCount). This is what removes the database-bandwidth read amplification. Runs to completion in one click and is idempotent — re-running only touches rows that still carry an inline body.",
+    icon: Database,
+    accent: "text-rose-500",
+  },
 ];
 
 export function MigrationRunner() {
@@ -102,6 +112,9 @@ export function MigrationRunner() {
     api.migrations.frontmatter.backfillFrontmatterSchemas,
   );
   const backfillAiModels = useAction(api.migrations.aiModels.backfillAiModels);
+  const migrateDocumentContent = useAction(
+    api.migrations.contentBackfill.migrateDocumentContent,
+  );
 
   const [running, setRunning] = useState<MigrationKey | null>(null);
   const [results, setResults] = useState<
@@ -124,6 +137,8 @@ export function MigrationRunner() {
           result = await backfillFrontmatterSchemas();
         } else if (key === "aiModels") {
           result = await backfillAiModels();
+        } else if (key === "documentContent") {
+          result = await migrateDocumentContent();
         } else {
           result = await runFullMigration();
         }
@@ -145,6 +160,7 @@ export function MigrationRunner() {
       runFullMigration,
       backfillFrontmatterSchemas,
       backfillAiModels,
+      migrateDocumentContent,
     ],
   );
 

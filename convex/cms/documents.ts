@@ -1983,21 +1983,28 @@ export const _backfillGithubSyncedAt = internalMutation({
 });
 
 /**
- * One-shot migration: moves every document's inline `content` into the
- * `document_content` table, stamps `excerpt` + `wordCount` on the row, and
- * clears the legacy inline field. Self-scheduling chunk pattern so it
- * scales to any number of documents without exceeding a single
- * transaction's read/write budget.
- *
- * Kick off from the Convex dashboard with `cursor: undefined`. Idempotent
- * — rows whose `content` is already absent are skipped, so a re-run after
- * a partial pass is safe.
+ * Smaller page size for the content migration than the metadata backfills:
+ * each migrated row reads AND rewrites a full body (up to MAX_CONTENT_BYTES),
+ * so we keep the per-transaction byte budget comfortably bounded even if a
+ * page is full of large documents.
+ */
+const CONTENT_MIGRATION_BATCH_SIZE = 25;
+
+/**
+ * One resumable chunk of the body migration: moves up to
+ * `CONTENT_MIGRATION_BATCH_SIZE` documents' inline `content` into the
+ * `document_content` table, stamps `excerpt` + `wordCount`, and clears the
+ * legacy inline field. Returns the continuation cursor instead of
+ * self-scheduling so the admin action (`migrations/contentBackfill`) can
+ * drive the loop and report an accurate final count to the UI. Idempotent —
+ * rows whose `content` is already absent are skipped, so re-running from the
+ * start is safe.
  */
 export const _backfillDocumentContent = internalMutation({
   args: { cursor: v.optional(v.union(v.string(), v.null())) },
   handler: async (ctx, args) => {
     const result = await ctx.db.query("documents").paginate({
-      numItems: BACKFILL_BATCH_SIZE,
+      numItems: CONTENT_MIGRATION_BATCH_SIZE,
       cursor: args.cursor ?? null,
     });
     let migrated = 0;
@@ -2016,13 +2023,6 @@ export const _backfillDocumentContent = internalMutation({
         content: undefined,
       });
       migrated += 1;
-    }
-    if (!result.isDone) {
-      await ctx.scheduler.runAfter(
-        0,
-        internal.cms.documents._backfillDocumentContent,
-        { cursor: result.continueCursor },
-      );
     }
     return {
       migrated,
