@@ -562,6 +562,75 @@ export const update = mutation({
   },
 });
 
+/**
+ * Hot-path autosave: persists ONLY the document body to `document_content`.
+ *
+ * Deliberately does NOT touch the `documents` row (no `updatedAt`,
+ * `wordCount`, `excerpt`, or word-activity write) when only the body
+ * changes. The board/sidebar `list` subscriptions read the `documents`
+ * row, so bumping it on every keystroke-batch would force the
+ * always-mounted sidebar to re-read the whole project list every few
+ * seconds — the dominant remaining database-bandwidth cost during a
+ * writing session. The row's derived metadata is refreshed on a coarser
+ * cadence (manual save, leaving the editor, status/publish) via `update`.
+ *
+ * Title is the one field shown in those lists, so a genuine title change
+ * is reflected immediately — but that's rare, so it doesn't reintroduce
+ * per-keystroke invalidation.
+ */
+export const autosaveBody = mutation({
+  args: {
+    documentId: v.id("documents"),
+    content: v.string(),
+    title: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const key = await getRateLimitKey(ctx);
+    await rateLimiter.limit(ctx, "documents:update", { key, throws: true });
+
+    const user = await getCurrentUser(ctx);
+    const document = await verifyDocumentOwnership(
+      ctx,
+      args.documentId,
+      user._id,
+    );
+
+    const byteLength = new TextEncoder().encode(args.content).byteLength;
+    if (byteLength > MAX_CONTENT_BYTES) {
+      throw new Error(
+        `Document content is too large (max ${String(Math.round(MAX_CONTENT_BYTES / 1024))} KB).`,
+      );
+    }
+
+    // Same defense-in-depth conflict lock as `update`: background autosave
+    // timers must not write over a document with a pending sync conflict.
+    const openConflict = await ctx.db
+      .query("sync_conflicts")
+      .withIndex("by_documentId", (q) => q.eq("documentId", args.documentId))
+      .take(10);
+    if (openConflict.some((c) => c.resolvedAt === undefined)) {
+      throw new Error(
+        "This document has a pending sync conflict. Resolve it before making changes.",
+      );
+    }
+
+    await writeContent(ctx, {
+      documentId: args.documentId,
+      projectId: document.projectId,
+      userId: user._id,
+      content: args.content,
+    });
+
+    // Only touch the hot `documents` row when the title actually changed.
+    if (args.title !== undefined && args.title !== document.title) {
+      await ctx.db.patch(args.documentId, {
+        title: args.title,
+        updatedAt: Date.now(),
+      });
+    }
+  },
+});
+
 /** Soft upper bound on document `content` length. Convex's 1MB doc limit
  *  is the hard ceiling — we keep things well below it so other fields
  *  retain budget and the UI doesn't have to deal with cryptic Convex
