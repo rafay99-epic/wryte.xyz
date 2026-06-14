@@ -39,6 +39,7 @@ export function EditorPage() {
   });
 
   const updateDocument = useMutation(api.cms.documents.update);
+  const autosaveBody = useMutation(api.cms.documents.autosaveBody);
   const updateDraftContent = useMutation(api.cms.documentDrafts.updateContent);
 
   const {
@@ -111,7 +112,24 @@ export function EditorPage() {
     }
   }, [document, isDirty, content, title, initDocument, activeDraftId]);
 
-  const saveDocument = useCallback(
+  // Periodic autosave: body only — never bumps the documents row, so the
+  // always-mounted sidebar/board list subscriptions aren't invalidated on
+  // every keystroke-batch.
+  const saveDocumentBody = useCallback(
+    async (c: string, t: string) => {
+      await autosaveBody({
+        documentId: documentId as Id<"documents">,
+        content: c,
+        title: t,
+      });
+    },
+    [documentId, autosaveBody],
+  );
+
+  // Flush: full update that also refreshes derived metadata (word count,
+  // excerpt, updatedAt, writing stats). Runs on manual save and when leaving
+  // the editor, so the lists reflect the session's final state.
+  const saveDocumentFull = useCallback(
     async (c: string, t: string) => {
       await updateDocument({
         documentId: documentId as Id<"documents">,
@@ -135,7 +153,10 @@ export function EditorPage() {
   );
 
   const targetId = activeDraftId ?? documentId;
-  const onSave = activeDraftId ? saveDraft : saveDocument;
+  const onSave = activeDraftId ? saveDraft : saveDocumentBody;
+  // Drafts live in their own table (no shared-row invalidation problem), so
+  // the draft path uses the same writer for periodic and flush saves.
+  const onFlush = activeDraftId ? saveDraft : saveDocumentFull;
 
   const autoSaveEnabled =
     (project?.autoSaveEnabled ?? true) && openConflict == null;
@@ -144,6 +165,7 @@ export function EditorPage() {
     content,
     title,
     onSave,
+    onFlush,
     enabled: autoSaveEnabled,
   });
 

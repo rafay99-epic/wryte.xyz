@@ -17,6 +17,11 @@ import {
 } from "../_lib/projectStats";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
 import { countWords } from "../_lib/wordCount";
+import {
+  buildExcerpt,
+  readContent,
+  writeContent,
+} from "./_lib/documentContent";
 
 /**
  * Verifies that a document exists and that the given user owns the parent project.
@@ -93,21 +98,22 @@ export const list = query({
         .take(500);
     }
 
-    // Drop the big `content` blob from this hot reactive subscription — the
-    // board, sidebar, and header all subscribe at once, so without this an
-    // autosave on ANY doc re-pushes every full article body to every
-    // subscriber. We keep every other field (incl. the small `frontmatter`)
-    // and derive `excerpt` + `wordCount` server-side so the client still gets
-    // exactly what it renders, minus the heaviest payload.
+    // The body lives in `document_content` now, so this hot reactive
+    // subscription never reads an article body — `wordCount` and `excerpt`
+    // are denormalized on the document row and maintained on every content
+    // write. Legacy rows not yet drained by `_backfillDocumentContent`
+    // still carry inline `content`; fall back to deriving from it so the
+    // cards render correctly during the backfill window.
     return documents
       .sort((a, b) => b.updatedAt - a.updatedAt)
       .map((d) => {
         const { content, ...rest } = d;
         return {
           ...rest,
-          wordCount: content.split(/\s+/).filter(Boolean).length,
-          excerpt:
-            content.length > 200 ? `${content.slice(0, 200)}...` : content,
+          wordCount:
+            d.wordCount ??
+            (content ? content.split(/\s+/).filter(Boolean).length : 0),
+          excerpt: d.excerpt ?? (content ? buildExcerpt(content) : ""),
         };
       });
   },
@@ -211,15 +217,17 @@ export const listForExport = query({
 
     return {
       ...result,
-      page: result.page.map((doc) => ({
-        _id: doc._id,
-        title: doc.title,
-        slug: doc.slug,
-        status: doc.status,
-        content: doc.content,
-        frontmatter: doc.frontmatter ?? null,
-        updatedAt: doc.updatedAt,
-      })),
+      page: await Promise.all(
+        result.page.map(async (doc) => ({
+          _id: doc._id,
+          title: doc.title,
+          slug: doc.slug,
+          status: doc.status,
+          content: await readContent(ctx, doc),
+          frontmatter: doc.frontmatter ?? null,
+          updatedAt: doc.updatedAt,
+        })),
+      ),
     };
   },
 });
@@ -250,11 +258,13 @@ export const _listForLinkCheck = internalQuery({
         q.eq("projectId", args.projectId).eq("trashedAt", undefined),
       )
       .take(500);
-    return docs.map((doc) => ({
-      _id: doc._id,
-      title: doc.title,
-      content: doc.content,
-    }));
+    return await Promise.all(
+      docs.map(async (doc) => ({
+        _id: doc._id,
+        title: doc.title,
+        content: await readContent(ctx, doc),
+      })),
+    );
   },
 });
 
@@ -351,7 +361,13 @@ export const get = query({
     if (document.trashedAt !== undefined) {
       return null;
     }
-    return document;
+    // Join the body back from `document_content` so every existing
+    // consumer of `get` (editor, AI synthesis, draft tabs, frontmatter
+    // editor) keeps receiving `document.content` unchanged. This is a
+    // single-document read — it does NOT reintroduce the list-query read
+    // amplification this migration removed.
+    const content = await readContent(ctx, document);
+    return { ...document, content };
   },
 });
 
@@ -392,12 +408,15 @@ export const create = mutation({
     const now = Date.now();
 
     const status = args.status ?? "draft";
+    // The body starts empty and lives in `document_content`; we don't
+    // create a content row until the first save (an absent row reads as
+    // "" via the documentContent helper).
     const documentId = await ctx.db.insert("documents", {
       projectId: args.projectId,
       userId: user._id,
       title: args.title,
       slug: args.slug,
-      content: "",
+      excerpt: "",
       wordCount: 0,
       status,
       createdAt: now,
@@ -494,9 +513,11 @@ export const update = mutation({
       );
     }
 
-    const { documentId, ...updates } = args;
+    const { documentId, content, ...updates } = args;
     const fieldsToUpdate: Record<string, unknown> = { updatedAt: Date.now() };
 
+    // `content` is handled separately (it lives in `document_content`); every
+    // other provided field is a plain metadata patch.
     for (const [key, value] of Object.entries(updates)) {
       if (value !== undefined) {
         fieldsToUpdate[key] = value;
@@ -504,13 +525,25 @@ export const update = mutation({
     }
 
     let wordCountDelta = 0;
-    if (args.content !== undefined) {
-      const newWordCount = countWords(args.content);
+    if (content !== undefined) {
+      const newWordCount = countWords(content);
       fieldsToUpdate["wordCount"] = newWordCount;
+      fieldsToUpdate["excerpt"] = buildExcerpt(content);
+      // Drop any legacy inline body so this row stops contributing to the
+      // hot list query's read cost even before the global backfill runs.
+      fieldsToUpdate["content"] = undefined;
       wordCountDelta = newWordCount - (document.wordCount ?? 0);
     }
 
     await ctx.db.patch(documentId, fieldsToUpdate);
+    if (content !== undefined) {
+      await writeContent(ctx, {
+        documentId,
+        projectId: document.projectId,
+        userId: user._id,
+        content,
+      });
+    }
 
     await scheduleWordActivity(ctx, {
       userId: user._id,
@@ -524,6 +557,75 @@ export const update = mutation({
         userId: user._id,
         oldStatus: document.status,
         newStatus: args.status,
+      });
+    }
+  },
+});
+
+/**
+ * Hot-path autosave: persists ONLY the document body to `document_content`.
+ *
+ * Deliberately does NOT touch the `documents` row (no `updatedAt`,
+ * `wordCount`, `excerpt`, or word-activity write) when only the body
+ * changes. The board/sidebar `list` subscriptions read the `documents`
+ * row, so bumping it on every keystroke-batch would force the
+ * always-mounted sidebar to re-read the whole project list every few
+ * seconds — the dominant remaining database-bandwidth cost during a
+ * writing session. The row's derived metadata is refreshed on a coarser
+ * cadence (manual save, leaving the editor, status/publish) via `update`.
+ *
+ * Title is the one field shown in those lists, so a genuine title change
+ * is reflected immediately — but that's rare, so it doesn't reintroduce
+ * per-keystroke invalidation.
+ */
+export const autosaveBody = mutation({
+  args: {
+    documentId: v.id("documents"),
+    content: v.string(),
+    title: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const key = await getRateLimitKey(ctx);
+    await rateLimiter.limit(ctx, "documents:update", { key, throws: true });
+
+    const user = await getCurrentUser(ctx);
+    const document = await verifyDocumentOwnership(
+      ctx,
+      args.documentId,
+      user._id,
+    );
+
+    const byteLength = new TextEncoder().encode(args.content).byteLength;
+    if (byteLength > MAX_CONTENT_BYTES) {
+      throw new Error(
+        `Document content is too large (max ${String(Math.round(MAX_CONTENT_BYTES / 1024))} KB).`,
+      );
+    }
+
+    // Same defense-in-depth conflict lock as `update`: background autosave
+    // timers must not write over a document with a pending sync conflict.
+    const openConflict = await ctx.db
+      .query("sync_conflicts")
+      .withIndex("by_documentId", (q) => q.eq("documentId", args.documentId))
+      .take(10);
+    if (openConflict.some((c) => c.resolvedAt === undefined)) {
+      throw new Error(
+        "This document has a pending sync conflict. Resolve it before making changes.",
+      );
+    }
+
+    await writeContent(ctx, {
+      documentId: args.documentId,
+      projectId: document.projectId,
+      userId: user._id,
+      content: args.content,
+    });
+
+    // Only touch the hot `documents` row when the title actually changed.
+    if (args.title !== undefined && args.title !== document.title) {
+      await ctx.db.patch(args.documentId, {
+        title: args.title,
+        updatedAt: Date.now(),
       });
     }
   },
@@ -558,19 +660,26 @@ export const duplicate = mutation({
     const newTitle = `${doc.title} (copy)`;
     const newSlug = `${doc.slug}-copy-${Date.now().toString(36)}`;
 
-    const wc = countWords(doc.content);
+    const sourceContent = await readContent(ctx, doc);
+    const wc = countWords(sourceContent);
     const newId = await ctx.db.insert("documents", {
       projectId: doc.projectId,
       userId: user._id,
       title: newTitle,
       slug: newSlug,
-      content: doc.content,
+      excerpt: buildExcerpt(sourceContent),
       wordCount: wc,
       status: doc.status,
       createdAt: now,
       updatedAt: now,
       ...(doc.frontmatter ? { frontmatter: doc.frontmatter } : {}),
       ...(doc.tags ? { tags: doc.tags } : {}),
+    });
+    await writeContent(ctx, {
+      documentId: newId,
+      projectId: doc.projectId,
+      userId: user._id,
+      content: sourceContent,
     });
     await scheduleWordActivity(ctx, {
       userId: user._id,
@@ -740,7 +849,7 @@ export const importFromGithub = mutation({
       userId: user._id,
       title: args.title,
       slug: args.slug,
-      content: args.content,
+      excerpt: buildExcerpt(args.content),
       wordCount: wc,
       status: "published",
       githubPath: args.githubPath,
@@ -750,6 +859,12 @@ export const importFromGithub = mutation({
       createdAt: now,
       updatedAt: now,
       ...(args.frontmatter !== undefined && { frontmatter: args.frontmatter }),
+    });
+    await writeContent(ctx, {
+      documentId,
+      projectId: args.projectId,
+      userId: user._id,
+      content: args.content,
     });
     await adjustDocumentCount(ctx, args.projectId, 1);
     await scheduleWordActivity(ctx, {
@@ -808,7 +923,7 @@ export const _importFromGithubInternal = internalMutation({
       userId: project.userId,
       title: args.title,
       slug: args.slug,
-      content: args.content,
+      excerpt: buildExcerpt(args.content),
       wordCount: wc,
       status: "published",
       githubPath: args.githubPath,
@@ -818,6 +933,12 @@ export const _importFromGithubInternal = internalMutation({
       createdAt: now,
       updatedAt: now,
       ...(args.frontmatter !== undefined && { frontmatter: args.frontmatter }),
+    });
+    await writeContent(ctx, {
+      documentId: id,
+      projectId: args.projectId,
+      userId: project.userId,
+      content: args.content,
     });
     await adjustDocumentCount(ctx, args.projectId, 1);
     await scheduleWordActivity(ctx, {
@@ -859,7 +980,8 @@ export const getBySlug = query({
     }
 
     // Use the trashedAt-aware index so trash never crowds out the active
-    // doc with the requested slug.
+    // doc with the requested slug. Rows no longer carry the body, so this
+    // scan is cheap; the body is joined back only for the single match.
     const documents = await ctx.db
       .query("documents")
       .withIndex("by_projectId_and_trashedAt", (q) =>
@@ -867,7 +989,10 @@ export const getBySlug = query({
       )
       .take(2000);
 
-    return documents.find((d) => d.slug === args.slug) ?? null;
+    const match = documents.find((d) => d.slug === args.slug);
+    if (!match) return null;
+    const content = await readContent(ctx, match);
+    return { ...match, content };
   },
 });
 
@@ -912,7 +1037,13 @@ export const toggleBookmark = mutation({
 export const internalGet = internalQuery({
   args: { documentId: v.id("documents") },
   handler: async (ctx, args) => {
-    return await ctx.db.get(args.documentId);
+    const document = await ctx.db.get(args.documentId);
+    if (!document) return null;
+    // Join the body back so server-side action callers (GitHub publish,
+    // bulk publish) keep seeing `document.content` without each having to
+    // know about the `document_content` table.
+    const content = await readContent(ctx, document);
+    return { ...document, content };
   },
 });
 
@@ -948,9 +1079,18 @@ export const internalUpdate = internalMutation({
     content: v.string(),
   },
   handler: async (ctx, args) => {
+    const doc = await ctx.db.get(args.documentId);
+    if (!doc) throw new Error("Document not found");
     await ctx.db.patch(args.documentId, {
-      content: args.content,
+      excerpt: buildExcerpt(args.content),
+      content: undefined,
       updatedAt: Date.now(),
+    });
+    await writeContent(ctx, {
+      documentId: args.documentId,
+      projectId: doc.projectId,
+      userId: doc.userId,
+      content: args.content,
     });
   },
 });
@@ -1216,9 +1356,17 @@ export const rollbackToVersion = mutation({
 
     await ctx.db.patch(args.documentId, {
       title: historyEntry.titleSnapshot,
-      content: historyEntry.contentSnapshot,
+      excerpt: buildExcerpt(historyEntry.contentSnapshot),
+      wordCount: countWords(historyEntry.contentSnapshot),
+      content: undefined,
       frontmatter: historyEntry.frontmatterSnapshot,
       updatedAt: Date.now(),
+    });
+    await writeContent(ctx, {
+      documentId: args.documentId,
+      projectId: document.projectId,
+      userId: document.userId,
+      content: historyEntry.contentSnapshot,
     });
 
     return {
@@ -1708,7 +1856,7 @@ export const _getExistingGithubFilesByPaths = internalQuery({
         githubSha: doc.githubSha,
         updatedAt: doc.updatedAt,
         githubSyncedAt: doc.githubSyncedAt,
-        content: doc.content,
+        content: await readContent(ctx, doc),
         frontmatter: doc.frontmatter,
       });
     }
@@ -1762,7 +1910,8 @@ export const _upsertImportedDocument = internalMutation({
       const patch: Record<string, unknown> = {
         title: args.title,
         slug: args.slug,
-        content: args.content,
+        excerpt: buildExcerpt(args.content),
+        content: undefined,
         wordCount: newWc,
         githubSha: args.githubSha,
         githubSyncedAt: args.githubSyncedAt,
@@ -1772,6 +1921,12 @@ export const _upsertImportedDocument = internalMutation({
         patch["frontmatter"] = args.frontmatter;
       }
       await ctx.db.patch(existing._id, patch);
+      await writeContent(ctx, {
+        documentId: existing._id,
+        projectId: args.projectId,
+        userId: project.userId,
+        content: args.content,
+      });
       await scheduleWordActivity(ctx, {
         userId: project.userId,
         projectId: args.projectId,
@@ -1783,7 +1938,8 @@ export const _upsertImportedDocument = internalMutation({
     if (existing) {
       const oldWc = existing.wordCount ?? 0;
       const patch: Record<string, unknown> = {
-        content: args.content,
+        excerpt: buildExcerpt(args.content),
+        content: undefined,
         wordCount: newWc,
         githubSha: args.githubSha,
         githubSyncedAt: args.githubSyncedAt,
@@ -1793,6 +1949,12 @@ export const _upsertImportedDocument = internalMutation({
         patch["frontmatter"] = args.frontmatter;
       }
       await ctx.db.patch(existing._id, patch);
+      await writeContent(ctx, {
+        documentId: existing._id,
+        projectId: args.projectId,
+        userId: project.userId,
+        content: args.content,
+      });
       await scheduleWordActivity(ctx, {
         userId: project.userId,
         projectId: args.projectId,
@@ -1806,7 +1968,7 @@ export const _upsertImportedDocument = internalMutation({
       userId: project.userId,
       title: args.title,
       slug: args.slug,
-      content: args.content,
+      excerpt: buildExcerpt(args.content),
       wordCount: newWc,
       status: "published",
       githubPath: args.githubPath,
@@ -1816,6 +1978,12 @@ export const _upsertImportedDocument = internalMutation({
       createdAt: now,
       updatedAt: now,
       ...(args.frontmatter !== undefined && { frontmatter: args.frontmatter }),
+    });
+    await writeContent(ctx, {
+      documentId: id,
+      projectId: args.projectId,
+      userId: project.userId,
+      content: args.content,
     });
     await adjustDocumentCount(ctx, args.projectId, 1);
     await scheduleWordActivity(ctx, {
@@ -1876,6 +2044,57 @@ export const _backfillGithubSyncedAt = internalMutation({
     }
     return {
       patched,
+      scanned: result.page.length,
+      isDone: result.isDone,
+      cursor: result.continueCursor,
+    };
+  },
+});
+
+/**
+ * Smaller page size for the content migration than the metadata backfills:
+ * each migrated row reads AND rewrites a full body (up to MAX_CONTENT_BYTES),
+ * so we keep the per-transaction byte budget comfortably bounded even if a
+ * page is full of large documents.
+ */
+const CONTENT_MIGRATION_BATCH_SIZE = 25;
+
+/**
+ * One resumable chunk of the body migration: moves up to
+ * `CONTENT_MIGRATION_BATCH_SIZE` documents' inline `content` into the
+ * `document_content` table, stamps `excerpt` + `wordCount`, and clears the
+ * legacy inline field. Returns the continuation cursor instead of
+ * self-scheduling so the admin action (`migrations/contentBackfill`) can
+ * drive the loop and report an accurate final count to the UI. Idempotent —
+ * rows whose `content` is already absent are skipped, so re-running from the
+ * start is safe.
+ */
+export const _backfillDocumentContent = internalMutation({
+  args: { cursor: v.optional(v.union(v.string(), v.null())) },
+  handler: async (ctx, args) => {
+    const result = await ctx.db.query("documents").paginate({
+      numItems: CONTENT_MIGRATION_BATCH_SIZE,
+      cursor: args.cursor ?? null,
+    });
+    let migrated = 0;
+    for (const doc of result.page) {
+      if (doc.content === undefined) continue;
+      const content = doc.content;
+      await writeContent(ctx, {
+        documentId: doc._id,
+        projectId: doc.projectId,
+        userId: doc.userId,
+        content,
+      });
+      await ctx.db.patch(doc._id, {
+        excerpt: buildExcerpt(content),
+        wordCount: doc.wordCount ?? countWords(content),
+        content: undefined,
+      });
+      migrated += 1;
+    }
+    return {
+      migrated,
       scanned: result.page.length,
       isDone: result.isDone,
       cursor: result.continueCursor,

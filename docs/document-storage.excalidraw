@@ -1,0 +1,288 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "https://excalidraw.com",
+  "elements": [
+    {
+      "id": "title", "type": "text", "x": 80, "y": 40, "width": 760, "height": 36,
+      "angle": 0, "strokeColor": "#1e1e1e", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 2, "strokeStyle": "solid", "roughness": 1,
+      "opacity": 100, "groupIds": [], "frameId": null, "roundness": null,
+      "seed": 1001, "version": 1, "versionNonce": 1, "isDeleted": false,
+      "boundElements": [], "updated": 1, "link": null, "locked": false,
+      "fontSize": 28, "fontFamily": 2, "text": "Wryte — how one blog post is stored",
+      "textAlign": "left", "verticalAlign": "top", "containerId": null,
+      "originalText": "Wryte — how one blog post is stored", "lineHeight": 1.25, "autoResize": true
+    },
+    {
+      "id": "subtitle", "type": "text", "x": 80, "y": 84, "width": 820, "height": 40,
+      "angle": 0, "strokeColor": "#495057", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 2, "strokeStyle": "solid", "roughness": 1,
+      "opacity": 100, "groupIds": [], "frameId": null, "roundness": null,
+      "seed": 1002, "version": 1, "versionNonce": 1, "isDeleted": false,
+      "boundElements": [], "updated": 1, "link": null, "locked": false,
+      "fontSize": 16, "fontFamily": 2,
+      "text": "Rule: the heavy markdown BODY lives alone; everything else is small metadata.",
+      "textAlign": "left", "verticalAlign": "top", "containerId": null,
+      "originalText": "Rule: the heavy markdown BODY lives alone; everything else is small metadata.",
+      "lineHeight": 1.25, "autoResize": true
+    },
+
+    {
+      "id": "r_documents", "type": "rectangle", "x": 80, "y": 150, "width": 470, "height": 560,
+      "angle": 0, "strokeColor": "#1e1e1e", "backgroundColor": "#ffec99",
+      "fillStyle": "solid", "strokeWidth": 2, "strokeStyle": "solid", "roughness": 1,
+      "opacity": 100, "groupIds": [], "frameId": null, "roundness": { "type": 3 },
+      "seed": 2001, "version": 1, "versionNonce": 1, "isDeleted": false,
+      "boundElements": [], "updated": 1, "link": null, "locked": false
+    },
+    {
+      "id": "t_documents_h", "type": "text", "x": 100, "y": 166, "width": 430, "height": 25,
+      "angle": 0, "strokeColor": "#1e1e1e", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 2, "strokeStyle": "solid", "roughness": 1,
+      "opacity": 100, "groupIds": [], "frameId": null, "roundness": null,
+      "seed": 2002, "version": 1, "versionNonce": 1, "isDeleted": false,
+      "boundElements": [], "updated": 1, "link": null, "locked": false,
+      "fontSize": 20, "fontFamily": 2, "text": "documents   (the hot row)",
+      "textAlign": "left", "verticalAlign": "top", "containerId": null,
+      "originalText": "documents   (the hot row)", "lineHeight": 1.25, "autoResize": true
+    },
+    {
+      "id": "t_documents_b", "type": "text", "x": 100, "y": 205, "width": 430, "height": 470,
+      "angle": 0, "strokeColor": "#343a40", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 2, "strokeStyle": "solid", "roughness": 1,
+      "opacity": 100, "groupIds": [], "frameId": null, "roundness": null,
+      "seed": 2003, "version": 1, "versionNonce": 1, "isDeleted": false,
+      "boundElements": [], "updated": 1, "link": null, "locked": false,
+      "fontSize": 15, "fontFamily": 3,
+      "text": "_id\nprojectId   -> projects\nuserId      -> users\ntitle, slug, status\ntags[ ]\nexcerpt        <- NEW: card preview\nwordCount\nfrontmatter    (JSON string)\nboardPosition, bookmarked\nscheduledAt, publishedAt\ngithubPath, githubSha, githubSyncedAt\ntrashedAt, createdAt, updatedAt\n\n>> NO body stored here.\n   Read by list / board / sidebar\n   -> small + cheap, even at 500 rows.",
+      "textAlign": "left", "verticalAlign": "top", "containerId": null,
+      "originalText": "_id\nprojectId   -> projects\nuserId      -> users\ntitle, slug, status\ntags[ ]\nexcerpt        <- NEW: card preview\nwordCount\nfrontmatter    (JSON string)\nboardPosition, bookmarked\nscheduledAt, publishedAt\ngithubPath, githubSha, githubSyncedAt\ntrashedAt, createdAt, updatedAt\n\n>> NO body stored here.\n   Read by list / board / sidebar\n   -> small + cheap, even at 500 rows.",
+      "lineHeight": 1.25, "autoResize": true
+    },
+
+    {
+      "id": "r_content", "type": "rectangle", "x": 640, "y": 150, "width": 560, "height": 250,
+      "angle": 0, "strokeColor": "#2b8a3e", "backgroundColor": "#b2f2bb",
+      "fillStyle": "solid", "strokeWidth": 2, "strokeStyle": "solid", "roughness": 1,
+      "opacity": 100, "groupIds": [], "frameId": null, "roundness": { "type": 3 },
+      "seed": 3001, "version": 1, "versionNonce": 1, "isDeleted": false,
+      "boundElements": [], "updated": 1, "link": null, "locked": false
+    },
+    {
+      "id": "t_content_h", "type": "text", "x": 660, "y": 166, "width": 520, "height": 25,
+      "angle": 0, "strokeColor": "#2b8a3e", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 2, "strokeStyle": "solid", "roughness": 1,
+      "opacity": 100, "groupIds": [], "frameId": null, "roundness": null,
+      "seed": 3002, "version": 1, "versionNonce": 1, "isDeleted": false,
+      "boundElements": [], "updated": 1, "link": null, "locked": false,
+      "fontSize": 20, "fontFamily": 2, "text": "document_content   <- the body (NEW)",
+      "textAlign": "left", "verticalAlign": "top", "containerId": null,
+      "originalText": "document_content   <- the body (NEW)", "lineHeight": 1.25, "autoResize": true
+    },
+    {
+      "id": "t_content_b", "type": "text", "x": 660, "y": 205, "width": 520, "height": 180,
+      "angle": 0, "strokeColor": "#2b6a35", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 2, "strokeStyle": "solid", "roughness": 1,
+      "opacity": 100, "groupIds": [], "frameId": null, "roundness": null,
+      "seed": 3003, "version": 1, "versionNonce": 1, "isDeleted": false,
+      "boundElements": [], "updated": 1, "link": null, "locked": false,
+      "fontSize": 15, "fontFamily": 3,
+      "text": "documentId  -> documents   (1 : 1)\nprojectId, userId\ncontent      <- the full markdown body\nupdatedAt\n\n>> Loaded only when you OPEN a doc.\n   Written by autosave (body-only).\n   This is what used to bloat EVERY\n   list read -> now isolated here.",
+      "textAlign": "left", "verticalAlign": "top", "containerId": null,
+      "originalText": "documentId  -> documents   (1 : 1)\nprojectId, userId\ncontent      <- the full markdown body\nupdatedAt\n\n>> Loaded only when you OPEN a doc.\n   Written by autosave (body-only).\n   This is what used to bloat EVERY\n   list read -> now isolated here.",
+      "lineHeight": 1.25, "autoResize": true
+    },
+
+    {
+      "id": "a_1to1", "type": "arrow", "x": 552, "y": 260, "width": 86, "height": 0,
+      "angle": 0, "strokeColor": "#2b8a3e", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 2, "strokeStyle": "solid", "roughness": 1,
+      "opacity": 100, "groupIds": [], "frameId": null, "roundness": { "type": 2 },
+      "seed": 4001, "version": 1, "versionNonce": 1, "isDeleted": false,
+      "boundElements": [], "updated": 1, "link": null, "locked": false,
+      "points": [[0, 0], [86, 0]], "lastCommittedPoint": null,
+      "startBinding": null, "endBinding": null, "startArrowhead": "arrow", "endArrowhead": "arrow"
+    },
+    {
+      "id": "t_1to1", "type": "text", "x": 556, "y": 224, "width": 90, "height": 20,
+      "angle": 0, "strokeColor": "#2b8a3e", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 2, "strokeStyle": "solid", "roughness": 1,
+      "opacity": 100, "groupIds": [], "frameId": null, "roundness": null,
+      "seed": 4002, "version": 1, "versionNonce": 1, "isDeleted": false,
+      "boundElements": [], "updated": 1, "link": null, "locked": false,
+      "fontSize": 14, "fontFamily": 2, "text": "1 : 1", "textAlign": "left",
+      "verticalAlign": "top", "containerId": null, "originalText": "1 : 1",
+      "lineHeight": 1.25, "autoResize": true
+    },
+
+    {
+      "id": "r_group", "type": "rectangle", "x": 640, "y": 430, "width": 1080, "height": 430,
+      "angle": 0, "strokeColor": "#868e96", "backgroundColor": "#f1f3f5",
+      "fillStyle": "solid", "strokeWidth": 1, "strokeStyle": "dashed", "roughness": 1,
+      "opacity": 100, "groupIds": [], "frameId": null, "roundness": { "type": 3 },
+      "seed": 5001, "version": 1, "versionNonce": 1, "isDeleted": false,
+      "boundElements": [], "updated": 1, "link": null, "locked": false
+    },
+    {
+      "id": "t_group_h", "type": "text", "x": 660, "y": 442, "width": 1040, "height": 22,
+      "angle": 0, "strokeColor": "#495057", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 2, "strokeStyle": "solid", "roughness": 1,
+      "opacity": 100, "groupIds": [], "frameId": null, "roundness": null,
+      "seed": 5002, "version": 1, "versionNonce": 1, "isDeleted": false,
+      "boundElements": [], "updated": 1, "link": null, "locked": false,
+      "fontSize": 16, "fontFamily": 2,
+      "text": "Related tables — each row points back to a document via  documentId",
+      "textAlign": "left", "verticalAlign": "top", "containerId": null,
+      "originalText": "Related tables — each row points back to a document via  documentId",
+      "lineHeight": 1.25, "autoResize": true
+    },
+    {
+      "id": "a_group", "type": "arrow", "x": 552, "y": 470, "width": 86, "height": 70,
+      "angle": 0, "strokeColor": "#868e96", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 2, "strokeStyle": "solid", "roughness": 1,
+      "opacity": 100, "groupIds": [], "frameId": null, "roundness": { "type": 2 },
+      "seed": 5003, "version": 1, "versionNonce": 1, "isDeleted": false,
+      "boundElements": [], "updated": 1, "link": null, "locked": false,
+      "points": [[0, 0], [86, 70]], "lastCommittedPoint": null,
+      "startBinding": null, "endBinding": null, "startArrowhead": null, "endArrowhead": "arrow"
+    },
+
+    {
+      "id": "r_drafts", "type": "rectangle", "x": 660, "y": 478, "width": 330, "height": 170,
+      "angle": 0, "strokeColor": "#1971c2", "backgroundColor": "#a5d8ff",
+      "fillStyle": "solid", "strokeWidth": 2, "strokeStyle": "solid", "roughness": 1,
+      "opacity": 100, "groupIds": [], "frameId": null, "roundness": { "type": 3 },
+      "seed": 6001, "version": 1, "versionNonce": 1, "isDeleted": false,
+      "boundElements": [], "updated": 1, "link": null, "locked": false
+    },
+    {
+      "id": "t_drafts", "type": "text", "x": 676, "y": 490, "width": 300, "height": 150,
+      "angle": 0, "strokeColor": "#1864ab", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 2, "strokeStyle": "solid", "roughness": 1,
+      "opacity": 100, "groupIds": [], "frameId": null, "roundness": null,
+      "seed": 6002, "version": 1, "versionNonce": 1, "isDeleted": false,
+      "boundElements": [], "updated": 1, "link": null, "locked": false,
+      "fontSize": 13, "fontFamily": 3,
+      "text": "document_drafts\n--------------------\ndocumentId, projectId, userId\nlabel, titleSnapshot\ncontentSnapshot\nfrontmatterSnapshot, wordCount\n\nParallel \"what-if\" drafts (tabs)",
+      "textAlign": "left", "verticalAlign": "top", "containerId": null,
+      "originalText": "document_drafts\n--------------------\ndocumentId, projectId, userId\nlabel, titleSnapshot\ncontentSnapshot\nfrontmatterSnapshot, wordCount\n\nParallel \"what-if\" drafts (tabs)",
+      "lineHeight": 1.25, "autoResize": true
+    },
+
+    {
+      "id": "r_snap", "type": "rectangle", "x": 1015, "y": 478, "width": 330, "height": 170,
+      "angle": 0, "strokeColor": "#1971c2", "backgroundColor": "#a5d8ff",
+      "fillStyle": "solid", "strokeWidth": 2, "strokeStyle": "solid", "roughness": 1,
+      "opacity": 100, "groupIds": [], "frameId": null, "roundness": { "type": 3 },
+      "seed": 6101, "version": 1, "versionNonce": 1, "isDeleted": false,
+      "boundElements": [], "updated": 1, "link": null, "locked": false
+    },
+    {
+      "id": "t_snap", "type": "text", "x": 1031, "y": 490, "width": 300, "height": 150,
+      "angle": 0, "strokeColor": "#1864ab", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 2, "strokeStyle": "solid", "roughness": 1,
+      "opacity": 100, "groupIds": [], "frameId": null, "roundness": null,
+      "seed": 6102, "version": 1, "versionNonce": 1, "isDeleted": false,
+      "boundElements": [], "updated": 1, "link": null, "locked": false,
+      "fontSize": 13, "fontFamily": 3,
+      "text": "document_snapshots\n-----------------------\ndocumentId, projectId, userId\nreason (manual/interval/restore)\ntitle, content, wordCount\n\nAuto version history (max 30/doc)",
+      "textAlign": "left", "verticalAlign": "top", "containerId": null,
+      "originalText": "document_snapshots\n-----------------------\ndocumentId, projectId, userId\nreason (manual/interval/restore)\ntitle, content, wordCount\n\nAuto version history (max 30/doc)",
+      "lineHeight": 1.25, "autoResize": true
+    },
+
+    {
+      "id": "r_pub", "type": "rectangle", "x": 1370, "y": 478, "width": 330, "height": 170,
+      "angle": 0, "strokeColor": "#1971c2", "backgroundColor": "#a5d8ff",
+      "fillStyle": "solid", "strokeWidth": 2, "strokeStyle": "solid", "roughness": 1,
+      "opacity": 100, "groupIds": [], "frameId": null, "roundness": { "type": 3 },
+      "seed": 6201, "version": 1, "versionNonce": 1, "isDeleted": false,
+      "boundElements": [], "updated": 1, "link": null, "locked": false
+    },
+    {
+      "id": "t_pub", "type": "text", "x": 1386, "y": 490, "width": 300, "height": 150,
+      "angle": 0, "strokeColor": "#1864ab", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 2, "strokeStyle": "solid", "roughness": 1,
+      "opacity": 100, "groupIds": [], "frameId": null, "roundness": null,
+      "seed": 6202, "version": 1, "versionNonce": 1, "isDeleted": false,
+      "boundElements": [], "updated": 1, "link": null, "locked": false,
+      "fontSize": 13, "fontFamily": 3,
+      "text": "publish_history\n------------------\ndocumentId, projectId, userId\ncommitSha, commitUrl, githubPath\ntitleSnapshot\ncontentSnapshot / frontmatterSnapshot\n\nOne row per GitHub publish -> rollback",
+      "textAlign": "left", "verticalAlign": "top", "containerId": null,
+      "originalText": "publish_history\n------------------\ndocumentId, projectId, userId\ncommitSha, commitUrl, githubPath\ntitleSnapshot\ncontentSnapshot / frontmatterSnapshot\n\nOne row per GitHub publish -> rollback",
+      "lineHeight": 1.25, "autoResize": true
+    },
+
+    {
+      "id": "r_conf", "type": "rectangle", "x": 660, "y": 668, "width": 330, "height": 170,
+      "angle": 0, "strokeColor": "#1971c2", "backgroundColor": "#a5d8ff",
+      "fillStyle": "solid", "strokeWidth": 2, "strokeStyle": "solid", "roughness": 1,
+      "opacity": 100, "groupIds": [], "frameId": null, "roundness": { "type": 3 },
+      "seed": 6301, "version": 1, "versionNonce": 1, "isDeleted": false,
+      "boundElements": [], "updated": 1, "link": null, "locked": false
+    },
+    {
+      "id": "t_conf", "type": "text", "x": 676, "y": 680, "width": 300, "height": 150,
+      "angle": 0, "strokeColor": "#1864ab", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 2, "strokeStyle": "solid", "roughness": 1,
+      "opacity": 100, "groupIds": [], "frameId": null, "roundness": null,
+      "seed": 6302, "version": 1, "versionNonce": 1, "isDeleted": false,
+      "boundElements": [], "updated": 1, "link": null, "locked": false,
+      "fontSize": 13, "fontFamily": 3,
+      "text": "sync_conflicts\n-----------------\ndocumentId, projectId, userId\ngithubPath, remoteSha\nremoteContent / remoteFrontmatter\nlocalContentSnapshot / localFrontmatter\n\nGitHub vs local diff (both changed)",
+      "textAlign": "left", "verticalAlign": "top", "containerId": null,
+      "originalText": "sync_conflicts\n-----------------\ndocumentId, projectId, userId\ngithubPath, remoteSha\nremoteContent / remoteFrontmatter\nlocalContentSnapshot / localFrontmatter\n\nGitHub vs local diff (both changed)",
+      "lineHeight": 1.25, "autoResize": true
+    },
+
+    {
+      "id": "r_research", "type": "rectangle", "x": 1015, "y": 668, "width": 330, "height": 170,
+      "angle": 0, "strokeColor": "#1971c2", "backgroundColor": "#a5d8ff",
+      "fillStyle": "solid", "strokeWidth": 2, "strokeStyle": "solid", "roughness": 1,
+      "opacity": 100, "groupIds": [], "frameId": null, "roundness": { "type": 3 },
+      "seed": 6401, "version": 1, "versionNonce": 1, "isDeleted": false,
+      "boundElements": [], "updated": 1, "link": null, "locked": false
+    },
+    {
+      "id": "t_research", "type": "text", "x": 1031, "y": 680, "width": 300, "height": 150,
+      "angle": 0, "strokeColor": "#1864ab", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 2, "strokeStyle": "solid", "roughness": 1,
+      "opacity": 100, "groupIds": [], "frameId": null, "roundness": null,
+      "seed": 6402, "version": 1, "versionNonce": 1, "isDeleted": false,
+      "boundElements": [], "updated": 1, "link": null, "locked": false,
+      "fontSize": 13, "fontFamily": 3,
+      "text": "document_research\n----------------------\ndocumentId, projectId, userId\ntype, title, content, url\nselectedForAi\n\nNotes / sources for AI context",
+      "textAlign": "left", "verticalAlign": "top", "containerId": null,
+      "originalText": "document_research\n----------------------\ndocumentId, projectId, userId\ntype, title, content, url\nselectedForAi\n\nNotes / sources for AI context",
+      "lineHeight": 1.25, "autoResize": true
+    },
+
+    {
+      "id": "r_share", "type": "rectangle", "x": 1370, "y": 668, "width": 330, "height": 170,
+      "angle": 0, "strokeColor": "#1971c2", "backgroundColor": "#a5d8ff",
+      "fillStyle": "solid", "strokeWidth": 2, "strokeStyle": "solid", "roughness": 1,
+      "opacity": 100, "groupIds": [], "frameId": null, "roundness": { "type": 3 },
+      "seed": 6501, "version": 1, "versionNonce": 1, "isDeleted": false,
+      "boundElements": [], "updated": 1, "link": null, "locked": false
+    },
+    {
+      "id": "t_share", "type": "text", "x": 1386, "y": 680, "width": 300, "height": 150,
+      "angle": 0, "strokeColor": "#1864ab", "backgroundColor": "transparent",
+      "fillStyle": "solid", "strokeWidth": 2, "strokeStyle": "solid", "roughness": 1,
+      "opacity": 100, "groupIds": [], "frameId": null, "roundness": null,
+      "seed": 6502, "version": 1, "versionNonce": 1, "isDeleted": false,
+      "boundElements": [], "updated": 1, "link": null, "locked": false,
+      "fontSize": 13, "fontFamily": 3,
+      "text": "share_links\n--------------\ndocumentId, projectId, userId\ntoken, revokedAt\n\nPublic read-only preview link",
+      "textAlign": "left", "verticalAlign": "top", "containerId": null,
+      "originalText": "share_links\n--------------\ndocumentId, projectId, userId\ntoken, revokedAt\n\nPublic read-only preview link",
+      "lineHeight": 1.25, "autoResize": true
+    }
+  ],
+  "appState": {
+    "gridSize": null,
+    "viewBackgroundColor": "#ffffff"
+  },
+  "files": {}
+}

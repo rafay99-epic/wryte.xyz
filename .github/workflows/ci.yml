@@ -43,7 +43,13 @@ jobs:
         run: bun run type
 
       - name: Dependency audit
-        run: bun audit
+        # GHSA-gv7w-rqvm-qjhr: esbuild <0.28.1, pulled in transitively and
+        # hard-pinned by convex (convex@1.41 still pins esbuild@0.27.0). The
+        # advisory is a build-time RCE that requires a hostile NPM_CONFIG_REGISTRY
+        # — not applicable to our trusted CI/Vercel registries — and the patched
+        # esbuild@0.28.1 is currently blocked by our minimumReleaseAge guard.
+        # Remove this ignore once convex ships a release pinning esbuild >=0.28.1.
+        run: bun audit --ignore GHSA-gv7w-rqvm-qjhr
 
       - name: Production build
         run: bunx next build

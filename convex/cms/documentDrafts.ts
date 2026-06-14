@@ -4,6 +4,11 @@ import type { DatabaseReader } from "../_generated/server";
 import { mutation, query } from "../_generated/server";
 import { getAuthedUserOrNull, getCurrentUser } from "../_lib/auth";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
+import {
+  buildExcerpt,
+  readContent,
+  writeContent,
+} from "./_lib/documentContent";
 
 async function verifyDocumentOwnership(
   ctx: { db: DatabaseReader },
@@ -82,18 +87,19 @@ export const create = mutation({
     const label = args.label?.trim() || `Draft ${String(existing.length + 1)}`;
 
     const copyContent = args.copyFromMain ?? false;
+    const mainContent = copyContent ? await readContent(ctx, document) : "";
 
     return await ctx.db.insert("document_drafts", {
       documentId: args.documentId,
       projectId: document.projectId,
       userId: user._id,
       label,
-      contentSnapshot: copyContent ? document.content : "",
+      contentSnapshot: mainContent,
       titleSnapshot: copyContent ? document.title : "",
       ...(copyContent && document.frontmatter !== undefined
         ? { frontmatterSnapshot: document.frontmatter }
         : {}),
-      wordCount: copyContent ? wordCount(document.content) : 0,
+      wordCount: copyContent ? wordCount(mainContent) : 0,
       createdAt: now,
       updatedAt: now,
     });
@@ -225,13 +231,25 @@ export const promoteToMain = mutation({
     if (!draft || draft.userId !== user._id) {
       throw new Error("Draft not found");
     }
-    await verifyDocumentOwnership(ctx, draft.documentId, user._id);
+    const document = await verifyDocumentOwnership(
+      ctx,
+      draft.documentId,
+      user._id,
+    );
 
     await ctx.db.patch(draft.documentId, {
       title: draft.titleSnapshot,
-      content: draft.contentSnapshot,
+      excerpt: buildExcerpt(draft.contentSnapshot),
+      wordCount: wordCount(draft.contentSnapshot),
+      content: undefined,
       frontmatter: draft.frontmatterSnapshot,
       updatedAt: Date.now(),
+    });
+    await writeContent(ctx, {
+      documentId: draft.documentId,
+      projectId: document.projectId,
+      userId: user._id,
+      content: draft.contentSnapshot,
     });
 
     return {

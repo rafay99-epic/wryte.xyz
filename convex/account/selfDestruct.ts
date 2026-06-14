@@ -588,6 +588,19 @@ export const _wipeChunk = internalMutation({
       }
     }
 
+    /* 7c. document_content — bodies live in their own table; drain them
+     *     before the parent documents so no orphaned rows remain. */
+    if (budget > 0) {
+      const rows = await ctx.db
+        .query("document_content")
+        .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+        .take(budget);
+      for (const row of rows) {
+        await ctx.db.delete(row._id);
+        budget--;
+      }
+    }
+
     /* 8. documents */
     if (budget > 0) {
       const rows = await ctx.db
@@ -639,6 +652,10 @@ async function countRemaining(
       .take(1),
     ctx.db
       .query("documents")
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
+      .take(1),
+    ctx.db
+      .query("document_content")
       .withIndex("by_userId", (q) => q.eq("userId", userId))
       .take(1),
     ctx.db

@@ -10,7 +10,18 @@ type AutosaveOptions = {
   targetId: string;
   content: string;
   title: string;
+  /**
+   * Frequent, cheap persistence of the body. Runs on the debounce timer.
+   * Should write ONLY the body (no metadata that invalidates list views).
+   */
   onSave: (content: string, title: string) => Promise<void>;
+  /**
+   * Coarse, heavier save that also refreshes derived metadata (word count,
+   * excerpt, updatedAt, stats). Runs on manual save and when leaving the
+   * editor, so the board/sidebar reflect the session's final state without
+   * being invalidated on every keystroke. Falls back to `onSave` when omitted.
+   */
+  onFlush?: (content: string, title: string) => Promise<void>;
   enabled?: boolean;
 };
 
@@ -25,6 +36,7 @@ export function useAutosave({
   content,
   title,
   onSave,
+  onFlush,
   enabled = true,
 }: AutosaveOptions): AutosaveReturn {
   const { isSaving, lastSavedAt, isDirty, setSaving, markSaved } =
@@ -43,6 +55,11 @@ export function useAutosave({
   const isMountedRef = useRef(true);
   const failureCountRef = useRef(0);
   const onSaveRef = useRef(onSave);
+  const onFlushRef = useRef(onFlush);
+  // True when the body has been autosaved (via onSave) since the last
+  // metadata flush — so leaving the editor knows it still owes the
+  // board/sidebar a metadata refresh even though nothing is "dirty".
+  const flushPendingRef = useRef(false);
   // Monotonically increasing token per save attempt. After awaiting the
   // mutation we check that our token is still the latest; otherwise a newer
   // save kicked off mid-await and we drop the post-await side-effects to
@@ -55,7 +72,8 @@ export function useAutosave({
 
   useEffect(() => {
     onSaveRef.current = onSave;
-  }, [onSave]);
+    onFlushRef.current = onFlush;
+  }, [onSave, onFlush]);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -64,49 +82,68 @@ export function useAutosave({
     };
   }, []);
 
-  const save = useCallback(async () => {
-    if (!isMountedRef.current) return;
-    if (latestRef.current.targetId !== targetId) return;
-    if (!useEditorStore.getState().isDirty) return;
+  const performSave = useCallback(
+    async (
+      saveFn: (content: string, title: string) => Promise<void>,
+    ): Promise<boolean> => {
+      if (!isMountedRef.current) return false;
+      if (latestRef.current.targetId !== targetId) return false;
+      if (!useEditorStore.getState().isDirty) return false;
 
-    const seq = ++saveSeqRef.current;
-    const snapshotContent = latestRef.current.content;
-    const snapshotTitle = latestRef.current.title;
-    setSaving(true);
-    try {
-      await onSaveRef.current(snapshotContent, snapshotTitle);
+      const seq = ++saveSeqRef.current;
+      const snapshotContent = latestRef.current.content;
+      const snapshotTitle = latestRef.current.title;
+      setSaving(true);
+      try {
+        await saveFn(snapshotContent, snapshotTitle);
 
-      // A newer save started while we awaited — that call will handle the
-      // result. Touching state here would mark the editor clean against
-      // content the user has since moved past.
-      if (seq !== saveSeqRef.current) return;
+        // A newer save started while we awaited — that call will handle the
+        // result. Touching state here would mark the editor clean against
+        // content the user has since moved past.
+        if (seq !== saveSeqRef.current) return true;
 
-      if (isMountedRef.current && latestRef.current.targetId === targetId) {
-        const stillFresh =
-          latestRef.current.content === snapshotContent &&
-          latestRef.current.title === snapshotTitle;
-        if (stillFresh) {
-          markSaved();
-        } else {
+        if (isMountedRef.current && latestRef.current.targetId === targetId) {
+          const stillFresh =
+            latestRef.current.content === snapshotContent &&
+            latestRef.current.title === snapshotTitle;
+          if (stillFresh) {
+            markSaved();
+          } else {
+            setSaving(false);
+          }
+          failureCountRef.current = 0;
+        }
+        return true;
+      } catch (err) {
+        if (seq !== saveSeqRef.current) return false;
+        if (isMountedRef.current) {
           setSaving(false);
+          failureCountRef.current += 1;
+          console.error("[Autosave] Failed to save:", err);
+          if (failureCountRef.current === FAILURE_THRESHOLD) {
+            toast.error("Unable to save — check your connection", {
+              id: "autosave-failure",
+              duration: 5000,
+            });
+          }
         }
-        failureCountRef.current = 0;
+        return false;
       }
-    } catch (err) {
-      if (seq !== saveSeqRef.current) return;
-      if (isMountedRef.current) {
-        setSaving(false);
-        failureCountRef.current += 1;
-        console.error("[Autosave] Failed to save:", err);
-        if (failureCountRef.current === FAILURE_THRESHOLD) {
-          toast.error("Unable to save — check your connection", {
-            id: "autosave-failure",
-            duration: 5000,
-          });
-        }
-      }
-    }
-  }, [targetId, setSaving, markSaved]);
+    },
+    [targetId, setSaving, markSaved],
+  );
+
+  // Debounced periodic save — persists the body cheaply (no metadata churn).
+  const save = useCallback(async () => {
+    const saved = await performSave(onSaveRef.current);
+    if (saved) flushPendingRef.current = true;
+  }, [performSave]);
+
+  // Terminal save (manual Cmd+S) — also refreshes derived metadata.
+  const flush = useCallback(async () => {
+    const saved = await performSave(onFlushRef.current ?? onSaveRef.current);
+    if (saved) flushPendingRef.current = false;
+  }, [performSave]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: content & title are intentional re-trigger signals
   useEffect(() => {
@@ -131,11 +168,21 @@ export function useAutosave({
       if (!enabled) return;
       const hasPendingTimer = timerRef.current !== null;
       const state = useEditorStore.getState();
-      if (!hasPendingTimer || !state.isDirty) return;
       const { content: c, title: t } = latestRef.current;
-      void onSaveRef.current(c, t).catch((err) => {
-        console.error("[Autosave] Flush-on-unmount failed:", err);
-      });
+      const flushFn = onFlushRef.current ?? onSaveRef.current;
+      // Leaving with unsaved edits → full save. Otherwise, if the body was
+      // autosaved but the documents row hasn't had its metadata refreshed
+      // yet, flush it now so the board/sidebar reflect the final state.
+      if (hasPendingTimer && state.isDirty) {
+        void flushFn(c, t).catch((err) => {
+          console.error("[Autosave] Flush-on-unmount failed:", err);
+        });
+      } else if (flushPendingRef.current) {
+        flushPendingRef.current = false;
+        void flushFn(c, t).catch((err) => {
+          console.error("[Autosave] Metadata flush-on-unmount failed:", err);
+        });
+      }
     };
   }, [enabled]);
 
@@ -144,8 +191,8 @@ export function useAutosave({
       clearTimeout(timerRef.current);
       timerRef.current = null;
     }
-    await save();
-  }, [save]);
+    await flush();
+  }, [flush]);
 
   return { isSaving, lastSavedAt, saveNow };
 }

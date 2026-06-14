@@ -11,6 +11,7 @@ import { v } from "convex/values";
 import { mutation, query } from "../_generated/server";
 import { getAuthedUserOrNull, getCurrentUser } from "../_lib/auth";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
+import { readContent } from "./_lib/documentContent";
 
 /** Client-generated token: long, URL-safe, no exotic characters. */
 const TOKEN_RE = /^[a-zA-Z0-9-]{20,64}$/;
@@ -36,7 +37,7 @@ export const getByToken = query({
 
     return {
       title: document.title,
-      content: document.content,
+      content: await readContent(ctx, document),
       updatedAt: document.updatedAt,
     };
   },

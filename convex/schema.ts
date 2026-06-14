@@ -222,7 +222,24 @@ export default defineSchema({
     userId: v.id("users"),
     title: v.string(),
     slug: v.string(),
-    content: v.string(),
+    /**
+     * @deprecated The document body now lives in its own `document_content`
+     * table (1:1, keyed by documentId) so the hot reactive list/board/get
+     * subscriptions never have to read every article body — that read
+     * amplification was burning database bandwidth. Kept optional only so
+     * pre-migration rows stay readable (via the `documentContent` helper's
+     * fallback) until `_backfillDocumentContent` drains them; new writes
+     * never populate this field. Remove once the backfill is confirmed
+     * complete on every deployment.
+     */
+    content: v.optional(v.string()),
+    /**
+     * Denormalized first ~200 chars of the body, maintained on every
+     * content write. Lets the board/list cards show a preview without
+     * loading `document_content`. Absent on un-backfilled rows — callers
+     * fall back to deriving it from the legacy inline `content`.
+     */
+    excerpt: v.optional(v.string()),
     wordCount: v.optional(v.number()),
     frontmatter: v.optional(v.string()),
     status: v.string(),
@@ -265,6 +282,30 @@ export default defineSchema({
       searchField: "title",
       filterFields: ["projectId"],
     }),
+
+  /**
+   * Document bodies — split out of `documents` (1:1, keyed by documentId)
+   * so the hot reactive queries that list/board/calendar documents never
+   * read article bodies. Convex bills bytes READ from the database, and a
+   * single autosave used to force the list query to re-read every body in
+   * the project; isolating the body here removes that read amplification.
+   *
+   * Reads/writes go through `convex/cms/_lib/documentContent.ts` so the
+   * fallback-to-legacy-inline-content behaviour stays in one place during
+   * the backfill window. `by_projectId` / `by_userId` exist purely so the
+   * project-delete and account-self-destruct cascades can drain rows
+   * without walking the parent `documents`.
+   */
+  document_content: defineTable({
+    documentId: v.id("documents"),
+    projectId: v.id("projects"),
+    userId: v.id("users"),
+    content: v.string(),
+    updatedAt: v.number(),
+  })
+    .index("by_documentId", ["documentId"])
+    .index("by_projectId", ["projectId"])
+    .index("by_userId", ["userId"]),
 
   /**
    * Publish history table — tracks every publish to GitHub for a document.
