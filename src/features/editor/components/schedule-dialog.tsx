@@ -44,6 +44,11 @@ import {
 } from "@/lib/calendar-utils";
 import { smoothTransition } from "@/lib/motion";
 import {
+  buildPublishedUrl,
+  DEFAULT_SOCIAL_TEMPLATE,
+  renderSocialText,
+} from "@/lib/social-template";
+import {
   formatLocalDate,
   formatLocalDatetime,
   getBrowserTimezone,
@@ -234,8 +239,11 @@ export function ScheduleDialog({
     socialConfig?.status === "active" &&
     Boolean(project?.siteUrl);
 
-  const defaultSocialText = useMemo(() => {
-    if (!socialEnabled || !project?.siteUrl) return "";
+  // The textarea holds a TEMPLATE (placeholders intact); the server resolves
+  // {{title}}/{{url}} at fire-time so a scheduled post reflects the title/URL
+  // as they exist when it actually publishes, not when it was scheduled.
+  const defaultSocialTemplate = useMemo(() => {
+    if (!socialEnabled) return "";
     let parsed: { postTemplate?: string } | null = null;
     if (socialConfig?.publicConfig) {
       try {
@@ -244,21 +252,17 @@ export function ScheduleDialog({
         /* corrupted config — fall through to default template */
       }
     }
-    const template =
-      parsed?.postTemplate || "New blog post: {{title}}\n\n{{url}}";
-    const slug = document?.slug ?? "untitled";
-    const url = `${project.siteUrl.replace(/\/$/, "")}/${slug}`;
-    const docTitle = document?.title || "Untitled";
-    return template
-      .replace(/\{\{title\}\}/g, docTitle)
-      .replace(/\{\{url\}\}/g, url);
-  }, [
-    socialEnabled,
-    socialConfig?.publicConfig,
-    project?.siteUrl,
-    document?.slug,
-    document?.title,
-  ]);
+    return parsed?.postTemplate || DEFAULT_SOCIAL_TEMPLATE;
+  }, [socialEnabled, socialConfig?.publicConfig]);
+
+  // Concrete values used only for the live preview shown under the textarea.
+  const socialPreview = useMemo(
+    () => ({
+      title: document?.title || "Untitled",
+      url: buildPublishedUrl(project?.siteUrl, document?.slug),
+    }),
+    [project?.siteUrl, document?.slug, document?.title],
+  );
 
   const isAlreadyScheduled = document?.status === "scheduled";
   const existingScheduledAt = document?.scheduledAt;
@@ -281,7 +285,7 @@ export function ScheduleDialog({
   useEffect(() => {
     if (open) {
       setTimezone(projectTimezone);
-      setSocialPostText(defaultSocialText);
+      setSocialPostText(defaultSocialTemplate);
       setIncludeSocialPost(true);
       if (existingScheduledAt) {
         // Read the existing instant *in the project timezone* so the calendar
@@ -304,7 +308,7 @@ export function ScheduleDialog({
         setMinute(0);
       }
     }
-  }, [open, existingScheduledAt, projectTimezone, defaultSocialText]);
+  }, [open, existingScheduledAt, projectTimezone, defaultSocialTemplate]);
 
   // When user picks a date, auto-adjust time if it would be in the past
   const handleDateSelect = useCallback(
@@ -646,63 +650,85 @@ export function ScheduleDialog({
               )}
             </div>
 
-            {/* Social post text */}
+            {/* Social announcement */}
             {socialEnabled && (
-              <div>
-                <h3 className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">
-                  <Share2 className="size-3" />
-                  Social announcement
-                </h3>
-                <div className="space-y-2 rounded-xl border border-border/40 bg-card/50 p-4">
-                  <div className="flex items-center justify-between">
+              <div className="border-t border-border/40 pt-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="space-y-1">
+                    <h3 className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+                      <Share2 className="size-3" />
+                      Social announcement
+                    </h3>
                     <Label
                       htmlFor="schedule-social-text"
-                      className="text-xs text-muted-foreground"
+                      className="text-xs font-normal text-muted-foreground/70"
                     >
-                      Customize the post text
+                      Customize the post that goes out when this publishes.
                     </Label>
-                    <Switch
-                      checked={includeSocialPost}
-                      onCheckedChange={setIncludeSocialPost}
-                    />
                   </div>
-                  {includeSocialPost && (
+                  <Switch
+                    checked={includeSocialPost}
+                    onCheckedChange={setIncludeSocialPost}
+                  />
+                </div>
+
+                {includeSocialPost ? (
+                  <div className="mt-3">
                     <SocialPostField
                       id="schedule-social-text"
                       value={socialPostText}
                       onChange={setSocialPostText}
+                      previewValues={socialPreview}
                     />
-                  )}
-                </div>
+                  </div>
+                ) : (
+                  <div className="mt-3 space-y-1.5 rounded-lg bg-muted/40 px-3 py-2.5">
+                    <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">
+                      Default message
+                    </p>
+                    <p className="whitespace-pre-wrap break-words text-xs leading-relaxed text-foreground/75">
+                      {renderSocialText(defaultSocialTemplate, socialPreview)}
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 
-            {/* Preview */}
+            {/* Will publish on — flat callout with an icon badge */}
             {formattedDateTime && (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={smoothTransition}
-                className={cn(
-                  "rounded-xl border px-4 py-3",
-                  isInPast
-                    ? "border-destructive/20 bg-destructive/5"
-                    : "border-primary/20 bg-primary/5",
-                )}
+                className="flex items-center gap-3 border-t border-border/40 pt-5"
               >
-                <p
+                <div
                   className={cn(
-                    "text-[11px] font-medium uppercase tracking-wider",
-                    isInPast ? "text-destructive" : "text-primary",
+                    "flex size-9 flex-none items-center justify-center rounded-full",
+                    isInPast
+                      ? "bg-destructive/10 text-destructive"
+                      : "bg-primary/10 text-primary",
                   )}
                 >
-                  {isInPast
-                    ? "Pick a later time or future date"
-                    : "Will publish on"}
-                </p>
-                <p className="mt-1 text-sm font-medium text-foreground">
-                  {formattedDateTime}
-                </p>
+                  <CalendarIcon className="size-4" />
+                </div>
+                <div className="min-w-0">
+                  <p
+                    className={cn(
+                      "text-[11px] font-medium uppercase tracking-wider",
+                      isInPast
+                        ? "text-destructive"
+                        : "text-muted-foreground/60",
+                    )}
+                  >
+                    {isInPast
+                      ? "Pick a later time or future date"
+                      : "Will publish on"}
+                  </p>
+                  <p className="text-sm font-semibold text-foreground">
+                    {formattedDateTime}
+                  </p>
+                </div>
               </motion.div>
             )}
           </div>

@@ -52,14 +52,19 @@ export const announcePublish = internalAction({
       );
       if (!secret) return;
 
-      let postText = args.customText?.trim() || "";
-      if (!postText) {
-        const template =
-          config.postTemplate || "New blog post: {{title}}\n\n{{url}}";
-        postText = template
-          .replace(/\{\{title\}\}/g, args.documentTitle)
-          .replace(/\{\{url\}\}/g, args.publishedUrl);
-      }
+      // Resolve {{title}} / {{url}} on the FINAL text — whether it came from
+      // the user's custom message or the project's default template. Earlier
+      // this substitution only ran on the default-template branch, so any
+      // {{url}} a user typed into their custom message was posted verbatim
+      // (or silently dropped), forcing them to add the link by hand.
+      const rawText =
+        args.customText?.trim() ||
+        config.postTemplate ||
+        "New blog post: {{title}}\n\n{{url}}";
+      const postText = renderPostTemplate(rawText, {
+        title: args.documentTitle,
+        url: args.publishedUrl,
+      });
 
       const fdOpts: Parameters<typeof buildFormData>[0] = {
         username: config.username,
@@ -99,9 +104,10 @@ export const sendTestPost = action({
 
     const template =
       config.postTemplate || "New blog post: {{title}}\n\n{{url}}";
-    const postText = template
-      .replace(/\{\{title\}\}/g, "Test Post from Wryte")
-      .replace(/\{\{url\}\}/g, "https://example.com/test-post");
+    const postText = renderPostTemplate(template, {
+      title: "Test Post from Wryte",
+      url: "https://example.com/test-post",
+    });
 
     const testFdOpts: Parameters<typeof buildFormData>[0] = {
       username: config.username,
@@ -200,6 +206,20 @@ async function loadPostContext(
     config: config as SocialConfig,
     secret,
   };
+}
+
+/**
+ * Replace the supported `{{title}}` / `{{url}}` placeholders with concrete
+ * values. Mirrors the client-side preview in `src/lib/social-template.ts`
+ * so the posted text always matches what the author saw.
+ */
+function renderPostTemplate(
+  template: string,
+  vars: { title: string; url: string },
+): string {
+  return template
+    .replace(/\{\{title\}\}/g, vars.title)
+    .replace(/\{\{url\}\}/g, vars.url);
 }
 
 function buildFormData(opts: {

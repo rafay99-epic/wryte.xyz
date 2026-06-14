@@ -8,6 +8,10 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  renderSocialText,
+  type SocialTemplateVars,
+} from "@/lib/social-template";
 import { cn } from "@/lib/utils";
 
 const MAX_LENGTH = 2000;
@@ -24,6 +28,11 @@ type SocialPostFieldProps = {
   placeholder?: string;
   rows?: number;
   showVariableButtons?: boolean;
+  /**
+   * When provided, renders a live preview of the message with the
+   * placeholders resolved — exactly what will be posted.
+   */
+  previewValues?: SocialTemplateVars | undefined;
 };
 
 export function SocialPostField({
@@ -33,6 +42,7 @@ export function SocialPostField({
   placeholder = "Write your social media announcement...",
   rows = 3,
   showVariableButtons = true,
+  previewValues,
 }: SocialPostFieldProps) {
   const ref = useRef<HTMLTextAreaElement>(null);
 
@@ -59,8 +69,12 @@ export function SocialPostField({
   const count = value.length;
   const nearLimit = count >= MAX_LENGTH * 0.9;
 
+  const preview = previewValues
+    ? renderSocialText(value, previewValues).trim()
+    : "";
+
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-2">
       <div className="relative">
         <textarea
           ref={ref}
@@ -69,7 +83,7 @@ export function SocialPostField({
           onChange={(e) => onChange(e.target.value)}
           rows={rows}
           maxLength={MAX_LENGTH}
-          className="flex w-full rounded-md border border-input bg-background px-3 py-2 pr-8 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          className="flex w-full resize-y rounded-md border border-input bg-background px-3 py-2 pr-8 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           placeholder={placeholder}
         />
         <TooltipProvider>
@@ -87,8 +101,8 @@ export function SocialPostField({
                 <code className="rounded bg-background/20 px-1 font-mono text-[10px]">
                   {"{{url}}"}
                 </code>{" "}
-                as placeholders. They'll be replaced with the actual post title
-                and URL when publishing.
+                as placeholders. They're filled in with the real title and link
+                when the post goes out.
               </p>
             </TooltipContent>
           </Tooltip>
@@ -97,15 +111,19 @@ export function SocialPostField({
 
       <div className="flex items-center justify-between gap-2">
         {showVariableButtons ? (
-          <div className="flex items-center gap-1">
-            {VARIABLES.map((v) => (
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/40">
+              Insert
+            </span>
+            {VARIABLES.map((variable) => (
               <button
-                key={v.token}
+                key={variable.token}
                 type="button"
-                onClick={() => insertVariable(v.token)}
-                className="rounded-md bg-muted/50 px-2 py-0.5 font-mono text-[11px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                onClick={() => insertVariable(variable.token)}
+                title={`Insert ${variable.label}`}
+                className="rounded-full border border-border/60 px-2 py-0.5 font-mono text-[11px] text-muted-foreground transition-colors hover:border-border hover:bg-muted hover:text-foreground"
               >
-                {v.token}
+                {variable.token}
               </button>
             ))}
           </div>
@@ -121,6 +139,17 @@ export function SocialPostField({
           {count}/{MAX_LENGTH}
         </span>
       </div>
+
+      {previewValues && (
+        <div className="space-y-1.5 rounded-lg bg-muted/40 px-3 py-2.5">
+          <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">
+            Preview
+          </p>
+          <p className="whitespace-pre-wrap break-words text-xs leading-relaxed text-foreground/75">
+            {preview || "Nothing to preview yet."}
+          </p>
+        </div>
+      )}
     </div>
   );
 }

@@ -20,6 +20,11 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { getFileExtension } from "@/lib/content-format";
 import { buildFrontmatter } from "@/lib/markdown";
+import {
+  buildPublishedUrl,
+  DEFAULT_SOCIAL_TEMPLATE,
+  renderSocialText,
+} from "@/lib/social-template";
 import { useEditorStore } from "@/stores/editor-store";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
@@ -91,8 +96,10 @@ export function PublishDialog({
     socialConfig?.status === "active" &&
     Boolean(project?.siteUrl);
 
-  const defaultSocialText = useMemo(() => {
-    if (!socialEnabled || !project?.siteUrl) return "";
+  // Seed the textarea with the raw TEMPLATE; the server resolves the
+  // placeholders at publish time. The preview below shows the resolved text.
+  const defaultSocialTemplate = useMemo(() => {
+    if (!socialEnabled) return "";
     let parsed: { postTemplate?: string } | null = null;
     if (socialConfig?.publicConfig) {
       try {
@@ -101,20 +108,16 @@ export function PublishDialog({
         /* corrupted config — fall through to default template */
       }
     }
-    const template =
-      parsed?.postTemplate || "New blog post: {{title}}\n\n{{url}}";
-    const slug = document?.slug ?? "untitled";
-    const url = `${project.siteUrl.replace(/\/$/, "")}/${slug}`;
-    return template
-      .replace(/\{\{title\}\}/g, title || "Untitled")
-      .replace(/\{\{url\}\}/g, url);
-  }, [
-    socialEnabled,
-    socialConfig?.publicConfig,
-    project?.siteUrl,
-    document?.slug,
-    title,
-  ]);
+    return parsed?.postTemplate || DEFAULT_SOCIAL_TEMPLATE;
+  }, [socialEnabled, socialConfig?.publicConfig]);
+
+  const socialPreview = useMemo(
+    () => ({
+      title: title || "Untitled",
+      url: buildPublishedUrl(project?.siteUrl, document?.slug),
+    }),
+    [project?.siteUrl, document?.slug, title],
+  );
 
   // Reset commit message to the current default each time the dialog opens
   useEffect(() => {
@@ -124,10 +127,10 @@ export function PublishDialog({
           ? `Update ${title || "document"}`
           : `Add ${title || "document"}`,
       );
-      setSocialPostText(defaultSocialText);
+      setSocialPostText(defaultSocialTemplate);
       setIncludeSocialPost(true);
     }
-  }, [open, isUpdate, title, defaultSocialText]);
+  }, [open, isUpdate, title, defaultSocialTemplate]);
 
   // Compute the target file path in the repo for display purposes
   const contentPath = project?.contentPath ?? "content";
@@ -269,12 +272,22 @@ export function PublishDialog({
                   onCheckedChange={setIncludeSocialPost}
                 />
               </div>
-              {includeSocialPost && (
+              {includeSocialPost ? (
                 <SocialPostField
                   id="social-post-text"
                   value={socialPostText}
                   onChange={setSocialPostText}
+                  previewValues={socialPreview}
                 />
+              ) : (
+                <div className="space-y-1.5 rounded-lg bg-muted/40 px-3 py-2.5">
+                  <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">
+                    Default message
+                  </p>
+                  <p className="whitespace-pre-wrap break-words text-xs leading-relaxed text-foreground/75">
+                    {renderSocialText(defaultSocialTemplate, socialPreview)}
+                  </p>
+                </div>
               )}
             </div>
           )}
