@@ -29,6 +29,7 @@ type EditorState = {
   findReplaceOpen: boolean;
   imageDialogOpen: boolean;
   videoDialogOpen: boolean;
+  embedDialogOpen: boolean;
   /** Word count at document load — baseline for "words this session". */
   sessionStartWords: number;
 
@@ -49,6 +50,7 @@ type EditorState = {
   setFindReplaceOpen: (open: boolean) => void;
   setImageDialogOpen: (open: boolean) => void;
   setVideoDialogOpen: (open: boolean) => void;
+  setEmbedDialogOpen: (open: boolean) => void;
   reset: () => void;
 };
 
@@ -71,6 +73,7 @@ const initialState = {
   findReplaceOpen: false,
   imageDialogOpen: false,
   videoDialogOpen: false,
+  embedDialogOpen: false,
   sessionStartWords: 0,
 };
 
@@ -160,6 +163,8 @@ export const useEditorStore = create<EditorState>()((set) => ({
   setImageDialogOpen: (open) => set({ imageDialogOpen: open }),
 
   setVideoDialogOpen: (open) => set({ videoDialogOpen: open }),
+
+  setEmbedDialogOpen: (open) => set({ embedDialogOpen: open }),
 
   reset: () => set(initialState),
 }));

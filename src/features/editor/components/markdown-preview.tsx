@@ -5,17 +5,22 @@ import type { Components } from "react-markdown";
 import ReactMarkdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
 import rehypeRaw from "rehype-raw";
-import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
+import rehypeSanitize, { defaultSchema, type Options } from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
+import {
+  buildEmbedSanitizeSchema,
+  embedComponents,
+} from "@/components/markdown/embed-overrides";
 import { useEditorStore } from "@/stores/editor-store";
 import { VideoEmbed } from "./video-embed";
 
 /**
- * Extend the default sanitize schema to allow highlight.js class names and
- * `<video>` embeds (raw HTML is parsed by rehype-raw, then sanitized here —
- * `src` stays restricted to http/https by the default protocol rules).
+ * Base sanitize schema extended with `<video>` (raw HTML parsed by
+ * rehype-raw, then sanitized here — `src` stays restricted to http/https by
+ * the default protocol rules), then layered with the post-embed allowances
+ * (whitelisted embed iframes + Twitter blockquote).
  */
-const sanitizeSchema = {
+const videoSchema: Options = {
   ...defaultSchema,
   tagNames: [...(defaultSchema.tagNames ?? []), "video"],
   attributes: {
@@ -42,6 +47,7 @@ const sanitizeSchema = {
     ],
   },
 };
+const sanitizeSchema = buildEmbedSanitizeSchema(videoSchema);
 
 /**
  * Custom component overrides for polished markdown rendering.
@@ -96,14 +102,6 @@ const components: Components = {
       </code>
     );
   },
-  blockquote: ({ children, ...props }) => (
-    <blockquote
-      className="border-l-[3px] border-primary/40 pl-4 italic text-muted-foreground"
-      {...props}
-    >
-      {children}
-    </blockquote>
-  ),
   hr: (props) => (
     <hr className="my-8 border-0 border-t border-border/40" {...props} />
   ),
@@ -163,7 +161,7 @@ export function MarkdownPreview() {
           [rehypeSanitize, sanitizeSchema],
           rehypeHighlight,
         ]}
-        components={components}
+        components={{ ...components, ...embedComponents }}
       >
         {content}
       </ReactMarkdown>

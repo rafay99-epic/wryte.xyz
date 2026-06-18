@@ -10,6 +10,7 @@ import {
   List,
   ListOrdered,
   type LucideIcon,
+  MessageCircle,
   Minus,
   Quote,
   Sparkles,
@@ -22,10 +23,11 @@ import type { Snippet } from "@/types/snippets";
  * Slash-command registry (pure data). `block` commands insert a line-level
  * marker (a leading newline is added by the menu when not already at line
  * start); `inline` inserts at the caret; `ai` opens the existing inline-AI
- * flow at the caret instead of inserting text; `image`/`video` open the
- * media insert dialogs (library / URL / upload) at the caret; `snippet`
- * pastes a reusable block (treated like `block` for newline handling);
- * `submenu` drills into a nested list instead of inserting anything.
+ * flow at the caret instead of inserting text; `image`/`video`/`embed` open
+ * the media insert dialogs (library / URL / upload, or oEmbed resolver) at
+ * the caret; `snippet` pastes a reusable block (treated like `block` for
+ * newline handling); `submenu` drills into a nested list instead of
+ * inserting anything.
  */
 
 export type SlashCommandKind =
@@ -34,6 +36,7 @@ export type SlashCommandKind =
   | "ai"
   | "image"
   | "video"
+  | "embed"
   | "snippet"
   | "submenu";
 
@@ -171,6 +174,31 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     keywords: ["video", "embed", "mp4", "webm", "movie"],
     icon: Video,
     kind: "video",
+  },
+  {
+    id: "embed",
+    label: "Post embed",
+    hint: "Tweet, YouTube, Reddit…",
+    keywords: [
+      "embed",
+      "tweet",
+      "twitter",
+      "x",
+      "youtube",
+      "vimeo",
+      "reddit",
+      "bluesky",
+      "spotify",
+      "giphy",
+      "mastodon",
+      "tiktok",
+      "soundcloud",
+      "sound",
+      "post",
+      "social",
+    ],
+    icon: MessageCircle,
+    kind: "embed",
   },
   {
     id: "ai",

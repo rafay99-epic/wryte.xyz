@@ -474,6 +474,17 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     rate: 6,
     period: HOUR,
   },
+  /**
+   * Post-embed oEmbed resolution. One fetch per inserted embed, deliberate
+   * but a paste-heavy session can fire several — token bucket with a small
+   * burst keeps the UI snappy without allowing runaway scraping.
+   */
+  "tools:oembed": {
+    kind: "token bucket",
+    rate: 20,
+    period: MINUTE,
+    capacity: 5,
+  },
 
   /* ------------------------------------------------------------------ */
   /*  Scheduling                                                         */

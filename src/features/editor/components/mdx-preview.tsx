@@ -23,6 +23,7 @@ import React, {
 import * as runtime from "react/jsx-runtime";
 import rehypeHighlight from "rehype-highlight";
 import remarkGfm from "remark-gfm";
+import { embedComponents } from "@/components/markdown/embed-overrides";
 import { useEditorStore } from "@/stores/editor-store";
 import { VideoEmbed } from "./video-embed";
 
@@ -103,6 +104,14 @@ function getPlaceholder(name: string): React.ComponentType<MdxComponentProps> {
 /* ------------------------------------------------------------------ */
 
 const baseComponents: Record<string, React.ComponentType<MdxComponentProps>> = {
+  // Embed components (iframe + Twitter blockquote) are typed for
+  // react-markdown's strict per-tag props; MDX passes a loose prop bag, which
+  // is runtime-compatible (they destructure known keys). The cast bridges the
+  // two type models without duplicating the rendering logic.
+  ...(embedComponents as unknown as Record<
+    string,
+    React.ComponentType<MdxComponentProps>
+  >),
   video: (props: MdxComponentProps) => (
     <VideoEmbed {...(props as React.VideoHTMLAttributes<HTMLVideoElement>)} />
   ),
@@ -154,14 +163,6 @@ const baseComponents: Record<string, React.ComponentType<MdxComponentProps>> = {
       </code>
     );
   },
-  blockquote: ({ children, ...props }: MdxComponentProps) => (
-    <blockquote
-      className="border-l-[3px] border-primary/40 pl-4 italic text-muted-foreground"
-      {...props}
-    >
-      {children}
-    </blockquote>
-  ),
   hr: (props: MdxComponentProps) => (
     <hr className="my-8 border-0 border-t border-border/40" {...props} />
   ),

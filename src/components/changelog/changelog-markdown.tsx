@@ -1,35 +1,43 @@
 import type { Components } from "react-markdown";
 import ReactMarkdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
-import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
+import rehypeRaw from "rehype-raw";
+import rehypeSanitize, { defaultSchema, type Options } from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
+import {
+  buildEmbedSanitizeSchema,
+  embedComponents,
+} from "@/components/markdown/embed-overrides";
 
 /**
- * Server-rendered markdown component for changelog entries.
+ * Server-rendered markdown component for changelog entries and draft share
+ * previews.
  *
  * Mirrors the editor's `MarkdownPreview` styling but is a pure server
  * component — it ships zero JavaScript to the client, which keeps the
  * marketing changelog page light. Pair it with the typography classes
  * from `prose` on the parent element for consistent rendering.
  *
- * Sanitisation is intentionally strict: only `code` language classes
- * and `hljs` span classes are whitelisted so syntax highlighting works
- * while arbitrary HTML stays blocked.
+ * Sanitisation is intentionally strict: only `code` language classes, `hljs`
+ * span classes, and the post-embed allowances (whitelisted embed iframes +
+ * Twitter blockquote) are whitelisted so arbitrary HTML stays blocked while
+ * inserted embeds render.
  */
-const sanitizeSchema = {
+const baseSchema: Options = {
   ...defaultSchema,
   attributes: {
     ...defaultSchema.attributes,
-    code: [
+    ["code"]: [
       ...(defaultSchema.attributes?.["code"] ?? []),
       ["className", /^language-./],
     ],
-    span: [
+    ["span"]: [
       ...(defaultSchema.attributes?.["span"] ?? []),
       ["className", /^hljs/],
     ],
   },
 };
+const sanitizeSchema = buildEmbedSanitizeSchema(baseSchema);
 
 const components: Components = {
   a: ({ children, href, ...props }) => (
@@ -76,8 +84,12 @@ export function ChangelogMarkdown({ content }: { content: string }) {
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
-      rehypePlugins={[[rehypeSanitize, sanitizeSchema], rehypeHighlight]}
-      components={components}
+      rehypePlugins={[
+        rehypeRaw,
+        [rehypeSanitize, sanitizeSchema],
+        rehypeHighlight,
+      ]}
+      components={{ ...components, ...embedComponents }}
     >
       {content}
     </ReactMarkdown>

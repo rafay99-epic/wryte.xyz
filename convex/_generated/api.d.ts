@@ -52,6 +52,8 @@ import type * as http from "../http.js";
 import type * as integrations_clerk from "../integrations/clerk.js";
 import type * as integrations_github from "../integrations/github.js";
 import type * as integrations_linkCheck from "../integrations/linkCheck.js";
+import type * as integrations_oembed from "../integrations/oembed.js";
+import type * as integrations_oembedProviders from "../integrations/oembedProviders.js";
 import type * as integrations_scheduling from "../integrations/scheduling.js";
 import type * as integrations_secretStore from "../integrations/secretStore.js";
 import type * as media_credentials from "../media/credentials.js";
@@ -127,6 +129,8 @@ declare const fullApi: ApiFromModules<{
   "integrations/clerk": typeof integrations_clerk;
   "integrations/github": typeof integrations_github;
   "integrations/linkCheck": typeof integrations_linkCheck;
+  "integrations/oembed": typeof integrations_oembed;
+  "integrations/oembedProviders": typeof integrations_oembedProviders;
   "integrations/scheduling": typeof integrations_scheduling;
   "integrations/secretStore": typeof integrations_secretStore;
   "media/credentials": typeof media_credentials;

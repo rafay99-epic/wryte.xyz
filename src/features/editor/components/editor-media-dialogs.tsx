@@ -2,11 +2,12 @@
 
 import { useEditorStore } from "@/stores/editor-store";
 import { useEditorContext } from "./editor-context";
+import { EmbedInsertDialog } from "./embed-insert-dialog";
 import { ImageInsertDialog } from "./image-insert-dialog";
 import { VideoInsertDialog } from "./video-insert-dialog";
 
 /**
- * Single mount point for the image/video insert dialogs, driven by the
+ * Single mount point for the image/video/embed insert dialogs, driven by the
  * editor store so any surface (toolbar Insert menu, slash commands) can
  * open them. Lives at the layout level — unlike the toolbar, it stays
  * mounted in focus mode.
@@ -23,6 +24,8 @@ export function EditorMediaDialogs({
   const setImageDialogOpen = useEditorStore((s) => s.setImageDialogOpen);
   const videoDialogOpen = useEditorStore((s) => s.videoDialogOpen);
   const setVideoDialogOpen = useEditorStore((s) => s.setVideoDialogOpen);
+  const embedDialogOpen = useEditorStore((s) => s.embedDialogOpen);
+  const setEmbedDialogOpen = useEditorStore((s) => s.setEmbedDialogOpen);
 
   return (
     <>
@@ -39,6 +42,11 @@ export function EditorMediaDialogs({
         onInsert={insertAtCursor}
         documentId={documentId}
         projectId={projectId}
+      />
+      <EmbedInsertDialog
+        open={embedDialogOpen}
+        onOpenChange={setEmbedDialogOpen}
+        onInsert={insertAtCursor}
       />
     </>
   );

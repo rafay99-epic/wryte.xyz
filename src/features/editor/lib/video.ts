@@ -6,19 +6,13 @@
  * previews (markdown via rehype-raw, MDX natively) all understand.
  */
 
+import { escapeHtmlAttribute } from "@/lib/escape";
+
 /** File extensions we treat as playable video when filtering media lists. */
 const VIDEO_FILE_RE = /\.(mp4|webm|mov|m4v|ogv|ogg)$/i;
 
 export function isVideoFilename(name: string): boolean {
   return VIDEO_FILE_RE.test(name);
-}
-
-/** Minimal attribute-value escape for the generated HTML tag. */
-function escapeAttribute(value: string): string {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("<", "&lt;");
 }
 
 /**
@@ -28,7 +22,7 @@ function escapeAttribute(value: string): string {
  */
 export function videoEmbedMarkup(url: string, title?: string): string {
   const titleAttr = title?.trim()
-    ? ` title="${escapeAttribute(title.trim())}"`
+    ? ` title="${escapeHtmlAttribute(title.trim())}"`
     : "";
-  return `<video controls preload="metadata" src="${escapeAttribute(url.trim())}"${titleAttr}></video>`;
+  return `<video controls preload="metadata" src="${escapeHtmlAttribute(url.trim())}"${titleAttr}></video>`;
 }

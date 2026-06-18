@@ -17,6 +17,7 @@ import {
   List,
   ListOrdered,
   ListTree,
+  MessageCircle,
   Minus,
   Plus,
   Quote,
@@ -92,6 +93,7 @@ export function EditorToolbar({
     setFindReplaceOpen,
     setImageDialogOpen,
     setVideoDialogOpen,
+    setEmbedDialogOpen,
   } = useEditorStore(
     useShallow((state) => ({
       viewMode: state.viewMode,
@@ -106,6 +108,7 @@ export function EditorToolbar({
       setFindReplaceOpen: state.setFindReplaceOpen,
       setImageDialogOpen: state.setImageDialogOpen,
       setVideoDialogOpen: state.setVideoDialogOpen,
+      setEmbedDialogOpen: state.setEmbedDialogOpen,
     })),
   );
   const { insertAtCursor, wrapSelection } = useEditorContext();
@@ -257,6 +260,10 @@ export function EditorToolbar({
               <DropdownMenuItem onClick={() => setVideoDialogOpen(true)}>
                 <Video className="size-4 mr-2" />
                 <span>Video…</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setEmbedDialogOpen(true)}>
+                <MessageCircle className="size-4 mr-2" />
+                <span>Post embed…</span>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => insertAtCursor("\n- ")}>
