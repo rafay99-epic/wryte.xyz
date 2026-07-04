@@ -1,0 +1,70 @@
+convex/cms/_lib/purgeDocumentArtifacts.ts
+  s_21a608cf6ff9c5::t_40424617090ca8 194-206
+  s_21a608cf6ff9c5::t_acce817f6f860e 260-263
+  s_21a608cf6ff9c5::t_24daadd74c5f28 31-34
+convex/cms/documentDrafts.ts
+  s_21a608cf6ff9c5::t_03f63f7549c586 398-401
+  s_21a608cf6ff9c5::t_dc249d821415a7 12
+convex/account/selfDestruct.ts
+  s_21a608cf6ff9c5::t_c420903ac01828 640-652
+  s_21a608cf6ff9c5::t_ed9bfd7a4d9c41 723-725
+  s_e17bfc164ca791::t_e8c288e0a3df4f 722
+convex/cms/_lib/documentLinks.ts
+  s_21a608cf6ff9c5::t_e5572f5c9e6869 100
+  s_21a608cf6ff9c5::t_a4dbc61f26b835 1-99,101-212
+convex/cms/conflicts.ts
+  s_21a608cf6ff9c5::t_fd918edee1d79d 30
+  s_21a608cf6ff9c5::t_1c4ce86bbb6348 297-301
+  s_21a608cf6ff9c5::t_69a95946449357 399-403
+src/features/editor/components/research-panel.tsx
+  s_21a608cf6ff9c5::t_17f6eef9ff32bf 12,21
+  s_21a608cf6ff9c5::t_9fa59580bdee90 508-544
+  s_21a608cf6ff9c5::t_e11e886a7294db 53-61,68,72-77
+convex/cms/projects.ts
+  s_21a608cf6ff9c5::t_d24629e6a934b0 884-896
+  s_21a608cf6ff9c5::t_4f822562af953e 1076-1079
+e2e/features/backlinks.authed.spec.ts
+  s_21a608cf6ff9c5::t_b11249b967e886 137-143
+  s_21a608cf6ff9c5::t_f32f914810c81c 82-98
+  s_21a608cf6ff9c5::t_727a63aff3f45d 161-163,165
+  s_21a608cf6ff9c5::t_eb3e718066780a 1,7-56,60-81,99-133,144-160,164,166-179
+  s_21a608cf6ff9c5::t_8648e3b1a4bd0c 2-6,57-59
+  s_21a608cf6ff9c5::t_a8a233588837d1 134-136
+convex/schema.ts
+  s_21a608cf6ff9c5::t_674a524a991240 293-324
+  s_21a608cf6ff9c5::t_7a4e038dc9efcb 291-292
+convex/cms/snapshots.ts
+  s_21a608cf6ff9c5::t_6fa0e1ee5f370a 28
+  s_21a608cf6ff9c5::t_cbdbc720130509 252-255
+convex/cms/documents.ts
+  s_21a608cf6ff9c5::t_f9fb78566afe08 342,2187-2236
+  s_21a608cf6ff9c5::t_250e10fb67056d 576-582
+  s_21a608cf6ff9c5::t_477c3d35cb8356 23,26
+  s_21a608cf6ff9c5::t_77eb21a91b9e15 343-393
+convex/_generated/api.d.ts
+  s_21a608cf6ff9c5::t_0b745b26690f06 38,115
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "116b8d3258c561c5903957d18b09b3ab074afc1a",
+  "prompts": {},
+  "sessions": {
+    "s_21a608cf6ff9c5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f0ba3863-e894-4c2a-beba-b95f0517e105",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    },
+    "s_e17bfc164ca791": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "685940b6-307a-4715-b170-03cfb6cf055d",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
