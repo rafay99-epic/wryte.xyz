@@ -5,6 +5,7 @@
  * Zero backend calls.
  */
 
+import { countWords } from "@/lib/word-count";
 import { parseOutline } from "./outline";
 
 export type SeoIssueSeverity = "warn" | "info";
@@ -25,11 +26,6 @@ const EMPTY_ALT_IMAGE_RE = /!\[\s*\]\(/g;
 const LINK_RE = /(^|[^!])\[[^\]]+\]\([^)\s]+\)/g;
 const LONG_PARAGRAPH_WORDS = 150;
 const LINKLESS_MIN_WORDS = 300;
-
-function words(text: string): number {
-  const trimmed = text.trim();
-  return trimmed ? trimmed.split(/\s+/).length : 0;
-}
 
 export function lintStructure(content: string): SeoIssue[] {
   if (!content.trim()) return [];
@@ -89,7 +85,7 @@ export function lintStructure(content: string): SeoIssue[] {
   }
 
   /* ── Links ── */
-  const wordTotal = words(proseText);
+  const wordTotal = countWords(proseText);
   const linkCount = proseText.match(LINK_RE)?.length ?? 0;
   if (wordTotal >= LINKLESS_MIN_WORDS && linkCount === 0) {
     issues.push({
@@ -120,7 +116,7 @@ export function lintStructure(content: string): SeoIssue[] {
     ) {
       return;
     }
-    const count = words(text);
+    const count = countWords(text);
     if (count > LONG_PARAGRAPH_WORDS) {
       issues.push({
         id: `long-paragraph-${paragraphStart}`,

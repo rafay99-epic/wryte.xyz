@@ -167,6 +167,21 @@ export function useAppHotkeys(handlers: AppHotkeyHandlers) {
           window.dispatchEvent(new CustomEvent("wryte:publish-article"));
         },
       },
+      // Writing sprint — start (opens the setup popover) or end the active
+      // one. Intentionally NOT gated on isInputFocused: writers trigger this
+      // mid-typing, and the chord never inserts text.
+      {
+        hotkey: k("toggleSprint"),
+        callback: (e) => {
+          e.preventDefault();
+          const { sprintStatus, endSprint } = useEditorStore.getState();
+          if (sprintStatus === "idle") {
+            window.dispatchEvent(new CustomEvent("wryte:open-sprint"));
+          } else {
+            endSprint();
+          }
+        },
+      },
     ],
     [
       k,

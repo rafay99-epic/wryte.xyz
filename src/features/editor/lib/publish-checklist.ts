@@ -16,6 +16,7 @@ import {
   type ValidatableField,
   validateFrontmatter,
 } from "@/lib/frontmatter-detection/validate";
+import { countWords } from "@/lib/word-count";
 import { parseOutline } from "./outline";
 
 /** Approximate silent-reading speed used for the reading-time estimate. */
@@ -90,11 +91,6 @@ function stripFencedCode(content: string): string {
     out.push(inFence ? "" : line);
   }
   return out.join("\n");
-}
-
-function countWords(text: string): number {
-  const trimmed = text.trim();
-  return trimmed ? trimmed.split(/\s+/).length : 0;
 }
 
 /** Reading time in whole minutes (min 1 for any non-empty content). */

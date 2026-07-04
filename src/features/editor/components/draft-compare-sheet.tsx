@@ -20,6 +20,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import { countWords } from "@/lib/word-count";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
 
@@ -46,12 +47,6 @@ type DraftCompareSheetProps = {
   /** The draft the sheet was opened from — seeds the right-hand selector. */
   initialDraftId: Id<"document_drafts"> | null;
 };
-
-/** Whitespace-collapsed word count. */
-function wordCount(text: string): number {
-  const trimmed = text.trim();
-  return trimmed ? trimmed.split(/\s+/).length : 0;
-}
 
 /**
  * One-shot fetch of a side's `{ title, content }`. Main joins its body via
@@ -250,7 +245,7 @@ function SideHeader({
         {side.loading || side.data === null ? (
           <span className="opacity-60">Loading…</span>
         ) : (
-          `${wordCount(side.data.content).toLocaleString()} words`
+          `${countWords(side.data.content).toLocaleString()} words`
         )}
       </p>
     </div>

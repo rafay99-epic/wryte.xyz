@@ -8,6 +8,7 @@ import { useKeyboardShortcuts } from "@/features/editor/hooks/use-keyboard-short
 import { useMediaPaste } from "@/features/editor/hooks/use-media-paste";
 import { useTypewriterScroll } from "@/features/editor/hooks/use-typewriter-scroll";
 import { splitShortcutKeys } from "@/lib/shortcuts";
+import { useEditorPreferencesStore } from "@/stores/editor-preferences-store";
 import { useEditorStore } from "@/stores/editor-store";
 import { useShortcutsStore } from "@/stores/shortcuts-store";
 import { api } from "../../../../convex/_generated/api";
@@ -158,9 +159,14 @@ export function MarkdownEditor({
   // Paste/drop media upload + paste-URL-over-selection linking.
   useMediaPaste({ documentId, projectId });
 
-  // Typewriter scrolling — focus mode only.
+  // Typewriter scrolling — focus mode only, and toggleable as a persisted
+  // sub-preference (default ON).
   const focusMode = useEditorStore((s) => s.focusMode);
-  useTypewriterScroll(textareaRef, focusMode);
+  const typewriterScrolling = useEditorPreferencesStore(
+    (s) => s.typewriterScrolling,
+  );
+  const typewriterActive = focusMode && typewriterScrolling;
+  useTypewriterScroll(textareaRef, typewriterActive);
 
   // Tracks the last content value that came from a textarea input event.
   // The sync effect compares against this so it can distinguish "store
@@ -258,6 +264,7 @@ export function MarkdownEditor({
         autoCorrect="off"
         data-gramm="false"
         data-editor="true"
+        data-typewriter={typewriterActive ? "true" : undefined}
       />
     </div>
   );

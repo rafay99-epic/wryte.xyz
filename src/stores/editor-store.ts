@@ -1,7 +1,15 @@
 import { create } from "zustand";
+import { countWords } from "@/lib/word-count";
 
 /** Supported editor layout modes for the markdown editor pane. */
 type ViewMode = "edit" | "preview" | "split";
+
+/** Lifecycle of a writing sprint. `completed` keeps the HUD's celebratory
+ * state on screen until the user dismisses it (back to `idle`). */
+export type SprintStatus = "idle" | "running" | "paused" | "completed";
+
+/** Why a sprint completed: the word target was hit, or time ran out. */
+export type SprintEndReason = "target" | "time";
 
 /**
  * Core editor state and actions managed via Zustand.
@@ -32,6 +40,20 @@ type EditorState = {
   embedDialogOpen: boolean;
   /** Word count at document load — baseline for "words this session". */
   sessionStartWords: number;
+  /** Timestamp of document load — denominator for session WPM. */
+  sessionStartedAt: number;
+
+  // --- Writing sprint (client-only; never written to Convex) ---
+  sprintStatus: SprintStatus;
+  sprintTargetWords: number;
+  sprintDurationMs: number;
+  /** Word count when the sprint started — baseline for the live delta. */
+  sprintStartWords: number;
+  /** Start of the current running segment, or null while paused/completed. */
+  sprintStartedAt: number | null;
+  /** Elapsed time accumulated across previous running segments (pause support). */
+  sprintAccumulatedMs: number;
+  sprintEndReason: SprintEndReason | null;
 
   setContent: (content: string) => void;
   setTitle: (title: string) => void;
@@ -51,7 +73,23 @@ type EditorState = {
   setImageDialogOpen: (open: boolean) => void;
   setVideoDialogOpen: (open: boolean) => void;
   setEmbedDialogOpen: (open: boolean) => void;
+  startSprint: (targetWords: number, durationMs: number) => void;
+  pauseSprint: () => void;
+  resumeSprint: () => void;
+  completeSprint: (reason: SprintEndReason) => void;
+  endSprint: () => void;
   reset: () => void;
+};
+
+/** Sprint fields at rest — reused by init, end, and full reset. */
+const sprintIdleState = {
+  sprintStatus: "idle" as SprintStatus,
+  sprintTargetWords: 0,
+  sprintDurationMs: 0,
+  sprintStartWords: 0,
+  sprintStartedAt: null as number | null,
+  sprintAccumulatedMs: 0,
+  sprintEndReason: null as SprintEndReason | null,
 };
 
 const initialState = {
@@ -75,12 +113,9 @@ const initialState = {
   videoDialogOpen: false,
   embedDialogOpen: false,
   sessionStartWords: 0,
+  sessionStartedAt: 0,
+  ...sprintIdleState,
 };
-
-function countWords(text: string): number {
-  const trimmed = text.trim();
-  return trimmed ? trimmed.split(/\s+/).length : 0;
-}
 
 /**
  * Global editor store.
@@ -100,6 +135,7 @@ export const useEditorStore = create<EditorState>()((set) => ({
 
   // Atomic init — sets title, content, and activeProjectId without marking dirty.
   // This prevents the autosave hook from firing on initial document load.
+  // Also resets any sprint: its word baseline belongs to the previous document.
   initDocument: (title, content, projectId) =>
     set({
       title,
@@ -109,6 +145,8 @@ export const useEditorStore = create<EditorState>()((set) => ({
       isSaving: false,
       lastSavedAt: null,
       sessionStartWords: countWords(content),
+      sessionStartedAt: Date.now(),
+      ...sprintIdleState,
     }),
 
   // Snapshot the save timestamp so the UI can display "saved X seconds ago"
@@ -165,6 +203,59 @@ export const useEditorStore = create<EditorState>()((set) => ({
   setVideoDialogOpen: (open) => set({ videoDialogOpen: open }),
 
   setEmbedDialogOpen: (open) => set({ embedDialogOpen: open }),
+
+  // Word baseline is captured from the CURRENT content so the live delta
+  // starts at zero regardless of what was written before the sprint.
+  startSprint: (targetWords, durationMs) =>
+    set((state) => ({
+      sprintStatus: "running",
+      sprintTargetWords: targetWords,
+      sprintDurationMs: durationMs,
+      sprintStartWords: countWords(state.content),
+      sprintStartedAt: Date.now(),
+      sprintAccumulatedMs: 0,
+      sprintEndReason: null,
+    })),
+
+  // Fold the current running segment into the accumulator so elapsed time
+  // freezes exactly at the pause instant.
+  pauseSprint: () =>
+    set((state) => {
+      if (state.sprintStatus !== "running" || state.sprintStartedAt === null) {
+        return {};
+      }
+      return {
+        sprintStatus: "paused",
+        sprintStartedAt: null,
+        sprintAccumulatedMs:
+          state.sprintAccumulatedMs + (Date.now() - state.sprintStartedAt),
+      };
+    }),
+
+  resumeSprint: () =>
+    set((state) =>
+      state.sprintStatus === "paused"
+        ? { sprintStatus: "running", sprintStartedAt: Date.now() }
+        : {},
+    ),
+
+  // Freeze elapsed time and keep the summary on screen until dismissed.
+  completeSprint: (reason) =>
+    set((state) => {
+      if (state.sprintStatus !== "running") return {};
+      return {
+        sprintStatus: "completed",
+        sprintEndReason: reason,
+        sprintStartedAt: null,
+        sprintAccumulatedMs:
+          state.sprintAccumulatedMs +
+          (state.sprintStartedAt !== null
+            ? Date.now() - state.sprintStartedAt
+            : 0),
+      };
+    }),
+
+  endSprint: () => set({ ...sprintIdleState }),
 
   reset: () => set(initialState),
 }));

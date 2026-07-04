@@ -16,6 +16,7 @@ import { MarkdownEditor } from "./markdown-editor";
 import { OutlinePanel } from "./outline-panel";
 import { ReadabilityPanel } from "./readability-panel";
 import { ResearchPanel } from "./research-panel";
+import { SprintHud } from "./sprint-hud";
 
 // The previews pull heavy libraries — react-markdown + rehype/remark (~400 KB)
 // and @mdx-js/mdx (~370 KB). They only render in preview/split mode, so load
@@ -148,6 +149,8 @@ export function EditorLayout({
         <div className="flex min-h-0 flex-1">
           <div className="relative flex min-w-0 flex-1 flex-col">
             <FindReplaceBar />
+            {/* Sprint pill — floats over the editor pane, incl. focus mode */}
+            <SprintHud />
             {viewMode === "edit" && (
               <div
                 key="edit"
