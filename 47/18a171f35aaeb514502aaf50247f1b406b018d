@@ -1,0 +1,36 @@
+e2e/features/publish-checklist.authed.spec.ts
+  s_21a608cf6ff9c5::t_02338aa8a9b4e0 107-108,110
+  s_21a608cf6ff9c5::t_7f806a18740b74 92-96,98-103
+  s_21a608cf6ff9c5::t_d088e571fbf6a7 34-38,46
+  s_21a608cf6ff9c5::t_0dd83230d72fd7 105-106
+  s_21a608cf6ff9c5::t_29f174f3813911 1-33,39-45,47-91,97,104,109,111-116
+src/features/editor/components/publish-dialog.tsx
+  s_21a608cf6ff9c5::t_8648004adc3651 295-305
+  s_21a608cf6ff9c5::t_425493a9a9a2e4 31
+src/features/editor/components/publish-checklist.tsx
+  s_21a608cf6ff9c5::t_665252ef981e4d 1-32,41-80,90-110,114-138,145-180
+  s_21a608cf6ff9c5::t_6640f7d1dc4c26 33-40,81-89,111-113,139-144
+src/features/editor/lib/publish-checklist.ts
+  s_21a608cf6ff9c5::t_50c0c067c92497 113
+  s_21a608cf6ff9c5::t_73d2c8eff7d99f 1-112,114-329
+src/features/editor/hooks/use-publish-checklist.ts
+  s_21a608cf6ff9c5::t_5217567b12c1be 7-8
+  s_21a608cf6ff9c5::t_cc115643a10d83 1-6,9-89,91-121
+  s_21a608cf6ff9c5::t_6640f7d1dc4c26 90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4718a171f35aaeb514502aaf50247f1b406b018d",
+  "prompts": {},
+  "sessions": {
+    "s_21a608cf6ff9c5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f0ba3863-e894-4c2a-beba-b95f0517e105",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
