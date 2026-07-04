@@ -1,0 +1,77 @@
+src/stores/editor-store.ts
+  s_21a608cf6ff9c5::t_bd0178846055ef 2,7-13,43-56,76-80,84-94,116-117,138,148-149,207-258
+  s_53bfe4b41edb34::t_e698b209db463a 259
+src/features/editor/hooks/use-typewriter-scroll.ts
+  s_21a608cf6ff9c5::t_2890622c782271 8-18,28-29,32-34,39,45-52,56-79,82-85
+src/features/editor/components/sprint-control.tsx
+  s_21a608cf6ff9c5::t_d68ad8a8f1b21c 237
+  s_21a608cf6ff9c5::t_72b38c3f419b6e 125-126
+  s_21a608cf6ff9c5::t_7f1ebc23e9f989 1-3,5-124,127-236,238-253
+  s_21a608cf6ff9c5::t_66955e7a961639 4
+src/features/editor/lib/publish-checklist.ts
+  s_21a608cf6ff9c5::t_ec895162e5243c 19
+e2e/features/sprint.authed.spec.ts
+  s_21a608cf6ff9c5::t_fc69b65975365c 1-108,111-112
+  s_21a608cf6ff9c5::t_c0e43b80cac7e6 109-110
+src/features/editor/lib/seo-lint.ts
+  s_21a608cf6ff9c5::t_3135ce7a72c921 8,88,119
+src/features/editor/components/sprint-hud.tsx
+  s_21a608cf6ff9c5::t_a8450d892c3be7 4
+  s_21a608cf6ff9c5::t_50f90fcef3ac67 113
+  s_21a608cf6ff9c5::t_fac2330fc7f9c0 1-3,5-46,49-112,114-125
+  s_21a608cf6ff9c5::t_72b38c3f419b6e 47-48
+src/components/layout/hooks/use-app-hotkeys.ts
+  s_21a608cf6ff9c5::t_cd1832437d0016 170-184
+src/features/editor/components/markdown-editor.tsx
+  s_21a608cf6ff9c5::t_46c5a00d86e7e3 11
+  s_21a608cf6ff9c5::t_79771473700195 267
+  s_21a608cf6ff9c5::t_4a82c7ee61c9eb 162-163,165-169
+src/features/editor/hooks/use-sprint.ts
+  s_21a608cf6ff9c5::t_ec895162e5243c 12
+  s_21a608cf6ff9c5::t_84865db999d69b 63-69,73-99
+  s_21a608cf6ff9c5::t_a3951cea922e7c 1-11,13-62,70-72,100-128
+src/components/layout/app-header.tsx
+  s_21a608cf6ff9c5::t_ae5fa7f4455596 286
+  s_21a608cf6ff9c5::t_0f7c13a5f33c5c 328
+src/features/editor/lib/sprint.ts
+  s_21a608cf6ff9c5::t_f5d707e5bb66ff 1-23
+src/stores/editor-preferences-store.ts
+  s_21a608cf6ff9c5::t_0089ac3cd6989b 1-39
+src/lib/word-count.ts
+  s_21a608cf6ff9c5::t_8f4bf847a6005f 1-11
+src/stores/shortcuts-store.ts
+  s_21a608cf6ff9c5::t_eb4454b723ec58 152-158
+src/features/editor/components/editor-toolbar.tsx
+  s_21a608cf6ff9c5::t_42f758a264aac6 51,57
+  s_21a608cf6ff9c5::t_77f98b6b6fd19e 352-354
+  s_21a608cf6ff9c5::t_58d88b2e28a198 135-136
+src/features/editor/components/draft-compare-sheet.tsx
+  s_21a608cf6ff9c5::t_3135ce7a72c921 23,248
+src/features/editor/components/editor-layout.tsx
+  s_21a608cf6ff9c5::t_5049628209c110 19
+  s_21a608cf6ff9c5::t_86aaf40616540c 152-153
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2c3248ced22caec155dad319fd837321c34d1c0d",
+  "prompts": {},
+  "sessions": {
+    "s_21a608cf6ff9c5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f0ba3863-e894-4c2a-beba-b95f0517e105",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    },
+    "s_53bfe4b41edb34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f7121b30-2e9f-42d8-9316-5139d78bba19",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
