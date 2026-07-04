@@ -28,6 +28,10 @@
  */
 import type { Id } from "../../_generated/dataModel";
 import type { MutationCtx } from "../../_generated/server";
+import {
+  drainDocumentLinksForDoc,
+  hasRemainingLinksForDoc,
+} from "./documentLinks";
 
 /** Shared across every table drained below. Chosen so even the worst-case
  *  single call (all budget spent on one table) stays comfortably inside
@@ -187,6 +191,19 @@ export async function purgeDocumentArtifacts(
     }
   }
 
+  /* 11. document_links — drain edges in BOTH directions (rows where this
+   *     document is the source AND rows where it is the target), sharing the
+   *     same budget so a heavily-linked doc can't breach transaction limits. */
+  if (budget > 0) {
+    const { deleted: linksDeleted } = await drainDocumentLinksForDoc(
+      ctx,
+      documentId,
+      budget,
+    );
+    budget -= linksDeleted;
+    deleted += linksDeleted;
+  }
+
   const done = !(await hasRemainingArtifacts(ctx, documentId));
   return { done, deleted };
 }
@@ -240,5 +257,8 @@ async function hasRemainingArtifacts(
       .withIndex("by_documentId", (q) => q.eq("documentId", documentId))
       .take(1),
   ]);
-  return heads.some((rows) => rows.length > 0);
+  if (heads.some((rows) => rows.length > 0)) return true;
+  // document_links has no by_documentId index (edges are directional), so
+  // check both directions via the dedicated helper.
+  return await hasRemainingLinksForDoc(ctx, documentId);
 }

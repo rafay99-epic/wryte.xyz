@@ -881,6 +881,19 @@ export const _wipeProjectChunk = internalMutation({
       }
     }
 
+    /* 12b. document_links — the backlink graph for this project's documents.
+     *      Direct `by_projectId` index, so no need to walk the documents. */
+    if (budget > 0) {
+      const rows = await ctx.db
+        .query("document_links")
+        .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
+        .take(budget);
+      for (const row of rows) {
+        await ctx.db.delete(row._id);
+        budget--;
+      }
+    }
+
     /* 13. project_stats — subtract from writing_stats.totalWords before
      *     deleting so the user's lifetime total stays accurate. */
     if (budget > 0) {
@@ -1058,6 +1071,10 @@ async function countProjectRemaining(
       .take(1),
     ctx.db
       .query("project_stats")
+      .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+      .take(1),
+    ctx.db
+      .query("document_links")
       .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
       .take(1),
   ]);

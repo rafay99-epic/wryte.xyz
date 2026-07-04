@@ -25,6 +25,7 @@ import {
   readContent,
   writeContent,
 } from "./_lib/documentContent";
+import { syncDocumentLinks } from "./_lib/documentLinks";
 
 /** Hard cap per document — oldest snapshots are pruned past this. */
 const MAX_SNAPSHOTS_PER_DOCUMENT = 30;
@@ -247,6 +248,10 @@ export const restore = mutation({
       contentId: document.contentId ?? contentId,
       updatedAt: Date.now(),
     });
+
+    // Flush path: the restored snapshot replaces the main body, so recompute
+    // the backlink graph from it.
+    await syncDocumentLinks(ctx, document, snapshotContent);
 
     return { restoredFrom: snapshot.createdAt };
   },

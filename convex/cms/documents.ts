@@ -20,8 +20,10 @@ import { countWords } from "../_lib/wordCount";
 import {
   buildExcerpt,
   readContent,
+  readContentById,
   writeContent,
 } from "./_lib/documentContent";
+import { syncDocumentLinks } from "./_lib/documentLinks";
 
 /**
  * Verifies that a document exists and that the given user owns the parent project.
@@ -338,6 +340,58 @@ export const get = query({
 });
 
 /**
+ * "What links here" — the source documents whose MAIN body contains a
+ * resolved `[[wiki link]]` to `documentId`. Powers the editor research
+ * panel's "Linked from" section.
+ *
+ * Reads the target's edges via `by_targetDocumentId` (bounded `.take(50)`),
+ * then hydrates each source's metadata row (title/status/updatedAt) with a
+ * single `ctx.db.get` per edge — metadata-only, no body reads, bounded 50.
+ * Returns `[]` (never throws) for unauthenticated / unauthorized callers so
+ * the panel degrades quietly.
+ */
+export const getBacklinks = query({
+  args: { documentId: v.id("documents") },
+  handler: async (ctx, args) => {
+    const user = await getAuthedUserOrNull(ctx);
+    if (!user) return [];
+
+    const document = await ctx.db.get(args.documentId);
+    if (!document) return [];
+    const project = await ctx.db.get(document.projectId);
+    if (!project || project.userId !== user._id) return [];
+
+    const edges = await ctx.db
+      .query("document_links")
+      .withIndex("by_targetDocumentId", (q) =>
+        q.eq("targetDocumentId", args.documentId),
+      )
+      .take(50);
+
+    const rows: {
+      _id: Id<"documents">;
+      title: string;
+      status: string;
+      updatedAt: number;
+    }[] = [];
+    for (const edge of edges) {
+      const source = await ctx.db.get(edge.sourceDocumentId);
+      // Skip dangling edges and trashed sources — a trashed document
+      // shouldn't advertise itself as linking here.
+      if (!source || source.trashedAt !== undefined) continue;
+      rows.push({
+        _id: source._id,
+        title: source.title,
+        status: source.status,
+        updatedAt: source.updatedAt,
+      });
+    }
+
+    return rows.sort((a, b) => b.updatedAt - a.updatedAt);
+  },
+});
+
+/**
  * Creates a new blank document in draft status within the specified project.
  * Verifies the user owns the target project before inserting.
  *
@@ -518,6 +572,13 @@ export const update = mutation({
     }
 
     await ctx.db.patch(documentId, fieldsToUpdate);
+
+    // Flush-path only: recompute the backlink graph when the MAIN body was
+    // provided (manual save / metadata flush). Deliberately absent from
+    // `autosaveBody` so link resolution never rides the 3s hot path.
+    if (content !== undefined) {
+      await syncDocumentLinks(ctx, document, content);
+    }
 
     await scheduleWordActivity(ctx, {
       userId: user._id,
@@ -2117,6 +2178,56 @@ export const _backfillGithubSyncedAt = internalMutation({
     }
     return {
       patched,
+      scanned: result.page.length,
+      isDone: result.isDone,
+      cursor: result.continueCursor,
+    };
+  },
+});
+
+/**
+ * One-shot backfill of the `document_links` graph for pre-existing documents.
+ * Cursor-paginated over every document (small chunk — each doc's link sync
+ * reads up to 500 project metadata rows, so we keep the per-transaction
+ * footprint bounded), reading each body via the `document_content` helper and
+ * running the same `syncDocumentLinks` used by the flush paths.
+ *
+ * Idempotent: `syncDocumentLinks` deletes-then-reinserts a source's edges, so
+ * re-running (or resuming after a partial run) converges to the same graph.
+ * CLI-driven only — there is no admin UI:
+ *   bun x convex run cms/documents:_backfillDocumentLinks
+ * Pass `{ "cursor": "<continueCursor>" }` to resume a specific page; omit to
+ * start from the beginning (it self-schedules subsequent pages).
+ */
+const BACKFILL_LINKS_BATCH_SIZE = 10;
+
+export const _backfillDocumentLinks = internalMutation({
+  args: {
+    cursor: v.optional(v.union(v.string(), v.null())),
+  },
+  handler: async (ctx, args) => {
+    let synced = 0;
+    const result = await ctx.db.query("documents").paginate({
+      numItems: BACKFILL_LINKS_BATCH_SIZE,
+      cursor: args.cursor ?? null,
+    });
+    for (const doc of result.page) {
+      // Trashed docs are invisible everywhere else; skip so we don't
+      // resurrect edges for documents on their way out.
+      if (doc.trashedAt !== undefined) continue;
+      const content = await readContentById(ctx, doc._id);
+      await syncDocumentLinks(ctx, doc, content);
+      synced += 1;
+    }
+    if (!result.isDone) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.cms.documents._backfillDocumentLinks,
+        { cursor: result.continueCursor },
+      );
+    }
+    return {
+      synced,
       scanned: result.page.length,
       isDone: result.isDone,
       cursor: result.continueCursor,
