@@ -227,6 +227,7 @@ function DraggableBoardCard({
     <div ref={setNodeRef} style={style} {...attributes}>
       <motion.div
         ref={cardRef}
+        data-testid={`content-item-${item.slug}`}
         {...(!isDragging
           ? { variants: staggerItem, transition: smoothTransition }
           : {})}

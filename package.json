@@ -16,6 +16,9 @@
     "lint": "biome check",
     "format": "biome format --write",
     "type": "tsc --noEmit",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:report": "playwright show-report",
     "changelog:new": "bun scripts/changelog-new.ts"
   },
   "dependencies": {
@@ -70,6 +73,8 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.15",
+    "@clerk/testing": "^2.1.7",
+    "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "^4.3.0",
     "@tailwindcss/typography": "^0.5.19",
     "@types/js-yaml": "^4.0.9",
