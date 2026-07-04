@@ -82,7 +82,7 @@ export async function getAuthedUserOrNull(
 }
 
 /**
- * Resolves a user's GitHub access token. Three-tier fallback so the same
+ * Resolves a user's GitHub access token. Two-tier fallback so the same
  * function works for both OAuth-connected and PAT-only users:
  *
  *   1. Clerk OAuth — fresh token via the backend SDK. Authoritative when
@@ -91,10 +91,8 @@ export async function getAuthedUserOrNull(
  *   2. Vault PAT — `secretStore._read(user.githubVaultSecretId)`. Power-
  *      user override for bot accounts, fine-grained PATs, or anyone who
  *      isn't using Clerk OAuth.
- *   3. Legacy plaintext — `user.githubAccessToken`. Migrated into the
- *      vault on the first read so this branch retires itself over time.
  *
- * Returns null only when none of the three yields a token; callers throw
+ * Returns null only when neither tier yields a token; callers throw
  * a friendly error and surface "Reconnect GitHub or set a PAT".
  *
  * Must be called from a Convex action — the vault and Clerk SDKs are
@@ -128,27 +126,6 @@ export async function getGithubToken(
     return await ctx.runAction(internal.integrations.secretStore._read, {
       id: user.githubVaultSecretId,
     });
-  }
-
-  // 3. Legacy plaintext — lazy migrate into the vault on first read. After
-  //    migration the next call goes through the vault branch above. Only
-  //    reached when the user has no vault entry yet.
-  if (user.githubAccessToken) {
-    const created = await ctx.runAction(
-      internal.integrations.secretStore._create,
-      {
-        value: user.githubAccessToken,
-        meta: {
-          userId: user._id,
-          label: "github-pat-migrated",
-        },
-      },
-    );
-    await ctx.runMutation(internal.account.users._setGithubVaultId, {
-      userId: user._id,
-      vaultSecretId: created.id,
-    });
-    return user.githubAccessToken;
   }
 
   return null;

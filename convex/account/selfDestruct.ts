@@ -110,7 +110,6 @@ export const selfDestructPreview = query({
       mediaErrorCount,
       vaultCredentialCount: credentialRows.length + aiCredentialRows.length,
       hasGithubVault: Boolean(user.githubVaultSecretId),
-      hasGithubLegacyToken: Boolean(user.githubAccessToken),
       scheduled,
     };
   },
@@ -413,20 +412,13 @@ export const _wipeChunk = internalMutation({
       }
     }
 
-    /* 3. media (+ legacy storage blobs) */
+    /* 3. media */
     if (budget > 0) {
       const rows = await ctx.db
         .query("media")
         .withIndex("by_userId", (q) => q.eq("userId", args.userId))
         .take(budget);
       for (const row of rows) {
-        if (row.storageId) {
-          try {
-            await ctx.storage.delete(row.storageId);
-          } catch {
-            // Blob may already be gone — keep going so the row still drops.
-          }
-        }
         await ctx.db.delete(row._id);
         budget--;
         mediaDeleted++;
@@ -807,7 +799,6 @@ export const _resetUserRow = internalMutation({
   args: { userId: v.id("users") },
   handler: async (ctx, args) => {
     await ctx.db.patch(args.userId, {
-      githubAccessToken: undefined,
       githubVaultSecretId: undefined,
       githubUsername: undefined,
       defaultCompressionSettings: undefined,

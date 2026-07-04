@@ -5,7 +5,6 @@ import { useQuery } from "convex/react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowLeft,
-  ArrowRightLeft,
   CalendarDays,
   Database,
   FilePlus,
@@ -177,11 +176,6 @@ export function AppSidebar() {
                         href="/admin/seed"
                         icon={Database}
                         label="Seed data"
-                      />
-                      <NavLink
-                        href="/admin/migrations"
-                        icon={ArrowRightLeft}
-                        label="Migrations"
                       />
                     </div>
                   </div>

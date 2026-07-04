@@ -94,9 +94,7 @@ export function MediaSection({
         >
           <div className="grid gap-3 sm:grid-cols-3">
             <MediaModeOption
-              active={
-                mediaStorageMode === "github" || mediaStorageMode === "external"
-              }
+              active={mediaStorageMode === "github"}
               onClick={() => setMediaStorageMode("github")}
               title="GitHub Repository"
               description="Commit images directly into the project's repo."

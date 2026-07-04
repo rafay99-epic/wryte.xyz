@@ -103,7 +103,7 @@ export function MediaPickerDrawer({
     if (!searchQuery.trim()) return projectMedia;
     const q = searchQuery.toLowerCase();
     return projectMedia.filter((item) =>
-      (item.filename ?? item.fileName ?? "").toLowerCase().includes(q),
+      (item.filename ?? "").toLowerCase().includes(q),
     );
   }, [projectMedia, searchQuery]);
 
@@ -234,8 +234,7 @@ export function MediaPickerDrawer({
                   <AnimatePresence mode="popLayout" initial={false}>
                     {filteredProjectMedia.map((item) => {
                       const url = item.url ?? "";
-                      const filename =
-                        item.filename ?? item.fileName ?? "image";
+                      const filename = item.filename ?? "image";
                       return (
                         <PickerGridItem key={item._id}>
                           <RecentMediaItem

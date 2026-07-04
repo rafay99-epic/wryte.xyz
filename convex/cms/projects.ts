@@ -13,13 +13,8 @@ import {
 import { getAuthedUserOrNull, getCurrentUser } from "../_lib/auth";
 import { compressionSettingsValidator } from "../_lib/compression";
 import { contentFormatValidator } from "../_lib/contentFormat";
-import { normalizeSchemaArrayTypes } from "../_lib/frontmatter";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
-import {
-  type AiProvider,
-  getProvider,
-  providerValidator,
-} from "../ai/_lib/providers";
+import { type AiProvider, providerValidator } from "../ai/_lib/providers";
 import { publishWorkflowManager } from "../integrations/scheduling";
 
 /** Hard cap on projects per user. The dashboard's project list query also
@@ -142,7 +137,6 @@ export const create = mutation({
         v.literal("github"),
         v.literal("uploadthing"),
         v.literal("cloudinary"),
-        v.literal("external"),
       ),
     ),
     frontmatterSchema: v.optional(v.string()),
@@ -187,7 +181,7 @@ export const create = mutation({
       githubBranch?: string;
       contentPath?: string;
       mediaPath?: string;
-      mediaStorageMode?: "github" | "uploadthing" | "cloudinary" | "external";
+      mediaStorageMode?: "github" | "uploadthing" | "cloudinary";
       frontmatterSchema?: string;
       commitMessageTemplate?: string;
       filenamePattern?: string;
@@ -277,7 +271,6 @@ export const update = mutation({
         v.literal("github"),
         v.literal("uploadthing"),
         v.literal("cloudinary"),
-        v.literal("external"),
       ),
     ),
     frontmatterSchema: v.optional(v.string()),
@@ -358,28 +351,6 @@ export const update = mutation({
     }
 
     await ctx.db.patch(projectId, fieldsToUpdate);
-  },
-});
-
-/**
- * Dismisses the one-time "we repaired your frontmatter schema" notice for a
- * project. Records the acknowledgement timestamp; the banner hides once it is
- * ≥ `schemaRepairedAt`.
- *
- * @requires Authentication + project ownership
- */
-export const acknowledgeSchemaRepair = mutation({
-  args: { projectId: v.id("projects") },
-  handler: async (ctx, args) => {
-    const user = await getCurrentUser(ctx);
-    const project = await ctx.db.get(args.projectId);
-    if (!project) throw new Error("Project not found");
-    if (project.userId !== user._id) {
-      throw new Error("Unauthorized: you do not own this project");
-    }
-    await ctx.db.patch(args.projectId, {
-      schemaRepairAcknowledgedAt: Date.now(),
-    });
   },
 });
 
@@ -749,20 +720,13 @@ export const _wipeProjectChunk = internalMutation({
       }
     }
 
-    /* 5. media (+ legacy storage blobs) */
+    /* 5. media */
     if (budget > 0) {
       const rows = await ctx.db
         .query("media")
         .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
         .take(budget);
       for (const row of rows) {
-        if (row.storageId) {
-          try {
-            await ctx.storage.delete(row.storageId);
-          } catch {
-            // Blob may already be gone — keep going.
-          }
-        }
         await ctx.db.delete(row._id);
         budget--;
         mediaDeleted++;
@@ -1136,149 +1100,5 @@ export const _backfillDocumentCounts = internalMutation({
       }
     }
     return { total: projects.length, updated };
-  },
-});
-
-/**
- * One-time backfill: repairs every existing project's stored `frontmatterSchema`
- * so list fields (tags/keywords/categories/…) that were mistyped as scalars by
- * the old single-file detection become array ("tags") fields. This brings
- * projects created before framework-aware detection up to the same correct
- * schema, fixing the editor UX (tag chips instead of a text box) and aligning
- * the stored schema with the publish-time array guard.
- *
- * Paginated + self-continuing (matches `_backfillWordCounts`), so it scales to
- * any number of projects without exceeding a single transaction. Idempotent —
- * safe to re-run; only patches rows that actually change.
- */
-export const _backfillFrontmatterSchemas = internalMutation({
-  args: { cursor: v.optional(v.union(v.string(), v.null())) },
-  handler: async (ctx, args) => {
-    const BATCH = 100;
-    const result = await ctx.db.query("projects").paginate({
-      numItems: BATCH,
-      cursor: args.cursor ?? null,
-    });
-
-    let patched = 0;
-    for (const project of result.page) {
-      const { json, changed } = normalizeSchemaArrayTypes(
-        project.frontmatterSchema,
-      );
-      if (changed && json !== null) {
-        // Stamp `schemaRepairedAt` so the project surfaces a one-time in-app
-        // notice telling the owner their schema was auto-fixed.
-        await ctx.db.patch(project._id, {
-          frontmatterSchema: json,
-          schemaRepairedAt: Date.now(),
-        });
-        patched++;
-      }
-    }
-
-    if (!result.isDone) {
-      await ctx.scheduler.runAfter(
-        0,
-        internal.cms.projects._backfillFrontmatterSchemas,
-        { cursor: result.continueCursor },
-      );
-    }
-
-    return { patched, scanned: result.page.length, isDone: result.isDone };
-  },
-});
-
-/**
- * Explicit old→new model id map, intent-preserving. Keys are model ids that
- * used to be selectable (or were stale/invented) before the provider-registry
- * refactor; values are the current equivalent that keeps the user's tier
- * (Opus→Opus, Sonnet→Sonnet, Haiku→Haiku; removed free OpenRouter slugs → the
- * current free default). Anything not listed here AND not a current registry
- * model falls back to the provider's `defaultModel` (see `migrateAiModel`).
- */
-const LEGACY_AI_MODEL_MAP: Record<string, string> = {
-  // Anthropic — preserve the chosen tier
-  "claude-opus-4-20250514": "claude-opus-4-8",
-  "claude-opus-4-0": "claude-opus-4-8",
-  "claude-opus-4": "claude-opus-4-8",
-  "claude-opus-4-1": "claude-opus-4-8",
-  "claude-opus-4-1-20250805": "claude-opus-4-8",
-  "claude-opus-4-5": "claude-opus-4-8",
-  "claude-sonnet-4-20250514": "claude-sonnet-4-6",
-  "claude-sonnet-4-0": "claude-sonnet-4-6",
-  "claude-sonnet-4-5": "claude-sonnet-4-6",
-  "claude-haiku-4-20250414": "claude-haiku-4-5",
-  // OpenRouter — removed/invented free slugs → current free default
-  "google/gemma-4-26b-a4b-it:free": "meta-llama/llama-3.3-70b-instruct:free",
-  "google/gemma-4-31b-it:free": "meta-llama/llama-3.3-70b-instruct:free",
-  "minimax/minimax-m2.5:free": "meta-llama/llama-3.3-70b-instruct:free",
-};
-
-/**
- * Returns the model id this project should use, or `null` if no change is
- * needed. A model that's still a valid current registry model for its provider
- * is left untouched (idempotent). Otherwise we map it via
- * {@link LEGACY_AI_MODEL_MAP} when the target is valid for that provider, and
- * fall back to the provider's `defaultModel` for anything unknown — so any
- * stale or invalid id self-heals to a working model.
- */
-function migrateAiModel(
-  provider: AiProvider,
-  currentModel: string,
-): string | null {
-  const entry = getProvider(provider);
-  const valid = new Set(entry.models.map((m) => m.value));
-  if (valid.has(currentModel)) return null;
-
-  const mapped = LEGACY_AI_MODEL_MAP[currentModel];
-  if (mapped && valid.has(mapped)) return mapped;
-
-  return entry.defaultModel;
-}
-
-/**
- * One-time backfill: rewrites every project's stored `aiModel` to a current,
- * valid model id for its `aiProvider`. Before the provider-registry refactor
- * the model dropdown offered stale/soon-retired ids (e.g.
- * `claude-sonnet-4-20250514`, which Anthropic retires 2026-06-15) and a couple
- * of invented ones — projects saved with those would fail at generation time.
- * This brings them onto the registry's current ids while preserving the chosen
- * tier (see {@link migrateAiModel}).
- *
- * Paginated + self-continuing (matches `_backfillFrontmatterSchemas`), so it
- * scales to any number of projects within a single transaction. Idempotent —
- * only patches projects whose model actually changes; a second run is a no-op.
- */
-export const _backfillAiModels = internalMutation({
-  args: { cursor: v.optional(v.union(v.string(), v.null())) },
-  handler: async (ctx, args) => {
-    const BATCH = 100;
-    const result = await ctx.db.query("projects").paginate({
-      numItems: BATCH,
-      cursor: args.cursor ?? null,
-    });
-
-    let patched = 0;
-    for (const project of result.page) {
-      // Nothing to migrate unless both a provider and a model are configured.
-      if (!project.aiProvider || !project.aiModel) continue;
-
-      const next = migrateAiModel(project.aiProvider, project.aiModel);
-      if (next !== null && next !== project.aiModel) {
-        await ctx.db.patch(project._id, {
-          aiModel: next,
-          updatedAt: Date.now(),
-        });
-        patched++;
-      }
-    }
-
-    if (!result.isDone) {
-      await ctx.scheduler.runAfter(0, internal.cms.projects._backfillAiModels, {
-        cursor: result.continueCursor,
-      });
-    }
-
-    return { patched, scanned: result.page.length, isDone: result.isDone };
   },
 });

@@ -20,17 +20,12 @@ export const CONFIGURABLE_MEDIA_PROVIDERS: readonly ConfigurableMediaProvider[] 
   ["uploadthing", "cloudinary"] as const;
 
 /** Storage mode chosen per project — drives upload routing. */
-export type MediaStorageMode =
-  | "github"
-  | "uploadthing"
-  | "cloudinary"
-  | "external";
+export type MediaStorageMode = "github" | "uploadthing" | "cloudinary";
 
 export const MEDIA_STORAGE_MODES: readonly MediaStorageMode[] = [
   "github",
   "uploadthing",
   "cloudinary",
-  "external",
 ] as const;
 
 export type MediaCredentialStatus =

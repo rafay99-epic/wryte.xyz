@@ -242,9 +242,8 @@ export const internalGetByToken = internalQuery({
 });
 
 /**
- * Sets the vault-backed GitHub secret pointer and clears any legacy plaintext
- * `githubAccessToken` value. Internal because it's invoked from the
- * `updateGithubToken` action and from `getGithubToken`'s lazy migration path.
+ * Sets the vault-backed GitHub secret pointer. Internal because it's invoked
+ * from the `updateGithubToken` action.
  */
 export const _setGithubVaultId = internalMutation({
   args: {
@@ -254,7 +253,6 @@ export const _setGithubVaultId = internalMutation({
   handler: async (ctx, args) => {
     await ctx.db.patch(args.userId, {
       githubVaultSecretId: args.vaultSecretId,
-      githubAccessToken: undefined,
     });
   },
 });

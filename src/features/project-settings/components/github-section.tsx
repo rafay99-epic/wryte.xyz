@@ -29,14 +29,9 @@ import { Divider, FieldGroup, SaveButton, SectionHeader } from "./shared";
 type GitHubSectionProps = {
   projectId: Id<"projects">;
   project: ProjectData;
-  existingToken: string;
 };
 
-export function GitHubSection({
-  projectId,
-  project,
-  existingToken,
-}: GitHubSectionProps) {
+export function GitHubSection({ projectId, project }: GitHubSectionProps) {
   const {
     oauthConnected,
     token,
@@ -61,7 +56,7 @@ export function GitHubSection({
     handleSaveToken,
     handleSaveRepo,
     handleVerify,
-  } = useGithubSection({ projectId, project, existingToken });
+  } = useGithubSection({ projectId, project });
 
   return (
     <motion.div variants={staggerContainer} initial="initial" animate="animate">

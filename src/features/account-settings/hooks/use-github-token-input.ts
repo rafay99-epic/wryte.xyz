@@ -1,17 +1,13 @@
 import { useAction } from "convex/react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import { api } from "../../../../convex/_generated/api";
 
-export function useGithubTokenInput(existingToken: string) {
+export function useGithubTokenInput() {
   const updateGithubToken = useAction(api.account.users.updateGithubToken);
-  const [token, setToken] = useState(existingToken);
+  const [token, setToken] = useState("");
   const [showToken, setShowToken] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-
-  useEffect(() => {
-    setToken(existingToken);
-  }, [existingToken]);
 
   const handleSave = useCallback(async () => {
     if (!token.trim()) {

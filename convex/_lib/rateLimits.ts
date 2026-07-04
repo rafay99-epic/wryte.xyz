@@ -454,26 +454,6 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
   },
 
   /* ------------------------------------------------------------------ */
-  /*  Legacy media (kept for one release to support drain migration)     */
-  /* ------------------------------------------------------------------ */
-
-  "media:generateUploadUrl": {
-    kind: "fixed window",
-    rate: 30,
-    period: MINUTE,
-  },
-  "media:saveMedia": {
-    kind: "fixed window",
-    rate: 30,
-    period: MINUTE,
-  },
-  "media:deleteStaged": {
-    kind: "fixed window",
-    rate: 30,
-    period: MINUTE,
-  },
-
-  /* ------------------------------------------------------------------ */
   /*  Project tools                                                      */
   /* ------------------------------------------------------------------ */
 
@@ -766,24 +746,6 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
   "seed:run": {
     kind: "fixed window",
     rate: 5,
-    period: MINUTE,
-  },
-
-  /* ------------------------------------------------------------------ */
-  /*  Admin data migrations                                              */
-  /* ------------------------------------------------------------------ */
-
-  /**
-   * Admin migration actions (`/admin/migrations`). These run back-to-back
-   * when an operator works through the whole list — six cost-optimization
-   * migrations plus the legacy content backfill — so the seed bucket's
-   * 5/min cap is too tight and made the sixth click fail. Still bounded:
-   * behind `requireAdmin`, and each action is internally chunk-capped, so
-   * the only risk is an accidental client loop.
-   */
-  "migrations:run": {
-    kind: "fixed window",
-    rate: 30,
     period: MINUTE,
   },
 

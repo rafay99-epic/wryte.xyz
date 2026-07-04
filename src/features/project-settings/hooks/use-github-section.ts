@@ -9,13 +9,11 @@ import type { ProjectData, VerifyStatus } from "../types";
 type UseGithubSectionParams = {
   projectId: Id<"projects">;
   project: ProjectData;
-  existingToken: string;
 };
 
 export function useGithubSection({
   projectId,
   project,
-  existingToken,
 }: UseGithubSectionParams) {
   const updateProject = useMutation(api.cms.projects.update);
   const updateGithubToken = useAction(api.account.users.updateGithubToken);
@@ -23,7 +21,7 @@ export function useGithubSection({
 
   const [oauthConnected, setOauthConnected] = useState<boolean | null>(null);
 
-  const [token, setToken] = useState(existingToken);
+  const [token, setToken] = useState("");
   const [showToken, setShowToken] = useState(false);
   const [showPatFallback, setShowPatFallback] = useState(false);
   const [isSavingToken, setIsSavingToken] = useState(false);
@@ -70,10 +68,6 @@ export function useGithubSection({
     }
     void checkOAuth();
   }, []);
-
-  useEffect(() => {
-    setToken(existingToken);
-  }, [existingToken]);
 
   useEffect(() => {
     setRepo(project.githubRepo ?? "");

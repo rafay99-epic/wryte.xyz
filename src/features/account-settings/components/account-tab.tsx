@@ -28,7 +28,6 @@ type AccountTabProps = {
   email: string;
   imageUrl: string | undefined;
   githubUsername: string | undefined;
-  existingToken: string;
 };
 
 export function AccountTab({
@@ -36,7 +35,6 @@ export function AccountTab({
   email,
   imageUrl,
   githubUsername,
-  existingToken,
 }: AccountTabProps) {
   const initials = name
     .split(" ")
@@ -87,7 +85,7 @@ export function AccountTab({
 
       {/* GitHub token fallback */}
       <motion.div variants={staggerItem} transition={smoothTransition}>
-        <GitHubTokenInput existingToken={existingToken} />
+        <GitHubTokenInput />
       </motion.div>
     </motion.div>
   );
@@ -158,9 +156,9 @@ function GitHubConnection({
   );
 }
 
-function GitHubTokenInput({ existingToken }: { existingToken: string }) {
+function GitHubTokenInput() {
   const { token, setToken, showToken, setShowToken, isSaving, handleSave } =
-    useGithubTokenInput(existingToken);
+    useGithubTokenInput();
 
   return (
     <div>

@@ -107,7 +107,6 @@ export function AccountSettingsPage() {
                   }
                   imageUrl={clerkUser?.imageUrl ?? convexUser?.imageUrl}
                   githubUsername={convexUser?.githubUsername}
-                  existingToken={convexUser?.githubAccessToken ?? ""}
                 />
               </motion.div>
             )}

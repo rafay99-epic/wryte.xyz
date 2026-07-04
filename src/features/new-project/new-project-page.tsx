@@ -31,11 +31,8 @@ import { api } from "../../../convex/_generated/api";
  *
  * All three steps share a single state object so values entered in earlier
  * steps are preserved when navigating back and forth.
- *
- * The wizard can pick any media mode except "external" (which is
- * reserved for projects that bring their own pre-uploaded URLs).
  */
-export type MediaStorageMode = Exclude<FullMediaStorageMode, "external">;
+export type MediaStorageMode = FullMediaStorageMode;
 
 export type WizardState = {
   step: 1 | 2 | 3;

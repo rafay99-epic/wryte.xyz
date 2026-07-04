@@ -32,10 +32,6 @@ export default defineSchema({
   /**
    * Users table — stores Clerk-authenticated user profiles.
    * `tokenIdentifier` is the Clerk-issued unique ID used to look up users on every request.
-   *
-   * `githubAccessToken` is the legacy plaintext field — kept for one release so that
-   * existing users can be lazily migrated into the vault on first read. New writes
-   * go to `githubVaultSecretId`.
    */
   users: defineTable({
     tokenIdentifier: v.string(),
@@ -50,8 +46,6 @@ export default defineSchema({
     name: v.string(),
     email: v.string(),
     imageUrl: v.optional(v.string()),
-    /** @deprecated Use githubVaultSecretId. Cleared on lazy migration. */
-    githubAccessToken: v.optional(v.string()),
     /** Opaque WorkOS Vault id for the user's GitHub PAT. */
     githubVaultSecretId: v.optional(v.string()),
     githubUsername: v.optional(v.string()),
@@ -91,8 +85,6 @@ export default defineSchema({
         v.literal("github"),
         v.literal("uploadthing"),
         v.literal("cloudinary"),
-        // legacy value kept to allow non-destructive read; treat as "github" in code
-        v.literal("external"),
       ),
     ),
     frontmatterSchema: v.optional(v.string()),
@@ -119,15 +111,6 @@ export default defineSchema({
      * publishing (e.g. Hugo defaults to TOML frontmatter).
      */
     framework: v.optional(v.string()),
-    /**
-     * Set by the frontmatter-schema repair migration when it auto-fixes this
-     * project's stored schema (mistyped list fields → array). Drives a one-time
-     * in-app notice so the user knows their schema changed without having to
-     * dig through settings. Paired with `schemaRepairAcknowledgedAt`.
-     */
-    schemaRepairedAt: v.optional(v.number()),
-    /** When the user dismissed the schema-repair notice (≥ repairedAt = hidden). */
-    schemaRepairAcknowledgedAt: v.optional(v.number()),
     /** Default author name injected into frontmatter for new posts. */
     defaultAuthor: v.optional(v.string()),
     /**
@@ -512,8 +495,6 @@ export default defineSchema({
    *  - "github": file lives at `externalId` (repo path) in the project's repo
    *  - "uploadthing": `externalId` is the UploadThing file key
    *  - "cloudinary": `externalId` is the Cloudinary public_id
-   *  - "convex_legacy": legacy rows from the old staging flow; `storageId` is the Convex blob.
-   *    Run `migrations/dropConvexMedia` to convert these to one of the active providers.
    */
   media: defineTable({
     projectId: v.id("projects"),
@@ -523,7 +504,6 @@ export default defineSchema({
         v.literal("github"),
         v.literal("uploadthing"),
         v.literal("cloudinary"),
-        v.literal("convex_legacy"),
       ),
     ),
     externalId: v.optional(v.string()),
@@ -535,26 +515,12 @@ export default defineSchema({
     height: v.optional(v.number()),
     documentId: v.optional(v.id("documents")),
     createdAt: v.number(),
-    // ── Legacy fields (kept for in-flight rows being migrated) ──
-    /** @deprecated convex_legacy provider only */
-    storageId: v.optional(v.id("_storage")),
-    /** @deprecated convex_legacy provider only */
-    fileName: v.optional(v.string()),
-    /** @deprecated convex_legacy provider only */
-    contentType: v.optional(v.string()),
-    /** @deprecated convex_legacy provider only */
-    size: v.optional(v.number()),
-    /** @deprecated convex_legacy provider only */
-    syncedToGithub: v.optional(v.boolean()),
-    /** @deprecated convex_legacy provider only */
-    githubPath: v.optional(v.string()),
   })
     .index("by_projectId", ["projectId"])
     .index("by_userId", ["userId"])
     .index("by_projectId_and_createdAt", ["projectId", "createdAt"])
     .index("by_documentId", ["documentId"])
-    .index("by_provider_and_externalId", ["provider", "externalId"])
-    .index("by_storageId", ["storageId"]),
+    .index("by_provider_and_externalId", ["provider", "externalId"]),
 
   /**
    * Media credentials — per-project encrypted credentials for the active provider.

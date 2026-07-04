@@ -948,6 +948,70 @@ No behavior changes — everything works exactly as before, just lighter and fas
 - The admin "New entry" form auto-fills the build SHA from the live deploy, and the \`changelog:new\` CLI no longer prompts for a version or touches \`package.json\`.
 `,
   },
+  {
+    title: "Database bandwidth overhaul — content side-tables everywhere",
+    slug: "database-bandwidth-overhaul-content-side-tables",
+    description:
+      "Every stored version of your writing — drafts, snapshots, publish history — now keeps its body in a dedicated content table, so autosave and the always-open panels stop re-billing full article bodies. Measured locally: the draft list's per-autosave read set dropped 96%.",
+    build: "e4cb56d",
+    publishedAt: Date.parse("2026-07-04T18:00:00+05:00"),
+    content: `## What's new
+
+- **Autosave got dramatically cheaper.** Convex bills every database read and write at the full size of the row involved, and re-runs any subscribed query whose data an autosave touches. Editing inside a draft tab used to re-bill *every* draft's full body every 3 seconds via the always-mounted tab bar; the main-document path paid a full-body read before every full-body write. Both are gone.
+- **Nothing saved twice for no reason.** The editor now skips the save entirely when your content is byte-identical to what's already persisted (typing and undoing back costs nothing), and a 30-second ceiling guarantees a save even during an uninterrupted typing streak.
+- **History panel loads only what you look at.** Snapshots and Publishes each subscribe only while their tab is selected, and the publish list ships commit metadata instead of up to 100 full article bodies per open.
+- **Deleting a document now really deletes it.** Permanent delete, Empty Trash, and the retention cron cascade through drafts, snapshots, sync conflicts, publish history, research notes, and share links — previously those rows were orphaned forever.
+
+## Why
+
+- Free-tier database bandwidth was getting demolished during heavy writing sessions. The biggest single cause was the classic Convex trap: article bodies living on rows that list queries subscribe to, so every keystroke batch re-billed whole libraries of text.
+
+## Under the hood
+
+- New 1:1 content side-tables mirroring \`document_content\`: \`document_draft_content\` (carries the draft's title so title edits ride the hot path), \`document_snapshot_content\`, and \`publish_history_content\` — each with cascade indexes. Metadata rows stay tiny; list subscriptions never touch bodies.
+- \`documents.contentId\` / \`document_drafts.contentId\` pointers let the hot save mutations \`db.replace\` the body row blind — a single N-byte write instead of read-then-patch (2N). New \`documentDrafts.autosaveContent\` writes ONLY the content row; \`updateContent\` became the flush path.
+- Snapshot dedup now compares an FNV-1a \`contentHash\` on the metadata row instead of reading the previous body; the on-insert prune scans metadata only. Publish history is capped at the newest 50 per document.
+- Resolved sync conflicts are stripped of their two full-content snapshots (audit metadata stays); the per-tick conflict guard reads only open conflicts via a new \`by_documentId_unresolved\` index. \`getBySlug\` swapped a 2,000-row scan for a \`by_projectId_and_slug\` index.
+- Six idempotent, chunked, resumable admin migrations drained all existing data into the new shape, verified by a seeded before/after test bench: draft-list read set 48.5&nbsp;KB → 1.8&nbsp;KB (−96%), snapshot list −96%, publish list −93%, with all 14 post-migration invariants passing.
+`,
+  },
+  {
+    title: "Dependency security patches",
+    slug: "dependency-security-patches-ws-hono-jsyaml",
+    description:
+      "Cleared every bun audit finding blocking deploys: patched ws, hono, protobufjs, @babel/core, and js-yaml across the dependency tree — all pinned within their current majors so nothing changes behavior.",
+    build: "8d91fe2",
+    publishedAt: Date.parse("2026-07-04T19:00:00+05:00"),
+    content: `## Fixes
+
+- **All \`bun audit\` findings resolved** (2 high, 7 moderate, 1 low). Highlights: \`ws\` memory-exhaustion DoS, \`hono\` CORS wildcard-with-credentials reflection, \`protobufjs\` schema-derived property shadowing, \`@babel/core\` sourceMappingURL file read, and \`js-yaml\` quadratic-complexity merge-key DoS.
+
+## Under the hood
+
+- Transitive dependencies pinned via \`overrides\`, each within its current major (\`ws ^8.21.0\`, \`hono ^4.12.25\`, \`protobufjs ^7.6.4\`, \`@babel/core ^7.29.7\`) — no API surface changes.
+- \`js-yaml\` needed care: \`gray-matter\` (the frontmatter parser at the heart of the app) hard-requires the v3-only API, and Bun overrides are flat, so the whole tree is pinned to the patched final 3.x release. Every first-party call site uses only \`load\`/\`dump\`/\`YAMLException\` — identical across majors — and frontmatter parsing was smoke-tested.
+`,
+  },
+  {
+    title: "Spring cleaning — legacy fields, migrations, and dead code removed",
+    slug: "spring-cleaning-legacy-fields-and-migrations-removed",
+    description:
+      "With the bandwidth-overhaul migrations confirmed complete in production, the entire compatibility layer is gone: legacy inline content fields, every fallback read, all completed one-shot migrations and their admin page, the temporary test bench, and older dead surfaces like the plaintext GitHub token and Convex-storage media era.",
+    build: "502f810",
+    publishedAt: Date.parse("2026-07-04T21:00:00+05:00"),
+    content: `## What's new
+
+- **The codebase is 2,400+ lines lighter.** The widen→migrate→narrow rollout of the content side-table split completed in production, so the safety scaffolding came out: no legacy fields, no fallback branches, no dead migrations waiting to confuse future work.
+
+## Under the hood
+
+- Schema narrowed: dropped \`documents.content\`, \`document_drafts.contentSnapshot\`/\`titleSnapshot\`, \`document_snapshots.content\`, and \`publish_history.contentSnapshot\` — verified against both deployments' inferred schemas (zero rows carried any of them) before removal, since Convex validates existing documents at deploy time.
+- Every legacy fallback read removed. One deliberate behavior change: rolling back to a publish whose content row is missing now throws a clear error instead of silently restoring an empty article.
+- All completed one-shot migrations retired — the six bandwidth migrations, the document-body backfill, plus the older AI-model, analytics, and frontmatter-repair backfills — together with the entire \`/admin/migrations\` page and its sidebar link.
+- Older dead surfaces swept out after data verification: the legacy plaintext \`users.githubAccessToken\` (vault-only now) and its lazy migration, the Convex-storage \`convex_legacy\` media era (provider literal, six deprecated fields, \`by_storageId\` index, and legacy rate limits), the \`"external"\` media-storage mode alias, and the schema-repair notice machinery.
+- The temporary cost-optimization test bench and workload seeder were deleted from \`/admin/seed\`.
+`,
+  },
 ];
 
 export const seed = action({

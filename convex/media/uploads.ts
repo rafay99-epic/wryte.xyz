@@ -43,7 +43,7 @@ function resolveActiveProvider(mode: string | undefined): ActiveProvider {
   if (mode === "uploadthing" || mode === "cloudinary" || mode === "github") {
     return mode;
   }
-  // Legacy "external" or undefined → default to github so writes still resolve.
+  // Absent mode → default to github so writes still resolve.
   return "github";
 }
 
@@ -510,7 +510,7 @@ export const del = action({
     );
     if (!owned) throw new Error("Unauthorized");
 
-    const provider = row.provider ?? "convex_legacy";
+    const provider = row.provider ?? "github";
     try {
       if (provider === "uploadthing" && row.externalId) {
         const cred = await ctx.runQuery(
@@ -578,9 +578,6 @@ export const del = action({
             }
           }
         }
-      } else if (provider === "convex_legacy" && row.storageId) {
-        // Legacy: still living in Convex storage. Delete the blob too.
-        await ctx.storage.delete(row.storageId);
       }
     } catch (err) {
       if (err instanceof ConvexError) throw err;

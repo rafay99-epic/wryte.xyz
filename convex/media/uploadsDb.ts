@@ -108,7 +108,6 @@ export const _findByProviderAndExternalId = internalQuery({
       v.literal("github"),
       v.literal("uploadthing"),
       v.literal("cloudinary"),
-      v.literal("convex_legacy"),
     ),
     externalId: v.string(),
   },
@@ -242,7 +241,7 @@ export const _deleteRow = internalMutation({
       .withIndex("by_projectId", (q) => q.eq("projectId", row.projectId))
       .unique();
     if (usage) {
-      const bytes = row.bytes ?? row.size ?? 0;
+      const bytes = row.bytes ?? 0;
       await ctx.db.patch(usage._id, {
         fileCount: Math.max(0, usage.fileCount - 1),
         totalBytes: Math.max(0, usage.totalBytes - bytes),

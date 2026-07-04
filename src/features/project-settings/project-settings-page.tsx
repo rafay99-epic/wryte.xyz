@@ -29,7 +29,6 @@ export function ProjectSettingsPage() {
   const projectId = params.projectId as Id<"projects">;
   const router = useRouter();
   const project = useQuery(api.cms.projects.get, { projectId });
-  const user = useQuery(api.account.users.get);
   const projectDeleted = project === null;
   const [activeTab, setActiveTab] = useState<SettingsTab>("general");
 
@@ -53,7 +52,7 @@ export function ProjectSettingsPage() {
     }
   }, [projectDeleted, router]);
 
-  if (project === undefined || user === undefined || projectDeleted) {
+  if (project === undefined || projectDeleted) {
     return <SettingsSkeleton />;
   }
 
@@ -124,11 +123,7 @@ export function ProjectSettingsPage() {
                 </>
               )}
               {activeTab === "github" && (
-                <GitHubSection
-                  projectId={projectId}
-                  project={project}
-                  existingToken={user?.githubAccessToken ?? ""}
-                />
+                <GitHubSection projectId={projectId} project={project} />
               )}
               {activeTab === "content" && (
                 <ContentSection projectId={projectId} project={project} />
