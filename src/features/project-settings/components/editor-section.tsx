@@ -55,6 +55,7 @@ export function EditorSection({
           <Switch
             checked={readabilityLensEnabled}
             onCheckedChange={(checked) => setReadabilityLensEnabled(checked)}
+            data-testid="readability-lens-toggle"
           />
         </div>
 

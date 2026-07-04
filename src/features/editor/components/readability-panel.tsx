@@ -1,17 +1,25 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { CheckCircle2, X } from "lucide-react";
-import { useMemo } from "react";
+import { CheckCircle2, ChevronRight, X } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/stores/editor-store";
 import { useReadability } from "../hooks/use-readability";
+import { useStyleLint } from "../hooks/use-style-lint";
+import { useStyleLintChecks } from "../hooks/use-style-lint-checks";
 import type {
   FlagType,
   HardSentence,
   ReadabilityStats,
 } from "../lib/readability/types";
 import { lintStructure } from "../lib/seo-lint";
+import {
+  groupFindingsByCheck,
+  STYLE_LINT_CHECKS,
+  type StyleLintCheckId,
+} from "../lib/style-lint";
 import { useEditorContext } from "./editor-context";
 
 type ReadabilityPanelProps = {
@@ -98,6 +106,93 @@ function ReadabilityPanelBody() {
         onJump={selectRange}
       />
       <StructureLintSection content={content} onJump={selectRange} />
+      <StyleLintSection onJump={selectRange} />
+    </div>
+  );
+}
+
+function StyleLintSection({
+  onJump,
+}: {
+  onJump: (start: number, end: number) => void;
+}) {
+  const { findings, analyzing } = useStyleLint();
+  const { enabled, toggle } = useStyleLintChecks();
+  const [expanded, setExpanded] = useState<StyleLintCheckId | null>(null);
+  const grouped = useMemo(() => groupFindingsByCheck(findings), [findings]);
+
+  return (
+    <div className="space-y-1.5" data-testid="style-lint-section">
+      <div className="flex items-center justify-between">
+        <p className="text-[11px] font-medium text-muted-foreground">Style</p>
+        {analyzing && (
+          <span className="text-[10px] text-muted-foreground/50">…</span>
+        )}
+      </div>
+      <div className="divide-y divide-border/40 rounded-lg border border-border/40">
+        {STYLE_LINT_CHECKS.map((check) => {
+          const checkFindings = grouped[check.id];
+          const isEnabled = enabled[check.id] ?? true;
+          const visibleFindings = isEnabled ? checkFindings : [];
+          const isExpanded = expanded === check.id;
+          const canExpand = visibleFindings.length > 0;
+
+          return (
+            <div key={check.id} data-testid={`style-lint-check-${check.id}`}>
+              <div className="flex items-center gap-2 px-2.5 py-2">
+                <button
+                  type="button"
+                  disabled={!canExpand}
+                  onClick={() => setExpanded(isExpanded ? null : check.id)}
+                  data-testid={`style-lint-expand-${check.id}`}
+                  className={cn(
+                    "flex flex-1 items-center gap-1.5 text-left text-[11px] transition-colors",
+                    isEnabled
+                      ? "text-foreground/80"
+                      : "text-muted-foreground/40",
+                  )}
+                >
+                  <ChevronRight
+                    className={cn(
+                      "size-3 shrink-0 text-muted-foreground/50 transition-transform",
+                      isExpanded && "rotate-90",
+                    )}
+                  />
+                  <span className="flex-1">{check.label}</span>
+                  <span
+                    className="font-medium tabular-nums"
+                    data-testid={`style-lint-count-${check.id}`}
+                  >
+                    {visibleFindings.length}
+                  </span>
+                </button>
+                <Switch
+                  size="sm"
+                  checked={isEnabled}
+                  onCheckedChange={() => toggle(check.id)}
+                  aria-label={`Toggle ${check.label}`}
+                  data-testid={`style-lint-toggle-${check.id}`}
+                />
+              </div>
+              {isExpanded && canExpand && (
+                <div className="space-y-1 px-2.5 pb-2">
+                  {visibleFindings.slice(0, 30).map((finding, idx) => (
+                    <button
+                      key={`${finding.start}-${finding.end}-${idx}`}
+                      type="button"
+                      onClick={() => onJump(finding.start, finding.end)}
+                      data-testid={`style-lint-excerpt-${check.id}-${idx}`}
+                      className="block w-full rounded-md px-2 py-1.5 text-left text-[11px] text-foreground/80 transition-colors hover:bg-muted/30"
+                    >
+                      {finding.excerpt}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
