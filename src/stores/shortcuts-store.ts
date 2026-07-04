@@ -149,6 +149,13 @@ export const DEFAULT_SHORTCUTS: ShortcutDef[] = [
     defaultKeys: "Mod+j",
     description: "Transform selected text with a custom AI prompt",
   },
+  {
+    id: "toggleSprint",
+    label: "Writing Sprint",
+    category: "editor",
+    defaultKeys: "Mod+Shift+u",
+    description: "Start a writing sprint, or end the one in progress",
+  },
 ];
 
 /** Lookup map for quick access by ID */

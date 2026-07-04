@@ -48,11 +48,13 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { countWords } from "@/lib/word-count";
 import { useEditorStore } from "@/stores/editor-store";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
 import { AiEnhanceButton } from "./ai-enhance-button";
 import { useEditorContext } from "./editor-context";
+import { SprintControl } from "./sprint-control";
 
 type EditorToolbarProps = {
   projectId: string;
@@ -130,9 +132,8 @@ export function EditorToolbar({
 
   // Word count
   const stats = useMemo(() => {
-    const trimmed = content.trim();
-    if (!trimmed) return { words: 0, readTime: 0 };
-    const words = trimmed.split(/\s+/).length;
+    const words = countWords(content);
+    if (words === 0) return { words: 0, readTime: 0 };
     return {
       words,
       readTime: Math.max(1, Math.ceil(words / 238)),
@@ -347,6 +348,9 @@ export function EditorToolbar({
               </Tooltip>
             )}
           </AnimatePresence>
+
+          {/* Writing sprint */}
+          <SprintControl />
 
           {/* View mode switcher */}
           <div className="relative flex items-center rounded-lg border border-border/50 bg-muted/40 p-0.5">

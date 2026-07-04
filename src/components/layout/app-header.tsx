@@ -283,6 +283,7 @@ export function AppHeader() {
                     <Button
                       variant="ghost"
                       size="icon-sm"
+                      aria-label="Focus mode"
                       onClick={toggleFocusMode}
                       className="ml-1 text-muted-foreground hover:text-foreground"
                     />
@@ -324,6 +325,7 @@ export function AppHeader() {
                     <Button
                       variant="ghost"
                       size="icon-sm"
+                      aria-label="Focus mode"
                       onClick={toggleFocusMode}
                       className="text-muted-foreground hover:text-foreground"
                     />
