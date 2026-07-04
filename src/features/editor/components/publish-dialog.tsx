@@ -28,6 +28,7 @@ import {
 import { useEditorStore } from "@/stores/editor-store";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
+import { PublishChecklist } from "./publish-checklist";
 
 const documentsUpdate = api.cms.documents.update;
 const documentsGet = api.cms.documents.get;
@@ -290,6 +291,17 @@ export function PublishDialog({
                 </div>
               )}
             </div>
+          )}
+
+          {/* Pre-publish checklist — advisory only, never blocks publishing */}
+          {projectId && (
+            <PublishChecklist
+              open={open}
+              projectId={projectId}
+              frontmatterRaw={document?.frontmatter}
+              frontmatterSchema={project?.frontmatterSchema}
+              contentFormat={project?.contentFormat}
+            />
           )}
         </div>
 
