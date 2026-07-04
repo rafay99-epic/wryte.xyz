@@ -240,6 +240,16 @@ export default defineSchema({
      * fall back to deriving it from the legacy inline `content`.
      */
     excerpt: v.optional(v.string()),
+    /**
+     * Direct pointer to this document's `document_content` row. Lets the
+     * autosave hot path patch the body without first re-reading the full
+     * content row via the `by_documentId` index (Convex bills every read
+     * at full row size, so that lookup doubled the per-tick bill from N
+     * to 2N). Optional: backfilled by the cost-optimization migration and
+     * set at creation for new documents; absent rows fall back to the
+     * index lookup in `documentContent.writeContent`.
+     */
+    contentId: v.optional(v.id("document_content")),
     wordCount: v.optional(v.number()),
     frontmatter: v.optional(v.string()),
     status: v.string(),
@@ -276,6 +286,9 @@ export default defineSchema({
     // `trashedAt` server-side on the indexed range avoids a full project
     // scan for projects with thousands of active docs.
     .index("by_projectId_and_trashedAt", ["projectId", "trashedAt"])
+    // O(log n) slug lookup for `getBySlug` (share/preview routes). Without
+    // it the query scanned up to 2000 metadata rows per fetch.
+    .index("by_projectId_and_slug", ["projectId", "slug"])
     // Title typeahead for the editor's `[[` internal-link menu — search
     // scoped to the project so results never leak across projects.
     .searchIndex("search_title", {
@@ -319,7 +332,12 @@ export default defineSchema({
     commitUrl: v.optional(v.string()),
     githubPath: v.string(),
     commitMessage: v.string(),
-    contentSnapshot: v.string(),
+    /**
+     * @deprecated Publish bodies now live in `publish_history_content` so
+     * `getPublishHistory` (History panel list) never reads up to 100 full
+     * bodies per open. Optional for pre-migration rows only.
+     */
+    contentSnapshot: v.optional(v.string()),
     frontmatterSnapshot: v.optional(v.string()),
     titleSnapshot: v.string(),
     isUpdate: v.boolean(),
@@ -332,6 +350,25 @@ export default defineSchema({
     .index("by_bulkBatchId", ["bulkBatchId"]),
 
   /**
+   * Publish bodies — split out of `publish_history` (1:1, keyed by
+   * publishId). Immutable; read only by rollback and the on-demand
+   * version viewer. Cascade indexes mirror `document_content`.
+   * `frontmatter` rides along because rollback restores both together.
+   */
+  publish_history_content: defineTable({
+    publishId: v.id("publish_history"),
+    documentId: v.id("documents"),
+    projectId: v.id("projects"),
+    userId: v.id("users"),
+    content: v.string(),
+    frontmatter: v.optional(v.string()),
+  })
+    .index("by_publishId", ["publishId"])
+    .index("by_documentId", ["documentId"])
+    .index("by_projectId", ["projectId"])
+    .index("by_userId", ["userId"]),
+
+  /**
    * Draft snapshots — intentional checkpoints before publish. These are
    * separate from `documents.content` so autosave can keep the live working
    * copy lightweight while authors preserve v1/v2/final-candidate states.
@@ -341,14 +378,54 @@ export default defineSchema({
     projectId: v.id("projects"),
     userId: v.id("users"),
     label: v.string(),
-    contentSnapshot: v.string(),
+    /**
+     * @deprecated Draft bodies now live in `document_draft_content` (1:1,
+     * keyed by draftId) so the always-mounted draft tab bar's `list`
+     * subscription never reads (and re-bills) every draft's full body on
+     * each autosave tick — the same read-amplification fix `documents`
+     * got via `document_content`. Kept optional only for pre-migration
+     * rows; new writes never populate it.
+     */
+    contentSnapshot: v.optional(v.string()),
     frontmatterSnapshot: v.optional(v.string()),
-    titleSnapshot: v.string(),
+    /** @deprecated Title lives on `document_draft_content` now. */
+    titleSnapshot: v.optional(v.string()),
+    /** Direct pointer to the draft's content row — lets the draft autosave
+     *  hot path patch the body without an index read. Absent on
+     *  pre-migration rows (fallback: `by_draftId` lookup). */
+    contentId: v.optional(v.id("document_draft_content")),
     summary: v.optional(v.string()),
     wordCount: v.number(),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
+    .index("by_documentId", ["documentId"])
+    .index("by_projectId", ["projectId"])
+    .index("by_userId", ["userId"]),
+
+  /**
+   * Draft bodies — split out of `document_drafts` (1:1, keyed by draftId)
+   * for the same reason `document_content` exists: the draft tab bar
+   * subscribes to the draft list while the user types, and Convex re-bills
+   * every subscribed row in full on each intersecting write. The hot draft
+   * autosave patches ONLY this row; draft metadata (label, wordCount,
+   * updatedAt) is refreshed on the coarser flush cadence.
+   *
+   * `title` lives here (not on the metadata row) so title edits ride the
+   * hot path without invalidating the tab-bar list subscription.
+   * `by_documentId` / `by_projectId` / `by_userId` exist for the
+   * per-document purge, project-wipe, and self-destruct cascades.
+   */
+  document_draft_content: defineTable({
+    draftId: v.id("document_drafts"),
+    documentId: v.id("documents"),
+    projectId: v.id("projects"),
+    userId: v.id("users"),
+    title: v.string(),
+    content: v.string(),
+    updatedAt: v.number(),
+  })
+    .index("by_draftId", ["draftId"])
     .index("by_documentId", ["documentId"])
     .index("by_projectId", ["projectId"])
     .index("by_userId", ["userId"]),
@@ -370,12 +447,42 @@ export default defineSchema({
       v.literal("restore"),
     ),
     title: v.string(),
-    content: v.string(),
+    /**
+     * @deprecated Snapshot bodies now live in `document_snapshot_content`
+     * so the history panel's metadata list and the on-insert prune scan
+     * never read full bodies. Optional for pre-migration rows only.
+     */
+    content: v.optional(v.string()),
+    /**
+     * Cheap dedup fingerprint (FNV-1a hex of the body). Lets `create`
+     * skip a write when content matches the latest snapshot without
+     * reading that snapshot's full body. Absent on pre-migration rows —
+     * dedup then falls back to comparing the joined content row.
+     */
+    contentHash: v.optional(v.string()),
     wordCount: v.number(),
     createdAt: v.number(),
   })
     .index("by_documentId", ["documentId"])
     .index("by_projectId", ["projectId"]),
+
+  /**
+   * Snapshot bodies — split out of `document_snapshots` (1:1, keyed by
+   * snapshotId). Immutable after insert; read only by the on-demand diff
+   * view (`snapshots.get`) and restore. Cascade indexes mirror
+   * `document_content`.
+   */
+  document_snapshot_content: defineTable({
+    snapshotId: v.id("document_snapshots"),
+    documentId: v.id("documents"),
+    projectId: v.id("projects"),
+    userId: v.id("users"),
+    content: v.string(),
+  })
+    .index("by_snapshotId", ["snapshotId"])
+    .index("by_documentId", ["documentId"])
+    .index("by_projectId", ["projectId"])
+    .index("by_userId", ["userId"]),
 
   /**
    * Shareable draft-preview links. The token is the secret: anyone with
@@ -725,9 +832,17 @@ export default defineSchema({
     userId: v.id("users"),
     githubPath: v.string(),
     remoteSha: v.string(),
-    remoteContent: v.string(),
+    /**
+     * Full remote body — only needed while the conflict is OPEN (drives
+     * the side-by-side diff). Cleared (patched to undefined) on resolve so
+     * resolved rows keep only tiny audit metadata instead of 2× full
+     * content forever. Optional for that reason.
+     */
+    remoteContent: v.optional(v.string()),
     remoteFrontmatter: v.optional(v.string()),
-    localContentSnapshot: v.string(),
+    /** Full local body at detection time — same lifecycle as
+     *  `remoteContent`: cleared on resolve. */
+    localContentSnapshot: v.optional(v.string()),
     localFrontmatterSnapshot: v.optional(v.string()),
     detectedAt: v.number(),
     resolvedAt: v.optional(v.number()),
@@ -737,6 +852,9 @@ export default defineSchema({
   })
     .index("by_projectId", ["projectId"])
     .index("by_documentId", ["documentId"])
+    // Per-tick autosave/update guard reads ONLY open conflicts (usually 0
+    // rows) instead of paging through resolved history rows.
+    .index("by_documentId_unresolved", ["documentId", "resolvedAt"])
     .index("by_projectId_unresolved", ["projectId", "resolvedAt"]),
 
   /**

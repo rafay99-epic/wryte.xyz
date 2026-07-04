@@ -52,7 +52,15 @@ const REASON_META = {
  * restore) plus the GitHub publish history. Queries are gated on the
  * panel being open.
  */
+type HistoryTab = "snapshots" | "publishes";
+
 export function HistoryPanel({ documentId, open, onClose }: HistoryPanelProps) {
+  // Both TabsContent panes stay mounted (CSS-hidden) at once, so gate each
+  // tab's subscription on which one is actually selected — otherwise both
+  // `snapshots.list` and `getPublishHistory` fire the instant the panel
+  // opens, even for the pane the user never looks at.
+  const [activeTab, setActiveTab] = useState<HistoryTab>("snapshots");
+
   return (
     <AnimatePresence>
       {open && (
@@ -79,7 +87,8 @@ export function HistoryPanel({ documentId, open, onClose }: HistoryPanelProps) {
           </div>
 
           <Tabs
-            defaultValue="snapshots"
+            value={activeTab}
+            onValueChange={(value) => setActiveTab(value as HistoryTab)}
             className="flex min-h-0 flex-1 flex-col"
           >
             <div className="shrink-0 px-3 pt-3">
@@ -93,14 +102,20 @@ export function HistoryPanel({ documentId, open, onClose }: HistoryPanelProps) {
               value="snapshots"
               className="min-h-0 flex-1 overflow-y-auto slim-scrollbar p-3"
             >
-              <SnapshotList documentId={documentId} />
+              <SnapshotList
+                documentId={documentId}
+                active={activeTab === "snapshots"}
+              />
             </TabsContent>
 
             <TabsContent
               value="publishes"
               className="min-h-0 flex-1 overflow-y-auto slim-scrollbar p-3"
             >
-              <PublishList documentId={documentId} />
+              <PublishList
+                documentId={documentId}
+                active={activeTab === "publishes"}
+              />
             </TabsContent>
           </Tabs>
         </motion.div>
@@ -111,10 +126,17 @@ export function HistoryPanel({ documentId, open, onClose }: HistoryPanelProps) {
 
 /* ── Snapshots tab ───────────────────────────────────────────────────── */
 
-function SnapshotList({ documentId }: { documentId: string }) {
-  const snapshots = useQuery(api.cms.snapshots.list, {
-    documentId: documentId as Id<"documents">,
-  });
+function SnapshotList({
+  documentId,
+  active,
+}: {
+  documentId: string;
+  active: boolean;
+}) {
+  const snapshots = useQuery(
+    api.cms.snapshots.list,
+    active ? { documentId: documentId as Id<"documents"> } : "skip",
+  );
   const restoreSnapshot = useMutation(api.cms.snapshots.restore);
   const [diffSnapshotId, setDiffSnapshotId] =
     useState<Id<"document_snapshots"> | null>(null);
@@ -247,10 +269,17 @@ function SnapshotList({ documentId }: { documentId: string }) {
 
 /* ── Publishes tab ───────────────────────────────────────────────────── */
 
-function PublishList({ documentId }: { documentId: string }) {
-  const history = useQuery(api.cms.documents.getPublishHistory, {
-    documentId: documentId as Id<"documents">,
-  });
+function PublishList({
+  documentId,
+  active,
+}: {
+  documentId: string;
+  active: boolean;
+}) {
+  const history = useQuery(
+    api.cms.documents.getPublishHistory,
+    active ? { documentId: documentId as Id<"documents"> } : "skip",
+  );
   const rollback = useMutation(api.cms.documents.rollbackToVersion);
   const [rollingBack, setRollingBack] = useState<string | null>(null);
 

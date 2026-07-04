@@ -15,6 +15,7 @@
  * just-restored stale draft.
  */
 import { v } from "convex/values";
+import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import { internalMutation, mutation, query } from "../_generated/server";
 import { getAuthedUserOrNull, getCurrentUser } from "../_lib/auth";
@@ -25,6 +26,7 @@ import {
 } from "../_lib/projectStats";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
 import { deleteContent } from "./_lib/documentContent";
+import { purgeDocumentArtifacts } from "./_lib/purgeDocumentArtifacts";
 
 const DEFAULT_RETENTION_DAYS = 30;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -128,6 +130,15 @@ export const restore = mutation({
 /**
  * Permanently deletes a trashed doc. No undo. Use only from the trash
  * view after explicit user confirmation.
+ *
+ * Also purges every dependent artifact row (drafts, snapshots, sync
+ * conflicts, publish history, research notes, share links, scheduled
+ * publishes — see `purgeDocumentArtifacts`) so a hard delete never
+ * orphans them. `purgeDocumentArtifacts` is bounded per call; in the
+ * (very unlikely) case a single document has more artifacts than one
+ * call can drain, we schedule a continuation and leave the document row
+ * in place until the purge finishes — deleting the parent before its
+ * children are gone would make them unreachable forever.
  */
 export const permanentDelete = mutation({
   args: { documentId: v.id("documents") },
@@ -139,20 +150,72 @@ export const permanentDelete = mutation({
     });
 
     const doc = await loadOwnedTrashedDoc(ctx, args.documentId);
+    const { done } = await purgeDocumentArtifacts(ctx, doc._id);
+    if (!done) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.cms.trash._finishPermanentDelete,
+        {
+          documentId: doc._id,
+        },
+      );
+      return;
+    }
     await deleteContent(ctx, doc._id);
     await ctx.db.delete(doc._id);
   },
 });
 
 /**
+ * Continuation for `permanentDelete` (and the batch paths below) when a
+ * single document's artifacts exceed `purgeDocumentArtifacts`'s per-call
+ * cap. Idempotent and self-resuming: each call just picks up wherever the
+ * indexed queries left off, so re-scheduling itself is safe even under
+ * retries.
+ */
+export const _finishPermanentDelete = internalMutation({
+  args: { documentId: v.id("documents") },
+  handler: async (ctx, args) => {
+    const doc = await ctx.db.get(args.documentId);
+    if (!doc) return; // Already fully deleted by a prior run.
+
+    const { done } = await purgeDocumentArtifacts(ctx, args.documentId);
+    if (!done) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.cms.trash._finishPermanentDelete,
+        {
+          documentId: args.documentId,
+        },
+      );
+      return;
+    }
+    await deleteContent(ctx, args.documentId);
+    await ctx.db.delete(args.documentId);
+  },
+});
+
+/**
+ * Number of trashed documents processed per `emptyTrash` call. Reduced
+ * from the pre-cascade 200: each document can now also drain up to
+ * `PER_CALL_CAP` (see `purgeDocumentArtifacts`) dependent artifact rows,
+ * so the outer document batch has to shrink to keep the whole mutation
+ * safely inside Convex's transaction limits. The UI should warn (and
+ * call again) if there's more.
+ */
+const EMPTY_TRASH_DOC_BATCH = 25;
+
+/**
  * Empties an entire project's trash. Authoritative permission check
- * happens once; then we iterate the trash list and hard-delete.
- * Capped at 200 deletions per call to stay under Convex's mutation
- * limits — the UI should warn if there's more.
+ * happens once; then we iterate the trash list and hard-delete, purging
+ * each document's dependent artifacts first (see `permanentDelete`'s
+ * doc comment for why a document whose purge doesn't finish in one call
+ * is left in place with a scheduled continuation instead of being
+ * deleted early).
  */
 export const emptyTrash = mutation({
   args: { projectId: v.id("projects") },
-  handler: async (ctx, args): Promise<{ deleted: number }> => {
+  handler: async (ctx, args): Promise<{ deleted: number; pending: number }> => {
     const key = await getRateLimitKey(ctx);
     await rateLimiter.limit(ctx, "documents:emptyTrash", {
       key,
@@ -171,12 +234,38 @@ export const emptyTrash = mutation({
       .withIndex("by_projectId_and_trashedAt", (q) =>
         q.eq("projectId", args.projectId).gt("trashedAt", 0),
       )
-      .take(200);
+      .take(EMPTY_TRASH_DOC_BATCH);
+    let deleted = 0;
+    let pending = 0;
+    // Shared artifact budget across every document in this call. Without
+    // it, 25 documents × PER_CALL_CAP artifact deletes each could stack
+    // past Convex's per-transaction limits; docs not reached before the
+    // budget runs out simply stay trashed for the next call.
+    let artifactBudget = 300;
     for (const d of trashed) {
+      if (artifactBudget <= 0) break;
+      const { done, deleted: purged } = await purgeDocumentArtifacts(
+        ctx,
+        d._id,
+        artifactBudget,
+      );
+      artifactBudget -= purged;
+      if (!done) {
+        await ctx.scheduler.runAfter(
+          0,
+          internal.cms.trash._finishPermanentDelete,
+          {
+            documentId: d._id,
+          },
+        );
+        pending++;
+        continue;
+      }
       await deleteContent(ctx, d._id);
       await ctx.db.delete(d._id);
+      deleted++;
     }
-    return { deleted: trashed.length };
+    return { deleted, pending };
   },
 });
 
@@ -194,13 +283,16 @@ const NEVER_DELETE_THRESHOLD_DAYS = 36500;
  * client-side filter over fresh docs. Projects with "Never" retention
  * are skipped before the query even fires.
  *
- * Per-run cap of 500 deletions to stay safely inside Convex's
- * mutation transaction budget. Anything beyond rolls into the next
- * day's run; trash cleanup isn't urgent enough to need workpool
- * fan-out.
+ * Per-run cap of 100 documents to stay safely inside Convex's mutation
+ * transaction budget. Reduced from the pre-cascade 500: each document
+ * can now also drain up to `PER_CALL_CAP` (see `purgeDocumentArtifacts`)
+ * dependent artifact rows, not just its own two rows, so the per-run
+ * document cap has to shrink accordingly. Anything beyond rolls into
+ * the next day's run; trash cleanup isn't urgent enough to need
+ * workpool fan-out.
  *
  * Cost model: 1 projects.collect() + 1 indexed query per project
- * (skipping "Never" retention projects) + N db.delete() calls
+ * (skipping "Never" retention projects) + N purge-then-delete calls
  * bounded by PER_RUN_CAP. Cheap even at thousands of projects.
  */
 export const _cleanupExpired = internalMutation({
@@ -211,15 +303,23 @@ export const _cleanupExpired = internalMutation({
     projectsScanned: number;
     projectsSkipped: number;
     deleted: number;
+    pending: number;
   }> => {
     const now = Date.now();
-    const PER_RUN_CAP = 500;
+    const PER_RUN_CAP = 100;
     let deleted = 0;
+    let pending = 0;
     let projectsSkipped = 0;
 
     const projects = await ctx.db.query("projects").take(1000);
+    // Shared artifact budget across every document this run — same
+    // rationale as `emptyTrash`: stacked per-document purges must not
+    // multiply past transaction limits. Docs not reached roll into
+    // tomorrow's run.
+    let artifactBudget = 400;
+
     for (const project of projects) {
-      if (deleted >= PER_RUN_CAP) break;
+      if (deleted >= PER_RUN_CAP || artifactBudget <= 0) break;
       const retentionDays =
         project.trashRetentionDays ?? DEFAULT_RETENTION_DAYS;
       if (retentionDays >= NEVER_DELETE_THRESHOLD_DAYS) {
@@ -243,7 +343,22 @@ export const _cleanupExpired = internalMutation({
         .take(PER_RUN_CAP);
 
       for (const d of expired) {
-        if (deleted >= PER_RUN_CAP) break;
+        if (deleted >= PER_RUN_CAP || artifactBudget <= 0) break;
+        const { done, deleted: purged } = await purgeDocumentArtifacts(
+          ctx,
+          d._id,
+          artifactBudget,
+        );
+        artifactBudget -= purged;
+        if (!done) {
+          await ctx.scheduler.runAfter(
+            0,
+            internal.cms.trash._finishPermanentDelete,
+            { documentId: d._id },
+          );
+          pending += 1;
+          continue;
+        }
         await deleteContent(ctx, d._id);
         await ctx.db.delete(d._id);
         deleted += 1;
@@ -254,6 +369,7 @@ export const _cleanupExpired = internalMutation({
       projectsScanned: projects.length - projectsSkipped,
       projectsSkipped,
       deleted,
+      pending,
     };
   },
 });

@@ -369,13 +369,32 @@ export const createFinalDraftStream = mutation({
     const requestedDraftIds = (args.draftIds ?? []).slice(0, 5);
     const requestedResearchIds = (args.researchIds ?? []).slice(0, 12);
 
-    const drafts = (
+    const draftRows = (
       await Promise.all(requestedDraftIds.map((id) => ctx.db.get(id)))
     ).filter(
       (draft): draft is Doc<"document_drafts"> =>
         !!draft &&
         draft.documentId === args.documentId &&
         draft.userId === user._id,
+    );
+
+    // Draft bodies live in `document_draft_content` (split off the metadata
+    // row for bandwidth); legacy pre-migration rows still carry them inline.
+    const drafts = await Promise.all(
+      draftRows.map(async (draft) => {
+        const contentRow = draft.contentId
+          ? await ctx.db.get(draft.contentId)
+          : await ctx.db
+              .query("document_draft_content")
+              .withIndex("by_draftId", (q) => q.eq("draftId", draft._id))
+              .unique();
+        return {
+          label: draft.label,
+          summary: draft.summary,
+          title: contentRow?.title ?? draft.titleSnapshot ?? "",
+          content: contentRow?.content ?? draft.contentSnapshot ?? "",
+        };
+      }),
     );
 
     const research = (
@@ -403,9 +422,9 @@ export const createFinalDraftStream = mutation({
       ...(args.systemPrompt ? { systemPrompt: args.systemPrompt } : {}),
       drafts: drafts.map((draft) => ({
         label: draft.label,
-        title: draft.titleSnapshot,
+        title: draft.title,
         ...(draft.summary !== undefined ? { summary: draft.summary } : {}),
-        content: draft.contentSnapshot.slice(0, 6000),
+        content: draft.content.slice(0, 6000),
       })),
       research: research.map((item) => ({
         type: item.type,

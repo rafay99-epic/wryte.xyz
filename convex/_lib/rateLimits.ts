@@ -211,6 +211,18 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     period: MINUTE,
     capacity: 30,
   },
+  /**
+   * Hot draft autosave (3s debounce) — writes ONLY the draft's content
+   * side-table row. Same shape as `documentDrafts:updateContent` (the
+   * coarser flush path): generous bucket with burst capacity so a fast
+   * typist is never blocked.
+   */
+  "documentDrafts:autosaveContent": {
+    kind: "token bucket",
+    rate: 120,
+    period: MINUTE,
+    capacity: 30,
+  },
   "documentDrafts:promote": {
     kind: "fixed window",
     rate: 10,
@@ -754,6 +766,24 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
   "seed:run": {
     kind: "fixed window",
     rate: 5,
+    period: MINUTE,
+  },
+
+  /* ------------------------------------------------------------------ */
+  /*  Admin data migrations                                              */
+  /* ------------------------------------------------------------------ */
+
+  /**
+   * Admin migration actions (`/admin/migrations`). These run back-to-back
+   * when an operator works through the whole list — six cost-optimization
+   * migrations plus the legacy content backfill — so the seed bucket's
+   * 5/min cap is too tight and made the sixth click fail. Still bounded:
+   * behind `requireAdmin`, and each action is internally chunk-capped, so
+   * the only risk is an accidental client loop.
+   */
+  "migrations:run": {
+    kind: "fixed window",
+    rate: 30,
     period: MINUTE,
   },
 

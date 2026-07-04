@@ -7,7 +7,7 @@ export const backfillWordCounts = action({
   args: {},
   handler: async (ctx): Promise<{ status: string; details: string }> => {
     const key = await getRateLimitKey(ctx);
-    await rateLimiter.limit(ctx, "seed:run", { key, throws: true });
+    await rateLimiter.limit(ctx, "migrations:run", { key, throws: true });
     await requireAdmin(ctx);
 
     const result: { patched: number; scanned: number; isDone: boolean } =
@@ -27,7 +27,7 @@ export const backfillProjectStats = action({
   args: {},
   handler: async (ctx): Promise<{ status: string; details: string }> => {
     const key = await getRateLimitKey(ctx);
-    await rateLimiter.limit(ctx, "seed:run", { key, throws: true });
+    await rateLimiter.limit(ctx, "migrations:run", { key, throws: true });
     await requireAdmin(ctx);
 
     const result: { projects: number; created: number; updated: number } =
@@ -47,7 +47,7 @@ export const backfillWritingStats = action({
   args: {},
   handler: async (ctx): Promise<{ status: string; details: string }> => {
     const key = await getRateLimitKey(ctx);
-    await rateLimiter.limit(ctx, "seed:run", { key, throws: true });
+    await rateLimiter.limit(ctx, "migrations:run", { key, throws: true });
     await requireAdmin(ctx);
 
     const result: { users: number; created: number; updated: number } =
@@ -72,7 +72,7 @@ export const runFullMigration = action({
     steps: Array<{ name: string; details: string }>;
   }> => {
     const key = await getRateLimitKey(ctx);
-    await rateLimiter.limit(ctx, "seed:run", { key, throws: true });
+    await rateLimiter.limit(ctx, "migrations:run", { key, throws: true });
     await requireAdmin(ctx);
 
     const steps: Array<{ name: string; details: string }> = [];

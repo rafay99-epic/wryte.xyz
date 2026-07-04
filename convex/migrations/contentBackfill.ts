@@ -21,7 +21,7 @@ export const migrateDocumentContent = action({
   args: {},
   handler: async (ctx): Promise<{ status: string; details: string }> => {
     const key = await getRateLimitKey(ctx);
-    await rateLimiter.limit(ctx, "seed:run", { key, throws: true });
+    await rateLimiter.limit(ctx, "migrations:run", { key, throws: true });
     await requireAdmin(ctx);
 
     let cursor: string | null = null;

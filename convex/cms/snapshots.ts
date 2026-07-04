@@ -6,12 +6,19 @@
  * Creation is deduped against the latest snapshot's content and the table
  * is pruned to a fixed per-document cap, so write volume stays bounded
  * regardless of how often the client calls in.
+ *
+ * Bodies live in `document_snapshot_content` (1:1, keyed by snapshotId) so
+ * the metadata row stays tiny — the history panel's `list` query and the
+ * on-insert prune scan never read full bodies, only `contentHash` for
+ * dedup. Pre-migration rows may still carry the legacy inline `content`
+ * field on the metadata row; every read here falls back to it.
  */
 import { v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { DatabaseReader, MutationCtx } from "../_generated/server";
 import { mutation, query } from "../_generated/server";
 import { getAuthedUserOrNull, getCurrentUser } from "../_lib/auth";
+import { contentHash } from "../_lib/contentHash";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
 import { countWords } from "../_lib/wordCount";
 import {
@@ -42,8 +49,25 @@ async function verifyDocumentOwnership(
 }
 
 /**
- * Inserts a snapshot row and prunes past the per-document cap.
- * Shared by `create` and the pre-restore backup in `restore`.
+ * Resolves a snapshot's body: the split content row when present, else the
+ * legacy inline field (pre-migration rows only).
+ */
+async function readSnapshotContent(
+  ctx: { db: DatabaseReader },
+  snapshot: Doc<"document_snapshots">,
+): Promise<string> {
+  const row = await ctx.db
+    .query("document_snapshot_content")
+    .withIndex("by_snapshotId", (q) => q.eq("snapshotId", snapshot._id))
+    .unique();
+  if (row) return row.content;
+  return snapshot.content ?? "";
+}
+
+/**
+ * Inserts a snapshot row (metadata only, plus its content row) and prunes
+ * past the per-document cap. Shared by `create` and the pre-restore backup
+ * in `restore`.
  */
 async function insertSnapshot(
   ctx: MutationCtx,
@@ -59,17 +83,32 @@ async function insertSnapshot(
     userId,
     reason,
     title,
-    content,
+    contentHash: contentHash(content),
     wordCount: countWords(content),
     createdAt: Date.now(),
   });
+  await ctx.db.insert("document_snapshot_content", {
+    snapshotId: id,
+    documentId: document._id,
+    projectId: document.projectId,
+    userId,
+    content,
+  });
 
+  // Metadata-only rows now — this scan reads small documents, not bodies.
   const rows = await ctx.db
     .query("document_snapshots")
     .withIndex("by_documentId", (q) => q.eq("documentId", document._id))
     .order("desc")
-    .take(MAX_SNAPSHOTS_PER_DOCUMENT + 10);
+    .take(MAX_SNAPSHOTS_PER_DOCUMENT + 1);
   for (const row of rows.slice(MAX_SNAPSHOTS_PER_DOCUMENT)) {
+    const contentRow = await ctx.db
+      .query("document_snapshot_content")
+      .withIndex("by_snapshotId", (q) => q.eq("snapshotId", row._id))
+      .unique();
+    // Legacy rows have no content row (their body lived inline and dies
+    // with the metadata row below).
+    if (contentRow) await ctx.db.delete(contentRow._id);
     await ctx.db.delete(row._id);
   }
 
@@ -108,7 +147,8 @@ export const get = query({
     if (!user) return null;
     const snapshot = await ctx.db.get(args.snapshotId);
     if (!snapshot || snapshot.userId !== user._id) return null;
-    return snapshot;
+    const content = await readSnapshotContent(ctx, snapshot);
+    return { ...snapshot, content };
   },
 });
 
@@ -139,7 +179,18 @@ export const create = mutation({
       .withIndex("by_documentId", (q) => q.eq("documentId", args.documentId))
       .order("desc")
       .take(1);
-    if (latest[0] && latest[0].content === args.content) return null;
+    const latestSnapshot = latest[0];
+    if (latestSnapshot) {
+      if (latestSnapshot.contentHash !== undefined) {
+        if (latestSnapshot.contentHash === contentHash(args.content)) {
+          return null;
+        }
+      } else {
+        // Pre-hash row — fall back to reading its body for the comparison.
+        const latestContent = await readSnapshotContent(ctx, latestSnapshot);
+        if (latestContent === args.content) return null;
+      }
+    }
 
     return await insertSnapshot(
       ctx,
@@ -173,8 +224,10 @@ export const restore = mutation({
       user._id,
     );
 
+    const snapshotContent = await readSnapshotContent(ctx, snapshot);
+
     const currentContent = await readContent(ctx, document);
-    if (currentContent !== snapshot.content) {
+    if (currentContent !== snapshotContent) {
       await insertSnapshot(
         ctx,
         document,
@@ -185,18 +238,23 @@ export const restore = mutation({
       );
     }
 
-    await ctx.db.patch(document._id, {
-      title: snapshot.title,
-      excerpt: buildExcerpt(snapshot.content),
-      wordCount: countWords(snapshot.content),
-      content: undefined,
-      updatedAt: Date.now(),
-    });
-    await writeContent(ctx, {
+    const contentId = await writeContent(ctx, {
       documentId: document._id,
       projectId: document.projectId,
       userId: user._id,
-      content: snapshot.content,
+      content: snapshotContent,
+      ...(document.contentId !== undefined
+        ? { contentId: document.contentId }
+        : {}),
+    });
+
+    await ctx.db.patch(document._id, {
+      title: snapshot.title,
+      excerpt: buildExcerpt(snapshotContent),
+      wordCount: countWords(snapshotContent),
+      content: undefined,
+      contentId: document.contentId ?? contentId,
+      updatedAt: Date.now(),
     });
 
     return { restoredFrom: snapshot.createdAt };

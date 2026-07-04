@@ -311,33 +311,6 @@ export const listRecent = query({
 });
 
 /**
- * Lists all documents across all projects for the current user.
- * Returns minimal fields for dashboard stats (avoids transferring full content).
- */
-export const listAllForUser = query({
-  args: {},
-  handler: async (ctx) => {
-    const user = await getAuthedUserOrNull(ctx);
-    if (!user) return [];
-
-    const documents = await ctx.db
-      .query("documents")
-      .withIndex("by_userId", (q) => q.eq("userId", user._id))
-      .take(1000);
-
-    return documents
-      .filter((d) => d.trashedAt === undefined)
-      .sort((a, b) => b.updatedAt - a.updatedAt)
-      .map((d) => ({
-        _id: d._id,
-        status: d.status,
-        updatedAt: d.updatedAt,
-        projectId: d.projectId,
-      }));
-  },
-});
-
-/**
  * Fetches a single document by ID with full ownership verification.
  *
  * @requires Authentication + document ownership (via parent project)
@@ -502,12 +475,16 @@ export const update = mutation({
     // Defense-in-depth lock: if the doc has an unresolved sync
     // conflict, edits are not allowed. The editor UI also blocks the
     // flow, but autosave fires from background timers and stale tabs,
-    // so we re-check here to keep the divergence from compounding.
+    // so we re-check here to keep the divergence from compounding. The
+    // `by_documentId_unresolved` index reads only OPEN conflicts (normally
+    // zero rows) instead of paging through resolved audit history.
     const openConflict = await ctx.db
       .query("sync_conflicts")
-      .withIndex("by_documentId", (q) => q.eq("documentId", args.documentId))
-      .take(10);
-    if (openConflict.some((c) => c.resolvedAt === undefined)) {
+      .withIndex("by_documentId_unresolved", (q) =>
+        q.eq("documentId", args.documentId).eq("resolvedAt", undefined),
+      )
+      .first();
+    if (openConflict) {
       throw new Error(
         "This document has a pending sync conflict. Resolve it before making changes.",
       );
@@ -533,17 +510,24 @@ export const update = mutation({
       // hot list query's read cost even before the global backfill runs.
       fieldsToUpdate["content"] = undefined;
       wordCountDelta = newWordCount - (document.wordCount ?? 0);
-    }
-
-    await ctx.db.patch(documentId, fieldsToUpdate);
-    if (content !== undefined) {
-      await writeContent(ctx, {
+      // Pass the denormalized pointer so `writeContent` patches the body
+      // row directly instead of re-reading it first. This `update` path
+      // already patches the `documents` row every call, so when the pointer
+      // isn't set yet we fold the returned id into that same patch — no
+      // extra write.
+      const contentId = await writeContent(ctx, {
         documentId,
         projectId: document.projectId,
         userId: user._id,
         content,
+        ...(document.contentId ? { contentId: document.contentId } : {}),
       });
+      if (document.contentId === undefined) {
+        fieldsToUpdate["contentId"] = contentId;
+      }
     }
+
+    await ctx.db.patch(documentId, fieldsToUpdate);
 
     await scheduleWordActivity(ctx, {
       userId: user._id,
@@ -604,21 +588,32 @@ export const autosaveBody = mutation({
 
     // Same defense-in-depth conflict lock as `update`: background autosave
     // timers must not write over a document with a pending sync conflict.
+    // Reads only OPEN conflicts via `by_documentId_unresolved` (normally
+    // zero rows) so this per-tick guard never pages resolved history.
     const openConflict = await ctx.db
       .query("sync_conflicts")
-      .withIndex("by_documentId", (q) => q.eq("documentId", args.documentId))
-      .take(10);
-    if (openConflict.some((c) => c.resolvedAt === undefined)) {
+      .withIndex("by_documentId_unresolved", (q) =>
+        q.eq("documentId", args.documentId).eq("resolvedAt", undefined),
+      )
+      .first();
+    if (openConflict) {
       throw new Error(
         "This document has a pending sync conflict. Resolve it before making changes.",
       );
     }
 
+    // Hot path: patch the body row directly via the denormalized pointer so
+    // Convex doesn't bill an N-byte read-before-write on every tick. We
+    // deliberately DON'T persist the pointer back onto `documents` when it's
+    // missing — that would dirty the row and invalidate the always-mounted
+    // list subscriptions. The migration backfills `contentId`; until then
+    // this path self-heals through `writeContent`'s index fallback.
     await writeContent(ctx, {
       documentId: args.documentId,
       projectId: document.projectId,
       userId: user._id,
       content: args.content,
+      ...(document.contentId ? { contentId: document.contentId } : {}),
     });
 
     // Only touch the hot `documents` row when the title actually changed.
@@ -675,12 +670,15 @@ export const duplicate = mutation({
       ...(doc.frontmatter ? { frontmatter: doc.frontmatter } : {}),
       ...(doc.tags ? { tags: doc.tags } : {}),
     });
-    await writeContent(ctx, {
+    const newContentId = await writeContent(ctx, {
       documentId: newId,
       projectId: doc.projectId,
       userId: user._id,
       content: sourceContent,
     });
+    // Persist the pointer at creation time (cheap — the row was just
+    // inserted) so future autosaves skip the read-before-write.
+    await ctx.db.patch(newId, { contentId: newContentId });
     await scheduleWordActivity(ctx, {
       userId: user._id,
       projectId: doc.projectId,
@@ -860,12 +858,14 @@ export const importFromGithub = mutation({
       updatedAt: now,
       ...(args.frontmatter !== undefined && { frontmatter: args.frontmatter }),
     });
-    await writeContent(ctx, {
+    const contentId = await writeContent(ctx, {
       documentId,
       projectId: args.projectId,
       userId: user._id,
       content: args.content,
     });
+    // Stamp the pointer at creation so later edits skip the read-before-write.
+    await ctx.db.patch(documentId, { contentId });
     await adjustDocumentCount(ctx, args.projectId, 1);
     await scheduleWordActivity(ctx, {
       userId: user._id,
@@ -934,12 +934,14 @@ export const _importFromGithubInternal = internalMutation({
       updatedAt: now,
       ...(args.frontmatter !== undefined && { frontmatter: args.frontmatter }),
     });
-    await writeContent(ctx, {
+    const contentId = await writeContent(ctx, {
       documentId: id,
       projectId: args.projectId,
       userId: project.userId,
       content: args.content,
     });
+    // Stamp the pointer at creation so later edits skip the read-before-write.
+    await ctx.db.patch(id, { contentId });
     await adjustDocumentCount(ctx, args.projectId, 1);
     await scheduleWordActivity(ctx, {
       userId: project.userId,
@@ -979,17 +981,19 @@ export const getBySlug = query({
       return null;
     }
 
-    // Use the trashedAt-aware index so trash never crowds out the active
-    // doc with the requested slug. Rows no longer carry the body, so this
-    // scan is cheap; the body is joined back only for the single match.
-    const documents = await ctx.db
+    // O(log n) lookup on the exact slug via `by_projectId_and_slug` instead
+    // of scanning up to 2000 metadata rows. Slugs aren't unique across the
+    // active/trashed split (a soft-deleted doc can share a slug with its
+    // replacement), so filter trash among the handful of exact matches and
+    // join the body back only for the winner.
+    const matches = await ctx.db
       .query("documents")
-      .withIndex("by_projectId_and_trashedAt", (q) =>
-        q.eq("projectId", args.projectId).eq("trashedAt", undefined),
+      .withIndex("by_projectId_and_slug", (q) =>
+        q.eq("projectId", args.projectId).eq("slug", args.slug),
       )
-      .take(2000);
+      .take(10);
 
-    const match = documents.find((d) => d.slug === args.slug);
+    const match = matches.find((d) => d.trashedAt === undefined);
     if (!match) return null;
     const content = await readContent(ctx, match);
     return { ...match, content };
@@ -1081,17 +1085,23 @@ export const internalUpdate = internalMutation({
   handler: async (ctx, args) => {
     const doc = await ctx.db.get(args.documentId);
     if (!doc) throw new Error("Document not found");
-    await ctx.db.patch(args.documentId, {
-      excerpt: buildExcerpt(args.content),
-      content: undefined,
-      updatedAt: Date.now(),
-    });
-    await writeContent(ctx, {
+    const contentId = await writeContent(ctx, {
       documentId: args.documentId,
       projectId: doc.projectId,
       userId: doc.userId,
       content: args.content,
+      ...(doc.contentId ? { contentId: doc.contentId } : {}),
     });
+    const patch: Record<string, unknown> = {
+      excerpt: buildExcerpt(args.content),
+      content: undefined,
+      updatedAt: Date.now(),
+    };
+    // Fold the pointer into this row's existing patch when it wasn't set yet.
+    if (doc.contentId === undefined) {
+      patch["contentId"] = contentId;
+    }
+    await ctx.db.patch(args.documentId, patch);
   },
 });
 
@@ -1289,15 +1299,54 @@ export const internalRecordPublishHistory = internalMutation({
     bulkBatchId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    await ctx.db.insert("publish_history", {
-      ...args,
+    // Body + frontmatter live in the sibling `publish_history_content` table
+    // so `getPublishHistory` (the History panel list, up to 100 rows) never
+    // reads full publish bodies. The metadata row keeps only the small,
+    // list-rendered fields.
+    const { contentSnapshot, frontmatterSnapshot, ...metadata } = args;
+    const publishId = await ctx.db.insert("publish_history", {
+      ...metadata,
       createdAt: Date.now(),
     });
+    await ctx.db.insert("publish_history_content", {
+      publishId,
+      documentId: args.documentId,
+      projectId: args.projectId,
+      userId: args.userId,
+      content: contentSnapshot,
+      ...(frontmatterSnapshot !== undefined
+        ? { frontmatter: frontmatterSnapshot }
+        : {}),
+    });
+
+    // Prune to the newest 50 publishes per document. Read one page past the
+    // cap (desc) and delete the overflow — both the metadata row and its
+    // content row. Overflow rows may be legacy (body inline on the metadata
+    // row, no content row) or new (body in `publish_history_content`); the
+    // `by_publishId` lookup returns nothing for the former, so both shapes
+    // are handled.
+    const PUBLISH_HISTORY_CAP = 50;
+    const overflow = await ctx.db
+      .query("publish_history")
+      .withIndex("by_documentId", (q) => q.eq("documentId", args.documentId))
+      .order("desc")
+      .take(PUBLISH_HISTORY_CAP + 10);
+    for (const row of overflow.slice(PUBLISH_HISTORY_CAP)) {
+      const contentRow = await ctx.db
+        .query("publish_history_content")
+        .withIndex("by_publishId", (q) => q.eq("publishId", row._id))
+        .unique();
+      if (contentRow) await ctx.db.delete(contentRow._id);
+      await ctx.db.delete(row._id);
+    }
   },
 });
 
 /**
- * Returns the publish history for a document, newest first.
+ * Returns the publish history for a document, newest first. Metadata-only
+ * projection — bodies live in `publish_history_content` and are read on
+ * demand by `rollbackToVersion`, so opening the History panel never pulls
+ * up to 100 full publish bodies.
  */
 export const getPublishHistory = query({
   args: {
@@ -1318,7 +1367,17 @@ export const getPublishHistory = query({
       .order("desc")
       .take(100);
 
-    return history;
+    return history.map((h) => ({
+      _id: h._id,
+      commitSha: h.commitSha,
+      commitUrl: h.commitUrl,
+      commitMessage: h.commitMessage,
+      githubPath: h.githubPath,
+      titleSnapshot: h.titleSnapshot,
+      isUpdate: h.isUpdate,
+      isBulk: h.isBulk,
+      createdAt: h.createdAt,
+    }));
   },
 });
 
@@ -1354,20 +1413,35 @@ export const rollbackToVersion = mutation({
       );
     }
 
-    await ctx.db.patch(args.documentId, {
-      title: historyEntry.titleSnapshot,
-      excerpt: buildExcerpt(historyEntry.contentSnapshot),
-      wordCount: countWords(historyEntry.contentSnapshot),
-      content: undefined,
-      frontmatter: historyEntry.frontmatterSnapshot,
-      updatedAt: Date.now(),
-    });
-    await writeContent(ctx, {
+    // Body + frontmatter live in `publish_history_content` for post-migration
+    // rows; fall back to the legacy inline snapshots for pre-migration rows.
+    const contentRow = await ctx.db
+      .query("publish_history_content")
+      .withIndex("by_publishId", (q) => q.eq("publishId", args.historyId))
+      .unique();
+    const content = contentRow?.content ?? historyEntry.contentSnapshot ?? "";
+    const frontmatter =
+      contentRow?.frontmatter ?? historyEntry.frontmatterSnapshot;
+
+    const newContentId = await writeContent(ctx, {
       documentId: args.documentId,
       projectId: document.projectId,
       userId: document.userId,
-      content: historyEntry.contentSnapshot,
+      content,
+      ...(document.contentId ? { contentId: document.contentId } : {}),
     });
+    const patch: Record<string, unknown> = {
+      title: historyEntry.titleSnapshot,
+      excerpt: buildExcerpt(content),
+      wordCount: countWords(content),
+      content: undefined,
+      frontmatter,
+      updatedAt: Date.now(),
+    };
+    if (document.contentId === undefined) {
+      patch["contentId"] = newContentId;
+    }
+    await ctx.db.patch(args.documentId, patch);
 
     return {
       title: historyEntry.titleSnapshot,
@@ -1920,13 +1994,17 @@ export const _upsertImportedDocument = internalMutation({
       if (args.frontmatter !== undefined) {
         patch["frontmatter"] = args.frontmatter;
       }
-      await ctx.db.patch(existing._id, patch);
-      await writeContent(ctx, {
+      const contentId = await writeContent(ctx, {
         documentId: existing._id,
         projectId: args.projectId,
         userId: project.userId,
         content: args.content,
+        ...(existing.contentId ? { contentId: existing.contentId } : {}),
       });
+      if (existing.contentId === undefined) {
+        patch["contentId"] = contentId;
+      }
+      await ctx.db.patch(existing._id, patch);
       await scheduleWordActivity(ctx, {
         userId: project.userId,
         projectId: args.projectId,
@@ -1948,13 +2026,17 @@ export const _upsertImportedDocument = internalMutation({
       if (args.frontmatter !== undefined) {
         patch["frontmatter"] = args.frontmatter;
       }
-      await ctx.db.patch(existing._id, patch);
-      await writeContent(ctx, {
+      const contentId = await writeContent(ctx, {
         documentId: existing._id,
         projectId: args.projectId,
         userId: project.userId,
         content: args.content,
+        ...(existing.contentId ? { contentId: existing.contentId } : {}),
       });
+      if (existing.contentId === undefined) {
+        patch["contentId"] = contentId;
+      }
+      await ctx.db.patch(existing._id, patch);
       await scheduleWordActivity(ctx, {
         userId: project.userId,
         projectId: args.projectId,
@@ -1979,12 +2061,14 @@ export const _upsertImportedDocument = internalMutation({
       updatedAt: now,
       ...(args.frontmatter !== undefined && { frontmatter: args.frontmatter }),
     });
-    await writeContent(ctx, {
+    const contentId = await writeContent(ctx, {
       documentId: id,
       projectId: args.projectId,
       userId: project.userId,
       content: args.content,
     });
+    // Stamp the pointer at creation so later edits skip the read-before-write.
+    await ctx.db.patch(id, { contentId });
     await adjustDocumentCount(ctx, args.projectId, 1);
     await scheduleWordActivity(ctx, {
       userId: project.userId,
@@ -2080,16 +2164,20 @@ export const _backfillDocumentContent = internalMutation({
     for (const doc of result.page) {
       if (doc.content === undefined) continue;
       const content = doc.content;
-      await writeContent(ctx, {
+      const contentId = await writeContent(ctx, {
         documentId: doc._id,
         projectId: doc.projectId,
         userId: doc.userId,
         content,
+        ...(doc.contentId ? { contentId: doc.contentId } : {}),
       });
+      // Stamp the pointer in the same patch that clears the inline body, so
+      // this drain also backfills `documents.contentId` for the hot path.
       await ctx.db.patch(doc._id, {
         excerpt: buildExcerpt(content),
         wordCount: doc.wordCount ?? countWords(content),
         content: undefined,
+        ...(doc.contentId === undefined ? { contentId } : {}),
       });
       migrated += 1;
     }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery } from "convex/react";
+import { useConvex, useMutation, useQuery } from "convex/react";
 import { motion } from "framer-motion";
 import {
   ArrowUpToLine,
@@ -44,6 +44,7 @@ export function DraftTabBar({
     })),
   );
 
+  const convex = useConvex();
   const document = useQuery(api.cms.documents.get, {
     documentId: documentId as Id<"documents">,
   });
@@ -95,12 +96,18 @@ export function DraftTabBar({
             document.projectId as string,
           );
         }
-      } else {
-        const draft = drafts?.find((d) => d._id === draftId);
-        if (draft && document) {
+      } else if (document) {
+        // Draft bodies live in their own table — fetch on demand instead of
+        // riding the always-mounted `list` subscription (which is now
+        // metadata-only to keep autosave from re-billing every draft body).
+        const draftContent = await convex.query(
+          api.cms.documentDrafts.getContent,
+          { draftId: draftId as Id<"document_drafts"> },
+        );
+        if (draftContent) {
           initDocument(
-            draft.titleSnapshot,
-            draft.contentSnapshot,
+            draftContent.title,
+            draftContent.content,
             document.projectId as string,
           );
         }
@@ -111,7 +118,7 @@ export function DraftTabBar({
       activeDraftId,
       onRequestSave,
       document,
-      drafts,
+      convex,
       initDocument,
       setActiveDraftId,
     ],

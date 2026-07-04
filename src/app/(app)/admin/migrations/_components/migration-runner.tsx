@@ -5,12 +5,18 @@ import {
   BarChart3,
   CheckCircle2,
   Database,
+  FileStack,
   FileText,
   FolderOpen,
+  GitBranch,
+  History,
+  Layers,
+  Link2,
   Play,
   Rocket,
   Sparkles,
   Tags,
+  Trash2,
   Users,
 } from "lucide-react";
 import { useCallback, useState } from "react";
@@ -30,7 +36,13 @@ type MigrationKey =
   | "fullMigration"
   | "frontmatterSchemas"
   | "aiModels"
-  | "documentContent";
+  | "documentContent"
+  | "documentContentIds"
+  | "draftContent"
+  | "snapshotContent"
+  | "publishHistoryContent"
+  | "resolvedConflicts"
+  | "orphanedArtifacts";
 
 const MIGRATIONS: {
   key: MigrationKey;
@@ -95,6 +107,54 @@ const MIGRATIONS: {
     icon: Database,
     accent: "text-rose-500",
   },
+  {
+    key: "documentContentIds",
+    title: "Backfill document contentId pointers",
+    description:
+      "Points every document at its document_content row via the new contentId pointer so the autosave hot path patches the body without a read-before-write. Also drains any remaining legacy inline body in the same pass. Idempotent — skips fully-migrated rows.",
+    icon: Link2,
+    accent: "text-cyan-500",
+  },
+  {
+    key: "draftContent",
+    title: "Migrate draft bodies",
+    description:
+      "Drains draft contentSnapshot/titleSnapshot into the document_draft_content side table (and sets the contentId pointer) so the always-mounted draft tab bar's list subscription stops re-billing every draft body on each autosave tick. Never overwrites a newer autosaved content row. Idempotent.",
+    icon: FileStack,
+    accent: "text-indigo-500",
+  },
+  {
+    key: "snapshotContent",
+    title: "Migrate snapshot bodies",
+    description:
+      "Drains version-snapshot bodies into document_snapshot_content and stamps the cheap contentHash dedup fingerprint on the metadata row, so the history panel and on-insert prune scan never read full bodies. Idempotent — skips already-drained rows.",
+    icon: Layers,
+    accent: "text-teal-500",
+  },
+  {
+    key: "publishHistoryContent",
+    title: "Migrate publish-history bodies",
+    description:
+      "Drains publish-history bodies into publish_history_content so the History panel list never reads up to 100 full bodies per open, then prunes each document's publish history to the newest 50 (deleting older metadata + content rows). Keeps frontmatterSnapshot for rollback. Idempotent.",
+    icon: History,
+    accent: "text-orange-500",
+  },
+  {
+    key: "resolvedConflicts",
+    title: "Strip resolved conflict bodies",
+    description:
+      "Clears the remote/local content + frontmatter snapshots off resolved sync_conflicts rows — resolution keeps only tiny audit metadata instead of 2× full body forever. Idempotent — skips unresolved and already-stripped rows.",
+    icon: GitBranch,
+    accent: "text-yellow-500",
+  },
+  {
+    key: "orphanedArtifacts",
+    title: "Purge orphaned artifacts",
+    description:
+      "Deletes drafts, snapshots, conflicts, publish history, their content side-tables, research notes, and share links whose parent document was hard-deleted before the cascade fix shipped. Paginates each table with bounded per-chunk work. Idempotent.",
+    icon: Trash2,
+    accent: "text-red-500",
+  },
 ];
 
 export function MigrationRunner() {
@@ -114,6 +174,24 @@ export function MigrationRunner() {
   const backfillAiModels = useAction(api.migrations.aiModels.backfillAiModels);
   const migrateDocumentContent = useAction(
     api.migrations.contentBackfill.migrateDocumentContent,
+  );
+  const migrateDocumentContentIds = useAction(
+    api.migrations.costOptimization.migrateDocumentContentIds,
+  );
+  const migrateDraftContent = useAction(
+    api.migrations.costOptimization.migrateDraftContent,
+  );
+  const migrateSnapshotContent = useAction(
+    api.migrations.costOptimization.migrateSnapshotContent,
+  );
+  const migratePublishHistoryContent = useAction(
+    api.migrations.costOptimization.migratePublishHistoryContent,
+  );
+  const stripResolvedConflicts = useAction(
+    api.migrations.costOptimization.stripResolvedConflicts,
+  );
+  const purgeOrphanedArtifacts = useAction(
+    api.migrations.costOptimization.purgeOrphanedArtifacts,
   );
 
   const [running, setRunning] = useState<MigrationKey | null>(null);
@@ -139,6 +217,18 @@ export function MigrationRunner() {
           result = await backfillAiModels();
         } else if (key === "documentContent") {
           result = await migrateDocumentContent();
+        } else if (key === "documentContentIds") {
+          result = await migrateDocumentContentIds();
+        } else if (key === "draftContent") {
+          result = await migrateDraftContent();
+        } else if (key === "snapshotContent") {
+          result = await migrateSnapshotContent();
+        } else if (key === "publishHistoryContent") {
+          result = await migratePublishHistoryContent();
+        } else if (key === "resolvedConflicts") {
+          result = await stripResolvedConflicts();
+        } else if (key === "orphanedArtifacts") {
+          result = await purgeOrphanedArtifacts();
         } else {
           result = await runFullMigration();
         }
@@ -161,6 +251,12 @@ export function MigrationRunner() {
       backfillFrontmatterSchemas,
       backfillAiModels,
       migrateDocumentContent,
+      migrateDocumentContentIds,
+      migrateDraftContent,
+      migrateSnapshotContent,
+      migratePublishHistoryContent,
+      stripResolvedConflicts,
+      purgeOrphanedArtifacts,
     ],
   );
 

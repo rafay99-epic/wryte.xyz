@@ -64,7 +64,7 @@ export function ConflictPage() {
   /** Conflict-marker template — initialized once we have data. */
   const conflictMarkerTemplate = useMemo(() => {
     if (!data) return "";
-    return `<<<<<<< GitHub\n${data.conflict.remoteContent}\n=======\n${data.conflict.localContentSnapshot}\n>>>>>>> Wryte\n`;
+    return `<<<<<<< GitHub\n${data.conflict.remoteContent ?? ""}\n=======\n${data.conflict.localContentSnapshot ?? ""}\n>>>>>>> Wryte\n`;
   }, [data]);
 
   // Seed the merge textarea once the data arrives. We use a sentinel
@@ -188,8 +188,11 @@ export function ConflictPage() {
       {viewMode === "diff" ? (
         <div className="flex-1 overflow-auto rounded-lg border border-border/60">
           <ReactDiffViewer
-            oldValue={conflict.remoteContent}
-            newValue={conflict.localContentSnapshot}
+            // Content is present on every OPEN conflict; it's only
+            // stripped (undefined) after resolution, and this page only
+            // renders unresolved conflicts. The fallback is type-safety.
+            oldValue={conflict.remoteContent ?? ""}
+            newValue={conflict.localContentSnapshot ?? ""}
             splitView
             // `useDarkTheme` only picks which `variables` block the
             // library reads; we wire identical CSS-variable references

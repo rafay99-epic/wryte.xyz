@@ -40,6 +40,9 @@ export function EditorPage() {
 
   const updateDocument = useMutation(api.cms.documents.update);
   const autosaveBody = useMutation(api.cms.documents.autosaveBody);
+  const autosaveDraftContent = useMutation(
+    api.cms.documentDrafts.autosaveContent,
+  );
   const updateDraftContent = useMutation(api.cms.documentDrafts.updateContent);
 
   const {
@@ -140,7 +143,24 @@ export function EditorPage() {
     [documentId, updateDocument],
   );
 
-  const saveDraft = useCallback(
+  // Periodic draft autosave: writes ONLY the draft's content side-table row,
+  // never the metadata row — so the always-mounted tab-bar `list`
+  // subscription isn't re-billed on every tick.
+  const saveDraftBody = useCallback(
+    async (c: string, t: string) => {
+      if (!activeDraftId) return;
+      await autosaveDraftContent({
+        draftId: activeDraftId as Id<"document_drafts">,
+        content: c,
+        title: t,
+      });
+    },
+    [activeDraftId, autosaveDraftContent],
+  );
+
+  // Flush draft save: also refreshes the metadata row's derived fields
+  // (wordCount, updatedAt) so the tab bar reflects the session's final state.
+  const saveDraftFull = useCallback(
     async (c: string, t: string) => {
       if (!activeDraftId) return;
       await updateDraftContent({
@@ -153,10 +173,8 @@ export function EditorPage() {
   );
 
   const targetId = activeDraftId ?? documentId;
-  const onSave = activeDraftId ? saveDraft : saveDocumentBody;
-  // Drafts live in their own table (no shared-row invalidation problem), so
-  // the draft path uses the same writer for periodic and flush saves.
-  const onFlush = activeDraftId ? saveDraft : saveDocumentFull;
+  const onSave = activeDraftId ? saveDraftBody : saveDocumentBody;
+  const onFlush = activeDraftId ? saveDraftFull : saveDocumentFull;
 
   const autoSaveEnabled =
     (project?.autoSaveEnabled ?? true) && openConflict == null;

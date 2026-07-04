@@ -53,9 +53,11 @@ export const _create = internalMutation({
 
     const existing = await ctx.db
       .query("sync_conflicts")
-      .withIndex("by_documentId", (q) => q.eq("documentId", args.documentId))
+      .withIndex("by_documentId_unresolved", (q) =>
+        q.eq("documentId", args.documentId).eq("resolvedAt", undefined),
+      )
       .take(10);
-    const openConflict = existing.find((c) => c.resolvedAt === undefined);
+    const openConflict = existing[0];
 
     if (openConflict) {
       const patch: Record<string, unknown> = {
@@ -159,9 +161,11 @@ export const getOpenByDocument = query({
 
     const conflicts = await ctx.db
       .query("sync_conflicts")
-      .withIndex("by_documentId", (q) => q.eq("documentId", args.documentId))
+      .withIndex("by_documentId_unresolved", (q) =>
+        q.eq("documentId", args.documentId).eq("resolvedAt", undefined),
+      )
       .take(10);
-    const open = conflicts.find((c) => c.resolvedAt === undefined);
+    const open = conflicts[0];
     if (!open) return null;
     return {
       _id: open._id,
@@ -253,11 +257,29 @@ export const resolveUseGithub = mutation({
       ctx,
       args.conflictId,
     );
+    if (conflict.remoteContent === undefined) {
+      // Invariant: an open (unresolved) conflict always carries the remote
+      // snapshot captured at detection time — only resolved rows have it
+      // stripped. Guard defensively rather than silently writing "".
+      throw new Error("Conflict is missing its remote content snapshot");
+    }
+    const remoteContent = conflict.remoteContent;
     const now = Date.now();
 
+    // Read the content BEFORE stripping it below. Pass the document's
+    // existing `contentId` pointer (if any) so `writeContent` can patch the
+    // body row directly instead of re-reading it via the index first.
+    const contentId = await writeContent(ctx, {
+      documentId: conflict.documentId,
+      projectId: doc.projectId,
+      userId: doc.userId,
+      content: remoteContent,
+      ...(doc.contentId ? { contentId: doc.contentId } : {}),
+    });
+
     const patch: Record<string, unknown> = {
-      excerpt: buildExcerpt(conflict.remoteContent),
-      wordCount: countWords(conflict.remoteContent),
+      excerpt: buildExcerpt(remoteContent),
+      wordCount: countWords(remoteContent),
       content: undefined,
       githubSha: conflict.remoteSha,
       githubSyncedAt: now,
@@ -266,17 +288,21 @@ export const resolveUseGithub = mutation({
     if (conflict.remoteFrontmatter !== undefined) {
       patch["frontmatter"] = conflict.remoteFrontmatter;
     }
+    // Backfill the pointer for pre-migration docs that didn't have one yet.
+    if (doc.contentId === undefined) {
+      patch["contentId"] = contentId;
+    }
 
     await ctx.db.patch(conflict.documentId, patch);
-    await writeContent(ctx, {
-      documentId: conflict.documentId,
-      projectId: doc.projectId,
-      userId: doc.userId,
-      content: conflict.remoteContent,
-    });
     await ctx.db.patch(conflict._id, {
       resolvedAt: now,
       resolution: "github" as const,
+      // Audit metadata (githubPath, remoteSha, resolution, timestamps)
+      // stays; the full bodies are no longer needed once resolved.
+      remoteContent: undefined,
+      localContentSnapshot: undefined,
+      remoteFrontmatter: undefined,
+      localFrontmatterSnapshot: undefined,
     });
   },
 });
@@ -305,6 +331,13 @@ export const resolveKeepConvex = mutation({
     await ctx.db.patch(conflict._id, {
       resolvedAt: now,
       resolution: "convex" as const,
+      // Audit metadata stays; this path never reads the snapshotted bodies
+      // (it keeps the existing Convex content), so no content read is
+      // needed before stripping them.
+      remoteContent: undefined,
+      localContentSnapshot: undefined,
+      remoteFrontmatter: undefined,
+      localFrontmatterSnapshot: undefined,
     });
   },
 });
@@ -331,6 +364,17 @@ export const resolveMerge = mutation({
     );
     const now = Date.now();
 
+    // Pass the document's existing `contentId` pointer (if any) so
+    // `writeContent` can patch the body row directly instead of re-reading
+    // it via the index first.
+    const contentId = await writeContent(ctx, {
+      documentId: conflict.documentId,
+      projectId: doc.projectId,
+      userId: doc.userId,
+      content: args.mergedContent,
+      ...(doc.contentId ? { contentId: doc.contentId } : {}),
+    });
+
     const patch: Record<string, unknown> = {
       excerpt: buildExcerpt(args.mergedContent),
       wordCount: countWords(args.mergedContent),
@@ -342,17 +386,22 @@ export const resolveMerge = mutation({
     if (args.mergedFrontmatter !== undefined) {
       patch["frontmatter"] = args.mergedFrontmatter;
     }
+    // Backfill the pointer for pre-migration docs that didn't have one yet.
+    if (doc.contentId === undefined) {
+      patch["contentId"] = contentId;
+    }
 
     await ctx.db.patch(conflict.documentId, patch);
-    await writeContent(ctx, {
-      documentId: conflict.documentId,
-      projectId: doc.projectId,
-      userId: doc.userId,
-      content: args.mergedContent,
-    });
     await ctx.db.patch(conflict._id, {
       resolvedAt: now,
       resolution: "merge" as const,
+      // Audit metadata stays; the caller-submitted merged content already
+      // lives in `document_content`, so the snapshotted bodies here are
+      // redundant once resolved.
+      remoteContent: undefined,
+      localContentSnapshot: undefined,
+      remoteFrontmatter: undefined,
+      localFrontmatterSnapshot: undefined,
     });
   },
 });

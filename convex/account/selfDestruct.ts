@@ -399,6 +399,20 @@ export const _wipeChunk = internalMutation({
       }
     }
 
+    /* 2b. publish_history_content — bodies live in their own table (see
+     *     `document_content` at step 7c below for the same split); has a
+     *     direct `by_userId` index so no need to walk via projects. */
+    if (budget > 0) {
+      const rows = await ctx.db
+        .query("publish_history_content")
+        .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+        .take(budget);
+      for (const row of rows) {
+        await ctx.db.delete(row._id);
+        budget--;
+      }
+    }
+
     /* 3. media (+ legacy storage blobs) */
     if (budget > 0) {
       const rows = await ctx.db
@@ -588,6 +602,36 @@ export const _wipeChunk = internalMutation({
       }
     }
 
+    /* 7c-i. document_draft_content — draft bodies live in their own table
+     *       with a direct `by_userId` index. Note: `document_drafts`
+     *       metadata rows themselves aren't drained anywhere in this chunk
+     *       today (a pre-existing gap independent of this content split —
+     *       see the cost-audit cascade notes); this only prevents the new
+     *       content table from outliving even that. */
+    if (budget > 0) {
+      const rows = await ctx.db
+        .query("document_draft_content")
+        .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+        .take(budget);
+      for (const row of rows) {
+        await ctx.db.delete(row._id);
+        budget--;
+      }
+    }
+
+    /* 7c-ii. document_snapshot_content — same story as 7c-i, mirrored for
+     *        `document_snapshots`. */
+    if (budget > 0) {
+      const rows = await ctx.db
+        .query("document_snapshot_content")
+        .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+        .take(budget);
+      for (const row of rows) {
+        await ctx.db.delete(row._id);
+        budget--;
+      }
+    }
+
     /* 7c. document_content — bodies live in their own table; drain them
      *     before the parent documents so no orphaned rows remain. */
     if (budget > 0) {
@@ -656,6 +700,18 @@ async function countRemaining(
       .take(1),
     ctx.db
       .query("document_content")
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
+      .take(1),
+    ctx.db
+      .query("document_draft_content")
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
+      .take(1),
+    ctx.db
+      .query("document_snapshot_content")
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
+      .take(1),
+    ctx.db
+      .query("publish_history_content")
       .withIndex("by_userId", (q) => q.eq("userId", userId))
       .take(1),
     ctx.db

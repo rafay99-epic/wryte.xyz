@@ -636,10 +636,38 @@ export const _wipeProjectChunk = internalMutation({
       }
     }
 
+    /* 1b. publish_history_content — drained before `publish_history` so a
+     *     re-run never leaves an orphaned content row. */
+    if (budget > 0) {
+      const rows = await ctx.db
+        .query("publish_history_content")
+        .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
+        .take(budget);
+      for (const row of rows) {
+        await ctx.db.delete(row._id);
+        budget--;
+      }
+    }
+
     /* 2. publish_history */
     if (budget > 0) {
       const rows = await ctx.db
         .query("publish_history")
+        .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
+        .take(budget);
+      for (const row of rows) {
+        await ctx.db.delete(row._id);
+        budget--;
+      }
+    }
+
+    /* 2b. document_draft_content — drained before `document_drafts` so a
+     *     re-run never leaves an orphaned content row pointing at a
+     *     deleted draft. Mirrors the `document_content`/`documents`
+     *     ordering used at the end of this chunk (step 13b/14). */
+    if (budget > 0) {
+      const rows = await ctx.db
+        .query("document_draft_content")
         .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
         .take(budget);
       for (const row of rows) {
@@ -664,6 +692,19 @@ export const _wipeProjectChunk = internalMutation({
     if (budget > 0) {
       const rows = await ctx.db
         .query("document_research")
+        .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
+        .take(budget);
+      for (const row of rows) {
+        await ctx.db.delete(row._id);
+        budget--;
+      }
+    }
+
+    /* 4a2. document_snapshot_content — drained before `document_snapshots`
+     *      so a re-run never leaves an orphaned content row. */
+    if (budget > 0) {
+      const rows = await ctx.db
+        .query("document_snapshot_content")
         .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
         .take(budget);
       for (const row of rows) {
@@ -974,7 +1015,15 @@ async function countProjectRemaining(
       .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
       .take(1),
     ctx.db
+      .query("publish_history_content")
+      .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+      .take(1),
+    ctx.db
       .query("publish_history")
+      .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+      .take(1),
+    ctx.db
+      .query("document_draft_content")
       .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
       .take(1),
     ctx.db
@@ -983,6 +1032,10 @@ async function countProjectRemaining(
       .take(1),
     ctx.db
       .query("document_research")
+      .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+      .take(1),
+    ctx.db
+      .query("document_snapshot_content")
       .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
       .take(1),
     ctx.db

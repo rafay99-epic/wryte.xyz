@@ -9,6 +9,12 @@ import {
   readContent,
   writeContent,
 } from "./_lib/documentContent";
+import {
+  deleteDraftContent,
+  MAX_DRAFT_CONTENT_BYTES,
+  readDraftContent,
+  writeDraftContent,
+} from "./_lib/draftContent";
 
 async function verifyDocumentOwnership(
   ctx: { db: DatabaseReader },
@@ -31,6 +37,14 @@ function wordCount(content: string): number {
   return trimmed ? trimmed.split(/\s+/).length : 0;
 }
 
+/**
+ * Metadata-only draft list for the always-mounted tab bar. Bodies live in
+ * `document_draft_content` and are fetched on demand (`getContent`) when a
+ * draft is opened — so this hot subscription never reads (or re-bills)
+ * every draft's body on each autosave tick. Explicit projection keeps the
+ * legacy inline `contentSnapshot` / `frontmatterSnapshot` off the wire and
+ * the client type clean (mirrors `snapshots.list`).
+ */
 export const list = query({
   args: { documentId: v.id("documents") },
   handler: async (ctx, args) => {
@@ -43,10 +57,24 @@ export const list = query({
       .withIndex("by_documentId", (q) => q.eq("documentId", args.documentId))
       .take(50);
 
-    return drafts.sort((a, b) => a.createdAt - b.createdAt);
+    return drafts
+      .sort((a, b) => a.createdAt - b.createdAt)
+      .map((draft) => ({
+        _id: draft._id,
+        documentId: draft.documentId,
+        label: draft.label,
+        wordCount: draft.wordCount,
+        ...(draft.summary !== undefined ? { summary: draft.summary } : {}),
+        createdAt: draft.createdAt,
+        updatedAt: draft.updatedAt,
+      }));
   },
 });
 
+/**
+ * Full draft (metadata joined with its title + body). Fetched on demand;
+ * resolves the body from the content row with a legacy fallback.
+ */
 export const get = query({
   args: { draftId: v.id("document_drafts") },
   handler: async (ctx, args) => {
@@ -54,7 +82,24 @@ export const get = query({
     if (!user) return null;
     const draft = await ctx.db.get(args.draftId);
     if (!draft || draft.userId !== user._id) return null;
-    return draft;
+    const { title, content } = await readDraftContent(ctx, draft);
+    return { ...draft, title, content };
+  },
+});
+
+/**
+ * On-demand title + body for a single draft. Read when the editor switches
+ * to a draft tab (not a live subscription). Resolves from the content row,
+ * falling back to the legacy inline snapshot fields.
+ */
+export const getContent = query({
+  args: { draftId: v.id("document_drafts") },
+  handler: async (ctx, args) => {
+    const user = await getAuthedUserOrNull(ctx);
+    if (!user) return null;
+    const draft = await ctx.db.get(args.draftId);
+    if (!draft || draft.userId !== user._id) return null;
+    return await readDraftContent(ctx, draft);
   },
 });
 
@@ -88,14 +133,15 @@ export const create = mutation({
 
     const copyContent = args.copyFromMain ?? false;
     const mainContent = copyContent ? await readContent(ctx, document) : "";
+    const title = copyContent ? document.title : "";
 
-    return await ctx.db.insert("document_drafts", {
+    // Metadata row carries NO body — the title + content live in
+    // `document_draft_content`, keyed back by `contentId`.
+    const draftId = await ctx.db.insert("document_drafts", {
       documentId: args.documentId,
       projectId: document.projectId,
       userId: user._id,
       label,
-      contentSnapshot: mainContent,
-      titleSnapshot: copyContent ? document.title : "",
       ...(copyContent && document.frontmatter !== undefined
         ? { frontmatterSnapshot: document.frontmatter }
         : {}),
@@ -103,6 +149,16 @@ export const create = mutation({
       createdAt: now,
       updatedAt: now,
     });
+    const contentId = await writeDraftContent(ctx, {
+      draftId,
+      documentId: args.documentId,
+      projectId: document.projectId,
+      userId: user._id,
+      title,
+      content: mainContent,
+    });
+    await ctx.db.patch(draftId, { contentId });
+    return draftId;
   },
 });
 
@@ -132,21 +188,29 @@ export const createSnapshot = mutation({
     const label =
       args.label.trim() || `Draft ${new Date(now).toLocaleString()}`;
 
-    return await ctx.db.insert("document_drafts", {
+    const draftId = await ctx.db.insert("document_drafts", {
       documentId: args.documentId,
       projectId: document.projectId,
       userId: user._id,
       label,
-      contentSnapshot: args.content,
       ...(args.frontmatter !== undefined
         ? { frontmatterSnapshot: args.frontmatter }
         : {}),
-      titleSnapshot: args.title,
       ...(args.summary?.trim() ? { summary: args.summary.trim() } : {}),
       wordCount: wordCount(args.content),
       createdAt: now,
       updatedAt: now,
     });
+    const contentId = await writeDraftContent(ctx, {
+      draftId,
+      documentId: args.documentId,
+      projectId: document.projectId,
+      userId: user._id,
+      title: args.title,
+      content: args.content,
+    });
+    await ctx.db.patch(draftId, { contentId });
+    return draftId;
   },
 });
 
@@ -181,6 +245,61 @@ export const update = mutation({
   },
 });
 
+/**
+ * Hot-path draft autosave (3s debounce). Writes ONLY the draft's content
+ * side-table row — never the metadata row — so the tab-bar `list`
+ * subscription isn't invalidated on every tick. `title` is required so the
+ * write is a single `replace` with no read-before-write (the client always
+ * holds the current title). Pre-migration drafts (no `contentId`) upsert by
+ * the `by_draftId` index and deliberately leave the metadata row untouched
+ * — the backfill sets `contentId` later.
+ */
+export const autosaveContent = mutation({
+  args: {
+    draftId: v.id("document_drafts"),
+    title: v.string(),
+    content: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const key = await getRateLimitKey(ctx);
+    await rateLimiter.limit(ctx, "documentDrafts:autosaveContent", {
+      key,
+      throws: true,
+    });
+
+    const user = await getCurrentUser(ctx);
+    const draft = await ctx.db.get(args.draftId);
+    if (!draft || draft.userId !== user._id) {
+      throw new Error("Draft not found");
+    }
+
+    const byteLength = new TextEncoder().encode(args.content).byteLength;
+    if (byteLength > MAX_DRAFT_CONTENT_BYTES) {
+      throw new Error(
+        `Draft content is too large (max ${String(Math.round(MAX_DRAFT_CONTENT_BYTES / 1024))} KB).`,
+      );
+    }
+
+    await writeDraftContent(ctx, {
+      draftId: draft._id,
+      documentId: draft.documentId,
+      projectId: draft.projectId,
+      userId: draft.userId,
+      title: args.title,
+      content: args.content,
+      ...(draft.contentId ? { contentId: draft.contentId } : {}),
+    });
+  },
+});
+
+/**
+ * Flush-path draft save (manual save, tab switch, unmount). Writes the
+ * content row AND refreshes the metadata row's derived fields (wordCount,
+ * updatedAt) — plus persists `contentId` and strips any legacy inline
+ * snapshot fields on rows that predate the split. Kept named `updateContent`
+ * for API stability. Args stay optional; the sole client sends both, so the
+ * fallback read never fires in practice.
+ */
 export const updateContent = mutation({
   args: {
     draftId: v.id("document_drafts"),
@@ -200,20 +319,42 @@ export const updateContent = mutation({
       throw new Error("Draft not found");
     }
 
-    const updates: {
-      titleSnapshot?: string;
-      contentSnapshot?: string;
-      wordCount?: number;
-      updatedAt: number;
-    } = { updatedAt: Date.now() };
-
-    if (args.title !== undefined) updates.titleSnapshot = args.title;
-    if (args.content !== undefined) {
-      updates.contentSnapshot = args.content;
-      updates.wordCount = wordCount(args.content);
+    // Resolve the full row to write. The client always sends both fields;
+    // the fallback read only fires if one is omitted.
+    let title = args.title;
+    let content = args.content;
+    if (title === undefined || content === undefined) {
+      const current = await readDraftContent(ctx, draft);
+      title ??= current.title;
+      content ??= current.content;
     }
 
-    await ctx.db.patch(args.draftId, updates);
+    const byteLength = new TextEncoder().encode(content).byteLength;
+    if (byteLength > MAX_DRAFT_CONTENT_BYTES) {
+      throw new Error(
+        `Draft content is too large (max ${String(Math.round(MAX_DRAFT_CONTENT_BYTES / 1024))} KB).`,
+      );
+    }
+
+    const contentId = await writeDraftContent(ctx, {
+      draftId: draft._id,
+      documentId: draft.documentId,
+      projectId: draft.projectId,
+      userId: draft.userId,
+      title,
+      content,
+      ...(draft.contentId ? { contentId: draft.contentId } : {}),
+    });
+
+    // Refresh metadata; drop legacy inline body so backfilled rows stop
+    // carrying it, and persist the pointer if it was missing.
+    await ctx.db.patch(draft._id, {
+      wordCount: wordCount(content),
+      updatedAt: Date.now(),
+      contentSnapshot: undefined,
+      titleSnapshot: undefined,
+      ...(draft.contentId === undefined ? { contentId } : {}),
+    });
   },
 });
 
@@ -237,25 +378,32 @@ export const promoteToMain = mutation({
       user._id,
     );
 
+    const { title, content } = await readDraftContent(ctx, draft);
+
     await ctx.db.patch(draft.documentId, {
-      title: draft.titleSnapshot,
-      excerpt: buildExcerpt(draft.contentSnapshot),
-      wordCount: wordCount(draft.contentSnapshot),
+      title,
+      excerpt: buildExcerpt(content),
+      wordCount: wordCount(content),
       content: undefined,
       frontmatter: draft.frontmatterSnapshot,
       updatedAt: Date.now(),
     });
-    await writeContent(ctx, {
+    const contentId = await writeContent(ctx, {
       documentId: draft.documentId,
       projectId: document.projectId,
       userId: user._id,
-      content: draft.contentSnapshot,
+      content,
+      ...(document.contentId ? { contentId: document.contentId } : {}),
     });
+    // Persist the pointer if the target document predates the split.
+    if (document.contentId === undefined) {
+      await ctx.db.patch(draft.documentId, { contentId });
+    }
 
     return {
       documentId: draft.documentId,
-      title: draft.titleSnapshot,
-      content: draft.contentSnapshot,
+      title,
+      content,
       frontmatter: draft.frontmatterSnapshot,
     };
   },
@@ -275,6 +423,7 @@ export const remove = mutation({
     if (!draft || draft.userId !== user._id) {
       throw new Error("Draft not found");
     }
+    await deleteDraftContent(ctx, args.draftId);
     await ctx.db.delete(args.draftId);
   },
 });

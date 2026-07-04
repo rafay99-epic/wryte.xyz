@@ -21,7 +21,7 @@ export const backfillAiModels = action({
   args: {},
   handler: async (ctx): Promise<{ status: string; details: string }> => {
     const key = await getRateLimitKey(ctx);
-    await rateLimiter.limit(ctx, "seed:run", { key, throws: true });
+    await rateLimiter.limit(ctx, "migrations:run", { key, throws: true });
     await requireAdmin(ctx);
 
     const result: { patched: number; scanned: number; isDone: boolean } =
