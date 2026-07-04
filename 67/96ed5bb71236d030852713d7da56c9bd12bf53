@@ -1,0 +1,58 @@
+convex/schema.ts
+  s_21a608cf6ff9c5::t_4de83426070458 523
+src/features/account-settings/hooks/use-github-token-input.ts
+  s_21a608cf6ff9c5::t_098fdd098b9fe5 2,6,8
+src/features/new-project/new-project-page.tsx
+  s_21a608cf6ff9c5::t_2fb86c26c29daa 35
+src/features/project-settings/components/media-section.tsx
+  s_21a608cf6ff9c5::t_c2dc9a1927d3e0 97
+convex/_seed/changelog.ts
+  s_21a608cf6ff9c5::t_df0fc378c861b6 949-1012
+convex/cms/projects.ts
+  s_21a608cf6ff9c5::t_a35185d5956ba5 184
+  s_21a608cf6ff9c5::t_10807c06faccfd 17
+  s_21a608cf6ff9c5::t_85ea03833075fd 723
+src/features/editor/components/media-picker-drawer.tsx
+  s_21a608cf6ff9c5::t_82361d07609865 237
+  s_21a608cf6ff9c5::t_c79e5c3a4a6e5b 106
+convex/account/selfDestruct.ts
+  s_21a608cf6ff9c5::t_2c3ea212bf6e8f 415
+convex/_lib/auth.ts
+  s_21a608cf6ff9c5::t_e0f8990b6e51b4 85,95
+convex/account/users.ts
+  s_21a608cf6ff9c5::t_e870d14b7dd0c1 245-246
+src/features/project-settings/project-settings-page.tsx
+  s_21a608cf6ff9c5::t_0bf581991645c0 55
+  s_21a608cf6ff9c5::t_e974471d4f5ede 126
+convex/media/uploadsDb.ts
+  s_21a608cf6ff9c5::t_09346226747f31 244
+src/features/account-settings/components/account-tab.tsx
+  s_21a608cf6ff9c5::t_402ca9bdc09e1a 159,161
+  s_21a608cf6ff9c5::t_87b49fc8064668 88
+src/features/project-settings/hooks/use-github-section.ts
+  s_21a608cf6ff9c5::t_14277be4abf8b7 24
+src/types/media.ts
+  s_21a608cf6ff9c5::t_ec71307443c767 23
+convex/media/uploads.ts
+  s_21a608cf6ff9c5::t_62ea2bd816babc 513
+  s_21a608cf6ff9c5::t_86300a0315571e 46
+src/features/project-settings/components/github-section.tsx
+  s_21a608cf6ff9c5::t_bfb3da10d8340f 34
+  s_21a608cf6ff9c5::t_53d65a6aef0b60 59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6796ed5bb71236d030852713d7da56c9bd12bf53",
+  "prompts": {},
+  "sessions": {
+    "s_21a608cf6ff9c5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f0ba3863-e894-4c2a-beba-b95f0517e105",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
