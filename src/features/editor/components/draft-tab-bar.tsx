@@ -296,6 +296,7 @@ export function DraftTabBar({
                 render={
                   <button
                     type="button"
+                    aria-label={`Draft options: ${draft.label}`}
                     className="relative z-10 -ml-1 rounded p-0.5 text-muted-foreground/40 opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
                   />
                 }
@@ -330,6 +331,7 @@ export function DraftTabBar({
             render={
               <button
                 type="button"
+                aria-label="New draft"
                 className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               />
             }

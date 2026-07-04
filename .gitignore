@@ -44,3 +44,9 @@ next-env.d.ts
 /.clerk/
 .env
 .frugal-fable/
+
+# playwright e2e
+/e2e/.auth/
+/playwright-report/
+/test-results/
+/playwright/.cache/

@@ -475,6 +475,8 @@ function PanelToggle({
           <button
             type="button"
             onClick={onClick}
+            aria-label={tooltip}
+            aria-pressed={active}
             className={cn(
               "rounded-md p-1.5 transition-all active:scale-[0.95]",
               active

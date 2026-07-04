@@ -369,6 +369,8 @@ export function AppHeader() {
               {saveStatusKey === "saving" && (
                 <motion.div
                   key="saving"
+                  data-testid="save-status"
+                  data-save-state="saving"
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.95 }}
@@ -381,6 +383,8 @@ export function AppHeader() {
               {saveStatusKey === "dirty" && (
                 <motion.div
                   key="dirty"
+                  data-testid="save-status"
+                  data-save-state="dirty"
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.95 }}
@@ -393,6 +397,8 @@ export function AppHeader() {
               {saveStatusKey === "saved" && (
                 <motion.div
                   key="saved"
+                  data-testid="save-status"
+                  data-save-state="saved"
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.95 }}
@@ -439,6 +445,8 @@ export function AppHeader() {
                     variant="ghost"
                     size="icon-sm"
                     onClick={toggleHistoryPanel}
+                    aria-label="Publish history"
+                    aria-pressed={historyPanelOpen}
                     className={cn(
                       "relative text-muted-foreground hover:text-foreground",
                       historyPanelOpen && "bg-muted text-foreground",

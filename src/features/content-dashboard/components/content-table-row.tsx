@@ -89,6 +89,7 @@ export function ContentTableRow({
     <motion.tr
       variants={staggerItem}
       transition={smoothTransition}
+      data-testid={`content-item-${item.slug}`}
       className={cn(
         "group cursor-pointer border-b last:border-b-0 transition-colors hover:bg-muted/30",
         selected && "bg-primary/5",
