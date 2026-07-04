@@ -1012,6 +1012,96 @@ No behavior changes — everything works exactly as before, just lighter and fas
 - The temporary cost-optimization test bench and workload seeder were deleted from \`/admin/seed\`.
 `,
   },
+  {
+    title: "Compare your drafts side by side",
+    slug: "draft-compare-side-by-side",
+    description:
+      'Every draft tab now has "Compare with Main" — a full-width side-by-side diff with a selector on each side, so you can finally see how two versions of a post differ before promoting one. Shipped alongside a full Playwright end-to-end test suite.',
+    build: "3a53b82",
+    publishedAt: Date.parse("2026-07-04T23:10:00+05:00"),
+    content: `## What's new
+
+- **Compare with Main.** Open any draft tab's menu and pick *Compare with Main* to get a split diff of the two versions — additions and removals highlighted line by line, word counts in the titles, and a selector on each side so you can compare Main against any draft, or two drafts against each other. Unsaved keystrokes are flushed first, so the diff always reflects what you see.
+
+## Under the hood
+
+- The diff renderer was extracted from the sync-conflicts page into a shared \`MarkdownDiffViewer\`, which the conflict page now consumes too (~80 lines lighter).
+- Content is fetched one-shot when the sheet opens or a selector changes — no live subscriptions, no new backend functions, nothing on the autosave hot path.
+- This release also added the project's end-to-end test harness: Playwright with automated Clerk sign-in and a smoke suite covering marketing, auth, the dashboard, editor autosave, the outline panel, version history, and the draft-tab lifecycle. Run it with \`bun run test:e2e\`.
+`,
+  },
+  {
+    title: "A pre-publish checklist",
+    slug: "pre-publish-checklist",
+    description:
+      "The publish dialog now runs six instant quality checks before your post ships to GitHub — frontmatter validity, missing image alt text, unresolved internal links, leftover TODO markers, structure sanity, and reading time. Warnings never block publishing.",
+    build: "0a51a02",
+    publishedAt: Date.parse("2026-07-04T23:20:00+05:00"),
+    content: `## What's new
+
+- **A checklist in the publish dialog.** The moment you open Publish, six checks run against your post: frontmatter parses and matches the project schema, every image has alt text, every \`[[internal link]]\` resolves to a real document, no TODO/FIXME or merge-conflict markers were left behind, the structure makes sense (one H1, not suspiciously thin), plus word count and reading time. Warnings are informational — you can always publish anyway.
+- **Check external links on demand.** A button runs the existing link checker against the post when you ask for it (it stays manual because the checker is rate-limited).
+
+## Under the hood
+
+- All checks are pure client-side functions over the content already in the editor; the only network cost is one bounded metadata query to resolve internal links when the dialog opens. The schedule dialog was deliberately left out — it can open from the board where the editor's content isn't loaded, which would have produced stale results.
+`,
+  },
+  {
+    title: "Hemingway-style writing lint",
+    slug: "style-lint-readability-lens",
+    description:
+      "The readability lens grew a Style section: passive voice, adverb density, sentence-length monotony, weasel words, and clichés — each with click-to-jump excerpts and its own toggle. Pure client-side, zero backend cost.",
+    build: "17b63ec",
+    publishedAt: Date.parse("2026-07-04T23:30:00+05:00"),
+    content: `## What's new
+
+- **Five style checks in the readability lens**: passive voice, adverb density (with a whitelist so *family* and *only* don't count), runs of same-length sentences that read monotonously, weasel words (*very, really, quite, basically…*), and ~44 common clichés.
+- **Click an excerpt to jump to it** — same interaction as the outline panel — fix it, and the finding disappears on the next pass.
+- **Per-check toggles**, persisted locally, so you can silence the checks you disagree with.
+
+## Under the hood
+
+- One pure module (\`style-lint.ts\`) masks code blocks, frontmatter, and URLs before analysis, reuses the lens's existing sentence segmentation, and runs debounced only while the panel is open. Zero Convex reads or writes.
+`,
+  },
+  {
+    title: "Writing sprints & typewriter focus",
+    slug: "writing-sprints-typewriter-focus",
+    description:
+      "A sprint timer with a word target and live WPM in a floating HUD, plus typewriter scrolling that keeps the caret line centered while focus mode is on. Entirely client-side — a 25-minute sprint costs zero database traffic.",
+    build: "15f198e",
+    publishedAt: Date.parse("2026-07-04T23:40:00+05:00"),
+    content: `## What's new
+
+- **Writing sprints.** Pick a word target (250/500/750 or custom) and a duration (15/25/45 min or custom) from the new Sprint control in the editor toolbar. A floating pill shows time remaining, words written this sprint, live WPM, and progress — with pause/resume, a celebratory finish when you hit the target, and a \`⌘⇧U\` shortcut.
+- **Session stats** — words and WPM since you opened the editor, always visible in the sprint popover.
+- **Typewriter scrolling.** With focus mode on, the line you're typing stays vertically centered — smooth, and it steps aside the moment you scroll manually. Toggleable and remembered per browser.
+
+## Under the hood
+
+- Sprint state lives entirely in the editor store; the once-a-second tick is a local render counter that never touches the dirty flag, so it can never wake the autosave. Words still reach your streaks and goals through the existing save path — a sprint adds zero reads and zero writes.
+- Five duplicated word-count implementations across the app were consolidated into one shared \`src/lib/word-count.ts\`.
+`,
+  },
+  {
+    title: "Backlinks — see what links here",
+    slug: "backlinks-what-links-here",
+    description:
+      "Wiki links now work in both directions: the research panel shows every document that links to the one you're editing, turning your content library into a connected graph.",
+    build: "a9c6200",
+    publishedAt: Date.parse("2026-07-04T23:50:00+05:00"),
+    content: `## What's new
+
+- **"Linked from" in the research panel.** Open the research panel on any document and see every post that references it via \`[[wiki links]]\`, with status badges — click one to jump straight into that document. Great for building series and keeping internal links healthy alongside the pre-publish checklist's unresolved-link warnings.
+
+## Under the hood
+
+- New \`document_links\` edge table, maintained **only on the flush path** (manual save, promote, restore, conflict resolution) — the 3-second autosave never parses links or writes edges, keeping the hot path exactly as cheap as the bandwidth overhaul left it.
+- The backlinks list is a bounded query subscribed only while the research panel is open; link rows cascade-delete with their documents.
+- A one-time, idempotent CLI backfill populates edges for existing content: \`bunx convex run cms/documents:_backfillDocumentLinks '{}'\` after deploying.
+`,
+  },
 ];
 
 export const seed = action({
