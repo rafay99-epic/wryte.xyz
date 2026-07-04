@@ -1,0 +1,165 @@
+src/features/editor/components/history-panel.tsx
+  s_21a608cf6ff9c5::t_393c330ef8dcdb 129-139
+  s_21a608cf6ff9c5::t_c37f19dd19c342 272-282
+  s_21a608cf6ff9c5::t_026d30d3560fb5 55-56,58-63,90-91,105-108,115-118
+convex/ai/enhance.ts
+  s_21a608cf6ff9c5::t_165cc370ac856b 425,427
+  s_21a608cf6ff9c5::t_bd82080d8e787a 372,381-397
+  s_21a608cf6ff9c5::t_3685ab5cf2d5b8 398-399
+convex/migrations/analytics.ts
+  s_21a608cf6ff9c5::t_5c80810999b05e 10,30,50,75
+convex/_lib/rateLimits.ts
+  s_21a608cf6ff9c5::t_12177557966d18 214-225
+  s_21a608cf6ff9c5::t_3ee03a87fd6208 772-789
+convex/cms/documentDrafts.ts
+  s_21a608cf6ff9c5::t_42d6e30a45a54d 248-302,322-330,332-336,339-357
+  s_21a608cf6ff9c5::t_7963b83295f3c8 381-382,384-386,391,395-396,398-401,405-406
+  s_21a608cf6ff9c5::t_27ba1aaabed6b4 12-13,15-17
+  s_21a608cf6ff9c5::t_09332c1437b9bf 426
+  s_21a608cf6ff9c5::t_3ec498103158a4 191,204-213
+  s_21a608cf6ff9c5::t_29a5e68c9845e6 14
+  s_21a608cf6ff9c5::t_5fcf805e8e8d9c 40-47,60-70,74-77,85-102
+  s_21a608cf6ff9c5::t_dcddcbf69486b2 136,138-140,152-161
+convex/migrations/frontmatter.ts
+  s_21a608cf6ff9c5::t_5c80810999b05e 26
+convex/cms/_lib/draftContent.ts
+  s_21a608cf6ff9c5::t_19f7fd425db480 1-137
+src/app/(app)/admin/migrations/_components/migration-runner.tsx
+  s_21a608cf6ff9c5::t_61f605ac2a804e 178-195
+  s_21a608cf6ff9c5::t_78381a5b2ee40d 8,11-14,19
+  s_21a608cf6ff9c5::t_fb0d8e2891135b 220-231
+  s_21a608cf6ff9c5::t_6614551440faf8 254-259
+  s_21a608cf6ff9c5::t_bcdcfc3bba110b 39-45
+  s_21a608cf6ff9c5::t_9a93ecbb80f7bf 110-157
+convex/cms/trash.ts
+  s_21a608cf6ff9c5::t_b1857344ae3d1d 346-352
+  s_21a608cf6ff9c5::t_dd1e9a5bcd6e1b 155-161,184-190,254-260
+  s_21a608cf6ff9c5::t_39674478d7541a 286-292,295,306,309,311,353-361,372
+  s_21a608cf6ff9c5::t_75ae94c896bf65 133-141,153-154,162-163,169-183,191-194,198
+  s_21a608cf6ff9c5::t_1723871641466a 199-207,210-214,218,237-239,253,261-263,266,268
+  s_21a608cf6ff9c5::t_95d72ae5e0dd01 315-320,322
+  s_21a608cf6ff9c5::t_95fe6dced0e798 18,29
+  s_21a608cf6ff9c5::t_3f547d7e2b4327 240-244,246-252
+  s_21a608cf6ff9c5::t_e74dc8abc59d25 195-197
+convex/schema.ts
+  s_21a608cf6ff9c5::t_75605c9fadc214 835-841,843-845,855-857
+  s_21a608cf6ff9c5::t_551fadc366a771 381-389,391-396,406-428
+  s_21a608cf6ff9c5::t_fa620738a42535 289-291
+  s_21a608cf6ff9c5::t_51a73693301ec0 335-340,352-369
+  s_21a608cf6ff9c5::t_b55b0567adb1a8 243-252
+  s_21a608cf6ff9c5::t_7725f2b41b26cb 429-431,450-462,469-485
+  s_21a608cf6ff9c5::t_01ac575c7ccdf1 370
+  s_21a608cf6ff9c5::t_3c69fb58128233 432
+  s_21a608cf6ff9c5::t_0097f5ac8f66e7 486
+convex/cms/_lib/documentContent.ts
+  s_21a608cf6ff9c5::t_07f25f805fffe6 81-89,98,100-102,111-114,118-119,129,131
+  s_21a608cf6ff9c5::t_97aded12850930 103-110,115-117
+  s_21a608cf6ff9c5::t_c1fc55ba24e2e3 33-35,40-44,46-49
+src/features/editor/editor-page.tsx
+  s_21a608cf6ff9c5::t_d5175dbbeca462 43-45
+  s_21a608cf6ff9c5::t_cc6497dbdcfc99 146-163,176-177
+src/features/editor/components/draft-tab-bar.tsx
+  s_21a608cf6ff9c5::t_af7676ae557ece 99-107,109-110
+  s_21a608cf6ff9c5::t_29a5e68c9845e6 121
+  s_21a608cf6ff9c5::t_a7b333349be429 47
+  s_21a608cf6ff9c5::t_3c6590b24d3ee9 3
+convex/migrations/contentBackfill.ts
+  s_21a608cf6ff9c5::t_5c80810999b05e 24
+convex/cms/projects.ts
+  s_21a608cf6ff9c5::t_0d19b3bd82a449 1018-1020
+  s_21a608cf6ff9c5::t_c0a1e96ff1b4b3 664-678
+  s_21a608cf6ff9c5::t_10c5e49c4a3770 703-715
+  s_21a608cf6ff9c5::t_656ee7f1aa6424 639-651
+  s_21a608cf6ff9c5::t_7693053b941251 1017,1025-1028,1037-1040
+src/features/sync-conflicts/conflict-page.tsx
+  s_21a608cf6ff9c5::t_ee67de74bbf86e 191-195
+  s_21a608cf6ff9c5::t_4f5612dd473a1d 67
+.gitignore
+  s_21a608cf6ff9c5::t_fb7845118e797f 46
+convex/account/selfDestruct.ts
+  s_21a608cf6ff9c5::t_b8f5e4e8e16b42 605-634
+  s_21a608cf6ff9c5::t_4c1d3b186f76a1 705-716
+  s_21a608cf6ff9c5::t_f05f09106d5f72 402-415
+convex/_seed/costOptTest.ts
+  s_21a608cf6ff9c5::t_b21edbab39c006 434-492
+  s_21a608cf6ff9c5::t_69c6464d3870f5 1-15,27-252,254,257-258,260-339,341-348,350-373,425-433
+  s_21a608cf6ff9c5::t_e2b9f5b62dfb4e 253,255-256,259
+  s_21a608cf6ff9c5::t_0bf5902c624b76 493-748,756-776,780-782
+  s_21a608cf6ff9c5::t_3eef24025cc822 340,349
+  s_21a608cf6ff9c5::t_6b7b08a4f67d43 749-755,777-779
+  s_21a608cf6ff9c5::t_1ce7a6c6b5cad1 374-424
+  s_21a608cf6ff9c5::t_386f3820fc33d0 17,19-20,22
+  s_21a608cf6ff9c5::t_2cd2769a4720f0 16,18,21,23-26
+src/features/editor/hooks/use-autosave.ts
+  s_21a608cf6ff9c5::t_e5a56380607c93 7-11,39-51,86-95,99-105,123-126,130-148,156,159-165,171,177,179,191,199-200,205-206,215-230,233,253-257,264-267
+  s_21a608cf6ff9c5::t_6e9dcaf37b9d69 258-263
+convex/cms/_lib/purgeDocumentArtifacts.ts
+  s_21a608cf6ff9c5::t_2ef71b3b8f0a57 1-39,48,50-244
+  s_21a608cf6ff9c5::t_8b2fc8d57aec98 40-47,49
+convex/cms/conflicts.ts
+  s_21a608cf6ff9c5::t_6c57a73bbeff5a 56-58,60
+  s_21a608cf6ff9c5::t_f31790c4b2f04d 260-266,269-276,278-279,281-282,291-294,300-305
+  s_21a608cf6ff9c5::t_c0bf7cc2cb169d 334-340
+  s_21a608cf6ff9c5::t_eb880b7eac2509 367-374,376-377,389-392,398-404
+  s_21a608cf6ff9c5::t_572c78c0202f96 164-166,168
+  s_21a608cf6ff9c5::t_1cc9a07a220cd9 277
+  s_21a608cf6ff9c5::t_edb191f1f077a3 375
+convex/cms/documents.ts
+  s_21a608cf6ff9c5::t_5f838b92ae10d5 984-989,991-992,994,996
+  s_21a608cf6ff9c5::t_870e8628343614 1431
+  s_21a608cf6ff9c5::t_1c6b7b5b795781 1997,2004-2007,2029,2036-2039,2064,2070-2071
+  s_21a608cf6ff9c5::t_8c74a75ec7b7ed 616
+  s_21a608cf6ff9c5::t_1c702fc1f7d1d4 937,943-944
+  s_21a608cf6ff9c5::t_b68b17da165134 478-480,483-487,513-518,525-527,530
+  s_21a608cf6ff9c5::t_e2f6acf821e42e 591-592,595-599,605-610
+  s_21a608cf6ff9c5::t_9296072f7bac91 861,867-868
+  s_21a608cf6ff9c5::t_a4ebfe16636c8b 1416-1426,1430,1433-1444
+  s_21a608cf6ff9c5::t_49e2992e76ed62 1088,1095-1104
+  s_21a608cf6ff9c5::t_08eca35a6fbfc6 1093
+  s_21a608cf6ff9c5::t_72c923c8e75925 1302-1308,1311-1341,1346-1349,1370-1380
+  s_21a608cf6ff9c5::t_217aa5d53e5d09 2002,2034
+  s_21a608cf6ff9c5::t_e29c90bb4295e0 2167,2174-2175,2180
+  s_21a608cf6ff9c5::t_b3c17cc4a2eb19 673,679-681
+  s_21a608cf6ff9c5::t_c4c90e63f8711c 523
+  s_21a608cf6ff9c5::t_4a484624b6594e 2172
+  s_21a608cf6ff9c5::t_eb4846cee02c9a 531
+src/app/(app)/admin/seed/page.tsx
+  s_21a608cf6ff9c5::t_d5f461114d2ad0 3,12-19
+convex/_lib/contentHash.ts
+  s_21a608cf6ff9c5::t_b2291df1341b41 1-21
+convex/cms/snapshots.ts
+  s_21a608cf6ff9c5::t_8cc6b8c0053204 246-248
+  s_21a608cf6ff9c5::t_931c9fa4508037 9-14,21,52-70,86,90-96,98,103,105-111,150-151,182-193,227-228,230,241-245,249-250,253-254,256
+src/app/(app)/admin/seed/_components/cost-opt-test-bench.tsx
+  s_21a608cf6ff9c5::t_a514cf5dc963e1 5,146
+  s_21a608cf6ff9c5::t_9ac0f382f787d7 40-45,51-52,58
+  s_21a608cf6ff9c5::t_08d47651911b36 87,95-113,121-129
+  s_21a608cf6ff9c5::t_0df3a3af523165 166-168,202-203,238-239,244-245
+  s_21a608cf6ff9c5::t_b753a0303c0d12 288-298,308-345
+  s_21a608cf6ff9c5::t_6b7b08a4f67d43 299-307
+  s_21a608cf6ff9c5::t_89767524e5cece 1-4,6-39,46-50,53-57,59-86,88-94,114-120,130-145,147-165,169-201,204-237,240-243,246-287,346-348
+convex/migrations/costOptimization.ts
+  s_21a608cf6ff9c5::t_e71fc1222def87 1-121,123-226,228-319,321-447,452-454,456-485,487-594,596-840,842-877
+  s_21a608cf6ff9c5::t_ff50322bc585da 448-451,455
+  s_21a608cf6ff9c5::t_5c80810999b05e 122,227,320,486,595,841
+convex/migrations/aiModels.ts
+  s_21a608cf6ff9c5::t_5c80810999b05e 24
+convex/_generated/api.d.ts
+  s_21a608cf6ff9c5::t_6d2bdcae4046b8 15,25,39-40,70,97,107,121-122,152
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e4cb56d521eadea13b3c5a5bbc90bfd57bb82bf5",
+  "prompts": {},
+  "sessions": {
+    "s_21a608cf6ff9c5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f0ba3863-e894-4c2a-beba-b95f0517e105",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
