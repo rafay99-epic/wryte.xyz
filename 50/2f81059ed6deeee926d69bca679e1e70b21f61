@@ -1,0 +1,54 @@
+convex/cms/documents.ts
+  s_21a608cf6ff9c5::t_5a44eb75b63cbd 1405,1410-1416
+  s_21a608cf6ff9c5::t_9454669d18a3ad 104,107-111
+convex/schema.ts
+  s_21a608cf6ff9c5::t_e7219cf5514d3f 787-788
+  s_21a608cf6ff9c5::t_da4e81cf1deeec 228,236-237
+  s_21a608cf6ff9c5::t_ccfbb68ec0b761 422
+  s_21a608cf6ff9c5::t_03fbb6fc340552 294-296
+  s_21a608cf6ff9c5::t_18d3dcdba2e937 363-364
+convex/cms/_lib/documentContent.ts
+  s_21a608cf6ff9c5::t_f17b979801d69c 69-70
+  s_21a608cf6ff9c5::t_704daad3b868f7 29-30,48,52-53,64
+  s_21a608cf6ff9c5::t_f32a4423ce47ed 76-78
+src/app/(app)/admin/seed/page.tsx
+  s_21a608cf6ff9c5::t_76041defef4763 11
+convex/cms/_lib/draftContent.ts
+  s_21a608cf6ff9c5::t_614a11a92a6ddc 36,51
+  s_21a608cf6ff9c5::t_142497a10fed9d 61-63
+convex/cms/snapshots.ts
+  s_21a608cf6ff9c5::t_2da86b2e5dee6e 13
+  s_21a608cf6ff9c5::t_6d1e2f0f8abbce 51-52,63
+  s_21a608cf6ff9c5::t_bcd7d5de30d12f 180-184
+convex/analytics/writingStats.ts
+  s_21a608cf6ff9c5::t_54cf7704c7f5f5 15
+  s_21a608cf6ff9c5::t_1030b8eb41fd35 657
+  s_21a608cf6ff9c5::t_480b9e4f11aefc 708
+  s_21a608cf6ff9c5::t_34d0bf618c4ebe 616-618
+convex/cms/documentDrafts.ts
+  s_21a608cf6ff9c5::t_42bc496df2bd17 92
+  s_21a608cf6ff9c5::t_dfa5da2986e723 76
+  s_21a608cf6ff9c5::t_cb91d9d2d84e15 297-299
+  s_21a608cf6ff9c5::t_cb2ffcb4b2dff4 45-46
+  s_21a608cf6ff9c5::t_d0a8d464a91701 347
+convex/ai/enhance.ts
+  s_21a608cf6ff9c5::t_b9b8d8550a2ae8 382,394-395
+src/app/(app)/admin/migrations/_components/migration-runner.tsx
+  s_21a608cf6ff9c5::t_610456670dd2ab 31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "502f81059ed6deeee926d69bca679e1e70b21f61",
+  "prompts": {},
+  "sessions": {
+    "s_21a608cf6ff9c5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f0ba3863-e894-4c2a-beba-b95f0517e105",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
