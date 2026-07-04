@@ -6,12 +6,6 @@
  * hot reactive queries that list/board/calendar documents never read
  * article bodies — that read amplification was the dominant source of
  * Convex database-bandwidth usage.
- *
- * During the migration window some rows still carry the legacy inline
- * `documents.content`; every read here falls back to it so nothing breaks
- * before `_backfillDocumentContent` has drained those rows. Once the
- * backfill is confirmed complete the inline field (and the fallback) can
- * be removed.
  */
 import type { Id } from "../../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../../_generated/server";
@@ -32,14 +26,13 @@ export function buildExcerpt(content: string): string {
 /**
  * Reads a document's body given the document row. Uses the denormalized
  * `contentId` pointer when present (direct `get`, no index lookup), else
- * the `by_documentId` index; falls back to the legacy inline field for
- * rows not yet backfilled. Returns "" when neither exists.
+ * the `by_documentId` index. Returns "" when no content row exists (e.g.
+ * a freshly created document that hasn't been saved yet).
  */
 export async function readContent(
   ctx: { db: QueryCtx["db"] },
   doc: {
     _id: Id<"documents">;
-    content?: string;
     contentId?: Id<"document_content">;
   },
 ): Promise<string> {
@@ -52,13 +45,12 @@ export async function readContent(
     .withIndex("by_documentId", (q) => q.eq("documentId", doc._id))
     .unique();
   if (row) return row.content;
-  return doc.content ?? "";
+  return "";
 }
 
 /**
- * Reads a document's body by id. Loads the parent row only when needed
- * for the legacy fallback, so the common (backfilled) path is a single
- * indexed read of `document_content`.
+ * Reads a document's body by id via the `by_documentId` index. Returns ""
+ * when no content row exists (e.g. a document that hasn't been saved yet).
  */
 export async function readContentById(
   ctx: { db: QueryCtx["db"] },
@@ -69,21 +61,21 @@ export async function readContentById(
     .withIndex("by_documentId", (q) => q.eq("documentId", documentId))
     .unique();
   if (row) return row.content;
-  const doc = await ctx.db.get(documentId);
-  return doc?.content ?? "";
+  return "";
 }
 
 /**
  * Upserts a document's body into `document_content`. Callers are
- * responsible for clearing the legacy inline `documents.content` field
- * (cheapest done in the same `patch` they already issue) and for keeping
- * `documents.excerpt` / `documents.wordCount` in sync via `buildExcerpt`.
+ * responsible for keeping `documents.excerpt` / `documents.wordCount`
+ * in sync via `buildExcerpt`.
  *
  * Pass `contentId` (the caller usually already holds the `documents` row,
  * which carries the denormalized pointer) to patch the body row directly.
  * Without it, the upsert must first READ the existing row via the index —
  * and Convex bills that read at the full body size, doubling the cost of
- * every autosave tick. The fallback exists only for pre-migration rows.
+ * every autosave tick. The index-upsert fallback is still needed at
+ * document creation, before the pointer exists (the caller then persists
+ * the returned id onto `documents.contentId`).
  *
  * Returns the content row id so callers creating a document (or hitting
  * the fallback) can persist the pointer onto `documents.contentId`.

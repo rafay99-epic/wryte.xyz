@@ -101,21 +101,14 @@ export const list = query({
     // The body lives in `document_content` now, so this hot reactive
     // subscription never reads an article body — `wordCount` and `excerpt`
     // are denormalized on the document row and maintained on every content
-    // write. Legacy rows not yet drained by `_backfillDocumentContent`
-    // still carry inline `content`; fall back to deriving from it so the
-    // cards render correctly during the backfill window.
+    // write.
     return documents
       .sort((a, b) => b.updatedAt - a.updatedAt)
-      .map((d) => {
-        const { content, ...rest } = d;
-        return {
-          ...rest,
-          wordCount:
-            d.wordCount ??
-            (content ? content.split(/\s+/).filter(Boolean).length : 0),
-          excerpt: d.excerpt ?? (content ? buildExcerpt(content) : ""),
-        };
-      });
+      .map((d) => ({
+        ...d,
+        wordCount: d.wordCount ?? 0,
+        excerpt: d.excerpt ?? "",
+      }));
   },
 });
 
@@ -506,9 +499,6 @@ export const update = mutation({
       const newWordCount = countWords(content);
       fieldsToUpdate["wordCount"] = newWordCount;
       fieldsToUpdate["excerpt"] = buildExcerpt(content);
-      // Drop any legacy inline body so this row stops contributing to the
-      // hot list query's read cost even before the global backfill runs.
-      fieldsToUpdate["content"] = undefined;
       wordCountDelta = newWordCount - (document.wordCount ?? 0);
       // Pass the denormalized pointer so `writeContent` patches the body
       // row directly instead of re-reading it first. This `update` path
@@ -1094,7 +1084,6 @@ export const internalUpdate = internalMutation({
     });
     const patch: Record<string, unknown> = {
       excerpt: buildExcerpt(args.content),
-      content: undefined,
       updatedAt: Date.now(),
     };
     // Fold the pointer into this row's existing patch when it wasn't set yet.
@@ -1413,15 +1402,18 @@ export const rollbackToVersion = mutation({
       );
     }
 
-    // Body + frontmatter live in `publish_history_content` for post-migration
-    // rows; fall back to the legacy inline snapshots for pre-migration rows.
+    // Body + frontmatter live in `publish_history_content`.
     const contentRow = await ctx.db
       .query("publish_history_content")
       .withIndex("by_publishId", (q) => q.eq("publishId", args.historyId))
       .unique();
-    const content = contentRow?.content ?? historyEntry.contentSnapshot ?? "";
-    const frontmatter =
-      contentRow?.frontmatter ?? historyEntry.frontmatterSnapshot;
+    if (!contentRow) {
+      throw new Error(
+        "Publish snapshot content is missing; cannot roll back to this version.",
+      );
+    }
+    const content = contentRow.content;
+    const frontmatter = contentRow.frontmatter;
 
     const newContentId = await writeContent(ctx, {
       documentId: args.documentId,
@@ -1434,7 +1426,6 @@ export const rollbackToVersion = mutation({
       title: historyEntry.titleSnapshot,
       excerpt: buildExcerpt(content),
       wordCount: countWords(content),
-      content: undefined,
       frontmatter,
       updatedAt: Date.now(),
     };
@@ -1985,7 +1976,6 @@ export const _upsertImportedDocument = internalMutation({
         title: args.title,
         slug: args.slug,
         excerpt: buildExcerpt(args.content),
-        content: undefined,
         wordCount: newWc,
         githubSha: args.githubSha,
         githubSyncedAt: args.githubSyncedAt,
@@ -2017,7 +2007,6 @@ export const _upsertImportedDocument = internalMutation({
       const oldWc = existing.wordCount ?? 0;
       const patch: Record<string, unknown> = {
         excerpt: buildExcerpt(args.content),
-        content: undefined,
         wordCount: newWc,
         githubSha: args.githubSha,
         githubSyncedAt: args.githubSyncedAt,
@@ -2128,61 +2117,6 @@ export const _backfillGithubSyncedAt = internalMutation({
     }
     return {
       patched,
-      scanned: result.page.length,
-      isDone: result.isDone,
-      cursor: result.continueCursor,
-    };
-  },
-});
-
-/**
- * Smaller page size for the content migration than the metadata backfills:
- * each migrated row reads AND rewrites a full body (up to MAX_CONTENT_BYTES),
- * so we keep the per-transaction byte budget comfortably bounded even if a
- * page is full of large documents.
- */
-const CONTENT_MIGRATION_BATCH_SIZE = 25;
-
-/**
- * One resumable chunk of the body migration: moves up to
- * `CONTENT_MIGRATION_BATCH_SIZE` documents' inline `content` into the
- * `document_content` table, stamps `excerpt` + `wordCount`, and clears the
- * legacy inline field. Returns the continuation cursor instead of
- * self-scheduling so the admin action (`migrations/contentBackfill`) can
- * drive the loop and report an accurate final count to the UI. Idempotent —
- * rows whose `content` is already absent are skipped, so re-running from the
- * start is safe.
- */
-export const _backfillDocumentContent = internalMutation({
-  args: { cursor: v.optional(v.union(v.string(), v.null())) },
-  handler: async (ctx, args) => {
-    const result = await ctx.db.query("documents").paginate({
-      numItems: CONTENT_MIGRATION_BATCH_SIZE,
-      cursor: args.cursor ?? null,
-    });
-    let migrated = 0;
-    for (const doc of result.page) {
-      if (doc.content === undefined) continue;
-      const content = doc.content;
-      const contentId = await writeContent(ctx, {
-        documentId: doc._id,
-        projectId: doc.projectId,
-        userId: doc.userId,
-        content,
-        ...(doc.contentId ? { contentId: doc.contentId } : {}),
-      });
-      // Stamp the pointer in the same patch that clears the inline body, so
-      // this drain also backfills `documents.contentId` for the hot path.
-      await ctx.db.patch(doc._id, {
-        excerpt: buildExcerpt(content),
-        wordCount: doc.wordCount ?? countWords(content),
-        content: undefined,
-        ...(doc.contentId === undefined ? { contentId } : {}),
-      });
-      migrated += 1;
-    }
-    return {
-      migrated,
       scanned: result.page.length,
       isDone: result.isDone,
       cursor: result.continueCursor,

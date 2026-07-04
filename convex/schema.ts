@@ -223,21 +223,9 @@ export default defineSchema({
     title: v.string(),
     slug: v.string(),
     /**
-     * @deprecated The document body now lives in its own `document_content`
-     * table (1:1, keyed by documentId) so the hot reactive list/board/get
-     * subscriptions never have to read every article body — that read
-     * amplification was burning database bandwidth. Kept optional only so
-     * pre-migration rows stay readable (via the `documentContent` helper's
-     * fallback) until `_backfillDocumentContent` drains them; new writes
-     * never populate this field. Remove once the backfill is confirmed
-     * complete on every deployment.
-     */
-    content: v.optional(v.string()),
-    /**
      * Denormalized first ~200 chars of the body, maintained on every
      * content write. Lets the board/list cards show a preview without
-     * loading `document_content`. Absent on un-backfilled rows — callers
-     * fall back to deriving it from the legacy inline `content`.
+     * loading `document_content`. Set at document creation.
      */
     excerpt: v.optional(v.string()),
     /**
@@ -245,9 +233,8 @@ export default defineSchema({
      * autosave hot path patch the body without first re-reading the full
      * content row via the `by_documentId` index (Convex bills every read
      * at full row size, so that lookup doubled the per-tick bill from N
-     * to 2N). Optional: backfilled by the cost-optimization migration and
-     * set at creation for new documents; absent rows fall back to the
-     * index lookup in `documentContent.writeContent`.
+     * to 2N). Optional: set post-insert at document creation; a missing
+     * pointer falls back to the index lookup in `documentContent.writeContent`.
      */
     contentId: v.optional(v.id("document_content")),
     wordCount: v.optional(v.number()),
@@ -304,10 +291,9 @@ export default defineSchema({
    * the project; isolating the body here removes that read amplification.
    *
    * Reads/writes go through `convex/cms/_lib/documentContent.ts` so the
-   * fallback-to-legacy-inline-content behaviour stays in one place during
-   * the backfill window. `by_projectId` / `by_userId` exist purely so the
-   * project-delete and account-self-destruct cascades can drain rows
-   * without walking the parent `documents`.
+   * body access stays in one place. `by_projectId` / `by_userId` exist
+   * purely so the project-delete and account-self-destruct cascades can
+   * drain rows without walking the parent `documents`.
    */
   document_content: defineTable({
     documentId: v.id("documents"),
@@ -332,12 +318,6 @@ export default defineSchema({
     commitUrl: v.optional(v.string()),
     githubPath: v.string(),
     commitMessage: v.string(),
-    /**
-     * @deprecated Publish bodies now live in `publish_history_content` so
-     * `getPublishHistory` (History panel list) never reads up to 100 full
-     * bodies per open. Optional for pre-migration rows only.
-     */
-    contentSnapshot: v.optional(v.string()),
     frontmatterSnapshot: v.optional(v.string()),
     titleSnapshot: v.string(),
     isUpdate: v.boolean(),
@@ -378,21 +358,10 @@ export default defineSchema({
     projectId: v.id("projects"),
     userId: v.id("users"),
     label: v.string(),
-    /**
-     * @deprecated Draft bodies now live in `document_draft_content` (1:1,
-     * keyed by draftId) so the always-mounted draft tab bar's `list`
-     * subscription never reads (and re-bills) every draft's full body on
-     * each autosave tick — the same read-amplification fix `documents`
-     * got via `document_content`. Kept optional only for pre-migration
-     * rows; new writes never populate it.
-     */
-    contentSnapshot: v.optional(v.string()),
     frontmatterSnapshot: v.optional(v.string()),
-    /** @deprecated Title lives on `document_draft_content` now. */
-    titleSnapshot: v.optional(v.string()),
     /** Direct pointer to the draft's content row — lets the draft autosave
-     *  hot path patch the body without an index read. Absent on
-     *  pre-migration rows (fallback: `by_draftId` lookup). */
+     *  hot path patch the body without an index read. Set post-insert at
+     *  draft creation (fallback: `by_draftId` lookup). */
     contentId: v.optional(v.id("document_draft_content")),
     summary: v.optional(v.string()),
     wordCount: v.number(),
@@ -448,16 +417,9 @@ export default defineSchema({
     ),
     title: v.string(),
     /**
-     * @deprecated Snapshot bodies now live in `document_snapshot_content`
-     * so the history panel's metadata list and the on-insert prune scan
-     * never read full bodies. Optional for pre-migration rows only.
-     */
-    content: v.optional(v.string()),
-    /**
      * Cheap dedup fingerprint (FNV-1a hex of the body). Lets `create`
      * skip a write when content matches the latest snapshot without
-     * reading that snapshot's full body. Absent on pre-migration rows —
-     * dedup then falls back to comparing the joined content row.
+     * reading that snapshot's full body.
      */
     contentHash: v.optional(v.string()),
     wordCount: v.number(),
@@ -822,8 +784,8 @@ export default defineSchema({
    * Convex doc after the conflict is raised.
    *
    * Resolution mutations in `convex/cms/conflicts.ts` patch
-   * `documents.{content,frontmatter,githubSha,githubSyncedAt}` and mark
-   * the row resolved. Resolved rows are kept for audit, hidden by the
+   * `documents.{frontmatter,githubSha,githubSyncedAt}` (the body via the
+   * `document_content` side table) and mark the row resolved. Resolved rows are kept for audit, hidden by the
    * `by_projectId_unresolved` index used by the banner / list queries.
    */
   sync_conflicts: defineTable({

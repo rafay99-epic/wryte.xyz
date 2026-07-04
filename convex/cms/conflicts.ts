@@ -280,7 +280,6 @@ export const resolveUseGithub = mutation({
     const patch: Record<string, unknown> = {
       excerpt: buildExcerpt(remoteContent),
       wordCount: countWords(remoteContent),
-      content: undefined,
       githubSha: conflict.remoteSha,
       githubSyncedAt: now,
       updatedAt: now,
@@ -378,7 +377,6 @@ export const resolveMerge = mutation({
     const patch: Record<string, unknown> = {
       excerpt: buildExcerpt(args.mergedContent),
       wordCount: countWords(args.mergedContent),
-      content: undefined,
       githubSha: conflict.remoteSha,
       githubSyncedAt: now,
       updatedAt: now,

@@ -379,7 +379,7 @@ export const createFinalDraftStream = mutation({
     );
 
     // Draft bodies live in `document_draft_content` (split off the metadata
-    // row for bandwidth); legacy pre-migration rows still carry them inline.
+    // row for bandwidth).
     const drafts = await Promise.all(
       draftRows.map(async (draft) => {
         const contentRow = draft.contentId
@@ -391,8 +391,8 @@ export const createFinalDraftStream = mutation({
         return {
           label: draft.label,
           summary: draft.summary,
-          title: contentRow?.title ?? draft.titleSnapshot ?? "",
-          content: contentRow?.content ?? draft.contentSnapshot ?? "",
+          title: contentRow?.title ?? "",
+          content: contentRow?.content ?? "",
         };
       }),
     );

@@ -12,6 +12,7 @@ import {
 import { statusToField } from "../_lib/projectStats";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
 import { countWords } from "../_lib/wordCount";
+import { readContentById } from "../cms/_lib/documentContent";
 
 /* ------------------------------------------------------------------ */
 /*  Queries                                                            */
@@ -612,11 +613,9 @@ export const _backfillWordCounts = internalMutation({
     let patched = 0;
     for (const doc of result.page) {
       if (doc.wordCount === undefined) {
-        // Body moved to `document_content`; legacy inline rows may still
-        // carry it during the backfill window. `?? ""` keeps this safe
-        // once a row's inline content is gone (its wordCount is set by the
-        // content backfill before that happens).
-        const wc = countWords(doc.content ?? "");
+        // Body lives in `document_content`; read it back to compute the
+        // count for any legacy row still missing a denormalized wordCount.
+        const wc = countWords(await readContentById(ctx, doc._id));
         await ctx.db.patch(doc._id, { wordCount: wc });
         patched++;
       }
@@ -655,7 +654,7 @@ export const _backfillProjectStats = internalMutation({
       };
 
       for (const doc of active) {
-        totalWords += doc.wordCount ?? countWords(doc.content ?? "");
+        totalWords += doc.wordCount ?? 0;
         const field = statusToField(doc.status);
         if (field) counts[field] += 1;
       }
@@ -706,7 +705,7 @@ export const _backfillWritingStats = internalMutation({
       const dailyMap = new Map<string, number>();
 
       for (const doc of active) {
-        const wc = doc.wordCount ?? countWords(doc.content ?? "");
+        const wc = doc.wordCount ?? 0;
         totalWords += wc;
         if (doc.status === "published") totalPublished++;
 

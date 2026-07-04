@@ -42,8 +42,8 @@ function wordCount(content: string): number {
  * `document_draft_content` and are fetched on demand (`getContent`) when a
  * draft is opened — so this hot subscription never reads (or re-bills)
  * every draft's body on each autosave tick. Explicit projection keeps the
- * legacy inline `contentSnapshot` / `frontmatterSnapshot` off the wire and
- * the client type clean (mirrors `snapshots.list`).
+ * metadata payload small and the client type clean (mirrors
+ * `snapshots.list`).
  */
 export const list = query({
   args: { documentId: v.id("documents") },
@@ -73,7 +73,7 @@ export const list = query({
 
 /**
  * Full draft (metadata joined with its title + body). Fetched on demand;
- * resolves the body from the content row with a legacy fallback.
+ * resolves the body from the content row.
  */
 export const get = query({
   args: { draftId: v.id("document_drafts") },
@@ -89,8 +89,7 @@ export const get = query({
 
 /**
  * On-demand title + body for a single draft. Read when the editor switches
- * to a draft tab (not a live subscription). Resolves from the content row,
- * falling back to the legacy inline snapshot fields.
+ * to a draft tab (not a live subscription). Resolves from the content row.
  */
 export const getContent = query({
   args: { draftId: v.id("document_drafts") },
@@ -295,10 +294,9 @@ export const autosaveContent = mutation({
 /**
  * Flush-path draft save (manual save, tab switch, unmount). Writes the
  * content row AND refreshes the metadata row's derived fields (wordCount,
- * updatedAt) — plus persists `contentId` and strips any legacy inline
- * snapshot fields on rows that predate the split. Kept named `updateContent`
- * for API stability. Args stay optional; the sole client sends both, so the
- * fallback read never fires in practice.
+ * updatedAt) — plus persists `contentId` when it was missing. Kept named
+ * `updateContent` for API stability. Args stay optional; the sole client
+ * sends both, so the fallback read never fires in practice.
  */
 export const updateContent = mutation({
   args: {
@@ -346,13 +344,10 @@ export const updateContent = mutation({
       ...(draft.contentId ? { contentId: draft.contentId } : {}),
     });
 
-    // Refresh metadata; drop legacy inline body so backfilled rows stop
-    // carrying it, and persist the pointer if it was missing.
+    // Refresh metadata; persist the pointer if it was missing.
     await ctx.db.patch(draft._id, {
       wordCount: wordCount(content),
       updatedAt: Date.now(),
-      contentSnapshot: undefined,
-      titleSnapshot: undefined,
       ...(draft.contentId === undefined ? { contentId } : {}),
     });
   },
@@ -384,7 +379,6 @@ export const promoteToMain = mutation({
       title,
       excerpt: buildExcerpt(content),
       wordCount: wordCount(content),
-      content: undefined,
       frontmatter: draft.frontmatterSnapshot,
       updatedAt: Date.now(),
     });

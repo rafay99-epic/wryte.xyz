@@ -9,12 +9,6 @@
  *
  * `title` rides on the content row (not the metadata row) so title edits
  * travel the hot path without invalidating the tab-bar list subscription.
- *
- * During the migration window some rows still carry the legacy inline
- * `document_drafts.contentSnapshot` / `titleSnapshot`; every read here
- * falls back to them so nothing breaks before the backfill drains those
- * rows. Once the backfill is confirmed complete the inline fields (and the
- * fallback) can be removed.
  */
 import type { Id } from "../../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../../_generated/server";
@@ -34,15 +28,12 @@ export type DraftContent = { title: string; content: string };
 type DraftLike = {
   _id: Id<"document_drafts">;
   contentId?: Id<"document_draft_content">;
-  titleSnapshot?: string;
-  contentSnapshot?: string;
 };
 
 /**
  * Reads a draft's title + body given the draft row. Prefers the
  * denormalized `contentId` pointer (direct `get`, no index lookup), else
- * the `by_draftId` index; falls back to the legacy inline snapshot fields
- * for rows not yet backfilled. Returns empty strings when nothing exists.
+ * the `by_draftId` index. Returns empty strings when no content row exists.
  */
 export async function readDraftContent(
   ctx: { db: QueryCtx["db"] },
@@ -57,10 +48,7 @@ export async function readDraftContent(
     .withIndex("by_draftId", (q) => q.eq("draftId", draft._id))
     .unique();
   if (row) return { title: row.title, content: row.content };
-  return {
-    title: draft.titleSnapshot ?? "",
-    content: draft.contentSnapshot ?? "",
-  };
+  return { title: "", content: "" };
 }
 
 /**
@@ -70,8 +58,9 @@ export async function readDraftContent(
  * row, which carries the denormalized pointer) to `replace` the row
  * directly — we hold every field, so the hot path is a single N-byte write
  * with no read-before-write. Without it the upsert must first READ the
- * existing row via the index; Convex bills that read at full body size, so
- * this fallback exists only for pre-migration rows.
+ * existing row via the index; Convex bills that read at full body size. The
+ * index-upsert fallback is still needed at draft creation, before the
+ * pointer exists.
  *
  * Returns the content row id so callers creating a draft (or hitting the
  * fallback) can persist the pointer onto `document_drafts.contentId`.

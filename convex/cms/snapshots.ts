@@ -10,8 +10,7 @@
  * Bodies live in `document_snapshot_content` (1:1, keyed by snapshotId) so
  * the metadata row stays tiny — the history panel's `list` query and the
  * on-insert prune scan never read full bodies, only `contentHash` for
- * dedup. Pre-migration rows may still carry the legacy inline `content`
- * field on the metadata row; every read here falls back to it.
+ * dedup.
  */
 import { v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
@@ -49,8 +48,8 @@ async function verifyDocumentOwnership(
 }
 
 /**
- * Resolves a snapshot's body: the split content row when present, else the
- * legacy inline field (pre-migration rows only).
+ * Resolves a snapshot's body from the split content row. Returns "" when
+ * no content row exists.
  */
 async function readSnapshotContent(
   ctx: { db: DatabaseReader },
@@ -61,7 +60,7 @@ async function readSnapshotContent(
     .withIndex("by_snapshotId", (q) => q.eq("snapshotId", snapshot._id))
     .unique();
   if (row) return row.content;
-  return snapshot.content ?? "";
+  return "";
 }
 
 /**
@@ -106,8 +105,6 @@ async function insertSnapshot(
       .query("document_snapshot_content")
       .withIndex("by_snapshotId", (q) => q.eq("snapshotId", row._id))
       .unique();
-    // Legacy rows have no content row (their body lived inline and dies
-    // with the metadata row below).
     if (contentRow) await ctx.db.delete(contentRow._id);
     await ctx.db.delete(row._id);
   }
@@ -180,16 +177,11 @@ export const create = mutation({
       .order("desc")
       .take(1);
     const latestSnapshot = latest[0];
-    if (latestSnapshot) {
-      if (latestSnapshot.contentHash !== undefined) {
-        if (latestSnapshot.contentHash === contentHash(args.content)) {
-          return null;
-        }
-      } else {
-        // Pre-hash row — fall back to reading its body for the comparison.
-        const latestContent = await readSnapshotContent(ctx, latestSnapshot);
-        if (latestContent === args.content) return null;
-      }
+    if (
+      latestSnapshot &&
+      latestSnapshot.contentHash === contentHash(args.content)
+    ) {
+      return null;
     }
 
     return await insertSnapshot(
@@ -252,7 +244,6 @@ export const restore = mutation({
       title: snapshot.title,
       excerpt: buildExcerpt(snapshotContent),
       wordCount: countWords(snapshotContent),
-      content: undefined,
       contentId: document.contentId ?? contentId,
       updatedAt: Date.now(),
     });
