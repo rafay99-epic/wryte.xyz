@@ -16,6 +16,7 @@ import {
   Sparkles,
   Table,
   Video,
+  Workflow,
 } from "lucide-react";
 import type { Snippet } from "@/types/snippets";
 
@@ -134,6 +135,24 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     icon: Braces,
     kind: "block",
     insert: "```\n\n```\n",
+  },
+  {
+    id: "mermaid",
+    label: "Diagram",
+    hint: "Mermaid",
+    keywords: [
+      "diagram",
+      "mermaid",
+      "flowchart",
+      "graph",
+      "sequence",
+      "chart",
+      "uml",
+      "gantt",
+    ],
+    icon: Workflow,
+    kind: "block",
+    insert: "```mermaid\ngraph TD\n  A[Start] --> B[End]\n```\n",
   },
   {
     id: "divider",

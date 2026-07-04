@@ -7,6 +7,7 @@ import rehypeHighlight from "rehype-highlight";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize, { defaultSchema, type Options } from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
+import { codeComponents } from "@/components/markdown/code-overrides";
 import {
   buildEmbedSanitizeSchema,
   embedComponents,
@@ -75,33 +76,6 @@ const components: Components = {
       {children}
     </a>
   ),
-  pre: ({ children, ...props }) => (
-    <pre
-      className="overflow-x-auto rounded-xl border border-border/50 bg-muted/40 p-5 text-[13px] leading-relaxed dark:bg-muted/30"
-      {...props}
-    >
-      {children}
-    </pre>
-  ),
-  code: ({ children, className, ...props }) => {
-    const isBlock =
-      className?.startsWith("language-") || className?.startsWith("hljs");
-    if (isBlock) {
-      return (
-        <code className={className} {...props}>
-          {children}
-        </code>
-      );
-    }
-    return (
-      <code
-        className="rounded-md bg-muted/60 px-1.5 py-0.5 text-[0.9em] font-mono text-foreground"
-        {...props}
-      >
-        {children}
-      </code>
-    );
-  },
   hr: (props) => (
     <hr className="my-8 border-0 border-t border-border/40" {...props} />
   ),
@@ -159,9 +133,9 @@ export function MarkdownPreview() {
         rehypePlugins={[
           rehypeRaw,
           [rehypeSanitize, sanitizeSchema],
-          rehypeHighlight,
+          [rehypeHighlight, { plainText: ["mermaid"] }],
         ]}
-        components={{ ...components, ...embedComponents }}
+        components={{ ...components, ...codeComponents, ...embedComponents }}
       >
         {content}
       </ReactMarkdown>

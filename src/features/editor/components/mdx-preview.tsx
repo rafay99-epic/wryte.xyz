@@ -23,6 +23,7 @@ import React, {
 import * as runtime from "react/jsx-runtime";
 import rehypeHighlight from "rehype-highlight";
 import remarkGfm from "remark-gfm";
+import { codeComponents } from "@/components/markdown/code-overrides";
 import { embedComponents } from "@/components/markdown/embed-overrides";
 import { useEditorStore } from "@/stores/editor-store";
 import { VideoEmbed } from "./video-embed";
@@ -112,6 +113,12 @@ const baseComponents: Record<string, React.ComponentType<MdxComponentProps>> = {
     string,
     React.ComponentType<MdxComponentProps>
   >),
+  // Shared code/pre overrides (with the ` ```mermaid ` → diagram intercept).
+  // Same loose-prop bridge as the embed overrides above.
+  ...(codeComponents as unknown as Record<
+    string,
+    React.ComponentType<MdxComponentProps>
+  >),
   video: (props: MdxComponentProps) => (
     <VideoEmbed {...(props as React.VideoHTMLAttributes<HTMLVideoElement>)} />
   ),
@@ -136,33 +143,6 @@ const baseComponents: Record<string, React.ComponentType<MdxComponentProps>> = {
       {children}
     </a>
   ),
-  pre: ({ children, ...props }: MdxComponentProps) => (
-    <pre
-      className="overflow-x-auto rounded-xl border border-border/50 bg-muted/40 p-5 text-[13px] leading-relaxed dark:bg-muted/30"
-      {...props}
-    >
-      {children}
-    </pre>
-  ),
-  code: ({ children, className, ...props }: MdxComponentProps) => {
-    const cls = className as string | undefined;
-    const isBlock = cls?.startsWith("language-") || cls?.startsWith("hljs");
-    if (isBlock) {
-      return (
-        <code className={cls} {...props}>
-          {children}
-        </code>
-      );
-    }
-    return (
-      <code
-        className="rounded-md bg-muted/60 px-1.5 py-0.5 text-[0.9em] font-mono text-foreground"
-        {...props}
-      >
-        {children}
-      </code>
-    );
-  },
   hr: (props: MdxComponentProps) => (
     <hr className="my-8 border-0 border-t border-border/40" {...props} />
   ),
@@ -240,7 +220,7 @@ async function compileMdx(
       outputFormat: "function-body",
       providerImportSource: "#",
       remarkPlugins: [remarkGfm],
-      rehypePlugins: [rehypeHighlight],
+      rehypePlugins: [[rehypeHighlight, { plainText: ["mermaid"] }]],
     }),
   );
 
