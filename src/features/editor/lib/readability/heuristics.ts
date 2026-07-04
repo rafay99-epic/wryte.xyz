@@ -33,6 +33,7 @@ const ADVERB_STOPLIST = new Set([
   "assembly",
   "monopoly",
   "panoply",
+  "likely",
 ]);
 
 export function isAdverb(word: string): boolean {
