@@ -1,0 +1,42 @@
+src/features/editor/components/draft-tab-bar.tsx
+  s_21a608cf6ff9c5::t_8571457a9964f1 329-332
+  s_21a608cf6ff9c5::t_485bc477afae82 385-394
+  s_21a608cf6ff9c5::t_1fecc80308479c 202-211
+  s_21a608cf6ff9c5::t_fd84134eadaf2d 28
+  s_21a608cf6ff9c5::t_96f91fdec3ee32 7
+  s_21a608cf6ff9c5::t_5bf4aa6cbd191f 63-66
+src/features/sync-conflicts/conflict-page.tsx
+  s_21a608cf6ff9c5::t_b84d14802e8268 182
+  s_21a608cf6ff9c5::t_ec5fef50fd0222 16
+src/components/diff/markdown-diff-viewer.tsx
+  s_21a608cf6ff9c5::t_4596ecf723300b 88,90
+  s_21a608cf6ff9c5::t_f9bb8e3da0439f 120-123
+  s_21a608cf6ff9c5::t_7c3537abfe7f5b 4
+  s_21a608cf6ff9c5::t_af9494f48d99ca 1-3,5-87,89,91-119,124-128
+playwright.config.ts
+  s_21a608cf6ff9c5::t_560576972e283f 52
+e2e/features/draft-compare.authed.spec.ts
+  s_21a608cf6ff9c5::t_1150ea9014a691 69-70
+  s_21a608cf6ff9c5::t_2e6293e7ea80fa 86-87
+  s_21a608cf6ff9c5::t_221e0e4b376862 1-68,71-85,88-100
+src/features/editor/components/draft-compare-sheet.tsx
+  s_21a608cf6ff9c5::t_1795ce4b74fc1c 1-2,4-233,235-242,244-281
+  s_21a608cf6ff9c5::t_6557bf95e13efa 234,243
+  s_21a608cf6ff9c5::t_d414750103480c 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "cc4403591c8d3037aaed31aa00e513d6ef95348e",
+  "prompts": {},
+  "sessions": {
+    "s_21a608cf6ff9c5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f0ba3863-e894-4c2a-beba-b95f0517e105",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
