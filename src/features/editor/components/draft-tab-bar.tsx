@@ -4,6 +4,7 @@ import { useConvex, useMutation, useQuery } from "convex/react";
 import { motion } from "framer-motion";
 import {
   ArrowUpToLine,
+  GitCompare,
   MoreHorizontal,
   Pencil,
   Plus,
@@ -24,6 +25,7 @@ import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/stores/editor-store";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
+import { DraftCompareSheet } from "./draft-compare-sheet";
 
 type DraftTabBarProps = {
   documentId: string;
@@ -58,6 +60,10 @@ export function DraftTabBar({
 
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  // Draft the compare sheet was opened from (null = sheet closed). Seeds the
+  // sheet's right-hand side; left defaults to Main.
+  const [compareDraftId, setCompareDraftId] =
+    useState<Id<"document_drafts"> | null>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const activeTabRef = useRef<HTMLDivElement>(null);
@@ -193,6 +199,16 @@ export function DraftTabBar({
     [promoteDraft, initDocument, document?.projectId, setActiveDraftId],
   );
 
+  const handleCompare = useCallback(
+    async (draftId: string) => {
+      // Flush pending keystrokes first so the diff reflects the latest edits
+      // (the active tab's content is only persisted on save).
+      await onRequestSave();
+      setCompareDraftId(draftId as Id<"document_drafts">);
+    },
+    [onRequestSave],
+  );
+
   const startRename = useCallback((draftId: string, currentLabel: string) => {
     setRenamingId(draftId);
     setRenameValue(currentLabel);
@@ -310,6 +326,10 @@ export function DraftTabBar({
                   <Pencil className="mr-2 size-3.5" />
                   Rename
                 </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => void handleCompare(draft._id)}>
+                  <GitCompare className="mr-2 size-3.5" />
+                  Compare with Main
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => void handlePromote(draft._id)}>
                   <ArrowUpToLine className="mr-2 size-3.5" />
                   Promote to Main
@@ -362,6 +382,16 @@ export function DraftTabBar({
           </button>
         )}
       </div>
+
+      <DraftCompareSheet
+        open={compareDraftId !== null}
+        onOpenChange={(open) => {
+          if (!open) setCompareDraftId(null);
+        }}
+        documentId={documentId as Id<"documents">}
+        drafts={drafts ?? []}
+        initialDraftId={compareDraftId}
+      />
     </div>
   );
 }
