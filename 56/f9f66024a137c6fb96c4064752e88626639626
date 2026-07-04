@@ -1,0 +1,44 @@
+package.json
+  s_7e046ff4173b0b::t_290367be61c4a2 51
+src/features/editor/components/markdown-preview.tsx
+  s_7e046ff4173b0b::t_a904b04396a952 10
+  s_7e046ff4173b0b::t_1e8b42a4c65e8b 136,138
+src/components/markdown/code-overrides.tsx
+  s_7e046ff4173b0b::t_e4ff1d5f46669b 1-28,32-83
+  s_7e046ff4173b0b::t_6d6c7d0e58d1a7 29-31
+src/components/changelog/changelog-markdown.tsx
+  s_7e046ff4173b0b::t_220ef0a76c01d0 7
+  s_7e046ff4173b0b::t_61fb4fa8708d50 64,66
+src/features/editor/components/mdx-preview.tsx
+  s_7e046ff4173b0b::t_82b86731805e36 26
+  s_7e046ff4173b0b::t_511d3253e1fd14 116-121
+  s_7e046ff4173b0b::t_e21641c5ad5969 223
+src/components/markdown/mermaid-diagram.tsx
+  s_7e046ff4173b0b::t_8f0eef1da6b64c 1-147
+src/components/branding/brand-icon.tsx
+  s_7e046ff4173b0b::t_b7219cd5eb95cf 4
+src/hooks/use-resolved-theme.ts
+  s_7e046ff4173b0b::t_b7a3f931a67630 1-27
+src/features/editor/lib/slash/commands.ts
+  s_7e046ff4173b0b::t_0f7861b733098e 19
+  s_7e046ff4173b0b::t_4c6b449cac7f99 140-156
+  s_7e046ff4173b0b::t_ee80e9f5bc561b 139
+bun.lock
+  s_7e046ff4173b0b::t_1634b573111f8e 37,91-92,175-178,299-302,375-376,531-592,599-600,623-624,635-636,763-764,773-844,847-848,863-864,875-876,909-910,1035-1036,1087-1088,1093-1094,1179-1182,1187-1188,1217-1218,1237-1238,1283-1284,1425-1426,1441-1442,1457-1460,1545-1548,1555-1556,1641,1657-1658,1677-1678,1729-1730,1793-1796,1817-1826,1835-1836,1883-1886
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "56f9f66024a137c6fb96c4064752e88626639626",
+  "prompts": {},
+  "sessions": {
+    "s_7e046ff4173b0b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3267b7a2-6e0c-4748-af91-2f4703e151cf",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
