@@ -1,0 +1,23 @@
+package.json
+  s_21a608cf6ff9c5::t_0394f441d93b90 97,100-101,103-104
+  s_21a608cf6ff9c5::t_4936b05979adee 102
+  s_21a608cf6ff9c5::t_dcc1cf91b955be 48
+bun.lock
+  s_21a608cf6ff9c5::t_588f90e3ef9a6e 34,78,83,86,88,90,99,101,103,105,109,113,119,135,151,153,659,1071,1157,1477,1753,1781-1786,1789-1794,1797-1798,1801-1824,1885,1887,1899-1962,1993-2002
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8d91fe213d8460dcb63440e1866e6cf8a6416163",
+  "prompts": {},
+  "sessions": {
+    "s_21a608cf6ff9c5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f0ba3863-e894-4c2a-beba-b95f0517e105",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
