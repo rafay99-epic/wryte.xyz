@@ -49,7 +49,7 @@ export default defineConfig({
     // 2. Authenticated specs — reuse the signed-in storage state.
     {
       name: "authenticated",
-      testMatch: /smoke\/.*\.authed\.spec\.ts/,
+      testMatch: /(smoke|features)\/.*\.authed\.spec\.ts/,
       dependencies: ["setup"],
       use: {
         ...devices["Desktop Chrome"],

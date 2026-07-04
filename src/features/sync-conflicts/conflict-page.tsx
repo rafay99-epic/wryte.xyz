@@ -9,12 +9,11 @@ import {
   Loader2,
   PencilLine,
 } from "lucide-react";
-import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import type { ReactDiffViewerStylesOverride } from "react-diff-viewer-continued";
 import { toast } from "sonner";
+import { MarkdownDiffViewer } from "@/components/diff/markdown-diff-viewer";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -22,13 +21,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
-
-// react-diff-viewer-continued is ~1.2 MB and only renders on this rarely-hit
-// conflict page — load it lazily so it never ships in the main app bundle.
-const ReactDiffViewer = dynamic(() => import("react-diff-viewer-continued"), {
-  ssr: false,
-  loading: () => <Skeleton className="h-64 w-full rounded-lg" />,
-});
 
 type ViewMode = "diff" | "merge";
 
@@ -187,22 +179,14 @@ export function ConflictPage() {
 
       {viewMode === "diff" ? (
         <div className="flex-1 overflow-auto rounded-lg border border-border/60">
-          <ReactDiffViewer
+          <MarkdownDiffViewer
             // Content is present on every OPEN conflict; it's only
             // stripped (undefined) after resolution, and this page only
             // renders unresolved conflicts. The fallback is type-safety.
             oldValue={conflict.remoteContent ?? ""}
             newValue={conflict.localContentSnapshot ?? ""}
-            splitView
-            // `useDarkTheme` only picks which `variables` block the
-            // library reads; we wire identical CSS-variable references
-            // into both blocks so the choice doesn't matter — the
-            // theme follows `<html class="dark">` automatically.
-            useDarkTheme={false}
             leftTitle="GitHub (remote)"
             rightTitle="Your version"
-            hideLineNumbers={false}
-            styles={DIFF_VIEWER_STYLES}
           />
         </div>
       ) : (
@@ -268,68 +252,6 @@ export function ConflictPage() {
     </div>
   );
 }
-
-/**
- * Diff viewer palette wired to the app's CSS theme tokens. Every value
- * is a `var(--*)` reference, so the diff inherits whichever theme is
- * active on `<html>` and re-themes automatically when the user toggles
- * dark/light — no `useTheme()` re-renders needed. Added/removed
- * highlights use semi-transparent emerald/destructive overlays so
- * they read on both light and dark surfaces without inventing a
- * separate palette.
- *
- * The same overrides are sent to both `variables.light` and
- * `variables.dark` so the library's internal `useDarkTheme` switch
- * doesn't pull in its default white panel for either branch.
- */
-const DIFF_VIEWER_VARS = {
-  // Surfaces — pull straight from app tokens.
-  diffViewerBackground: "var(--card)",
-  diffViewerColor: "var(--card-foreground)",
-  diffViewerTitleBackground: "var(--muted)",
-  diffViewerTitleColor: "var(--foreground)",
-  diffViewerTitleBorderColor: "var(--border)",
-
-  // Gutter (line-number column) — slightly darker than the surface.
-  gutterBackground: "var(--muted)",
-  gutterBackgroundDark: "var(--muted)",
-  gutterColor: "var(--muted-foreground)",
-  emptyLineBackground: "var(--card)",
-  codeFoldGutterBackground: "var(--muted)",
-  codeFoldBackground: "var(--muted)",
-  codeFoldContentColor: "var(--muted-foreground)",
-  highlightBackground: "var(--accent)",
-  highlightGutterBackground: "var(--accent)",
-
-  // Added (right side / new lines) — emerald wash that respects the
-  // current background instead of stamping a hard green panel.
-  addedBackground: "color-mix(in oklab, var(--card) 85%, oklch(0.7 0.16 145))",
-  addedColor: "var(--foreground)",
-  wordAddedBackground:
-    "color-mix(in oklab, var(--card) 60%, oklch(0.7 0.16 145))",
-  addedGutterBackground:
-    "color-mix(in oklab, var(--muted) 80%, oklch(0.7 0.16 145))",
-  addedGutterColor: "var(--foreground)",
-
-  // Removed (left side / old lines) — destructive wash, same trick.
-  removedBackground: "color-mix(in oklab, var(--card) 85%, var(--destructive))",
-  removedColor: "var(--foreground)",
-  wordRemovedBackground:
-    "color-mix(in oklab, var(--card) 60%, var(--destructive))",
-  removedGutterBackground:
-    "color-mix(in oklab, var(--muted) 80%, var(--destructive))",
-  removedGutterColor: "var(--foreground)",
-} as const;
-
-const DIFF_VIEWER_STYLES: ReactDiffViewerStylesOverride = {
-  variables: {
-    dark: DIFF_VIEWER_VARS,
-    light: DIFF_VIEWER_VARS,
-  },
-  contentText: { fontFamily: "var(--font-mono)" },
-  lineNumber: { fontFamily: "var(--font-mono)" },
-  titleBlock: { fontFamily: "var(--font-sans)", fontWeight: 500 },
-};
 
 function ConflictSkeleton() {
   return (
