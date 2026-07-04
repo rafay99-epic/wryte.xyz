@@ -9,6 +9,7 @@ import {
   readContent,
   writeContent,
 } from "./_lib/documentContent";
+import { syncDocumentLinks } from "./_lib/documentLinks";
 import {
   deleteDraftContent,
   MAX_DRAFT_CONTENT_BYTES,
@@ -393,6 +394,10 @@ export const promoteToMain = mutation({
     if (document.contentId === undefined) {
       await ctx.db.patch(draft.documentId, { contentId });
     }
+
+    // Flush path: the promoted draft body becomes the main document, so
+    // recompute its backlink graph from the new content.
+    await syncDocumentLinks(ctx, document, content);
 
     return {
       documentId: draft.documentId,

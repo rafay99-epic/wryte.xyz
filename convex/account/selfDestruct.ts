@@ -637,6 +637,19 @@ export const _wipeChunk = internalMutation({
       }
     }
 
+    /* 7d. document_links — the user's backlink graph. Direct `by_userId`
+     *     index; drained before `documents` so no edge outlives its docs. */
+    if (budget > 0) {
+      const rows = await ctx.db
+        .query("document_links")
+        .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+        .take(budget);
+      for (const row of rows) {
+        await ctx.db.delete(row._id);
+        budget--;
+      }
+    }
+
     /* 8. documents */
     if (budget > 0) {
       const rows = await ctx.db
@@ -704,6 +717,10 @@ async function countRemaining(
       .take(1),
     ctx.db
       .query("publish_history_content")
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
+      .take(1),
+    ctx.db
+      .query("document_links")
       .withIndex("by_userId", (q) => q.eq("userId", userId))
       .take(1),
     ctx.db

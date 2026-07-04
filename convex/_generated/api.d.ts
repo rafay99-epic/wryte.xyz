@@ -35,6 +35,7 @@ import type * as ai_enhanceActions from "../ai/enhanceActions.js";
 import type * as ai_promptTemplates from "../ai/promptTemplates.js";
 import type * as analytics_writingStats from "../analytics/writingStats.js";
 import type * as cms__lib_documentContent from "../cms/_lib/documentContent.js";
+import type * as cms__lib_documentLinks from "../cms/_lib/documentLinks.js";
 import type * as cms__lib_draftContent from "../cms/_lib/draftContent.js";
 import type * as cms__lib_purgeDocumentArtifacts from "../cms/_lib/purgeDocumentArtifacts.js";
 import type * as cms_appVersion from "../cms/appVersion.js";
@@ -111,6 +112,7 @@ declare const fullApi: ApiFromModules<{
   "ai/promptTemplates": typeof ai_promptTemplates;
   "analytics/writingStats": typeof analytics_writingStats;
   "cms/_lib/documentContent": typeof cms__lib_documentContent;
+  "cms/_lib/documentLinks": typeof cms__lib_documentLinks;
   "cms/_lib/draftContent": typeof cms__lib_draftContent;
   "cms/_lib/purgeDocumentArtifacts": typeof cms__lib_purgeDocumentArtifacts;
   "cms/appVersion": typeof cms_appVersion;

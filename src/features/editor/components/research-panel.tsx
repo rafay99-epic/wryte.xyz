@@ -9,6 +9,7 @@ import {
   ChevronDown,
   ExternalLink,
   Lightbulb,
+  Link2,
   Loader2,
   MessageSquareQuote,
   Pencil,
@@ -17,6 +18,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -48,15 +50,31 @@ const TYPE_CONFIG: Record<
   idea: { label: "Idea", icon: Lightbulb },
 };
 
+/** Short, human-friendly labels for a backlink source's lifecycle status. */
+const STATUS_LABELS: Record<string, string> = {
+  draft: "Draft",
+  review: "Review",
+  ready: "Ready",
+  scheduled: "Scheduled",
+  published: "Published",
+};
+
 export function ResearchPanel({
   documentId,
   open,
   onClose,
 }: ResearchPanelProps) {
   const { insertAtCursor } = useEditorContext();
+  const router = useRouter();
   const research = useQuery(api.cms.documentResearch.list, {
     documentId: documentId as Id<"documents">,
   });
+  // "Linked from" — only subscribe while the panel is actually open so a
+  // closed research panel never holds a live backlinks subscription.
+  const backlinks = useQuery(
+    api.cms.documents.getBacklinks,
+    open ? { documentId: documentId as Id<"documents"> } : "skip",
+  );
   const createResearch = useMutation(api.cms.documentResearch.create);
   const updateResearch = useMutation(api.cms.documentResearch.update);
   const toggleResearch = useMutation(
@@ -485,6 +503,43 @@ export function ResearchPanel({
                       </div>
                     );
                   })
+                )}
+              </div>
+
+              <div className="border-t border-border/40 p-3">
+                <div className="mb-2 flex items-center gap-1.5">
+                  <Link2 className="size-3 text-muted-foreground" />
+                  <span className="text-[11px] font-medium text-foreground">
+                    Linked from
+                  </span>
+                </div>
+                {backlinks === undefined ? (
+                  <div className="flex items-center py-2 text-[11px] text-muted-foreground">
+                    <Loader2 className="mr-2 size-3 animate-spin" />
+                    Loading...
+                  </div>
+                ) : backlinks.length === 0 ? (
+                  <p className="py-1 text-[11px] text-muted-foreground">
+                    No documents link here yet.
+                  </p>
+                ) : (
+                  <div className="-mx-1">
+                    {backlinks.map((doc) => (
+                      <button
+                        key={doc._id}
+                        type="button"
+                        onClick={() => router.push(`/editor/${doc._id}`)}
+                        className="flex w-full items-center justify-between gap-2 border-b border-border/30 px-1 py-1.5 text-left last:border-b-0 hover:bg-muted/40"
+                      >
+                        <span className="truncate text-[11px] text-foreground">
+                          {doc.title || "Untitled"}
+                        </span>
+                        <span className="shrink-0 text-[9px] uppercase tracking-wide text-muted-foreground/70">
+                          {STATUS_LABELS[doc.status] ?? doc.status}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
                 )}
               </div>
             </div>

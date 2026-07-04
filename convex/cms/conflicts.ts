@@ -27,6 +27,7 @@ import {
   readContent,
   writeContent,
 } from "./_lib/documentContent";
+import { syncDocumentLinks } from "./_lib/documentLinks";
 
 /**
  * Internal-only writer called by `startBulkImport` during conflict
@@ -293,6 +294,11 @@ export const resolveUseGithub = mutation({
     }
 
     await ctx.db.patch(conflict.documentId, patch);
+
+    // Flush path: remote content replaced the main body, so recompute the
+    // backlink graph from it.
+    await syncDocumentLinks(ctx, doc, remoteContent);
+
     await ctx.db.patch(conflict._id, {
       resolvedAt: now,
       resolution: "github" as const,
@@ -390,6 +396,11 @@ export const resolveMerge = mutation({
     }
 
     await ctx.db.patch(conflict.documentId, patch);
+
+    // Flush path: the caller-submitted merged content replaced the main body,
+    // so recompute the backlink graph from it.
+    await syncDocumentLinks(ctx, doc, args.mergedContent);
+
     await ctx.db.patch(conflict._id, {
       resolvedAt: now,
       resolution: "merge" as const,

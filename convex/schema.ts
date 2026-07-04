@@ -290,6 +290,40 @@ export default defineSchema({
     .index("by_userId", ["userId"]),
 
   /**
+   * Directed wiki-link edges — the graph behind the editor's "Linked from"
+   * (backlinks / "what links here") panel. One row per resolved `[[wiki
+   * link]]` from a source document's MAIN body to another document in the
+   * same project. Read via `by_targetDocumentId` to answer "which documents
+   * link to me?" without scanning every body in the project.
+   *
+   * Maintenance is FLUSH-ONLY, never the autosave hot path: the row set for
+   * a source is recomputed (delete-by-source + re-insert) inside the coarse
+   * save/flush mutations — `documents.update` (when content is provided),
+   * `documentDrafts.promoteToMain`, `snapshots.restore`, and the conflict
+   * resolutions that replace main content — all via the shared
+   * `syncDocumentLinks` helper in `cms/_lib/documentLinks.ts`. The 3s
+   * `autosaveBody` path deliberately does NOT touch this table, so link
+   * resolution (which reads project doc metadata) never rides per-keystroke.
+   *
+   * Only resolved, non-self edges are stored; unresolved `[[targets]]` are
+   * surfaced by the pre-publish checklist instead. Drained in both
+   * directions (`by_sourceDocumentId` + `by_targetDocumentId`) by the
+   * per-document purge, and by the project-wipe / account-self-destruct
+   * cascades via `by_projectId` / `by_userId`.
+   */
+  document_links: defineTable({
+    sourceDocumentId: v.id("documents"),
+    targetDocumentId: v.id("documents"),
+    projectId: v.id("projects"),
+    userId: v.id("users"),
+    createdAt: v.number(),
+  })
+    .index("by_sourceDocumentId", ["sourceDocumentId"])
+    .index("by_targetDocumentId", ["targetDocumentId"])
+    .index("by_projectId", ["projectId"])
+    .index("by_userId", ["userId"]),
+
+  /**
    * Publish history table — tracks every publish to GitHub for a document.
    * Enables "Published N times" display and one-click rollback to any version.
    */
