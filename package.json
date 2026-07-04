@@ -45,7 +45,7 @@
     "fflate": "^0.8.3",
     "framer-motion": "^12.40.0",
     "gray-matter": "^4.0.3",
-    "js-yaml": "^4.2.0",
+    "js-yaml": "^3.15.0",
     "json5": "^2.2.3",
     "lucide-react": "^1.17.0",
     "mermaid": "^11.16.0",
@@ -94,10 +94,14 @@
     "ip-address": "^10.2.0",
     "fast-uri": "^3.1.2",
     "effect": "^3.21.2",
-    "ws": "^8.20.1",
+    "ws": "^8.21.0",
     "brace-expansion": "^5.0.6",
     "js-cookie": "^3.0.7",
-    "qs": "^6.15.2"
+    "qs": "^6.15.2",
+    "hono": "^4.12.25",
+    "protobufjs": "^7.6.4",
+    "@babel/core": "^7.29.7",
+    "js-yaml": "^3.15.0"
   },
   "patchedDependencies": {
     "@convex-dev/persistent-text-streaming@0.3.2": "patches/@convex-dev%2Fpersistent-text-streaming@0.3.2.patch"
