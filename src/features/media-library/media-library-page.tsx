@@ -7,6 +7,7 @@ import {
   Cloud,
   Copy,
   ExternalLink,
+  FileImage,
   GitBranch,
   ImageIcon,
   Loader2,
@@ -15,6 +16,7 @@ import {
   Trash2,
   Upload,
   UploadCloud,
+  X,
 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -32,6 +34,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { UploadProgress } from "@/components/ui/upload-progress";
 import { MediaImage } from "@/features/media-library/components/media-image";
 import { usePendingDeletes } from "@/features/media-library/hooks/use-pending-deletes";
 import { useImageCompression } from "@/hooks/use-image-compression";
@@ -40,6 +43,7 @@ import {
   useProjectMediaLibrary,
 } from "@/hooks/use-project-media-library";
 import { useUploadLimit } from "@/hooks/use-upload-limit";
+import { useWatermarkRemoval } from "@/hooks/use-watermark-removal";
 import {
   type CompressionSettings,
   describeSavings,
@@ -606,6 +610,7 @@ function UploadMediaDialog({
   const uploadMedia = useAction(api.media.uploads.upload);
   const { compress, isCompressing, resolvedSettings } =
     useImageCompression(projectId);
+  const { removeWatermark } = useWatermarkRemoval(projectId);
   const { maxBytes: maxUploadBytes, formatted: maxUploadLabel } =
     useUploadLimit(projectId);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -614,12 +619,20 @@ function UploadMediaDialog({
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [override, setOverride] = useState<CompressionSettings | null>(null);
+  const [progressStep, setProgressStep] = useState<string | null>(null);
+
+  const uploadSteps = [
+    { id: "compress", label: "Compressing image" },
+    { id: "watermark", label: "Checking for Gemini watermark" },
+    { id: "upload", label: "Uploading to provider" },
+  ];
 
   useEffect(() => {
     if (!open) {
       setSelectedFile(null);
       setIsDragging(false);
       setOverride(null);
+      setProgressStep(null);
     }
   }, [open]);
 
@@ -629,16 +642,35 @@ function UploadMediaDialog({
       return;
     }
     setIsUploading(true);
+
     try {
-      const result = await compress(selectedFile, override ?? undefined);
-      const toUpload = result.file;
+      // Step 1: Compress
+      setProgressStep("compress");
+      const compressed = await compress(selectedFile, override ?? undefined);
+      let toUpload = compressed.file;
+      let savings = describeSavings(compressed);
+
+      // Step 2: Check & remove watermark
+      setProgressStep("watermark");
+      const cleaned = await removeWatermark(toUpload);
+      if (cleaned.wasApplied) {
+        savings = savings
+          ? `${savings} · Gemini watermark removed`
+          : "Gemini watermark removed";
+        toUpload = cleaned.file;
+      }
+
       if (toUpload.size > maxUploadBytes) {
         toast.error("File too large", {
           description: `${formatMb(toUpload.size)} exceeds the ${maxUploadLabel} limit (even after compression). Try a smaller image, increase compression, or raise the limit in project settings.`,
         });
         setIsUploading(false);
+        setProgressStep(null);
         return;
       }
+
+      // Step 3: Upload
+      setProgressStep("upload");
       const bytes = await toUpload.arrayBuffer();
       await uploadMedia({
         projectId,
@@ -646,7 +678,6 @@ function UploadMediaDialog({
         mime: toUpload.type,
         filename: toUpload.name,
       });
-      const savings = describeSavings(result);
       toast.success(`Uploaded ${toUpload.name}`, {
         description: savings || undefined,
       });
@@ -660,9 +691,11 @@ function UploadMediaDialog({
       );
     } finally {
       setIsUploading(false);
+      setProgressStep(null);
     }
   }, [
     compress,
+    removeWatermark,
     maxUploadBytes,
     maxUploadLabel,
     onOpenChange,
@@ -676,79 +709,96 @@ function UploadMediaDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Upload to {PROVIDER_LABEL[provider]}</DialogTitle>
-          <DialogDescription>
-            Files go directly to your{" "}
-            {provider === "github"
-              ? "GitHub repo"
-              : `${PROVIDER_LABEL[provider]} account`}{" "}
-            — change the destination in project settings.
-          </DialogDescription>
-        </DialogHeader>
+        <div className="relative">
+          {selectedFile && !isUploading && !isCompressing && (
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedFile(null);
+                if (fileInputRef.current) fileInputRef.current.value = "";
+              }}
+              className="absolute -right-1 -top-1 z-10 flex size-6 items-center justify-center rounded-full border bg-background text-muted-foreground shadow-xs transition-colors hover:text-foreground"
+              aria-label="Remove file"
+            >
+              <X className="size-3.5" />
+            </button>
+          )}
 
-        <div
-          className={cn(
-            "flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed p-8 transition-colors",
-            isDragging
-              ? "border-primary bg-primary/5"
-              : "border-muted-foreground/25 hover:border-muted-foreground/50",
-          )}
-          onClick={() => fileInputRef.current?.click()}
-          onDragOver={(e) => {
-            e.preventDefault();
-            setIsDragging(true);
-          }}
-          onDragLeave={(e) => {
-            e.preventDefault();
-            setIsDragging(false);
-          }}
-          onDrop={(e) => {
-            e.preventDefault();
-            setIsDragging(false);
-            const file = e.dataTransfer.files[0];
-            if (file) setSelectedFile(file);
-          }}
-        >
-          <Upload className="mb-2 size-8 text-muted-foreground" />
-          {selectedFile ? (
-            <div className="text-center">
-              <p className="text-sm font-medium">{selectedFile.name}</p>
-              <p className="text-xs text-muted-foreground">
-                {(selectedFile.size / 1024).toFixed(1)} KB
-              </p>
-            </div>
-          ) : (
-            <>
-              <p className="text-sm font-medium">
-                Drop a file here or click to browse
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Images up to 16 MB
-              </p>
-            </>
-          )}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Upload className="size-4 text-primary" />
+              Upload to {PROVIDER_LABEL[provider]}
+            </DialogTitle>
+            <DialogDescription>
+              {provider === "github"
+                ? "Image goes straight to your GitHub repo."
+                : `Image goes straight to your ${PROVIDER_LABEL[provider]} account.`}
+            </DialogDescription>
+          </DialogHeader>
+        </div>
+
+        {/* Drop zone / file preview */}
+        {selectedFile && !isUploading && !isCompressing ? (
+          <SelectedFilePreview
+            file={selectedFile}
+            onRemove={() => {
+              setSelectedFile(null);
+              if (fileInputRef.current) fileInputRef.current.value = "";
+            }}
+          />
+        ) : (
+          <DropZone
+            isDragging={isDragging}
+            isProcessing={isUploading || isCompressing}
+            onClick={() => fileInputRef.current?.click()}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setIsDragging(true);
+            }}
+            onDragLeave={(e) => {
+              e.preventDefault();
+              setIsDragging(false);
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              setIsDragging(false);
+              const file = e.dataTransfer.files[0];
               if (file) setSelectedFile(file);
             }}
-            className="hidden"
+            onFileSelected={(file) => setSelectedFile(file)}
+            fileInputRef={fileInputRef}
+            maxLabel={maxUploadLabel}
           />
-        </div>
+        )}
 
-        <div className="mt-3">
-          <CompressionOverrideDisclosure
-            resolvedSettings={resolvedSettings}
-            override={override}
-            onOverrideChange={setOverride}
-          />
-        </div>
+        {/* Compression override (only when idle with a file) */}
+        {selectedFile && !isUploading && !isCompressing && (
+          <div className="mt-3">
+            <CompressionOverrideDisclosure
+              resolvedSettings={resolvedSettings}
+              override={override}
+              onOverrideChange={setOverride}
+            />
+          </div>
+        )}
 
-        <DialogFooter>
+        {/* Progress step indicator */}
+        {progressStep && (
+          <div className="mt-4">
+            <UploadProgress steps={uploadSteps} currentStep={progressStep} />
+          </div>
+        )}
+
+        <DialogFooter className="mt-3 gap-2 sm:gap-2">
+          <Button
+            variant="outline"
+            onClick={() => {
+              onOpenChange(false);
+              setSelectedFile(null);
+            }}
+          >
+            Cancel
+          </Button>
           <Button
             onClick={handleUpload}
             disabled={!selectedFile || isUploading || isCompressing}
@@ -758,11 +808,146 @@ function UploadMediaDialog({
             )}
             {isCompressing
               ? "Compressing…"
-              : `Upload to ${PROVIDER_LABEL[provider]}`}
+              : isUploading
+                ? "Uploading…"
+                : `Upload to ${PROVIDER_LABEL[provider]}`}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Sub-components for the Upload dialog                               */
+/* ------------------------------------------------------------------ */
+
+function SelectedFilePreview({
+  file,
+  onRemove,
+}: {
+  file: File;
+  onRemove: () => void;
+}) {
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    const url = URL.createObjectURL(file);
+    setPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
+
+  const isImage = file.type.startsWith("image/");
+  const sizeKB = (file.size / 1024).toFixed(1);
+
+  return (
+    <div className="mt-4 overflow-hidden rounded-lg border">
+      {/* Preview area */}
+      <div className="flex max-h-36 items-center justify-center bg-muted/30">
+        {isImage && previewUrl ? (
+          <img
+            src={previewUrl}
+            alt={file.name}
+            className="max-h-36 w-full object-contain"
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = "none";
+            }}
+          />
+        ) : (
+          <div className="flex h-24 items-center justify-center">
+            <FileImage className="size-10 text-muted-foreground/40" />
+          </div>
+        )}
+      </div>
+
+      {/* File info row */}
+      <div className="flex items-center gap-3 border-t px-3 py-2.5">
+        <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary/10">
+          <ImageIcon className="size-4 text-primary" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium leading-tight">
+            {file.name}
+          </p>
+          <p className="text-[11px] text-muted-foreground">{sizeKB} KB</p>
+        </div>
+        <button
+          type="button"
+          onClick={onRemove}
+          className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          aria-label="Remove file"
+        >
+          <X className="size-4" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function DropZone({
+  isDragging,
+  isProcessing,
+  onClick,
+  onDragOver,
+  onDragLeave,
+  onDrop,
+  onFileSelected,
+  fileInputRef,
+  maxLabel,
+}: {
+  isDragging: boolean;
+  isProcessing: boolean;
+  onClick: () => void;
+  onDragOver: (e: React.DragEvent) => void;
+  onDragLeave: (e: React.DragEvent) => void;
+  onDrop: (e: React.DragEvent) => void;
+  onFileSelected: (file: File) => void;
+  fileInputRef: React.RefObject<HTMLInputElement | null>;
+  maxLabel: string;
+}) {
+  return (
+    <button
+      type="button"
+      className={cn(
+        "mt-4 flex w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-8 text-center transition-all",
+        isDragging
+          ? "border-primary bg-primary/5"
+          : "border-muted-foreground/25 hover:border-muted-foreground/50",
+        isProcessing && "pointer-events-none opacity-60",
+      )}
+      onClick={onClick}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+    >
+      {isProcessing ? (
+        <Loader2 className="size-8 animate-spin text-muted-foreground" />
+      ) : isDragging ? (
+        <Upload className="size-8 text-primary" />
+      ) : (
+        <Upload className="size-8 text-muted-foreground" />
+      )}
+      <div>
+        <p className="text-sm font-medium">
+          {isProcessing ? "Processing…" : "Drop a file here or click to browse"}
+        </p>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          Images up to {maxLabel}
+        </p>
+      </div>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) onFileSelected(file);
+          // Reset so the same file can be re-selected.
+          e.target.value = "";
+        }}
+        className="hidden"
+      />
+    </button>
   );
 }
 

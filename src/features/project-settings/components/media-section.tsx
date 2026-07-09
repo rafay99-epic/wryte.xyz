@@ -3,6 +3,7 @@
 import { useAction, useMutation, useQuery } from "convex/react";
 import { motion } from "framer-motion";
 import {
+  Bot,
   Eye,
   EyeOff,
   HardDrive,
@@ -134,6 +135,10 @@ export function MediaSection({
       <Divider />
 
       <ProjectCompressionSection projectId={projectId} project={project} />
+
+      <Divider />
+
+      <ProjectWatermarkSection projectId={projectId} project={project} />
 
       <Divider />
 
@@ -385,6 +390,81 @@ function ProjectCompressionSection({
             disabled={!isDirty}
             onClick={handleSave}
             label={overrideEnabled ? "Save compression" : "Use account default"}
+          />
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function ProjectWatermarkSection({
+  projectId,
+  project,
+}: {
+  projectId: Id<"projects">;
+  project: ProjectData;
+}) {
+  const updateProject = useMutation(api.cms.projects.update);
+  const [enabled, setEnabled] = useState(project.autoWatermarkRemoval ?? true);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    setEnabled(project.autoWatermarkRemoval ?? true);
+  }, [project.autoWatermarkRemoval]);
+
+  const isDirty = enabled !== (project.autoWatermarkRemoval ?? true);
+
+  const handleSave = useCallback(async () => {
+    setIsSaving(true);
+    try {
+      await updateProject({
+        projectId,
+        autoWatermarkRemoval: enabled,
+      });
+      toast.success(
+        enabled
+          ? "Gemini watermark removal enabled"
+          : "Gemini watermark removal disabled",
+      );
+    } catch {
+      toast.error("Failed to save watermark setting");
+    } finally {
+      setIsSaving(false);
+    }
+  }, [enabled, projectId, updateProject]);
+
+  return (
+    <motion.div variants={staggerContainer} initial="initial" animate="animate">
+      <SectionHeader
+        icon={Bot}
+        title="Gemini Watermark Removal"
+        description="Automatically detect and remove the Gemini AI logo from uploaded images"
+      />
+
+      <motion.div
+        variants={staggerItem}
+        transition={smoothTransition}
+        className="space-y-4"
+      >
+        <div className="flex items-start justify-between gap-3 rounded-lg border border-border/40 bg-card px-3 py-2.5">
+          <div className="min-w-0">
+            <p className="text-sm font-medium">
+              Remove Gemini watermark automatically
+            </p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">
+              {enabled
+                ? "Images are scanned for the Gemini logo on upload. Only images with a detected watermark are reprocessed."
+                : "Uploaded images pass through without watermark scanning."}
+            </p>
+          </div>
+          <Switch checked={enabled} onCheckedChange={setEnabled} />
+        </div>
+
+        <div className="mt-2 flex justify-end">
+          <SaveButton
+            isSaving={isSaving}
+            disabled={!isDirty}
+            onClick={handleSave}
           />
         </div>
       </motion.div>

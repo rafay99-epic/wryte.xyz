@@ -18,6 +18,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { UploadProgress } from "@/components/ui/upload-progress";
 import { MediaImage } from "@/features/media-library/components/media-image";
 import { useImageCompression } from "@/hooks/use-image-compression";
 import {
@@ -25,6 +26,7 @@ import {
   useProjectMediaLibrary,
 } from "@/hooks/use-project-media-library";
 import { useUploadLimit } from "@/hooks/use-upload-limit";
+import { useWatermarkRemoval } from "@/hooks/use-watermark-removal";
 import {
   type CompressionSettings,
   describeSavings,
@@ -460,19 +462,39 @@ function UploadTab({
   const { compress, isCompressing, resolvedSettings } = useImageCompression(
     projectId as Id<"projects">,
   );
+  const { removeWatermark } = useWatermarkRemoval(projectId as Id<"projects">);
   const { maxBytes: maxUploadBytes, formatted: maxUploadLabel } =
     useUploadLimit(projectId as Id<"projects">);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [override, setOverride] = useState<CompressionSettings | null>(null);
+  const [progressStep, setProgressStep] = useState<string | null>(null);
+
+  const uploadSteps = [
+    { id: "compress", label: "Compressing image" },
+    { id: "watermark", label: "Checking for Gemini watermark" },
+    { id: "upload", label: "Uploading to provider" },
+  ];
 
   const handleFileUpload = useCallback(
     async (file: File) => {
       setIsUploading(true);
       try {
+        setProgressStep("compress");
         const compressed = await compress(file, override ?? undefined);
-        const toUpload = compressed.file;
+        let toUpload = compressed.file;
+        let savings = describeSavings(compressed);
+
+        setProgressStep("watermark");
+        const cleaned = await removeWatermark(toUpload);
+        if (cleaned.wasApplied) {
+          savings = savings
+            ? `${savings} · Gemini watermark removed`
+            : "Gemini watermark removed";
+          toUpload = cleaned.file;
+        }
+
         if (toUpload.size > maxUploadBytes) {
           toast.error("File too large", {
             description: `${formatMb(toUpload.size)} exceeds the ${maxUploadLabel} limit (even after compression). Try a smaller image, increase compression, or raise the limit in project settings.`,
@@ -481,13 +503,13 @@ function UploadTab({
           return;
         }
         const bytes = await toUpload.arrayBuffer();
+        setProgressStep("upload");
         const result = await uploadMedia({
           projectId: projectId as Id<"projects">,
           bytes,
           mime: toUpload.type,
           filename: toUpload.name,
         });
-        const savings = describeSavings(compressed);
         toast.success(`Uploaded ${toUpload.name}`, {
           description: savings || undefined,
         });
@@ -500,10 +522,12 @@ function UploadTab({
         );
       } finally {
         setIsUploading(false);
+        setProgressStep(null);
       }
     },
     [
       compress,
+      removeWatermark,
       override,
       maxUploadBytes,
       maxUploadLabel,
@@ -580,6 +604,12 @@ function UploadTab({
         override={override}
         onOverrideChange={setOverride}
       />
+
+      {progressStep && (
+        <div className="mt-3">
+          <UploadProgress steps={uploadSteps} currentStep={progressStep} />
+        </div>
+      )}
     </div>
   );
 }

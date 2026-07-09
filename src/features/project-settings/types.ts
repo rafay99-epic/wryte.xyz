@@ -50,6 +50,7 @@ export type ProjectData = {
   aiModel?: string;
   timezone?: string;
   autoSaveEnabled?: boolean;
+  autoWatermarkRemoval?: boolean;
   compressionSettings?: CompressionSettings;
   maxUploadBytes?: number;
   trashRetentionDays?: number;

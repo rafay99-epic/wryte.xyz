@@ -36,6 +36,7 @@
     "@google/genai": "^2.8.0",
     "@mdx-js/mdx": "^3.1.1",
     "@octokit/rest": "^22.0.1",
+    "@pilio/gemini-watermark-remover": "^1.0.28",
     "@tanstack/react-hotkeys": "^0.10.0",
     "@tanstack/react-query": "^5.101.0",
     "@vercel/analytics": "^2.0.1",

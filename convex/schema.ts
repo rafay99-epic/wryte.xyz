@@ -131,6 +131,14 @@ export default defineSchema({
     socialPostOnPublish: v.optional(v.boolean()),
     /** Editor: show the readability lens side panel (default off) */
     readabilityLensEnabled: v.optional(v.boolean()),
+    /**
+     * When enabled, uploaded images are scanned for the Gemini AI watermark
+     * (bottom-right "Gemini" logo) and cleaned automatically before storage.
+     * Runs after compression, only when a watermark is detected — saves
+     * compute by skipping clean images. Enabled by default for new projects
+     * (absent = enabled).
+     */
+    autoWatermarkRemoval: v.optional(v.boolean()),
     /** Editor: enable the slash (/) command menu (default off) */
     slashCommandsEnabled: v.optional(v.boolean()),
     /** Editor: enable per-project reusable text snippets in the / menu (default off) */

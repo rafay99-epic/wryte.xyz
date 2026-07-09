@@ -5,6 +5,7 @@ import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { useImageCompression } from "@/hooks/use-image-compression";
 import { useUploadLimit } from "@/hooks/use-upload-limit";
+import { useWatermarkRemoval } from "@/hooks/use-watermark-removal";
 import { describeSavings } from "@/lib/image-compression";
 import { formatMb } from "@/lib/upload-limits";
 import { useEditorStore } from "@/stores/editor-store";
@@ -47,6 +48,7 @@ export function useMediaPaste({
   const { textareaRef, replaceRange } = useEditorContext();
   const uploadMedia = useAction(api.media.uploads.upload);
   const { compress } = useImageCompression(projectId as Id<"projects">);
+  const { removeWatermark } = useWatermarkRemoval(projectId as Id<"projects">);
   const { maxBytes: maxUploadBytes, formatted: maxUploadLabel } =
     useUploadLimit(projectId as Id<"projects">);
 
@@ -54,6 +56,7 @@ export function useMediaPaste({
   // stale — same pattern as use-keyboard-shortcuts.
   const ctxRef = useRef({
     compress,
+    removeWatermark,
     maxUploadBytes,
     maxUploadLabel,
     uploadMedia,
@@ -64,6 +67,7 @@ export function useMediaPaste({
   useEffect(() => {
     ctxRef.current = {
       compress,
+      removeWatermark,
       maxUploadBytes,
       maxUploadLabel,
       uploadMedia,
@@ -120,6 +124,14 @@ export function useMediaPaste({
           const compressed = await ctx.compress(file);
           toUpload = compressed.file;
           savings = describeSavings(compressed);
+
+          const cleaned = await ctx.removeWatermark(toUpload);
+          if (cleaned.wasApplied) {
+            savings = savings
+              ? `${savings} · Gemini watermark removed`
+              : "Gemini watermark removed";
+            toUpload = cleaned.file;
+          }
         }
 
         if (toUpload.size > ctx.maxUploadBytes) {

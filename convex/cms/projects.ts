@@ -313,6 +313,7 @@ export const update = mutation({
     trashRetentionDays: v.optional(v.number()),
     socialPostOnPublish: v.optional(v.boolean()),
     readabilityLensEnabled: v.optional(v.boolean()),
+    autoWatermarkRemoval: v.optional(v.boolean()),
     slashCommandsEnabled: v.optional(v.boolean()),
     snippetsEnabled: v.optional(v.boolean()),
     selectionToolbarEnabled: v.optional(v.boolean()),

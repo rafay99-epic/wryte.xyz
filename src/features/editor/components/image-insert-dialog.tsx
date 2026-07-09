@@ -18,6 +18,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { UploadProgress } from "@/components/ui/upload-progress";
 import { MediaImage } from "@/features/media-library/components/media-image";
 import { useImageCompression } from "@/hooks/use-image-compression";
 import {
@@ -25,6 +26,7 @@ import {
   useProjectMediaLibrary,
 } from "@/hooks/use-project-media-library";
 import { useUploadLimit } from "@/hooks/use-upload-limit";
+import { useWatermarkRemoval } from "@/hooks/use-watermark-removal";
 import {
   type CompressionSettings,
   describeSavings,
@@ -60,7 +62,14 @@ export function ImageInsertDialog({
   const [searchQuery, setSearchQuery] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [progressStep, setProgressStep] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const uploadSteps = [
+    { id: "compress", label: "Compressing image" },
+    { id: "watermark", label: "Checking for Gemini watermark" },
+    { id: "upload", label: "Uploading to provider" },
+  ];
 
   const project = useQuery(api.cms.projects.get, {
     projectId: projectId as Id<"projects">,
@@ -69,6 +78,7 @@ export function ImageInsertDialog({
   const { compress, isCompressing, resolvedSettings } = useImageCompression(
     projectId as Id<"projects">,
   );
+  const { removeWatermark } = useWatermarkRemoval(projectId as Id<"projects">);
   const { maxBytes: maxUploadBytes, formatted: maxUploadLabel } =
     useUploadLimit(projectId as Id<"projects">);
   const [compressionOverride, setCompressionOverride] =
@@ -143,11 +153,23 @@ export function ImageInsertDialog({
       setUploadError(null);
 
       try {
+        setProgressStep("compress");
         const compressed = await compress(
           file,
           compressionOverride ?? undefined,
         );
-        const toUpload = compressed.file;
+        let toUpload = compressed.file;
+        let savings = describeSavings(compressed);
+
+        setProgressStep("watermark");
+        const cleaned = await removeWatermark(toUpload);
+        if (cleaned.wasApplied) {
+          savings = savings
+            ? `${savings} · Gemini watermark removed`
+            : "Gemini watermark removed";
+          toUpload = cleaned.file;
+        }
+
         if (toUpload.size > maxUploadBytes) {
           setUploadError(
             `File is ${formatMb(toUpload.size)}; exceeds the ${maxUploadLabel} limit. Try a smaller image, increase compression, or raise the limit in project settings.`,
@@ -156,6 +178,7 @@ export function ImageInsertDialog({
           return;
         }
         const bytes = await toUpload.arrayBuffer();
+        setProgressStep("upload");
         const result = await uploadMedia({
           projectId: projectId as Id<"projects">,
           bytes,
@@ -164,7 +187,6 @@ export function ImageInsertDialog({
           documentId: documentId as Id<"documents">,
         });
 
-        const savings = describeSavings(compressed);
         toast.success(`Uploaded ${toUpload.name}`, {
           description: savings || undefined,
         });
@@ -182,6 +204,7 @@ export function ImageInsertDialog({
         );
       } finally {
         setIsUploading(false);
+        setProgressStep(null);
       }
     },
     [
@@ -197,6 +220,7 @@ export function ImageInsertDialog({
       refreshLibrary,
       resetForm,
       uploadMedia,
+      removeWatermark,
     ],
   );
 
@@ -395,6 +419,13 @@ export function ImageInsertDialog({
                   override={compressionOverride}
                   onOverrideChange={setCompressionOverride}
                 />
+
+                {progressStep && (
+                  <UploadProgress
+                    steps={uploadSteps}
+                    currentStep={progressStep}
+                  />
+                )}
 
                 {uploadError && (
                   <p className="text-sm text-destructive">{uploadError}</p>
