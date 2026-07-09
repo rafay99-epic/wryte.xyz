@@ -1,10 +1,11 @@
 "use client";
 
-import { useConvex, useMutation, useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { motion } from "framer-motion";
 import {
   ArrowUpToLine,
   GitCompare,
+  Loader2,
   MoreHorizontal,
   Pencil,
   Plus,
@@ -21,6 +22,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import {
+  MAIN_TAB,
+  useDraftSwitching,
+} from "@/features/editor/hooks/use-draft-switching";
 import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/stores/editor-store";
 import { api } from "../../../../convex/_generated/api";
@@ -29,24 +34,24 @@ import { DraftCompareSheet } from "./draft-compare-sheet";
 
 type DraftTabBarProps = {
   documentId: string;
+  projectId: string;
   onRequestSave: () => Promise<void>;
   onSynthesisOpen: () => void;
 };
 
 export function DraftTabBar({
   documentId,
+  projectId,
   onRequestSave,
   onSynthesisOpen,
 }: DraftTabBarProps) {
-  const { activeDraftId, setActiveDraftId, initDocument } = useEditorStore(
+  const { activeDraftId, switchTarget } = useEditorStore(
     useShallow((s) => ({
       activeDraftId: s.activeDraftId,
-      setActiveDraftId: s.setActiveDraftId,
-      initDocument: s.initDocument,
+      switchTarget: s.switchTarget,
     })),
   );
 
-  const convex = useConvex();
   const document = useQuery(api.cms.documents.get, {
     documentId: documentId as Id<"documents">,
   });
@@ -67,6 +72,16 @@ export function DraftTabBar({
   const renameInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const activeTabRef = useRef<HTMLDivElement>(null);
+
+  // Cached, race-safe switching state machine (per-session content cache,
+  // TTL-bounded revalidation, supersede-on-newer-switch).
+  const { switchToDraft, evictDraft, seedDraft, applyPromotedMain } =
+    useDraftSwitching({
+      projectId,
+      document,
+      drafts,
+      onRequestSave,
+    });
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: activeDraftId triggers scroll-into-view when the active tab changes
   useEffect(() => {
@@ -89,53 +104,15 @@ export function DraftTabBar({
     }
   }, [activeDraftId]);
 
-  const switchToDraft = useCallback(
-    async (draftId: string | null) => {
-      if (draftId === activeDraftId) return;
-      await onRequestSave();
-
-      if (draftId === null) {
-        if (document) {
-          initDocument(
-            document.title,
-            document.content,
-            document.projectId as string,
-          );
-        }
-      } else if (document) {
-        // Draft bodies live in their own table — fetch on demand instead of
-        // riding the always-mounted `list` subscription (which is now
-        // metadata-only to keep autosave from re-billing every draft body).
-        const draftContent = await convex.query(
-          api.cms.documentDrafts.getContent,
-          { draftId: draftId as Id<"document_drafts"> },
-        );
-        if (draftContent) {
-          initDocument(
-            draftContent.title,
-            draftContent.content,
-            document.projectId as string,
-          );
-        }
-      }
-      setActiveDraftId(draftId);
-    },
-    [
-      activeDraftId,
-      onRequestSave,
-      document,
-      convex,
-      initDocument,
-      setActiveDraftId,
-    ],
-  );
-
   const handleNewDraft = useCallback(async () => {
     try {
       const id = await createDraft({
         documentId: documentId as Id<"documents">,
         copyFromMain: false,
       });
+      // A blank draft's server content is exactly "" / "" — seed the cache
+      // as verified so the switch below is instant and never fetches.
+      seedDraft(id, { title: "", content: "" }, true);
       await switchToDraft(id);
       toast.success("New draft created");
     } catch (error) {
@@ -143,7 +120,7 @@ export function DraftTabBar({
         error instanceof Error ? error.message : "Failed to create draft",
       );
     }
-  }, [createDraft, documentId, switchToDraft]);
+  }, [createDraft, documentId, switchToDraft, seedDraft]);
 
   const handleNewDraftFromMain = useCallback(async () => {
     try {
@@ -151,6 +128,16 @@ export function DraftTabBar({
         documentId: documentId as Id<"documents">,
         copyFromMain: true,
       });
+      // Seed from the live Main subscription so the switch is instant;
+      // unverified (one background check) in case the subscription lagged
+      // the server's copy by a beat.
+      if (document) {
+        seedDraft(
+          id,
+          { title: document.title, content: document.content },
+          false,
+        );
+      }
       await switchToDraft(id);
       toast.success("Draft created from current content");
     } catch (error) {
@@ -158,15 +145,19 @@ export function DraftTabBar({
         error instanceof Error ? error.message : "Failed to create draft",
       );
     }
-  }, [createDraft, documentId, switchToDraft]);
+  }, [createDraft, documentId, switchToDraft, seedDraft, document]);
 
   const handleDelete = useCallback(
     async (draftId: string) => {
       if (activeDraftId === draftId) {
-        await switchToDraft(null);
+        // Move off the draft first; abort the delete if that failed so we
+        // never delete the version the editor is still pointed at.
+        const switched = await switchToDraft(null);
+        if (!switched) return;
       }
       try {
         await removeDraft({ draftId: draftId as Id<"document_drafts"> });
+        evictDraft(draftId);
         toast.success("Draft deleted");
       } catch (error) {
         toast.error(
@@ -174,29 +165,30 @@ export function DraftTabBar({
         );
       }
     },
-    [activeDraftId, removeDraft, switchToDraft],
+    [activeDraftId, removeDraft, switchToDraft, evictDraft],
   );
 
   const handlePromote = useCallback(
-    async (draftId: string) => {
+    async (draftId: string): Promise<boolean> => {
       try {
+        // Persist whatever tab is being edited first: promoting reads the
+        // draft server-side, and the post-promote apply below replaces the
+        // store — without this flush, unsaved edits would be silently lost.
+        await onRequestSave();
         const result = await promoteDraft({
           draftId: draftId as Id<"document_drafts">,
         });
-        initDocument(
-          result.title,
-          result.content,
-          document?.projectId as string,
-        );
-        setActiveDraftId(null);
+        applyPromotedMain({ title: result.title, content: result.content });
         toast.success("Draft promoted to main article");
+        return true;
       } catch (error) {
         toast.error(
           error instanceof Error ? error.message : "Failed to promote draft",
         );
+        return false;
       }
     },
-    [promoteDraft, initDocument, document?.projectId, setActiveDraftId],
+    [promoteDraft, applyPromotedMain, onRequestSave],
   );
 
   const handleCompare = useCallback(
@@ -261,7 +253,14 @@ export function DraftTabBar({
                 transition={{ type: "spring", stiffness: 400, damping: 30 }}
               />
             )}
-            <span className="relative z-10">Main</span>
+            <span className="relative z-10 flex items-center gap-1.5">
+              {switchTarget === MAIN_TAB && (
+                <span className="switch-spinner">
+                  <Loader2 className="size-3 animate-spin" />
+                </span>
+              )}
+              Main
+            </span>
           </button>
         </div>
 
@@ -301,8 +300,13 @@ export function DraftTabBar({
                     transition={{ type: "spring", stiffness: 400, damping: 30 }}
                   />
                 )}
-                <span className="relative z-10 max-w-32 truncate">
-                  {draft.label}
+                <span className="relative z-10 flex max-w-32 items-center gap-1.5">
+                  {switchTarget === draft._id && (
+                    <span className="switch-spinner shrink-0">
+                      <Loader2 className="size-3 animate-spin" />
+                    </span>
+                  )}
+                  <span className="truncate">{draft.label}</span>
                 </span>
               </button>
             )}
@@ -328,7 +332,7 @@ export function DraftTabBar({
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => void handleCompare(draft._id)}>
                   <GitCompare className="mr-2 size-3.5" />
-                  Compare with Main
+                  Compare versions
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => void handlePromote(draft._id)}>
                   <ArrowUpToLine className="mr-2 size-3.5" />
@@ -391,6 +395,7 @@ export function DraftTabBar({
         documentId={documentId as Id<"documents">}
         drafts={drafts ?? []}
         initialDraftId={compareDraftId}
+        onPromote={handlePromote}
       />
     </div>
   );

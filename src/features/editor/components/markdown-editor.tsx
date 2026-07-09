@@ -42,12 +42,15 @@ export function MarkdownEditor({
   hasSnippets?: boolean;
   selectionToolbarEnabled?: boolean;
 }) {
-  const { content, setContent } = useEditorStore(
-    useShallow((state) => ({
-      content: state.content,
-      setContent: state.setContent,
-    })),
-  );
+  const { content, contentEpoch, setContent, isVersionSwitching } =
+    useEditorStore(
+      useShallow((state) => ({
+        content: state.content,
+        contentEpoch: state.contentEpoch,
+        setContent: state.setContent,
+        isVersionSwitching: state.switchTarget !== null,
+      })),
+    );
   const { textareaRef, getSelection, replaceRange } = useEditorContext();
 
   // Inline AI popover state
@@ -193,13 +196,33 @@ export function MarkdownEditor({
     };
   }, [textareaRef, setContent]);
 
+  // Epoch the textarea was last synced against. A changed epoch means a
+  // different document/draft was loaded into the store, so the echo guard
+  // below must not apply — it belongs to the previous target.
+  const lastSyncedEpochRef = useRef(contentEpoch);
+
   useEffect(() => {
-    if (content === lastInputContentRef.current) return;
     const textarea = textareaRef.current;
-    if (textarea && textarea.value !== content) {
+    if (!textarea) return;
+
+    const epochChanged = lastSyncedEpochRef.current !== contentEpoch;
+    lastSyncedEpochRef.current = contentEpoch;
+    if (epochChanged) {
+      // A new version was loaded (draft switch, promote, restore). Without
+      // resetting the echo guard, switching back to a tab whose saved text
+      // equals the last thing typed here would skip the write below and
+      // leave the previous tab's content on screen — which autosave would
+      // then persist into the wrong draft.
+      lastInputContentRef.current = null;
+      if (textarea.value !== content) textarea.value = content;
+      return;
+    }
+
+    if (content === lastInputContentRef.current) return;
+    if (textarea.value !== content) {
       textarea.value = content;
     }
-  }, [content, textareaRef]);
+  }, [content, contentEpoch, textareaRef]);
 
   const handleAcceptInline = useCallback(
     (start: number, end: number, replacement: string) => {
@@ -257,6 +280,11 @@ export function MarkdownEditor({
       <textarea
         ref={textareaRef}
         defaultValue={content}
+        // Locked while a version switch is in flight: a keystroke landing in
+        // the outgoing tab's buffer would otherwise be autosaved into the
+        // wrong version. Cache-hit switches resolve within a tick, so this
+        // never blocks real typing.
+        readOnly={isVersionSwitching}
         className="editor-textarea h-full min-h-[calc(100vh-120px)] w-full resize-none border-0 bg-transparent px-10 py-8 text-[15px] leading-[1.85] text-foreground outline-none placeholder:text-muted-foreground/40 focus:ring-0"
         placeholder="Start writing your article..."
         spellCheck={false}

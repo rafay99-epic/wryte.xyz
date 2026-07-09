@@ -39,6 +39,45 @@ function wordCount(content: string): number {
 }
 
 /**
+ * Hard cap on drafts per document. Enforced at creation so `list`'s
+ * `.take(50)` is exact — without it, draft #51 would exist (and bill
+ * storage + autosaves) while never appearing in the tab bar.
+ */
+const MAX_DRAFTS_PER_DOCUMENT = 50;
+const MAX_LABEL_LENGTH = 200;
+const MAX_SUMMARY_LENGTH = 1000;
+
+function assertDraftCapacity(existingCount: number): void {
+  if (existingCount >= MAX_DRAFTS_PER_DOCUMENT) {
+    throw new Error(
+      `Draft limit reached (${String(MAX_DRAFTS_PER_DOCUMENT)} per article). Delete a draft first.`,
+    );
+  }
+}
+
+function assertMetaLengths(label?: string, summary?: string): void {
+  if (label !== undefined && label.length > MAX_LABEL_LENGTH) {
+    throw new Error(
+      `Draft label is too long (max ${String(MAX_LABEL_LENGTH)} characters).`,
+    );
+  }
+  if (summary !== undefined && summary.length > MAX_SUMMARY_LENGTH) {
+    throw new Error(
+      `Draft summary is too long (max ${String(MAX_SUMMARY_LENGTH)} characters).`,
+    );
+  }
+}
+
+function assertContentSize(content: string): void {
+  const byteLength = new TextEncoder().encode(content).byteLength;
+  if (byteLength > MAX_DRAFT_CONTENT_BYTES) {
+    throw new Error(
+      `Draft content is too large (max ${String(Math.round(MAX_DRAFT_CONTENT_BYTES / 1024))} KB).`,
+    );
+  }
+}
+
+/**
  * Metadata-only draft list for the always-mounted tab bar. Bodies live in
  * `document_draft_content` and are fetched on demand (`getContent`) when a
  * draft is opened — so this hot subscription never reads (or re-bills)
@@ -79,10 +118,13 @@ export const list = query({
 export const get = query({
   args: { draftId: v.id("document_drafts") },
   handler: async (ctx, args) => {
-    const user = await getAuthedUserOrNull(ctx);
-    if (!user) return null;
-    const draft = await ctx.db.get(args.draftId);
-    if (!draft || draft.userId !== user._id) return null;
+    // Auth and the draft row are independent reads — resolve them together
+    // (ownership is still checked before anything is returned).
+    const [user, draft] = await Promise.all([
+      getAuthedUserOrNull(ctx),
+      ctx.db.get(args.draftId),
+    ]);
+    if (!user || !draft || draft.userId !== user._id) return null;
     const { title, content } = await readDraftContent(ctx, draft);
     return { ...draft, title, content };
   },
@@ -95,10 +137,14 @@ export const get = query({
 export const getContent = query({
   args: { draftId: v.id("document_drafts") },
   handler: async (ctx, args) => {
-    const user = await getAuthedUserOrNull(ctx);
-    if (!user) return null;
-    const draft = await ctx.db.get(args.draftId);
-    if (!draft || draft.userId !== user._id) return null;
+    // This runs on every cold draft-tab switch — resolve the independent
+    // auth and draft reads together to shave a serial roundtrip (ownership
+    // is still checked before anything is returned).
+    const [user, draft] = await Promise.all([
+      getAuthedUserOrNull(ctx),
+      ctx.db.get(args.draftId),
+    ]);
+    if (!user || !draft || draft.userId !== user._id) return null;
     return await readDraftContent(ctx, draft);
   },
 });
@@ -116,6 +162,7 @@ export const create = mutation({
       throws: true,
     });
 
+    assertMetaLengths(args.label);
     const user = await getCurrentUser(ctx);
     const document = await verifyDocumentOwnership(
       ctx,
@@ -123,16 +170,20 @@ export const create = mutation({
       user._id,
     );
 
-    const existing = await ctx.db
-      .query("document_drafts")
-      .withIndex("by_documentId", (q) => q.eq("documentId", args.documentId))
-      .take(100);
+    const copyContent = args.copyFromMain ?? false;
+    // The existing-draft count (cap + auto-label) and the main body read
+    // are independent — resolve them together.
+    const [existing, mainContent] = await Promise.all([
+      ctx.db
+        .query("document_drafts")
+        .withIndex("by_documentId", (q) => q.eq("documentId", args.documentId))
+        .take(MAX_DRAFTS_PER_DOCUMENT + 1),
+      copyContent ? readContent(ctx, document) : Promise.resolve(""),
+    ]);
+    assertDraftCapacity(existing.length);
 
     const now = Date.now();
     const label = args.label?.trim() || `Draft ${String(existing.length + 1)}`;
-
-    const copyContent = args.copyFromMain ?? false;
-    const mainContent = copyContent ? await readContent(ctx, document) : "";
     const title = copyContent ? document.title : "";
 
     // Metadata row carries NO body — the title + content live in
@@ -178,12 +229,24 @@ export const createSnapshot = mutation({
       throws: true,
     });
 
+    // Same bounds as the interactive draft paths — without these, an
+    // oversized body written here would later ride `promoteToMain` into
+    // `document_content`, bypassing the documents-side cap entirely.
+    assertContentSize(args.content);
+    assertMetaLengths(args.label, args.summary);
+
     const user = await getCurrentUser(ctx);
     const document = await verifyDocumentOwnership(
       ctx,
       args.documentId,
       user._id,
     );
+    const existing = await ctx.db
+      .query("document_drafts")
+      .withIndex("by_documentId", (q) => q.eq("documentId", args.documentId))
+      .take(MAX_DRAFTS_PER_DOCUMENT + 1);
+    assertDraftCapacity(existing.length);
+
     const now = Date.now();
     const label =
       args.label.trim() || `Draft ${new Date(now).toLocaleString()}`;
@@ -227,6 +290,7 @@ export const update = mutation({
       throws: true,
     });
 
+    assertMetaLengths(args.label, args.summary);
     const user = await getCurrentUser(ctx);
     const draft = await ctx.db.get(args.draftId);
     if (!draft || draft.userId !== user._id) {
@@ -267,17 +331,11 @@ export const autosaveContent = mutation({
       throws: true,
     });
 
+    assertContentSize(args.content);
     const user = await getCurrentUser(ctx);
     const draft = await ctx.db.get(args.draftId);
     if (!draft || draft.userId !== user._id) {
       throw new Error("Draft not found");
-    }
-
-    const byteLength = new TextEncoder().encode(args.content).byteLength;
-    if (byteLength > MAX_DRAFT_CONTENT_BYTES) {
-      throw new Error(
-        `Draft content is too large (max ${String(Math.round(MAX_DRAFT_CONTENT_BYTES / 1024))} KB).`,
-      );
     }
 
     await writeDraftContent(ctx, {
@@ -328,12 +386,7 @@ export const updateContent = mutation({
       content ??= current.content;
     }
 
-    const byteLength = new TextEncoder().encode(content).byteLength;
-    if (byteLength > MAX_DRAFT_CONTENT_BYTES) {
-      throw new Error(
-        `Draft content is too large (max ${String(Math.round(MAX_DRAFT_CONTENT_BYTES / 1024))} KB).`,
-      );
-    }
+    assertContentSize(content);
 
     const contentId = await writeDraftContent(ctx, {
       draftId: draft._id,
@@ -345,11 +398,14 @@ export const updateContent = mutation({
       ...(draft.contentId ? { contentId: draft.contentId } : {}),
     });
 
-    // Refresh metadata; persist the pointer if it was missing.
+    // Refresh metadata; persist the pointer whenever it's missing OR stale
+    // (a stale pointer self-heals inside `writeDraftContent`, but if it's
+    // never written back every future autosave pays the full-body index
+    // read this architecture exists to avoid).
     await ctx.db.patch(draft._id, {
       wordCount: wordCount(content),
       updatedAt: Date.now(),
-      ...(draft.contentId === undefined ? { contentId } : {}),
+      ...(draft.contentId !== contentId ? { contentId } : {}),
     });
   },
 });
@@ -368,19 +424,38 @@ export const promoteToMain = mutation({
     if (!draft || draft.userId !== user._id) {
       throw new Error("Draft not found");
     }
-    const document = await verifyDocumentOwnership(
-      ctx,
-      draft.documentId,
-      user._id,
-    );
+    // Ownership, the draft body, and the conflict lock all depend only on
+    // the draft row — resolve them together.
+    const [document, { title, content }, openConflict] = await Promise.all([
+      verifyDocumentOwnership(ctx, draft.documentId, user._id),
+      readDraftContent(ctx, draft),
+      ctx.db
+        .query("sync_conflicts")
+        .withIndex("by_documentId_unresolved", (q) =>
+          q.eq("documentId", draft.documentId).eq("resolvedAt", undefined),
+        )
+        .first(),
+    ]);
 
-    const { title, content } = await readDraftContent(ctx, draft);
+    // Same defense-in-depth lock as `documents.update` / `autosaveBody`:
+    // promoting overwrites the main body, so it must not slip past a
+    // pending sync conflict either.
+    if (openConflict) {
+      throw new Error(
+        "This document has a pending sync conflict. Resolve it before making changes.",
+      );
+    }
 
     await ctx.db.patch(draft.documentId, {
       title,
       excerpt: buildExcerpt(content),
       wordCount: wordCount(content),
-      frontmatter: draft.frontmatterSnapshot,
+      // Only replace the document's frontmatter when the draft actually
+      // carries a snapshot. Patching `undefined` would UNSET the field —
+      // promoting a blank draft used to silently wipe Main's frontmatter.
+      ...(draft.frontmatterSnapshot !== undefined
+        ? { frontmatter: draft.frontmatterSnapshot }
+        : {}),
       updatedAt: Date.now(),
     });
     const contentId = await writeContent(ctx, {
@@ -390,8 +465,9 @@ export const promoteToMain = mutation({
       content,
       ...(document.contentId ? { contentId: document.contentId } : {}),
     });
-    // Persist the pointer if the target document predates the split.
-    if (document.contentId === undefined) {
+    // Persist the pointer when it's missing (pre-split doc) or stale
+    // (self-healed inside `writeContent`).
+    if (document.contentId !== contentId) {
       await ctx.db.patch(draft.documentId, { contentId });
     }
 
@@ -403,7 +479,7 @@ export const promoteToMain = mutation({
       documentId: draft.documentId,
       title,
       content,
-      frontmatter: draft.frontmatterSnapshot,
+      frontmatter: draft.frontmatterSnapshot ?? document.frontmatter,
     };
   },
 });
@@ -422,7 +498,7 @@ export const remove = mutation({
     if (!draft || draft.userId !== user._id) {
       throw new Error("Draft not found");
     }
-    await deleteDraftContent(ctx, args.draftId);
+    await deleteDraftContent(ctx, args.draftId, draft.contentId);
     await ctx.db.delete(args.draftId);
   },
 });

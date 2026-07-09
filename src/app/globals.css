@@ -146,6 +146,15 @@
   animation: editorFadeIn 0.2s cubic-bezier(0.25, 0.1, 0.25, 1) both;
 }
 
+/* ── Delayed switch spinner ────────────────────────────────────────── */
+/* Only becomes visible when a version switch takes longer than ~150ms —
+   cache hits and fast local fetches finish before the delay elapses, so
+   quick switches never flash a spinner. */
+.switch-spinner {
+  opacity: 0;
+  animation: editorFadeIn 150ms ease-out 150ms forwards;
+}
+
 /* ── Hide scrollbars for editor panes ──────────────────────────────── */
 .hide-scrollbar {
   -ms-overflow-style: none;
@@ -159,6 +168,11 @@
 .slim-scrollbar {
   scrollbar-width: thin;
   scrollbar-color: oklch(0.7 0 0 / 20%) transparent;
+  /* The styled webkit scrollbar is classic (non-overlay) and occupies 4px.
+     Reserve that gutter permanently so content doesn't shift sideways when
+     switching between scrolling and non-scrolling documents (e.g. a full
+     draft ↔ an empty one). */
+  scrollbar-gutter: stable;
 }
 .slim-scrollbar::-webkit-scrollbar {
   width: 4px;

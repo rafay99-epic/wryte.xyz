@@ -1,9 +1,10 @@
 "use client";
 
 import { type ConvexReactClient, useConvex } from "convex/react";
-import { GitCompare, Loader2 } from "lucide-react";
+import { ArrowUpToLine, GitCompare, Loader2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { MarkdownDiffViewer } from "@/components/diff/markdown-diff-viewer";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -46,6 +47,11 @@ type DraftCompareSheetProps = {
   drafts: DraftOption[];
   /** The draft the sheet was opened from — seeds the right-hand selector. */
   initialDraftId: Id<"document_drafts"> | null;
+  /**
+   * Promotes a draft to Main (the tab bar's flush-then-promote flow).
+   * Resolves true on success so the sheet can refresh its fetched sides.
+   */
+  onPromote: (draftId: string) => Promise<boolean>;
 };
 
 /**
@@ -78,6 +84,7 @@ function useSideContent(
   open: boolean,
   documentId: Id<"documents">,
   selection: Selection,
+  refreshKey: number,
 ): { data: SideContent | null; loading: boolean } {
   const convex = useConvex();
   const [state, setState] = useState<{
@@ -85,6 +92,7 @@ function useSideContent(
     loading: boolean;
   }>({ data: null, loading: true });
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: refreshKey is an intentional re-fetch signal (bumped after a promote changes Main)
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
@@ -96,7 +104,7 @@ function useSideContent(
     return () => {
       cancelled = true;
     };
-  }, [open, documentId, selection, convex]);
+  }, [open, documentId, selection, convex, refreshKey]);
 
   return state;
 }
@@ -113,9 +121,14 @@ export function DraftCompareSheet({
   documentId,
   drafts,
   initialDraftId,
+  onPromote,
 }: DraftCompareSheetProps) {
   const [left, setLeft] = useState<Selection>(MAIN);
   const [right, setRight] = useState<Selection>(initialDraftId ?? MAIN);
+  // Bumped after a promote so both sides re-fetch — Main's content changed.
+  const [refreshKey, setRefreshKey] = useState(0);
+  // Draft id a promote is in flight for (disables both promote buttons).
+  const [promotingId, setPromotingId] = useState<string | null>(null);
 
   // Re-seed the selectors each time the sheet is opened from a given draft, so
   // reopening from a different tab points the right side at the new draft.
@@ -126,8 +139,19 @@ export function DraftCompareSheet({
     }
   }, [open, initialDraftId]);
 
-  const leftSide = useSideContent(open, documentId, left);
-  const rightSide = useSideContent(open, documentId, right);
+  const leftSide = useSideContent(open, documentId, left, refreshKey);
+  const rightSide = useSideContent(open, documentId, right, refreshKey);
+
+  const handlePromoteSide = async (selection: Selection) => {
+    if (selection === MAIN || promotingId !== null) return;
+    setPromotingId(selection);
+    try {
+      const promoted = await onPromote(selection);
+      if (promoted) setRefreshKey((k) => k + 1);
+    } finally {
+      setPromotingId(null);
+    }
+  };
 
   const labelFor = useMemo(() => {
     const byId = new Map(drafts.map((d) => [d._id, d.label] as const));
@@ -171,6 +195,9 @@ export function DraftCompareSheet({
               drafts={drafts}
               side={leftSide}
               labelFor={labelFor}
+              promoting={promotingId === left}
+              promoteDisabled={promotingId !== null}
+              onPromote={() => void handlePromoteSide(left)}
             />
             <SideHeader
               ariaLabel="Right version"
@@ -179,6 +206,9 @@ export function DraftCompareSheet({
               drafts={drafts}
               side={rightSide}
               labelFor={labelFor}
+              promoting={promotingId === right}
+              promoteDisabled={promotingId !== null}
+              onPromote={() => void handlePromoteSide(right)}
             />
           </div>
 
@@ -215,6 +245,9 @@ function SideHeader({
   drafts,
   side,
   labelFor,
+  promoting,
+  promoteDisabled,
+  onPromote,
 }: {
   ariaLabel: string;
   value: Selection;
@@ -222,25 +255,47 @@ function SideHeader({
   drafts: DraftOption[];
   side: { data: SideContent | null; loading: boolean };
   labelFor: (selection: Selection) => string;
+  promoting: boolean;
+  promoteDisabled: boolean;
+  onPromote: () => void;
 }) {
   return (
     <div className="flex min-w-0 flex-col gap-1.5">
-      <Select
-        value={value as string}
-        onValueChange={(next) => onChange(next as Selection)}
-      >
-        <SelectTrigger aria-label={ariaLabel} className="w-full">
-          <SelectValue>{() => labelFor(value)}</SelectValue>
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value={MAIN}>Main</SelectItem>
-          {drafts.map((draft) => (
-            <SelectItem key={draft._id} value={draft._id as string}>
-              {draft.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <div className="flex items-center gap-2">
+        <Select
+          value={value as string}
+          onValueChange={(next) => onChange(next as Selection)}
+        >
+          <SelectTrigger aria-label={ariaLabel} className="w-full">
+            <SelectValue>{() => labelFor(value)}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={MAIN}>Main</SelectItem>
+            {drafts.map((draft) => (
+              <SelectItem key={draft._id} value={draft._id as string}>
+                {draft.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {value !== MAIN && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="shrink-0 gap-1.5"
+            disabled={promoteDisabled || side.loading}
+            onClick={onPromote}
+            aria-label={`Promote ${labelFor(value)} to Main`}
+          >
+            {promoting ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <ArrowUpToLine className="size-3.5" />
+            )}
+            Promote to Main
+          </Button>
+        )}
+      </div>
       <p className="px-1 text-xs text-muted-foreground tabular-nums">
         {side.loading || side.data === null ? (
           <span className="opacity-60">Loading…</span>

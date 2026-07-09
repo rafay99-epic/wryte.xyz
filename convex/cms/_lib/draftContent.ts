@@ -113,11 +113,25 @@ export async function writeDraftContent(
  * Deletes a draft's content row. Used by the single-draft `remove` path
  * (per-project / account cascades drain via their own `by_projectId` /
  * `by_userId` sweeps).
+ *
+ * Pass `contentId` (the caller already holds the draft row's pointer) to
+ * delete directly — the index `.unique()` fallback is billed at the FULL
+ * body size just to find the row, so it only runs for pre-migration drafts
+ * or a stale pointer.
  */
 export async function deleteDraftContent(
   ctx: MutationCtx,
   draftId: Id<"document_drafts">,
+  contentId?: Id<"document_draft_content">,
 ): Promise<void> {
+  if (contentId) {
+    try {
+      await ctx.db.delete(contentId);
+      return;
+    } catch {
+      // Stale pointer — fall through to the index lookup.
+    }
+  }
   const existing = await ctx.db
     .query("document_draft_content")
     .withIndex("by_draftId", (q) => q.eq("draftId", draftId))

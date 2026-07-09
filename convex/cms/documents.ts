@@ -566,7 +566,10 @@ export const update = mutation({
         content,
         ...(document.contentId ? { contentId: document.contentId } : {}),
       });
-      if (document.contentId === undefined) {
+      // Persist when missing OR stale — a stale pointer self-heals inside
+      // `writeContent`, but if it's never written back every future
+      // autosave pays the full-body index read.
+      if (document.contentId !== contentId) {
         fieldsToUpdate["contentId"] = contentId;
       }
     }

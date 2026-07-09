@@ -3,6 +3,7 @@
 import { useQuery } from "convex/react";
 import dynamic from "next/dynamic";
 import { useCallback, useRef } from "react";
+import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/stores/editor-store";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
@@ -66,6 +67,13 @@ export function EditorLayout({
   const viewMode = useEditorStore((state) => state.viewMode);
   const focusMode = useEditorStore((state) => state.focusMode);
   const activeDraftId = useEditorStore((state) => state.activeDraftId);
+  // True while a draft/Main switch is awaiting its flush or content fetch.
+  // The writing surface dims (and fades back in when the new content lands);
+  // instant cache-hit switches resolve before a frame renders, so they never
+  // visibly flicker.
+  const isVersionSwitching = useEditorStore(
+    (state) => state.switchTarget !== null,
+  );
   const researchPanelOpen = useEditorStore((state) => state.researchPanelOpen);
   const toggleResearchPanel = useEditorStore(
     (state) => state.toggleResearchPanel,
@@ -138,53 +146,37 @@ export function EditorLayout({
         {!focusMode && (
           <DraftTabBar
             documentId={documentId}
+            projectId={projectId}
             onRequestSave={onRequestSave}
             onSynthesisOpen={onSynthesisOpen}
           />
         )}
-        {!focusMode && activeDraftId === null && (
-          <FrontmatterEditor documentId={documentId} projectId={projectId} />
-        )}
+        {/* Writing surface (frontmatter + editor panes). Dims as one unit
+            while a version switch is in flight and fades back when the new
+            content lands, so tab changes read as a deliberate transition
+            instead of a hard content snap. */}
+        <div
+          className={cn(
+            "flex min-h-0 flex-1 flex-col transition-opacity duration-200 ease-out",
+            // The 150ms delay means fast switches (cache hits, local dev)
+            // complete before the dim ever becomes visible — no flicker.
+            // Un-dimming is immediate so content feels snappy on arrival.
+            isVersionSwitching ? "opacity-40 delay-150" : "opacity-100 delay-0",
+          )}
+        >
+          {!focusMode && activeDraftId === null && (
+            <FrontmatterEditor documentId={documentId} projectId={projectId} />
+          )}
 
-        <div className="flex min-h-0 flex-1">
-          <div className="relative flex min-w-0 flex-1 flex-col">
-            <FindReplaceBar />
-            {/* Sprint pill — floats over the editor pane, incl. focus mode */}
-            <SprintHud />
-            {viewMode === "edit" && (
-              <div
-                key="edit"
-                className="editor-pane-enter h-full w-full overflow-y-auto slim-scrollbar"
-              >
-                <MarkdownEditor
-                  documentId={documentId}
-                  projectId={projectId}
-                  slashEnabled={slashEnabled}
-                  snippetsEnabled={snippetsEnabled}
-                  hasSnippets={hasSnippets}
-                  selectionToolbarEnabled={selectionToolbarEnabled}
-                />
-              </div>
-            )}
-
-            {viewMode === "preview" && (
-              <div
-                key="preview"
-                className="editor-pane-enter h-full w-full overflow-y-auto slim-scrollbar"
-              >
-                <div className="mx-auto max-w-[820px]">
-                  {isMdx ? <MdxPreview /> : <MarkdownPreview />}
-                </div>
-              </div>
-            )}
-
-            {viewMode === "split" && (
-              <div key="split" className="editor-pane-enter flex h-full w-full">
+          <div className="flex min-h-0 flex-1">
+            <div className="relative flex min-w-0 flex-1 flex-col">
+              <FindReplaceBar />
+              {/* Sprint pill — floats over the editor pane, incl. focus mode */}
+              <SprintHud />
+              {viewMode === "edit" && (
                 <div
-                  ref={editorPaneRef}
-                  data-editor-pane
-                  className="h-full w-1/2 overflow-y-auto hide-scrollbar"
-                  onScroll={handleEditorScroll}
+                  key="edit"
+                  className="editor-pane-enter h-full w-full overflow-y-auto slim-scrollbar"
                 >
                   <MarkdownEditor
                     documentId={documentId}
@@ -195,34 +187,71 @@ export function EditorLayout({
                     selectionToolbarEnabled={selectionToolbarEnabled}
                   />
                 </div>
-                <div className="split-divider" />
+              )}
+
+              {viewMode === "preview" && (
                 <div
-                  ref={previewRef}
-                  className="h-full w-1/2 overflow-y-auto hide-scrollbar bg-muted/10"
-                  onScroll={handlePreviewScroll}
+                  key="preview"
+                  className="editor-pane-enter h-full w-full overflow-y-auto slim-scrollbar"
                 >
-                  <div className="mx-auto max-w-[640px]">
+                  <div className="mx-auto max-w-[820px]">
                     {isMdx ? <MdxPreview /> : <MarkdownPreview />}
                   </div>
                 </div>
-              </div>
+              )}
+
+              {viewMode === "split" && (
+                <div
+                  key="split"
+                  className="editor-pane-enter flex h-full w-full"
+                >
+                  <div
+                    ref={editorPaneRef}
+                    data-editor-pane
+                    className="h-full w-1/2 overflow-y-auto hide-scrollbar"
+                    onScroll={handleEditorScroll}
+                  >
+                    <MarkdownEditor
+                      documentId={documentId}
+                      projectId={projectId}
+                      slashEnabled={slashEnabled}
+                      snippetsEnabled={snippetsEnabled}
+                      hasSnippets={hasSnippets}
+                      selectionToolbarEnabled={selectionToolbarEnabled}
+                    />
+                  </div>
+                  <div className="split-divider" />
+                  <div
+                    ref={previewRef}
+                    className="h-full w-1/2 overflow-y-auto hide-scrollbar bg-muted/10"
+                    onScroll={handlePreviewScroll}
+                  >
+                    <div className="mx-auto max-w-[640px]">
+                      {isMdx ? <MdxPreview /> : <MarkdownPreview />}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <OutlinePanel
+              open={outlinePanelOpen}
+              onClose={toggleOutlinePanel}
+            />
+
+            <ResearchPanel
+              documentId={documentId}
+              open={researchPanelOpen}
+              onClose={toggleResearchPanel}
+            />
+
+            {readabilityEnabled && (
+              <ReadabilityPanel
+                open={readabilityPanelOpen}
+                onClose={toggleReadabilityPanel}
+              />
             )}
           </div>
-
-          <OutlinePanel open={outlinePanelOpen} onClose={toggleOutlinePanel} />
-
-          <ResearchPanel
-            documentId={documentId}
-            open={researchPanelOpen}
-            onClose={toggleResearchPanel}
-          />
-
-          {readabilityEnabled && (
-            <ReadabilityPanel
-              open={readabilityPanelOpen}
-              onClose={toggleReadabilityPanel}
-            />
-          )}
         </div>
       </div>
     </EditorProvider>

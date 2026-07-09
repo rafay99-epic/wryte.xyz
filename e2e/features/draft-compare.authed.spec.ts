@@ -48,11 +48,11 @@ test.describe("authenticated draft compare", () => {
     const marker = `Distinctive-compare-line-${Date.now()}`;
     await appendToEditor(page, `\n\n${marker}`);
 
-    // Open the draft's options menu → "Compare with Main". The handler flushes
+    // Open the draft's options menu → "Compare versions". The handler flushes
     // pending edits (onRequestSave) before opening, so the diff includes the
     // just-typed marker even if autosave has not fired yet.
     await page.getByRole("button", { name: `Draft options: ${label}` }).click();
-    await page.getByRole("menuitem", { name: "Compare with Main" }).click();
+    await page.getByRole("menuitem", { name: "Compare versions" }).click();
 
     // The compare sheet is open.
     await expect(
@@ -84,6 +84,73 @@ test.describe("authenticated draft compare", () => {
     });
 
     // Close the sheet (exact match avoids the toast's "Close toast" button).
+    await page.getByRole("button", { name: "Close", exact: true }).click();
+    await expect(
+      page.getByRole("heading", { name: "Compare versions" }),
+    ).toBeHidden({ timeout: 15_000 });
+
+    // Delete the draft (cleanup → re-runnable).
+    await page.getByRole("button", { name: `Draft options: ${label}` }).click();
+    await page.getByRole("menuitem", { name: "Delete" }).click();
+    await expect(page.getByText("Draft deleted")).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(draftTabs).toHaveCount(before, { timeout: 15_000 });
+  });
+
+  /**
+   * Promote a draft to Main from inside the compare sheet. The draft is an
+   * UNMODIFIED "Copy from Main", so promoting it writes back byte-identical
+   * content — the seeded article is never actually changed (re-runnable).
+   */
+  test("promote a draft to Main from the compare sheet", async ({ page }) => {
+    await openSeededArticle(page);
+
+    await expect(page.getByRole("button", { name: "Main" })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /^Angle \d+$/ }).first(),
+    ).toBeVisible({ timeout: 15_000 });
+
+    const draftTabs = page.getByRole("button", { name: /^Draft \d+$/ });
+    const before = await draftTabs.count();
+
+    await page.getByRole("button", { name: "New draft" }).click();
+    await page.getByRole("menuitem", { name: "Copy from Main" }).click();
+    await expect(
+      page.getByText("Draft created from current content"),
+    ).toBeVisible({ timeout: 15_000 });
+    await expect(draftTabs).toHaveCount(before + 1, { timeout: 15_000 });
+    const label = (await draftTabs.last().innerText()).trim();
+
+    // Open the compare sheet from the draft's menu.
+    await page.getByRole("button", { name: `Draft options: ${label}` }).click();
+    await page.getByRole("menuitem", { name: "Compare versions" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Compare versions" }),
+    ).toBeVisible({ timeout: 15_000 });
+
+    // The right side is the draft, so it exposes a promote action; the left
+    // side is Main, which must not.
+    const promoteButton = page.getByRole("button", {
+      name: `Promote ${label} to Main`,
+    });
+    await expect(promoteButton).toBeVisible({ timeout: 15_000 });
+    await expect(
+      page.getByRole("button", { name: "Promote Main to Main" }),
+    ).toHaveCount(0);
+
+    await promoteButton.click();
+    await expect(page.getByText("Draft promoted to main article")).toBeVisible({
+      timeout: 15_000,
+    });
+
+    // Both sides re-fetch after the promote; the copy was identical to Main,
+    // so the diff resolves to the "No differences" state.
+    await expect(page.getByText(/No differences/i)).toBeVisible({
+      timeout: 15_000,
+    });
+
+    // Close the sheet; the editor has switched back to Main under it.
     await page.getByRole("button", { name: "Close", exact: true }).click();
     await expect(
       page.getByRole("heading", { name: "Compare versions" }),

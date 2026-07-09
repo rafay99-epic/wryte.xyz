@@ -21,6 +21,15 @@ export type SprintEndReason = "target" | "time";
 type EditorState = {
   content: string;
   title: string;
+  /**
+   * Bumped every time content is loaded into the store from outside the
+   * editor surface (document load, draft switch, promote, restore). The
+   * markdown editor watches this to force-sync its uncontrolled textarea —
+   * a plain content comparison can't distinguish "store echoed my
+   * keystroke" from "a different version whose text happens to match what
+   * I last typed was loaded".
+   */
+  contentEpoch: number;
   isDirty: boolean;
   isSaving: boolean;
   lastSavedAt: number | null;
@@ -31,6 +40,12 @@ type EditorState = {
   historyPanelOpen: boolean;
   _preFocusSidebarOpen: boolean | null;
   activeDraftId: string | null;
+  /**
+   * Tab a version switch is currently in flight for — a draft id, `"main"`,
+   * or null when idle. The editor pane dims and locks input while non-null
+   * so in-transit keystrokes can't land in the outgoing version's buffer.
+   */
+  switchTarget: string | null;
   researchPanelOpen: boolean;
   readabilityPanelOpen: boolean;
   outlinePanelOpen: boolean;
@@ -66,6 +81,7 @@ type EditorState = {
   toggleFocusMode: () => void;
   toggleHistoryPanel: () => void;
   setActiveDraftId: (id: string | null) => void;
+  setSwitchTarget: (target: string | null) => void;
   toggleResearchPanel: () => void;
   toggleReadabilityPanel: () => void;
   toggleOutlinePanel: () => void;
@@ -95,6 +111,7 @@ const sprintIdleState = {
 const initialState = {
   content: "",
   title: "",
+  contentEpoch: 0,
   isDirty: false,
   isSaving: false,
   lastSavedAt: null,
@@ -105,6 +122,7 @@ const initialState = {
   historyPanelOpen: false,
   _preFocusSidebarOpen: null as boolean | null,
   activeDraftId: null as string | null,
+  switchTarget: null as string | null,
   researchPanelOpen: false,
   readabilityPanelOpen: false,
   outlinePanelOpen: false,
@@ -137,9 +155,10 @@ export const useEditorStore = create<EditorState>()((set) => ({
   // This prevents the autosave hook from firing on initial document load.
   // Also resets any sprint: its word baseline belongs to the previous document.
   initDocument: (title, content, projectId) =>
-    set({
+    set((state) => ({
       title,
       content,
+      contentEpoch: state.contentEpoch + 1,
       activeProjectId: projectId,
       isDirty: false,
       isSaving: false,
@@ -147,7 +166,7 @@ export const useEditorStore = create<EditorState>()((set) => ({
       sessionStartWords: countWords(content),
       sessionStartedAt: Date.now(),
       ...sprintIdleState,
-    }),
+    })),
 
   // Snapshot the save timestamp so the UI can display "saved X seconds ago"
   markSaved: () =>
@@ -186,6 +205,8 @@ export const useEditorStore = create<EditorState>()((set) => ({
     set((state) => ({ historyPanelOpen: !state.historyPanelOpen })),
 
   setActiveDraftId: (id) => set({ activeDraftId: id }),
+
+  setSwitchTarget: (target) => set({ switchTarget: target }),
 
   toggleResearchPanel: () =>
     set((state) => ({ researchPanelOpen: !state.researchPanelOpen })),
@@ -257,5 +278,8 @@ export const useEditorStore = create<EditorState>()((set) => ({
 
   endSprint: () => set({ ...sprintIdleState }),
 
-  reset: () => set(initialState),
+  // Keep the epoch monotonic across resets so a remounting editor never
+  // sees the same epoch for two different loads.
+  reset: () =>
+    set((state) => ({ ...initialState, contentEpoch: state.contentEpoch + 1 })),
 }));
