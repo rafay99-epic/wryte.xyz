@@ -1102,6 +1102,32 @@ No behavior changes — everything works exactly as before, just lighter and fas
 - A one-time, idempotent CLI backfill populates edges for existing content: \`bunx convex run cms/documents:_backfillDocumentLinks '{}'\` after deploying.
 `,
   },
+  {
+    title: "Instant draft switching & compare any two versions",
+    slug: "instant-draft-switching-compare-promote",
+    description:
+      "Draft tabs now switch instantly — no lag, no flicker, no content bleeding between versions. The compare view diffs any draft against any other (or Main) and can promote either side, and a backend hardening pass closed a frontmatter data-loss bug.",
+    build: "b69e3e2",
+    publishedAt: Date.parse("2026-07-10T01:54:00+05:00"),
+    content: `## What's new
+
+- **Instant draft switching.** Every draft you've opened, edited, or created this session renders immediately when you return to it, and empty drafts open instantly even on first visit. When a switch genuinely has to wait, the editor fades softly instead of snapping — fast switches show no transition at all.
+- **Compare any two versions.** The compare view now diffs any draft against any other draft or Main (not just draft-vs-Main), and either side can be **promoted to Main** right from the comparison.
+- **Honest switch feedback.** The target tab shows a spinner during a slow switch, typing is locked for the in-flight moment so keystrokes can't land in the wrong draft, and a failed switch keeps you where you were with a clear error instead of showing one version's text under another's tab.
+
+## Fixes
+
+- **Draft content no longer leaks between tabs.** Switching from a draft with fresh edits to a new or empty draft used to carry the old text on screen — and could then autosave it into the wrong draft. Fixed at the root (the editor now force-syncs whenever a different version loads).
+- **Promoting a draft preserves your unsaved edits** on whatever tab you're on, and no longer silently wipes Main's frontmatter when the draft carries none.
+- **No more sideways jump** when switching between a scrolling draft and an empty one — the scrollbar's 4px gutter is now always reserved.
+
+## Under the hood
+
+- The switch cache revalidates in the background at most once per draft per 30s window, so rapid tab browsing costs **fewer** Convex function calls than before; creating a blank draft now costs zero content reads.
+- Backend hardening: promote now respects the sync-conflict lock like every other main-body write, the 50-drafts-per-article cap is actually enforced, the AI-synthesis draft path got the same size caps as the interactive one, stale content pointers self-heal permanently, and draft deletion no longer pays a full-body read.
+- Two new Playwright specs pin all of this down: a draft-state isolation regression (switches, creates, reloads) and promote-from-compare.
+`,
+  },
 ];
 
 export const seed = action({
