@@ -27,11 +27,15 @@ const buildSha =
 
 const nextConfig: NextConfig = {
   reactCompiler: true,
-  // Tree-shake barrel imports to per-module paths. `lucide-react` is already in
-  // Next's built-in default list; `framer-motion` is not, so we add it here
-  // (it's imported across ~80 files).
   experimental: {
+    // Tree-shake barrel imports to per-module paths. `lucide-react` is
+    // already in Next's built-in default list; `framer-motion` is not, so we
+    // add it here (it's imported across ~80 files).
     optimizePackageImports: ["framer-motion"],
+    // Turbopack disk cache between dev runs (beta, Vercel-recommended) —
+    // markedly faster dev-server startup and warm recompiles for a dev
+    // server that runs around the clock.
+    turbopackFileSystemCacheForDev: true,
   },
   env: {
     NEXT_PUBLIC_APP_VERSION: packageJson.version,

@@ -1,6 +1,9 @@
 // NOTE: Next.js 16 deprecated the middleware.ts convention in favor of proxy.ts.
 // However, @clerk/nextjs only supports middleware.ts — migration is blocked until
 // Clerk releases a proxy.ts adapter. The deprecation warning is non-blocking.
+// Re-checked at @clerk/nextjs 7.5.12 (Next 16.2.10 upgrade): still no proxy
+// export in the package — keeping middleware.ts deliberately; auth is not a
+// place to guess.
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
