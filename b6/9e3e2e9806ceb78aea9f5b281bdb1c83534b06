@@ -1,0 +1,101 @@
+e2e/features/draft-compare.authed.spec.ts
+  s_f31bf8c86f98ec::t_97d828ae2cc7dc 51,55
+  s_f31bf8c86f98ec::t_684b751769104f 100-166
+convex/cms/documentDrafts.ts
+  s_f31bf8c86f98ec::t_b952ba69220b16 121-127
+  s_f31bf8c86f98ec::t_0d150747a1ce44 140-147
+  s_f31bf8c86f98ec::t_2029791aec5fce 232-237,244-249
+  s_f31bf8c86f98ec::t_01a56b3eed8819 334
+  s_f31bf8c86f98ec::t_86611e19e54f17 165,173-183
+  s_f31bf8c86f98ec::t_a64660edbce646 427-447,453-458,468-470,482
+  s_f31bf8c86f98ec::t_4b2b57f69172cf 42-79
+  s_f31bf8c86f98ec::t_458cc8c47dfd15 293
+  s_f31bf8c86f98ec::t_dd62aeb6a96897 389,401-404,408
+  s_f31bf8c86f98ec::t_52a5400ec35bae 501
+  s_104585532ec370::t_1b78e42ea4d8e1 41
+src/stores/editor-store.ts
+  s_f31bf8c86f98ec::t_521fecd15e7e75 281-284
+  s_f31bf8c86f98ec::t_8b341e6f4099c0 209-210
+  s_f31bf8c86f98ec::t_f2a87376a56329 125
+  s_f31bf8c86f98ec::t_df6a63d2dda980 84
+  s_f31bf8c86f98ec::t_49822abb45832b 43-48
+  s_f31bf8c86f98ec::t_139749bacecbf4 114
+  s_f31bf8c86f98ec::t_c674ac97f41802 24-32
+  s_f31bf8c86f98ec::t_c7f6c26cc9a4ba 158,161,169
+src/features/editor/components/draft-tab-bar.tsx
+  s_f31bf8c86f98ec::t_cc62a94d3cd6b8 3
+  s_f31bf8c86f98ec::t_bdf8a48b71daae 303-304,308-309
+  s_f31bf8c86f98ec::t_bb6e99c1af073b 76
+  s_f31bf8c86f98ec::t_bf20ae2eb63a93 153-156,172,174,176-177,183,188
+  s_f31bf8c86f98ec::t_ede10215d4720d 258-260
+  s_f31bf8c86f98ec::t_44205c95192274 48,51
+  s_f31bf8c86f98ec::t_b3a627fcc62d6e 160,168,175,181,191
+  s_f31bf8c86f98ec::t_7bc771e40c611f 37,44
+  s_f31bf8c86f98ec::t_99d52d56aa8abc 25-28
+  s_f31bf8c86f98ec::t_d0a7b51ab4ff9d 305-307
+  s_f31bf8c86f98ec::t_99e51c4796fea1 8
+  s_f31bf8c86f98ec::t_bd03429240f79b 257
+  s_f31bf8c86f98ec::t_2551ca831af0b2 335
+  s_f31bf8c86f98ec::t_7896cde4232b0c 113-115,123,131-140,148
+  s_f31bf8c86f98ec::t_3282850b7867dc 256,261-263
+  s_f31bf8c86f98ec::t_c3c6389a3937fd 398
+  s_f31bf8c86f98ec::t_bf6dce88cb229a 77-84
+  s_104585532ec370::t_cbdfdb2d95dc4e 85
+convex/cms/_lib/draftContent.ts
+  s_f31bf8c86f98ec::t_c1ddb6d985b9cf 116-120,125,127-134
+convex/cms/documents.ts
+  s_f31bf8c86f98ec::t_58ffeef9c8cdd6 569-572
+e2e/features/draft-state.authed.spec.ts
+  s_f31bf8c86f98ec::t_fa0ee5ca54cfa2 1-116
+src/app/globals.css
+  s_f31bf8c86f98ec::t_ae642e873d6efe 149-157
+  s_f31bf8c86f98ec::t_dc19fd528e39cc 171-175
+src/features/editor/components/draft-compare-sheet.tsx
+  s_f31bf8c86f98ec::t_6bd7a7e0da53f9 124,128-131,142-154
+  s_f31bf8c86f98ec::t_9f7483714bd82a 198-200,209-211
+  s_f31bf8c86f98ec::t_f31883d9843412 248-250,258-260,264-298
+  s_f31bf8c86f98ec::t_932679ff10a55d 50-54
+  s_f31bf8c86f98ec::t_3c131bcb192807 4,7
+  s_f31bf8c86f98ec::t_192bfdfda4b4d4 87,107
+  s_f31bf8c86f98ec::t_52d5a6c378d05a 95
+src/features/editor/hooks/use-draft-switching.ts
+  s_f31bf8c86f98ec::t_42860717825f68 13-21,24-28,36-41,57-67,77-83,88,98-99,104-106,109-112,125,136,156,160-165,167-177,195-200,202,206,208-210,243-254,266
+  s_f31bf8c86f98ec::t_8a197810c2e202 1-12,22-23,29-35,42-56,68-76,84-87,89-97,100-103,107-108,113-124,126-135,137-155,157-159,166,178-194,201,203-205,207,211-242,255-265,267
+src/features/editor/components/editor-layout.tsx
+  s_f31bf8c86f98ec::t_5cac4d7f606241 6
+  s_f31bf8c86f98ec::t_56fb92f639878f 154-160,165-169,171
+  s_f31bf8c86f98ec::t_370dc6b7d6d584 161-164
+  s_f31bf8c86f98ec::t_b720a37100fcb1 248-254
+  s_f31bf8c86f98ec::t_7da75a59e2c7b7 172-176,178-179,190-192,194-195,197,201,203-235,237-240,242-245
+  s_f31bf8c86f98ec::t_5a50d50540e76e 70-76
+  s_f31bf8c86f98ec::t_93e17294e247e4 149
+  s_104585532ec370::t_65ba102aa499a5 247
+src/features/editor/components/markdown-editor.tsx
+  s_f31bf8c86f98ec::t_376c9ecf3e3e99 45-53
+  s_f31bf8c86f98ec::t_2ef4c3777f1728 199-203,206-222,225
+  s_f31bf8c86f98ec::t_3e2e0588f2a037 283-287
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b69e3e2e9806ceb78aea9f5b281bdb1c83534b06",
+  "prompts": {},
+  "sessions": {
+    "s_104585532ec370": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c1cd8997-3ba0-4854-957c-83d58ae00a03",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    },
+    "s_f31bf8c86f98ec": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d75c7680-122b-4c84-93b7-632008989853",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
