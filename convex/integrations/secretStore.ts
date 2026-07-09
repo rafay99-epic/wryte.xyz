@@ -67,7 +67,12 @@ function makeWorkOSStore(): SecretStore {
           provider: meta.provider ?? "",
         },
       });
-      return { id: res.id, versionId: res.versionId };
+      // @workos-inc/node v10 widened versionId to include null — omit the
+      // key entirely when absent (exactOptionalPropertyTypes).
+      return {
+        id: res.id,
+        ...(res.versionId != null ? { versionId: res.versionId } : {}),
+      };
     },
 
     async read(id) {
@@ -87,7 +92,8 @@ function makeWorkOSStore(): SecretStore {
       };
       if (versionCheck !== undefined) opts.versionCheck = versionCheck;
       const res = await workos.vault.updateObject(opts);
-      return { versionId: res.metadata?.versionId };
+      const versionId = res.metadata?.versionId;
+      return versionId != null ? { versionId } : {};
     },
 
     async delete(id) {
