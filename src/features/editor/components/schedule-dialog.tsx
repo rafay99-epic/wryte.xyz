@@ -6,8 +6,6 @@ import {
   AlertTriangle,
   Calendar as CalendarIcon,
   CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
   Clock,
   Loader2,
   Share2,
@@ -17,6 +15,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { SocialPostField } from "@/components/forms/social-post-field";
 import { Button } from "@/components/ui/button";
+import { InlineCalendar } from "@/components/ui/inline-calendar";
 import { Label } from "@/components/ui/label";
 import {
   Sheet,
@@ -34,14 +33,7 @@ import {
   findPubDateFieldName,
   findPubDateFieldType,
 } from "@/lib/build-initial-frontmatter";
-import {
-  DAYS,
-  getDaysInMonth,
-  getFirstDayOfMonth,
-  isBeforeToday,
-  isSameDay,
-  MONTHS,
-} from "@/lib/calendar-utils";
+import { isSameDay } from "@/lib/calendar-utils";
 import { smoothTransition } from "@/lib/motion";
 import {
   buildPublishedUrl,
@@ -67,127 +59,6 @@ type ScheduleDialogProps = {
   onOpenChange: (open: boolean) => void;
   documentId: string;
 };
-
-/* ------------------------------------------------------------------ */
-/*  Inline calendar                                                     */
-/* ------------------------------------------------------------------ */
-
-function InlineCalendar({
-  selected,
-  onSelect,
-}: {
-  selected: Date | null;
-  onSelect: (date: Date) => void;
-}) {
-  const today = new Date();
-  const [viewYear, setViewYear] = useState(
-    selected?.getFullYear() ?? today.getFullYear(),
-  );
-  const [viewMonth, setViewMonth] = useState(
-    selected?.getMonth() ?? today.getMonth(),
-  );
-
-  const daysInMonth = getDaysInMonth(viewYear, viewMonth);
-  const firstDay = getFirstDayOfMonth(viewYear, viewMonth);
-
-  const prevMonth = useCallback(() => {
-    if (viewMonth === 0) {
-      setViewMonth(11);
-      setViewYear((y) => y - 1);
-    } else {
-      setViewMonth((m) => m - 1);
-    }
-  }, [viewMonth]);
-
-  const nextMonth = useCallback(() => {
-    if (viewMonth === 11) {
-      setViewMonth(0);
-      setViewYear((y) => y + 1);
-    } else {
-      setViewMonth((m) => m + 1);
-    }
-  }, [viewMonth]);
-
-  // Can't go to previous month if it's before the current month
-  const canGoPrev =
-    viewYear > today.getFullYear() ||
-    (viewYear === today.getFullYear() && viewMonth > today.getMonth());
-
-  const cells: (number | null)[] = [];
-  for (let i = 0; i < firstDay; i++) cells.push(null);
-  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
-
-  return (
-    <div>
-      {/* Month/year header */}
-      <div className="mb-3 flex items-center justify-between">
-        <button
-          type="button"
-          onClick={prevMonth}
-          disabled={!canGoPrev}
-          className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
-        >
-          <ChevronLeft className="size-4" />
-        </button>
-        <span className="text-sm font-medium">
-          {MONTHS[viewMonth]} {viewYear}
-        </span>
-        <button
-          type="button"
-          onClick={nextMonth}
-          className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-        >
-          <ChevronRight className="size-4" />
-        </button>
-      </div>
-
-      {/* Day labels */}
-      <div className="mb-1 grid grid-cols-7 gap-0.5">
-        {DAYS.map((d) => (
-          <div
-            key={d}
-            className="flex h-8 items-center justify-center text-[11px] font-medium text-muted-foreground/60"
-          >
-            {d}
-          </div>
-        ))}
-      </div>
-
-      {/* Day grid */}
-      <div className="grid grid-cols-7 gap-0.5">
-        {cells.map((day, i) => {
-          if (day === null) {
-            return <div key={`empty-${String(i)}`} className="h-8" />;
-          }
-
-          const date = new Date(viewYear, viewMonth, day);
-          const disabled = isBeforeToday(date);
-          const isSelected = selected && isSameDay(date, selected);
-          const isToday = isSameDay(date, today);
-
-          return (
-            <button
-              key={day}
-              type="button"
-              disabled={disabled}
-              onClick={() => onSelect(date)}
-              className={cn(
-                "flex h-8 items-center justify-center rounded-md text-[13px] transition-all",
-                disabled && "pointer-events-none text-muted-foreground/25",
-                !disabled && !isSelected && "text-foreground hover:bg-muted",
-                isToday && !isSelected && "font-semibold text-primary",
-                isSelected &&
-                  "bg-primary text-primary-foreground font-medium shadow-sm",
-              )}
-            >
-              {day}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
 
 /* ------------------------------------------------------------------ */
 /*  Schedule Panel                                                      */
