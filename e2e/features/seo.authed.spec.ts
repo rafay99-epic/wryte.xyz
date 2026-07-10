@@ -1,8 +1,5 @@
 import { expect, test } from "@playwright/test";
-import {
-  openSeededArticle,
-  SEED_PROJECT_NAME,
-} from "../support/editor";
+import { openSeededArticle, SEED_PROJECT_NAME } from "../support/editor";
 
 /**
  * SEO & link intelligence — read-only against seeded data (re-runnable):
