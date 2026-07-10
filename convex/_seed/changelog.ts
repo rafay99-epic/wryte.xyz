@@ -1147,6 +1147,24 @@ No behavior changes — everything works exactly as before, just lighter and fas
 - A public \`.plan/\` roadmap folder now tracks what's next: SEO & link intelligence, cross-posting, and reviewer comments on share links.
 `,
   },
+  {
+    title: "SEO & link intelligence",
+    slug: "seo-link-intelligence",
+    description:
+      "See exactly how your post will look on Google and social cards while you edit the frontmatter, get one-click suggestions to interlink your articles, and a stale-content radar that tells you which published posts deserve a refresh.",
+    build: "e181274",
+    publishedAt: Date.parse("2026-07-10T14:20:00+05:00"),
+    content: `## What's new
+
+- **Search preview.** A new section at the bottom of the frontmatter panel renders a live Google result and social card from your title, description, image, and slug — with honest pixel-width warnings when Google would truncate your title (~600px) or description (~920px), and nudges when a description or site URL is missing. Everything updates as you type.
+- **Link suggestions.** The research panel now spots unlinked mentions of your other articles ("mentioned as …") and links them with one click — the mention becomes a \\[\\[wiki link\\]\\] in place, feeding the backlinks graph. Code blocks, existing links, and articles you already link to are never suggested.
+- **Stale-content radar.** The project overview lists published articles untouched for 6+ months, oldest first, each one click from the editor — prose quality was covered by the readability lens; this closes the loop on keeping content fresh.
+
+## Under the hood
+
+- The search preview and suggestion scanning are pure client-side (canvas text measurement, style-lint's offset-preserving masking) — the entire feature adds ONE metadata query per research-panel open and one bounded query while the project overview is on screen. No crons, no new subscriptions, no hot-path reads.
+`,
+  },
 ];
 
 export const seed = action({
