@@ -1,0 +1,55 @@
+.plan/README.md
+  s_f31bf8c86f98ec::t_f390d4157951a1 1-28
+src/features/content-dashboard/hooks/use-view-preferences.ts
+  s_f31bf8c86f98ec::t_8e62bff9d30bc1 5,10-11,20
+src/features/calendar/calendar-page.tsx
+  s_f31bf8c86f98ec::t_9dd7c96c00dfe6 8,25,50
+src/features/content-dashboard/components/view-mode-switcher.tsx
+  s_f31bf8c86f98ec::t_98ac46636eb2a1 3,19-28,36-58
+src/features/calendar/components/calendar-grid.tsx
+  s_f31bf8c86f98ec::t_bbf17ae04c7fa9 122,130
+.plan/04-reviewer-comments.md
+  s_f31bf8c86f98ec::t_bc242eb847b34f 1-52
+src/features/calendar/components/calendar-view.tsx
+  s_f31bf8c86f98ec::t_f5d6f4cdb2c990 115-133
+  s_f31bf8c86f98ec::t_d64a4a453f48ec 53
+  s_f31bf8c86f98ec::t_5ad3021f5301bd 214-220
+.plan/03-cross-posting.md
+  s_f31bf8c86f98ec::t_3edfba00e8c9f4 1-53
+src/features/content-dashboard/components/content-dashboard.tsx
+  s_f31bf8c86f98ec::t_fe05d45272b9d1 437-438,441-447
+  s_f31bf8c86f98ec::t_1f39b5df0da030 39
+  s_f31bf8c86f98ec::t_4c64ab308a5d48 745,751-758
+.plan/01-content-calendar.md
+  s_f31bf8c86f98ec::t_f0502688bfaedd 1-47
+src/features/calendar/components/calendar-surface.tsx
+  s_f31bf8c86f98ec::t_53fba2894965fb 45-48
+  s_f31bf8c86f98ec::t_15a53cbf7e8d2a 1-44,49-72
+src/features/calendar/components/unscheduled-panel.tsx
+  s_f31bf8c86f98ec::t_53fba2894965fb 104-105
+  s_f31bf8c86f98ec::t_b702c1f783cbe7 3
+  s_f31bf8c86f98ec::t_1eee7449bba0e8 41,44-49
+  s_f31bf8c86f98ec::t_8ee734ff2ed998 76,79-82
+  s_f31bf8c86f98ec::t_77f24533b9aba8 97,102-103,106
+  s_f31bf8c86f98ec::t_2b6141d3fc1f76 50
+e2e/features/calendar.authed.spec.ts
+  s_f31bf8c86f98ec::t_4a7f40dee485b9 1-70
+.plan/02-seo-link-intelligence.md
+  s_f31bf8c86f98ec::t_24ad9f1c931ba8 1-52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "fc2e00e8bdbf04c2769d2eb2da14dbc09cd2dc2d",
+  "prompts": {},
+  "sessions": {
+    "s_f31bf8c86f98ec": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d75c7680-122b-4c84-93b7-632008989853",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
