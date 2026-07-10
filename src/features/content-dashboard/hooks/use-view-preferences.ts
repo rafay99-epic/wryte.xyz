@@ -2,13 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-export type DashboardViewMode = "table" | "board";
+export type DashboardViewMode = "table" | "board" | "calendar";
 
 const STORAGE_PREFIX = "wryte:view:";
 
 /**
- * Persists the user's preferred view mode (table or board) per project
- * using localStorage. SSR-safe via useState + useEffect hydration.
+ * Persists the user's preferred view mode (table, board, or calendar) per
+ * project using localStorage. SSR-safe via useState + useEffect hydration.
  */
 export function useViewPreferences(projectId: string) {
   const [viewMode, setViewModeState] = useState<DashboardViewMode>("table");
@@ -17,7 +17,7 @@ export function useViewPreferences(projectId: string) {
   useEffect(() => {
     try {
       const stored = localStorage.getItem(`${STORAGE_PREFIX}${projectId}`);
-      if (stored === "board" || stored === "table") {
+      if (stored === "board" || stored === "table" || stored === "calendar") {
         setViewModeState(stored);
       }
     } catch {

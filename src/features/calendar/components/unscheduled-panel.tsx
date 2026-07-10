@@ -1,5 +1,6 @@
 "use client";
 
+import { useDroppable } from "@dnd-kit/core";
 import { motion } from "framer-motion";
 import {
   CalendarPlus,
@@ -37,7 +38,15 @@ export function UnscheduledPanel({
     toggleUnscheduledPanel,
     setUnscheduledSearch,
     toggleStatusFilter,
+    activeDocument,
   } = useCalendarStore();
+
+  // The panel doubles as a drop target: dragging a SCHEDULED article onto it
+  // cancels the schedule (the reverse of dragging out to a date). Only one of
+  // the two branches below is mounted at a time, so a single droppable id
+  // serves both the open panel and the collapsed strip.
+  const { setNodeRef, isOver } = useDroppable({ id: "unscheduled-zone" });
+  const unscheduleDropActive = isOver && activeDocument?.status === "scheduled";
 
   const filtered = useMemo(() => {
     let result = documents.filter(
@@ -64,9 +73,13 @@ export function UnscheduledPanel({
   if (!unscheduledPanelOpen) {
     return (
       <button
+        ref={setNodeRef}
         type="button"
         onClick={toggleUnscheduledPanel}
-        className="flex h-full w-10 flex-col items-center justify-center gap-2 border-l bg-muted/20 text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
+        className={cn(
+          "flex h-full w-10 flex-col items-center justify-center gap-2 border-l bg-muted/20 text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground",
+          unscheduleDropActive && "bg-primary/10 text-primary",
+        )}
         title="Show unscheduled articles"
       >
         <PanelRightOpen className="size-4" />
@@ -81,11 +94,16 @@ export function UnscheduledPanel({
 
   return (
     <motion.div
+      ref={setNodeRef}
       initial={{ width: 0, opacity: 0 }}
       animate={{ width: 280, opacity: 1 }}
       exit={{ width: 0, opacity: 0 }}
       transition={{ duration: 0.2 }}
-      className="flex h-full w-[280px] shrink-0 flex-col border-l bg-muted/10"
+      className={cn(
+        "flex h-full w-[280px] shrink-0 flex-col border-l bg-muted/10 transition-colors",
+        unscheduleDropActive &&
+          "bg-primary/5 ring-1 ring-inset ring-primary/40",
+      )}
     >
       {/* Header */}
       <div className="flex items-center justify-between border-b px-3 py-2.5">

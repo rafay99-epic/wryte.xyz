@@ -1,6 +1,6 @@
 "use client";
 
-import { Columns3, LayoutList } from "lucide-react";
+import { CalendarDays, Columns3, LayoutList } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -16,6 +16,16 @@ type ViewModeSwitcherProps = {
   onViewModeChange: (mode: DashboardViewMode) => void;
 };
 
+const MODES: Array<{
+  mode: DashboardViewMode;
+  label: string;
+  Icon: typeof LayoutList;
+}> = [
+  { mode: "table", label: "Table view", Icon: LayoutList },
+  { mode: "board", label: "Board view", Icon: Columns3 },
+  { mode: "calendar", label: "Calendar view", Icon: CalendarDays },
+];
+
 export function ViewModeSwitcher({
   viewMode,
   onViewModeChange,
@@ -23,47 +33,29 @@ export function ViewModeSwitcher({
   return (
     <TooltipProvider>
       <div className="flex items-center rounded-lg border border-border/60 bg-muted/40 p-0.5">
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                onClick={() => onViewModeChange("table")}
-                className={cn(
-                  "rounded-md transition-all",
-                  viewMode === "table"
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              />
-            }
-          >
-            <LayoutList className="size-3.5" />
-          </TooltipTrigger>
-          <TooltipContent side="bottom">Table view</TooltipContent>
-        </Tooltip>
-
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                onClick={() => onViewModeChange("board")}
-                className={cn(
-                  "rounded-md transition-all",
-                  viewMode === "board"
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              />
-            }
-          >
-            <Columns3 className="size-3.5" />
-          </TooltipTrigger>
-          <TooltipContent side="bottom">Board view</TooltipContent>
-        </Tooltip>
+        {MODES.map(({ mode, label, Icon }) => (
+          <Tooltip key={mode}>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label={label}
+                  onClick={() => onViewModeChange(mode)}
+                  className={cn(
+                    "rounded-md transition-all",
+                    viewMode === mode
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                />
+              }
+            >
+              <Icon className="size-3.5" />
+            </TooltipTrigger>
+            <TooltipContent side="bottom">{label}</TooltipContent>
+          </Tooltip>
+        ))}
       </div>
     </TooltipProvider>
   );

@@ -50,6 +50,7 @@ export function CalendarView({
   const { activeDocument, setActiveDocument, setPendingDrop, pendingDrop } =
     useCalendarStore();
   const schedulePublish = useMutation(api.integrations.scheduling.schedule);
+  const cancelSchedule = useMutation(api.integrations.scheduling.cancel);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -110,6 +111,25 @@ export function CalendarView({
 
       const doc = active.data.current["document"] as CalendarDoc;
       const overId = String(over.id);
+
+      // Dropping a scheduled article back onto the unscheduled panel cancels
+      // its schedule (the inverse of dragging out to a date). The mutation
+      // reverts the document to draft and clears scheduledAt.
+      if (overId === "unscheduled-zone") {
+        if (doc.status !== "scheduled") return;
+        void cancelSchedule({ documentId: doc._id as Id<"documents"> })
+          .then(() => {
+            toast.success("Schedule canceled", {
+              description: `"${doc.title}" moved back to drafts.`,
+            });
+          })
+          .catch(() => {
+            toast.error("Couldn't cancel the schedule", {
+              description: "Something went wrong. Please try again.",
+            });
+          });
+        return;
+      }
 
       // Only accept drops on date cells (id format: "date-YYYY-MM-DD")
       if (!overId.startsWith("date-")) return;
@@ -191,7 +211,13 @@ export function CalendarView({
 
       setPendingDrop(pendingDropData);
     },
-    [setActiveDocument, setPendingDrop, resolvedTimezone, schedulePublish],
+    [
+      setActiveDocument,
+      setPendingDrop,
+      resolvedTimezone,
+      schedulePublish,
+      cancelSchedule,
+    ],
   );
 
   return (

@@ -36,6 +36,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { CalendarSurface } from "@/features/calendar/components/calendar-surface";
 import { useViewPreferences } from "@/features/content-dashboard/hooks/use-view-preferences";
 import { fadeIn, smoothTransition } from "@/lib/motion";
 import type { ParsedFrontmatter } from "@/lib/parse-frontmatter";
@@ -433,10 +434,17 @@ export function ContentDashboard({
     onBulkImportDone();
   }, [onBulkImportDone]);
 
-  // Listen for keyboard shortcut layout switch event
+  // Listen for keyboard shortcut layout switch event — cycles through the
+  // three view modes.
   useEffect(() => {
     function handleSwitchLayout() {
-      setViewMode(viewMode === "table" ? "board" : "table");
+      setViewMode(
+        viewMode === "table"
+          ? "board"
+          : viewMode === "board"
+            ? "calendar"
+            : "table",
+      );
     }
     window.addEventListener("wryte:switch-layout", handleSwitchLayout);
     return () =>
@@ -734,12 +742,20 @@ export function ContentDashboard({
             </div>
           )}
 
-          {items.length === 0 ? (
+          {items.length === 0 && viewMode !== "calendar" ? (
             <ContentEmptyState
               viewFilter={viewFilter}
               searchQuery={searchQuery}
               onCreateClick={() => onCreateClick()}
             />
+          ) : viewMode === "calendar" ? (
+            // Calendar view: self-contained surface (own bounded queries,
+            // mounted only while this mode is active). Rendered outside the
+            // AnimatePresence fork because it manages its own presence
+            // animations and a fixed-height layout.
+            <div className="h-[calc(100vh-260px)] min-h-[480px]">
+              <CalendarSurface projectId={projectId} />
+            </div>
           ) : (
             <AnimatePresence mode="wait">
               {viewMode === "table" ? (

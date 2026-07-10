@@ -119,6 +119,7 @@ export function CalendarGrid({
         <div className="flex items-center gap-2">
           <button
             type="button"
+            aria-label="Previous month"
             onClick={goPrevMonth}
             className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
@@ -126,6 +127,7 @@ export function CalendarGrid({
           </button>
           <button
             type="button"
+            aria-label="Next month"
             onClick={goNextMonth}
             className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
