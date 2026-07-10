@@ -1540,6 +1540,54 @@ export const listForCalendar = query({
   },
 });
 
+/**
+ * Stale-content radar: published documents that haven't been touched in
+ * `olderThanMonths` (default 6). Bounded index read + in-memory filter —
+ * no cron, no extra table; subscribed only while the project overview is
+ * on screen. Returns the 10 stalest, oldest first.
+ */
+export const listStale = query({
+  args: {
+    projectId: v.id("projects"),
+    olderThanMonths: v.optional(v.number()),
+  },
+  // NOTE: no `returns:` validator — matching this file's convention. Adding
+  // one currently trips TS2719 (duplicate convex type identities via a
+  // @convex-dev package); fix that dedupe before adding validators here.
+  handler: async (ctx, args) => {
+    const user = await getAuthedUserOrNull(ctx);
+    if (!user) return [];
+
+    const project = await ctx.db.get(args.projectId);
+    if (!project || project.userId !== user._id) {
+      return [];
+    }
+
+    const months = Math.min(24, Math.max(1, args.olderThanMonths ?? 6));
+    const cutoff = Date.now() - months * 30 * 24 * 60 * 60 * 1000;
+
+    const published = await ctx.db
+      .query("documents")
+      .withIndex("by_projectId_and_status", (q) =>
+        q.eq("projectId", args.projectId).eq("status", "published"),
+      )
+      .take(500);
+
+    return published
+      .filter((d) => d.trashedAt === undefined && d.updatedAt < cutoff)
+      .sort((a, b) => a.updatedAt - b.updatedAt)
+      .slice(0, 10)
+      .map((d) => ({
+        _id: d._id,
+        title: d.title,
+        slug: d.slug,
+        updatedAt: d.updatedAt,
+        publishedAt: d.publishedAt,
+        wordCount: d.wordCount,
+      }));
+  },
+});
+
 /* ------------------------------------------------------------------ */
 /*  Bulk import — tracking, progress, and workpool callback             */
 /* ------------------------------------------------------------------ */

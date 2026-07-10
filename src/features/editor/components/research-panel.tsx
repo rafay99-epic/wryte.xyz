@@ -26,7 +26,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { useLinkSuggestions } from "@/features/editor/hooks/use-link-suggestions";
+import type { LinkSuggestion } from "@/features/editor/lib/link-suggestions";
 import { cn } from "@/lib/utils";
+import { useEditorStore } from "@/stores/editor-store";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
 import { useEditorContext } from "./editor-context";
@@ -64,8 +67,31 @@ export function ResearchPanel({
   open,
   onClose,
 }: ResearchPanelProps) {
-  const { insertAtCursor } = useEditorContext();
+  const { insertAtCursor, replaceRange, selectRange } = useEditorContext();
   const router = useRouter();
+  // Unlinked-mention suggestions — one metadata query per panel-open, all
+  // scanning client-side and debounced (see the hook for the cost model).
+  const { suggestions, loading: suggestionsLoading } = useLinkSuggestions(
+    documentId,
+    open,
+  );
+
+  const handleLinkSuggestion = useCallback(
+    (suggestion: LinkSuggestion) => {
+      // The scan is debounced, so the offsets can lag fresh keystrokes —
+      // only apply when the range still holds the matched text.
+      const current = useEditorStore.getState().content;
+      const actual = current.slice(suggestion.start, suggestion.end);
+      if (actual.toLowerCase() !== suggestion.matched.toLowerCase()) {
+        toast.info("The text just changed — give it a second and try again");
+        return;
+      }
+      replaceRange(suggestion.start, suggestion.end, `[[${actual}]]`);
+      // Highlight the fresh link (offsets: +4 for the two bracket pairs).
+      selectRange(suggestion.start, suggestion.end + 4);
+    },
+    [replaceRange, selectRange],
+  );
   const research = useQuery(api.cms.documentResearch.list, {
     documentId: documentId as Id<"documents">,
   });
@@ -503,6 +529,55 @@ export function ResearchPanel({
                       </div>
                     );
                   })
+                )}
+              </div>
+
+              <div className="border-t border-border/40 p-3">
+                <div className="mb-2 flex items-center gap-1.5">
+                  <Link2 className="size-3 text-muted-foreground" />
+                  <span className="text-[11px] font-medium text-foreground">
+                    Link suggestions
+                  </span>
+                  {suggestions.length > 0 && (
+                    <span className="rounded-full bg-primary/10 px-1.5 py-px text-[10px] font-semibold text-primary">
+                      {suggestions.length}
+                    </span>
+                  )}
+                </div>
+                {suggestionsLoading ? (
+                  <div className="flex items-center py-2 text-[11px] text-muted-foreground">
+                    <Loader2 className="mr-2 size-3 animate-spin" />
+                    Scanning...
+                  </div>
+                ) : suggestions.length === 0 ? (
+                  <p className="py-1 text-[11px] text-muted-foreground">
+                    No unlinked mentions of other articles found.
+                  </p>
+                ) : (
+                  <div className="-mx-1">
+                    {suggestions.map((s) => (
+                      <div
+                        key={s.docId}
+                        className="flex w-full items-center justify-between gap-2 border-b border-border/30 px-1 py-1.5 last:border-b-0"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate text-[11px] text-foreground">
+                            {s.title}
+                          </p>
+                          <p className="truncate text-[10px] text-muted-foreground/60">
+                            mentioned as “{s.matched}”
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleLinkSuggestion(s)}
+                          className="shrink-0 rounded-md px-2 py-1 text-[10px] font-medium text-primary transition-colors hover:bg-primary/10"
+                        >
+                          Link it
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
 

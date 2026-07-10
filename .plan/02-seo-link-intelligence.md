@@ -1,5 +1,22 @@
 # SEO & Link Intelligence
 
+## Status: shipped 2026-07-10 (all three pieces)
+
+Implementation notes vs. the original plan below:
+- **A** shipped as `FrontmatterSearchPreview` (collapsible section at the
+  bottom of the frontmatter panel; canvas-based pixel checks in
+  `lib/seo-preview.ts`; uses `project.siteUrl` + live `values`).
+- **B** shipped as a "Link suggestions" section in the research panel
+  (`use-link-suggestions.ts` + pure scanner in `lib/link-suggestions.ts`;
+  ONE one-shot metadata query per panel-open — reuses `listForCalendar` —
+  debounced client-side scanning; "Link it" wraps the mention via
+  `replaceRange` and highlights it).
+- **C** shipped WITHOUT the cron: `documents.listStale` is a bounded
+  `by_projectId_and_status` read (published, take 500, filter updatedAt,
+  top 10) subscribed only while the project overview is open — zero
+  standing cost, simpler than the cron+table design. Revisit the cron only
+  if projects outgrow the bounded read.
+
 Close the discoverability loop: the readability lens covers prose quality;
 nothing yet covers how a post *performs* once published.
 

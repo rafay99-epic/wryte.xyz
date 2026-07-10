@@ -49,6 +49,7 @@ import {
   isAiEligibleField,
 } from "./frontmatter-ai-drawer";
 import { FrontmatterImageField } from "./frontmatter-image-field";
+import { FrontmatterSearchPreview } from "./frontmatter-search-preview";
 import {
   FrontmatterValidationBadge,
   FrontmatterValidationIssues,
@@ -970,6 +971,19 @@ export function FrontmatterEditor({
                   )}
                 </AnimatePresence>
               </div>
+
+              {/* Live Google/social preview from the values above — pure
+                  client-side, no queries. */}
+              <FrontmatterSearchPreview
+                values={values}
+                fallbackTitle={document.title}
+                slug={
+                  typeof values["slug"] === "string"
+                    ? values["slug"]
+                    : document.slug
+                }
+                siteUrl={project.siteUrl}
+              />
             </div>
           </motion.div>
         )}

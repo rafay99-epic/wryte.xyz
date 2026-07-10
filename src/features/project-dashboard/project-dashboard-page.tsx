@@ -25,6 +25,7 @@ import { fadeSlideUp, smoothTransition } from "@/lib/motion";
 import { useEditorStore } from "@/stores/editor-store";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { IdeasPanel } from "./components/ideas-panel";
+import { StaleContentSection } from "./components/stale-content-section";
 import { StatusDistribution } from "./components/status-distribution";
 import { useProjectDashboard } from "./hooks/use-project-dashboard";
 
@@ -189,6 +190,15 @@ export function ProjectDashboardPage() {
               <UpcomingSchedule items={upcoming} />
             </motion.div>
           )}
+
+          <motion.div
+            variants={fadeSlideUp}
+            initial="initial"
+            animate="animate"
+            transition={{ ...smoothTransition, delay: 0.11 }}
+          >
+            <StaleContentSection projectId={projectId} />
+          </motion.div>
 
           <motion.div
             variants={fadeSlideUp}
