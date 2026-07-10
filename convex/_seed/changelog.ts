@@ -1128,6 +1128,25 @@ No behavior changes — everything works exactly as before, just lighter and fas
 - Two new Playwright specs pin all of this down: a draft-state isolation regression (switches, creates, reloads) and promote-from-compare.
 `,
   },
+  {
+    title: "Calendar view in the articles dashboard",
+    slug: "calendar-dashboard-view-unschedule",
+    description:
+      "The content calendar is now a third view mode right next to Table and Board — and scheduling finally has its inverse: drag a scheduled article onto the unscheduled panel to cancel it.",
+    build: "fc2e00e",
+    publishedAt: Date.parse("2026-07-10T13:57:00+05:00"),
+    content: `## What's new
+
+- **Calendar, Table, Board — one switcher.** The month calendar now lives inside the articles dashboard as a third view mode, remembered per project, with the layout keyboard shortcut cycling through all three. The dedicated calendar page in the sidebar still works — both render the same surface.
+- **Drag to unschedule.** Dragging a scheduled article onto the Unscheduled panel cancels its schedule and returns it to drafts — the missing inverse of dragging an article onto a date.
+
+## Under the hood
+
+- The calendar's queries are mounted only while the calendar is visible, so Table and Board users pay zero additional reads.
+- Month navigation and view-mode buttons gained proper accessibility labels, and a new self-cleaning Playwright spec covers view switching, month navigation, and preference persistence.
+- A public \`.plan/\` roadmap folder now tracks what's next: SEO & link intelligence, cross-posting, and reviewer comments on share links.
+`,
+  },
 ];
 
 export const seed = action({
