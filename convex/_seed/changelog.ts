@@ -1200,6 +1200,27 @@ No behavior changes — everything works exactly as before, just lighter and fas
 - **Double-click-to-edit lands more precisely.** The jump now resolves against the exact content the preview rendered (not the store's slightly-newer text), and malformed source-line stamps fall back to word search instead of silently jumping to the top of the document.
 `,
   },
+  {
+    title: "A command palette worth the shortcut",
+    slug: "command-palette-worth-the-shortcut",
+    description:
+      "⌘K got the Raycast treatment: fuzzy search across every article in every project, instant project switching, smarter commands — and typing in it never costs a server call.",
+    build: "c2e2216",
+    publishedAt: Date.parse("2026-07-12T01:30:00+05:00"),
+    content: `## What's new
+
+- **Search everything, not just recents.** The palette used to list your 20 most recent articles and match them by exact substring. It now searches every article across every project — titles, slugs, tags, and project names — with real fuzzy matching: \\"nart\\" finds *New Article*, a half-remembered slug finds its post, and matched characters are highlighted so you can see why a result ranked.
+- **One ranked list, Raycast style.** Typing collapses the categories into a single relevance-ranked list — commands, projects, and articles compete on match quality, with a freshness boost so newer articles win ties. Idle, you still get tidy groups: actions, navigation, projects, and your ten most recent articles.
+- **Commands answer to synonyms.** \\"kanban\\" finds *Switch Layout*, \\"night\\" finds the dark theme, \\"hide panel\\" finds the sidebar toggle. Article rows show their project and status so cross-project results stay unambiguous.
+- **Deep search when titles aren't enough.** The last row hands your query to the current project's full-text content search — one Enter and you're on the articles page with the search pre-filled.
+
+## Under the hood
+
+- Keystrokes never touch the server. One metadata-only catalog query (titles, slugs, tags — never bodies, ~100 bytes a row) feeds an in-memory fuzzy index; all matching is client-side.
+- The palette's subscriptions are now lazy: nothing loads until the first ⌘K, then stays warm for instant reopens. Previously it subscribed two queries permanently from the app shell even if you never opened it.
+- No new search indexes, crons, writes, or storage — the whole feature is one read-only query and a 120-line dependency-free fuzzy matcher.
+`,
+  },
 ];
 
 const seedResult = v.object({
