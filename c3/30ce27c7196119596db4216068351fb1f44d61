@@ -1,0 +1,20 @@
+convex/_seed/changelog.ts
+  s_0fe6ed8c00d03f::t_a3fc5952342db6 1224-1240
+  s_0fe6ed8c00d03f::t_67e897c50dccf8 1222-1223
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "c330ce27c7196119596db4216068351fb1f44d61",
+  "prompts": {},
+  "sessions": {
+    "s_0fe6ed8c00d03f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7a688ff0-4b02-4830-a4ec-faebcb9eb3e3",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
