@@ -2,8 +2,15 @@ import { useCallback, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { useShallow } from "zustand/react/shallow";
 import { useEditorStore } from "@/stores/editor-store";
+import {
+  clearRecovery,
+  readRecovery,
+  writeRecovery,
+} from "../lib/recovery-buffer";
 
 const DEBOUNCE_MS = 3000;
+/** Min interval between recovery-buffer writes while typing. */
+const RECOVERY_WRITE_MS = 2000;
 // Ceiling on how long continuous typing can defer persistence. Without this,
 // a trailing debounce that keeps getting reset by every keystroke never
 // fires — the timer effect below shrinks its delay as this ceiling
@@ -142,6 +149,7 @@ export function useAutosave({
           failureCountRef.current = 0;
         }
         firstDirtyAtRef.current = null;
+        clearRecovery(targetId);
         return { committed: true, wrote: false };
       }
 
@@ -169,6 +177,9 @@ export function useAutosave({
           if (stillFresh) {
             markSaved();
             firstDirtyAtRef.current = null;
+            // Everything the user typed is confirmed server-side — the
+            // local recovery mirror has nothing left to protect.
+            clearRecovery(targetId);
           } else {
             setSaving(false);
           }
@@ -200,6 +211,54 @@ export function useAutosave({
     if (result.wrote) flushPendingRef.current = true;
   }, [performSave]);
 
+  // ── Local recovery buffer ─────────────────────────────────────────────
+  // A save lost to a dying connection or closed tab takes the words with
+  // it. Mirror the dirty buffer into localStorage (throttled while typing,
+  // unconditionally on pagehide) and offer to restore it on the next visit.
+  const lastRecoveryWriteRef = useRef(0);
+  const recoveryPromptedRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!enabled) return;
+    const onPageHide = () => {
+      const { content: c, title: t, targetId: id } = latestRef.current;
+      if (useEditorStore.getState().isDirty) writeRecovery(id, c, t);
+    };
+    window.addEventListener("pagehide", onPageHide);
+    return () => window.removeEventListener("pagehide", onPageHide);
+  }, [enabled]);
+
+  // Offer to restore a leftover buffer once per target. The buffer only
+  // survives when a save never confirmed — a clean exit always clears it.
+  useEffect(() => {
+    if (!enabled) return;
+    if (recoveryPromptedRef.current === targetId) return;
+    recoveryPromptedRef.current = targetId;
+
+    const entry = readRecovery(targetId);
+    if (!entry) return;
+    if (entry.content === latestRef.current.content) {
+      clearRecovery(targetId);
+      return;
+    }
+    toast("Unsaved changes recovered", {
+      id: `recovery-${targetId}`,
+      description: `A newer local copy from ${new Date(
+        entry.savedAt,
+      ).toLocaleString()} never reached the server. Restore it?`,
+      duration: 20_000,
+      action: {
+        label: "Restore",
+        onClick: () => {
+          const store = useEditorStore.getState();
+          store.setContent(entry.content);
+          if (entry.title) store.setTitle(entry.title);
+          clearRecovery(targetId);
+        },
+      },
+    });
+  }, [enabled, targetId]);
+
   // Terminal save (manual Cmd+S) — also refreshes derived metadata.
   const flush = useCallback(async () => {
     const result = await performSave(onFlushRef.current ?? onSaveRef.current);
@@ -218,6 +277,13 @@ export function useAutosave({
     }
     if (firstDirtyAtRef.current === null) {
       firstDirtyAtRef.current = Date.now();
+    }
+    // Mirror the dirty buffer locally so a killed tab/connection can't take
+    // the words with it. Throttled — the sync JSON write is cheap but not
+    // free on large documents.
+    if (Date.now() - lastRecoveryWriteRef.current > RECOVERY_WRITE_MS) {
+      lastRecoveryWriteRef.current = Date.now();
+      writeRecovery(targetId, content, title);
     }
     // Shrink the delay as the max-wait ceiling approaches so continuous
     // typing (which keeps resetting this timer) can't defer persistence

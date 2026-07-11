@@ -34,6 +34,7 @@ import { useSearchStore } from "@/stores/search-store";
 import { useShortcutsStore } from "@/stores/shortcuts-store";
 import { useThemeStore } from "@/stores/theme-store";
 import { api } from "../../../convex/_generated/api";
+import { getRecentDocOpens, openBoost, recordDocOpen } from "./lib/frecency";
 import { scoreItem } from "./lib/fuzzy";
 
 // ---------------------------------------------------------------------------
@@ -56,6 +57,8 @@ type CommandItem = {
   category: "action" | "project" | "article" | "navigation";
   /** 0..1 freshness for articles — small ranking boost, newest wins ties. */
   recency?: number | undefined;
+  /** Position in the recently-opened list (0 = last opened), if present. */
+  openRank?: number | undefined;
   onSelect: () => void;
 };
 
@@ -140,6 +143,17 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     for (const p of projects ?? []) map.set(p._id, p.name);
     return map;
   }, [projects]);
+
+  // Palette-open history (localStorage) — re-read each time the palette
+  // opens so this session's jumps affect this session's ranking.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `open` is the refresh trigger
+  const openRanks = useMemo(() => {
+    const map = new Map<string, number>();
+    getRecentDocOpens().forEach((id, index) => {
+      map.set(id, index);
+    });
+    return map;
+  }, [open]);
 
   // ---------------------------------------------------------------------------
   // Build command items
@@ -305,7 +319,9 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
           icon: FileText,
           category: "article",
           recency: (doc.updatedAt - oldest) / span,
+          openRank: openRanks.get(doc._id),
           onSelect: () => {
+            recordDocOpen(doc._id);
             close();
             router.push(`/editor/${doc._id}`);
           },
@@ -318,6 +334,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     projects,
     documents,
     projectNames,
+    openRanks,
     activeProjectId,
     router,
     onOpenChange,
@@ -332,10 +349,19 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     let sections: Section[];
 
     if (!trimmed) {
-      // Idle: grouped by category, articles capped to the most recent few.
+      // Idle: grouped by category. Articles show palette-opened docs first
+      // (the ones you keep jumping to), then the rest by recency of edit.
       sections = CATEGORY_ORDER.flatMap((cat) => {
         let catItems = commandItems.filter((i) => i.category === cat);
-        if (cat === "article") catItems = catItems.slice(0, IDLE_ARTICLE_COUNT);
+        if (cat === "article") {
+          catItems = [...catItems]
+            .sort(
+              (a, b) =>
+                (a.openRank ?? Number.MAX_SAFE_INTEGER) -
+                (b.openRank ?? Number.MAX_SAFE_INTEGER),
+            )
+            .slice(0, IDLE_ARTICLE_COUNT);
+        }
         return catItems.length
           ? [{ label: CATEGORY_LABELS[cat], items: catItems }]
           : [];
@@ -352,7 +378,8 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         if (!match) continue;
         scored.push({
           item: { ...item, labelPositions: match.labelPositions },
-          score: match.score + (item.recency ?? 0) * 6,
+          score:
+            match.score + (item.recency ?? 0) * 6 + openBoost(item.openRank),
         });
       }
       scored.sort((a, b) => b.score - a.score);
@@ -547,6 +574,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
           >
             <div
               ref={wrapperRef}
+              data-testid="command-palette"
               className="overflow-hidden rounded-xl border border-border/50 bg-background shadow-2xl"
             >
               {/* Search input */}
