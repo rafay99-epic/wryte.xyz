@@ -25,6 +25,42 @@ import {
 } from "./_lib/documentContent";
 import { syncDocumentLinks } from "./_lib/documentLinks";
 
+/** Full `documents` row shape — mirrors `convex/schema.ts`. Shared by every
+ *  function returning whole documents (same pattern as
+ *  `convex/social/credentialsDb.ts` CREDENTIAL_DOC). */
+const documentFields = {
+  _id: v.id("documents"),
+  _creationTime: v.number(),
+  projectId: v.id("projects"),
+  userId: v.id("users"),
+  title: v.string(),
+  slug: v.string(),
+  excerpt: v.optional(v.string()),
+  contentId: v.optional(v.id("document_content")),
+  wordCount: v.optional(v.number()),
+  frontmatter: v.optional(v.string()),
+  status: v.string(),
+  tags: v.optional(v.array(v.string())),
+  boardPosition: v.optional(v.number()),
+  scheduledAt: v.optional(v.number()),
+  publishedAt: v.optional(v.number()),
+  bookmarked: v.optional(v.boolean()),
+  githubPath: v.optional(v.string()),
+  githubSha: v.optional(v.string()),
+  githubSyncedAt: v.optional(v.number()),
+  trashedAt: v.optional(v.number()),
+  createdAt: v.number(),
+  updatedAt: v.number(),
+};
+
+const DOCUMENT_DOC = v.object(documentFields);
+
+/** `documents` row with the body joined back from `document_content`. */
+const DOCUMENT_DOC_WITH_CONTENT = v.object({
+  ...documentFields,
+  content: v.string(),
+});
+
 /**
  * Verifies that a document exists and that the given user owns the parent project.
  * Follows the chain: document -> project -> project.userId === userId.
@@ -67,6 +103,13 @@ export const list = query({
     projectId: v.id("projects"),
     status: v.optional(v.string()),
   },
+  returns: v.array(
+    v.object({
+      ...documentFields,
+      wordCount: v.number(),
+      excerpt: v.string(),
+    }),
+  ),
   handler: async (ctx, args) => {
     const user = await getAuthedUserOrNull(ctx);
     if (!user) return [];
@@ -161,6 +204,13 @@ export const searchForLink = query({
     projectId: v.id("projects"),
     term: v.string(),
   },
+  returns: v.array(
+    v.object({
+      _id: v.id("documents"),
+      title: v.string(),
+      slug: v.string(),
+    }),
+  ),
   handler: async (ctx, args) => {
     const user = await getAuthedUserOrNull(ctx);
     if (!user) return [];
@@ -236,6 +286,16 @@ export const _listForLinkCheck = internalQuery({
     tokenIdentifier: v.string(),
     projectId: v.id("projects"),
   },
+  returns: v.union(
+    v.null(),
+    v.array(
+      v.object({
+        _id: v.id("documents"),
+        title: v.string(),
+        content: v.string(),
+      }),
+    ),
+  ),
   handler: async (ctx, args) => {
     const user = await ctx.db
       .query("users")
@@ -269,6 +329,15 @@ export const listRecent = query({
     limit: v.optional(v.number()),
     projectId: v.optional(v.id("projects")),
   },
+  returns: v.array(
+    v.object({
+      _id: v.id("documents"),
+      title: v.string(),
+      status: v.string(),
+      projectId: v.id("projects"),
+      updatedAt: v.number(),
+    }),
+  ),
   handler: async (ctx, args) => {
     const user = await getAuthedUserOrNull(ctx);
     if (!user) return [];
@@ -362,6 +431,7 @@ export const listPalette = query({
  */
 export const get = query({
   args: { documentId: v.id("documents") },
+  returns: v.union(v.null(), DOCUMENT_DOC_WITH_CONTENT),
   handler: async (ctx, args) => {
     const user = await getAuthedUserOrNull(ctx);
     if (!user) {
@@ -400,6 +470,14 @@ export const get = query({
  */
 export const getBacklinks = query({
   args: { documentId: v.id("documents") },
+  returns: v.array(
+    v.object({
+      _id: v.id("documents"),
+      title: v.string(),
+      status: v.string(),
+      updatedAt: v.number(),
+    }),
+  ),
   handler: async (ctx, args) => {
     const user = await getAuthedUserOrNull(ctx);
     if (!user) return [];
@@ -458,6 +536,7 @@ export const create = mutation({
     tags: v.optional(v.array(v.string())),
     frontmatter: v.optional(v.string()),
   },
+  returns: v.id("documents"),
   handler: async (ctx, args) => {
     const key = await getRateLimitKey(ctx);
     await rateLimiter.limit(ctx, "documents:create", { key, throws: true });
@@ -524,6 +603,7 @@ export const update = mutation({
     tags: v.optional(v.array(v.string())),
     boardPosition: v.optional(v.number()),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const key = await getRateLimitKey(ctx);
     await rateLimiter.limit(ctx, "documents:update", { key, throws: true });
@@ -645,6 +725,7 @@ export const update = mutation({
         newStatus: args.status,
       });
     }
+    return null;
   },
 });
 
@@ -670,6 +751,7 @@ export const autosaveBody = mutation({
     content: v.string(),
     title: v.optional(v.string()),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const key = await getRateLimitKey(ctx);
     await rateLimiter.limit(ctx, "documents:update", { key, throws: true });
@@ -725,6 +807,7 @@ export const autosaveBody = mutation({
         updatedAt: Date.now(),
       });
     }
+    return null;
   },
 });
 
@@ -746,6 +829,10 @@ export const duplicate = mutation({
   args: {
     documentId: v.id("documents"),
   },
+  returns: v.object({
+    documentId: v.id("documents"),
+    title: v.string(),
+  }),
   handler: async (ctx, args) => {
     const key = await getRateLimitKey(ctx);
     await rateLimiter.limit(ctx, "documents:duplicate", { key, throws: true });
@@ -809,6 +896,7 @@ export const updateStatus = mutation({
     documentId: v.id("documents"),
     status: v.string(),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const key = await getRateLimitKey(ctx);
     await rateLimiter.limit(ctx, "documents:updateStatus", {
@@ -843,6 +931,7 @@ export const updateStatus = mutation({
         newStatus: args.status,
       });
     }
+    return null;
   },
 });
 
@@ -862,6 +951,7 @@ export const updateStatus = mutation({
  */
 export const remove = mutation({
   args: { documentId: v.id("documents") },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const key = await getRateLimitKey(ctx);
     await rateLimiter.limit(ctx, "documents:remove", { key, throws: true });
@@ -887,6 +977,7 @@ export const remove = mutation({
       oldStatus: document.status,
       newStatus: null,
     });
+    return null;
   },
 });
 
@@ -912,6 +1003,7 @@ export const importFromGithub = mutation({
     githubPath: v.string(),
     githubSha: v.string(),
   },
+  returns: v.id("documents"),
   handler: async (ctx, args) => {
     const key = await getRateLimitKey(ctx);
     await rateLimiter.limit(ctx, "documents:importFromGithub", {
@@ -1001,6 +1093,7 @@ export const _importFromGithubInternal = internalMutation({
     githubPath: v.string(),
     githubSha: v.string(),
   },
+  returns: v.id("documents"),
   handler: async (ctx, args): Promise<Id<"documents">> => {
     const project = await ctx.db.get(args.projectId);
     if (!project) {
@@ -1074,6 +1167,7 @@ export const getBySlug = query({
     projectId: v.id("projects"),
     slug: v.string(),
   },
+  returns: v.union(v.null(), DOCUMENT_DOC_WITH_CONTENT),
   handler: async (ctx, args) => {
     const user = await getAuthedUserOrNull(ctx);
     if (!user) return null;
@@ -1112,6 +1206,7 @@ export const getBySlug = query({
  */
 export const toggleBookmark = mutation({
   args: { documentId: v.id("documents") },
+  returns: v.boolean(),
   handler: async (ctx, args) => {
     const key = await getRateLimitKey(ctx);
     await rateLimiter.limit(ctx, "documents:toggleBookmark", {
@@ -1142,6 +1237,7 @@ export const toggleBookmark = mutation({
  */
 export const internalGet = internalQuery({
   args: { documentId: v.id("documents") },
+  returns: v.union(v.null(), DOCUMENT_DOC_WITH_CONTENT),
   handler: async (ctx, args) => {
     const document = await ctx.db.get(args.documentId);
     if (!document) return null;
@@ -1164,6 +1260,7 @@ export const _listByIdsForProject = internalQuery({
     ids: v.array(v.id("documents")),
     projectId: v.id("projects"),
   },
+  returns: v.array(DOCUMENT_DOC),
   handler: async (ctx, args) => {
     const docs = await Promise.all(args.ids.map((id) => ctx.db.get(id)));
     return docs.filter(
@@ -1184,6 +1281,7 @@ export const internalUpdate = internalMutation({
     documentId: v.id("documents"),
     content: v.string(),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const doc = await ctx.db.get(args.documentId);
     if (!doc) throw new Error("Document not found");
@@ -1203,6 +1301,7 @@ export const internalUpdate = internalMutation({
       patch["contentId"] = contentId;
     }
     await ctx.db.patch(args.documentId, patch);
+    return null;
   },
 });
 
@@ -1226,6 +1325,7 @@ export const moveCard = mutation({
     targetStatus: v.string(),
     boardPosition: v.number(),
   },
+  returns: v.object({ behavior: v.string() }),
   handler: async (ctx, args) => {
     const key = await getRateLimitKey(ctx);
     await rateLimiter.limit(ctx, "documents:moveCard", { key, throws: true });
@@ -1307,6 +1407,7 @@ export const updateTags = mutation({
     documentId: v.id("documents"),
     tags: v.array(v.string()),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const key = await getRateLimitKey(ctx);
     await rateLimiter.limit(ctx, "documents:updateTags", { key, throws: true });
@@ -1332,6 +1433,7 @@ export const updateTags = mutation({
       frontmatter: JSON.stringify(frontmatter),
       updatedAt: Date.now(),
     });
+    return null;
   },
 });
 
@@ -1343,6 +1445,7 @@ export const internalUpdateAfterPublish = internalMutation({
     status: v.string(),
     publishedAt: v.number(),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const doc = await ctx.db.get(args.documentId);
     const patch: Record<string, unknown> = {
@@ -1372,6 +1475,7 @@ export const internalUpdateAfterPublish = internalMutation({
         { userId: doc.userId },
       );
     }
+    return null;
   },
 });
 
@@ -1399,6 +1503,7 @@ export const internalRecordPublishHistory = internalMutation({
     isBulk: v.optional(v.boolean()),
     bulkBatchId: v.optional(v.string()),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     // Body + frontmatter live in the sibling `publish_history_content` table
     // so `getPublishHistory` (the History panel list, up to 100 rows) never
@@ -1440,6 +1545,7 @@ export const internalRecordPublishHistory = internalMutation({
       if (contentRow) await ctx.db.delete(contentRow._id);
       await ctx.db.delete(row._id);
     }
+    return null;
   },
 });
 
@@ -1453,6 +1559,19 @@ export const getPublishHistory = query({
   args: {
     documentId: v.id("documents"),
   },
+  returns: v.array(
+    v.object({
+      _id: v.id("publish_history"),
+      commitSha: v.string(),
+      commitUrl: v.optional(v.string()),
+      commitMessage: v.string(),
+      githubPath: v.string(),
+      titleSnapshot: v.string(),
+      isUpdate: v.boolean(),
+      isBulk: v.optional(v.boolean()),
+      createdAt: v.number(),
+    }),
+  ),
   handler: async (ctx, args) => {
     const user = await getAuthedUserOrNull(ctx);
     if (!user) return [];
@@ -1471,12 +1590,12 @@ export const getPublishHistory = query({
     return history.map((h) => ({
       _id: h._id,
       commitSha: h.commitSha,
-      commitUrl: h.commitUrl,
+      ...(h.commitUrl !== undefined ? { commitUrl: h.commitUrl } : {}),
       commitMessage: h.commitMessage,
       githubPath: h.githubPath,
       titleSnapshot: h.titleSnapshot,
       isUpdate: h.isUpdate,
-      isBulk: h.isBulk,
+      ...(h.isBulk !== undefined ? { isBulk: h.isBulk } : {}),
       createdAt: h.createdAt,
     }));
   },
@@ -1491,6 +1610,10 @@ export const rollbackToVersion = mutation({
     documentId: v.id("documents"),
     historyId: v.id("publish_history"),
   },
+  returns: v.object({
+    title: v.string(),
+    restoredFrom: v.number(),
+  }),
   handler: async (ctx, args) => {
     const key = await getRateLimitKey(ctx);
     await rateLimiter.limit(ctx, "documents:rollbackToVersion", {
@@ -1561,6 +1684,18 @@ export const rollbackToVersion = mutation({
  */
 export const listForCalendar = query({
   args: { projectId: v.id("projects") },
+  returns: v.array(
+    v.object({
+      _id: v.id("documents"),
+      title: v.string(),
+      slug: v.string(),
+      status: v.string(),
+      scheduledAt: v.optional(v.number()),
+      publishedAt: v.optional(v.number()),
+      updatedAt: v.number(),
+      createdAt: v.number(),
+    }),
+  ),
   handler: async (ctx, args) => {
     const user = await getAuthedUserOrNull(ctx);
     if (!user) return [];
@@ -1580,8 +1715,8 @@ export const listForCalendar = query({
       title: d.title,
       slug: d.slug,
       status: d.status,
-      scheduledAt: d.scheduledAt,
-      publishedAt: d.publishedAt,
+      ...(d.scheduledAt !== undefined ? { scheduledAt: d.scheduledAt } : {}),
+      ...(d.publishedAt !== undefined ? { publishedAt: d.publishedAt } : {}),
       updatedAt: d.updatedAt,
       createdAt: d.createdAt,
     }));
@@ -1599,9 +1734,16 @@ export const listStale = query({
     projectId: v.id("projects"),
     olderThanMonths: v.optional(v.number()),
   },
-  // NOTE: no `returns:` validator — matching this file's convention. Adding
-  // one currently trips TS2719 (duplicate convex type identities via a
-  // @convex-dev package); fix that dedupe before adding validators here.
+  returns: v.array(
+    v.object({
+      _id: v.id("documents"),
+      title: v.string(),
+      slug: v.string(),
+      updatedAt: v.number(),
+      publishedAt: v.optional(v.number()),
+      wordCount: v.optional(v.number()),
+    }),
+  ),
   handler: async (ctx, args) => {
     const user = await getAuthedUserOrNull(ctx);
     if (!user) return [];
@@ -1630,8 +1772,8 @@ export const listStale = query({
         title: d.title,
         slug: d.slug,
         updatedAt: d.updatedAt,
-        publishedAt: d.publishedAt,
-        wordCount: d.wordCount,
+        ...(d.publishedAt !== undefined ? { publishedAt: d.publishedAt } : {}),
+        ...(d.wordCount !== undefined ? { wordCount: d.wordCount } : {}),
       }));
   },
 });
@@ -1651,6 +1793,7 @@ export const _createImportBatch = internalMutation({
     userId: v.id("users"),
     total: v.number(),
   },
+  returns: v.id("import_batches"),
   handler: async (ctx, args): Promise<Id<"import_batches">> => {
     const now = Date.now();
     // Counts (`succeeded`, `failed`, `errors`) are now derived from
@@ -1683,6 +1826,7 @@ export const _onImportFileComplete = internalMutation({
     context: v.any(),
     result: v.any(),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const { batchId, filePath } = args.context as {
       batchId: Id<"import_batches">;
@@ -1696,7 +1840,7 @@ export const _onImportFileComplete = internalMutation({
     // Defense in depth: if the batch row is gone (manually cleaned up
     // before workpool drained), don't leave orphaned outcomes.
     const batch = await ctx.db.get(batchId);
-    if (!batch) return;
+    if (!batch) return null;
 
     if (result.kind === "success") {
       await ctx.db.insert("import_job_outcomes", {
@@ -1705,7 +1849,7 @@ export const _onImportFileComplete = internalMutation({
         filePath,
         createdAt: Date.now(),
       });
-      return;
+      return null;
     }
 
     const errorMessage =
@@ -1717,6 +1861,7 @@ export const _onImportFileComplete = internalMutation({
       errorMessage,
       createdAt: Date.now(),
     });
+    return null;
   },
 });
 
@@ -1734,6 +1879,21 @@ export const _onImportFileComplete = internalMutation({
  */
 export const getImportBatch = query({
   args: { batchId: v.id("import_batches") },
+  returns: v.union(
+    v.null(),
+    v.object({
+      _id: v.id("import_batches"),
+      _creationTime: v.number(),
+      projectId: v.id("projects"),
+      userId: v.id("users"),
+      total: v.number(),
+      succeeded: v.number(),
+      failed: v.number(),
+      errors: v.array(v.object({ filePath: v.string(), message: v.string() })),
+      createdAt: v.number(),
+      updatedAt: v.number(),
+    }),
+  ),
   handler: async (ctx, args) => {
     const user = await getAuthedUserOrNull(ctx);
     if (!user) return null;
@@ -1800,18 +1960,19 @@ export const _removeInternal = internalMutation({
     documentId: v.id("documents"),
     projectId: v.id("projects"),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const doc = await ctx.db.get(args.documentId);
-    if (!doc) return;
+    if (!doc) return null;
     if (doc.projectId !== args.projectId) {
       // Refuse to act on docs outside the scope the caller verified.
       // Silent return rather than throw — callers loop over many docs
       // and one bad id shouldn't halt the whole batch.
-      return;
+      return null;
     }
     if (doc.trashedAt !== undefined) {
       // Already trashed — idempotent no-op so retries don't error.
-      return;
+      return null;
     }
 
     await cascadeDeleteScheduledPublishesForDoc(ctx, args.documentId);
@@ -1831,6 +1992,7 @@ export const _removeInternal = internalMutation({
         newStatus: null,
       });
     }
+    return null;
   },
 });
 
@@ -1850,6 +2012,7 @@ export const _bulkSoftDeleteLocal = internalMutation({
     projectId: v.id("projects"),
     documentIds: v.array(v.id("documents")),
   },
+  returns: v.object({ trashed: v.number() }),
   handler: async (ctx, args): Promise<{ trashed: number }> => {
     const now = Date.now();
     let trashed = 0;
@@ -1928,6 +2091,7 @@ export const _createDeleteBatch = internalMutation({
     mode: v.union(v.literal("local"), v.literal("github"), v.literal("both")),
     total: v.number(),
   },
+  returns: v.id("delete_batches"),
   handler: async (ctx, args): Promise<Id<"delete_batches">> => {
     const now = Date.now();
     return await ctx.db.insert("delete_batches", {
@@ -1952,6 +2116,7 @@ export const _onDeleteFileComplete = internalMutation({
     context: v.any(),
     result: v.any(),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const { batchId, label } = args.context as {
       batchId: Id<"delete_batches">;
@@ -1963,7 +2128,7 @@ export const _onDeleteFileComplete = internalMutation({
       | { kind: "canceled" };
 
     const batch = await ctx.db.get(batchId);
-    if (!batch) return;
+    if (!batch) return null;
 
     if (result.kind === "success") {
       await ctx.db.insert("delete_job_outcomes", {
@@ -1972,7 +2137,7 @@ export const _onDeleteFileComplete = internalMutation({
         label,
         createdAt: Date.now(),
       });
-      return;
+      return null;
     }
 
     const errorMessage =
@@ -1984,6 +2149,7 @@ export const _onDeleteFileComplete = internalMutation({
       errorMessage,
       createdAt: Date.now(),
     });
+    return null;
   },
 });
 
@@ -1993,6 +2159,22 @@ export const _onDeleteFileComplete = internalMutation({
  */
 export const getDeleteBatch = query({
   args: { batchId: v.id("delete_batches") },
+  returns: v.union(
+    v.null(),
+    v.object({
+      _id: v.id("delete_batches"),
+      _creationTime: v.number(),
+      projectId: v.id("projects"),
+      userId: v.id("users"),
+      mode: v.union(v.literal("local"), v.literal("github"), v.literal("both")),
+      total: v.number(),
+      succeeded: v.number(),
+      failed: v.number(),
+      errors: v.array(v.object({ label: v.string(), message: v.string() })),
+      createdAt: v.number(),
+      updatedAt: v.number(),
+    }),
+  ),
   handler: async (ctx, args) => {
     const user = await getAuthedUserOrNull(ctx);
     if (!user) return null;
@@ -2057,15 +2239,26 @@ export const _getExistingGithubFilesByPaths = internalQuery({
     projectId: v.id("projects"),
     paths: v.array(v.string()),
   },
+  returns: v.array(
+    v.object({
+      documentId: v.id("documents"),
+      githubPath: v.string(),
+      githubSha: v.optional(v.string()),
+      updatedAt: v.number(),
+      githubSyncedAt: v.optional(v.number()),
+      content: v.string(),
+      frontmatter: v.optional(v.string()),
+    }),
+  ),
   handler: async (ctx, args) => {
     const results: Array<{
       documentId: Id<"documents">;
       githubPath: string;
-      githubSha: string | undefined;
+      githubSha?: string;
       updatedAt: number;
-      githubSyncedAt: number | undefined;
+      githubSyncedAt?: number;
       content: string;
-      frontmatter: string | undefined;
+      frontmatter?: string;
     }> = [];
     for (const path of args.paths) {
       const doc = await ctx.db
@@ -2078,11 +2271,15 @@ export const _getExistingGithubFilesByPaths = internalQuery({
       results.push({
         documentId: doc._id,
         githubPath: path,
-        githubSha: doc.githubSha,
+        ...(doc.githubSha !== undefined ? { githubSha: doc.githubSha } : {}),
         updatedAt: doc.updatedAt,
-        githubSyncedAt: doc.githubSyncedAt,
+        ...(doc.githubSyncedAt !== undefined
+          ? { githubSyncedAt: doc.githubSyncedAt }
+          : {}),
         content: await readContent(ctx, doc),
-        frontmatter: doc.frontmatter,
+        ...(doc.frontmatter !== undefined
+          ? { frontmatter: doc.frontmatter }
+          : {}),
       });
     }
     return results;
@@ -2115,6 +2312,7 @@ export const _upsertImportedDocument = internalMutation({
      */
     mode: v.union(v.literal("new"), v.literal("fastForward")),
   },
+  returns: v.id("documents"),
   handler: async (ctx, args): Promise<Id<"documents">> => {
     const project = await ctx.db.get(args.projectId);
     if (!project) throw new Error("Project not found");
@@ -2255,6 +2453,12 @@ export const _backfillGithubSyncedAt = internalMutation({
   args: {
     cursor: v.optional(v.union(v.string(), v.null())),
   },
+  returns: v.object({
+    patched: v.number(),
+    scanned: v.number(),
+    isDone: v.boolean(),
+    cursor: v.string(),
+  }),
   handler: async (ctx, args) => {
     const now = Date.now();
     let patched = 0;
@@ -2304,6 +2508,12 @@ export const _backfillDocumentLinks = internalMutation({
   args: {
     cursor: v.optional(v.union(v.string(), v.null())),
   },
+  returns: v.object({
+    synced: v.number(),
+    scanned: v.number(),
+    isDone: v.boolean(),
+    cursor: v.string(),
+  }),
   handler: async (ctx, args) => {
     let synced = 0;
     const result = await ctx.db.query("documents").paginate({

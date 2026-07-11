@@ -22,6 +22,63 @@ import { publishWorkflowManager } from "../integrations/scheduling";
  *  UI — the limit enforces the cap explicitly at create-time. */
 const MAX_PROJECTS_PER_USER = 100;
 
+/** Full `projects` row shape — mirrors `convex/schema.ts`. Shared by every
+ *  function returning whole project documents (same pattern as
+ *  `convex/social/credentialsDb.ts` CREDENTIAL_DOC). */
+const projectFields = {
+  _id: v.id("projects"),
+  _creationTime: v.number(),
+  userId: v.id("users"),
+  name: v.string(),
+  slug: v.string(),
+  githubRepo: v.optional(v.string()),
+  githubBranch: v.optional(v.string()),
+  contentPath: v.optional(v.string()),
+  mediaPath: v.optional(v.string()),
+  mediaStorageMode: v.optional(
+    v.union(
+      v.literal("github"),
+      v.literal("uploadthing"),
+      v.literal("cloudinary"),
+    ),
+  ),
+  frontmatterSchema: v.optional(v.string()),
+  commitMessageTemplate: v.optional(v.string()),
+  filenamePattern: v.optional(v.string()),
+  contentFormat: v.optional(contentFormatValidator),
+  defaultDraft: v.optional(v.boolean()),
+  siteUrl: v.optional(v.string()),
+  postUrlPrefix: v.optional(v.string()),
+  deployHookUrl: v.optional(v.string()),
+  frontmatterFormat: v.optional(v.union(v.literal("yaml"), v.literal("toml"))),
+  framework: v.optional(v.string()),
+  defaultAuthor: v.optional(v.string()),
+  defaultAuthorAvatar: v.optional(v.string()),
+  boardColumns: v.optional(v.string()),
+  aiProvider: v.optional(providerValidator),
+  aiModel: v.optional(v.string()),
+  aiPromptTemplates: v.optional(v.string()),
+  socialPostOnPublish: v.optional(v.boolean()),
+  readabilityLensEnabled: v.optional(v.boolean()),
+  autoWatermarkRemoval: v.optional(v.boolean()),
+  slashCommandsEnabled: v.optional(v.boolean()),
+  snippetsEnabled: v.optional(v.boolean()),
+  selectionToolbarEnabled: v.optional(v.boolean()),
+  snippetCount: v.optional(v.number()),
+  timezone: v.optional(v.string()),
+  autoSaveEnabled: v.optional(v.boolean()),
+  isFavorite: v.optional(v.boolean()),
+  sortOrder: v.optional(v.number()),
+  compressionSettings: v.optional(compressionSettingsValidator),
+  maxUploadBytes: v.optional(v.number()),
+  trashRetentionDays: v.optional(v.number()),
+  documentCount: v.optional(v.number()),
+  createdAt: v.number(),
+  updatedAt: v.number(),
+};
+
+const PROJECT_DOC = v.object(projectFields);
+
 function sortProjectsForList(projects: Doc<"projects">[]): Doc<"projects">[] {
   const hasAnySortOrder = projects.some((p) => p.sortOrder !== undefined);
   if (!hasAnySortOrder) {
@@ -62,6 +119,7 @@ async function projectsForCurrentUserOrEmpty(
  */
 export const list = query({
   args: {},
+  returns: v.array(PROJECT_DOC),
   handler: async (ctx) => {
     return await projectsForCurrentUserOrEmpty(ctx);
   },
@@ -74,6 +132,12 @@ export const list = query({
  */
 export const listWithDocumentCounts = query({
   args: {},
+  returns: v.array(
+    v.object({
+      ...projectFields,
+      documentCount: v.number(),
+    }),
+  ),
   handler: async (ctx) => {
     const sorted = await projectsForCurrentUserOrEmpty(ctx);
     return sorted.map((p) => ({
@@ -94,6 +158,7 @@ export const listWithDocumentCounts = query({
  */
 export const get = query({
   args: { projectId: v.id("projects") },
+  returns: v.union(v.null(), PROJECT_DOC),
   handler: async (ctx, args) => {
     const user = await getAuthedUserOrNull(ctx);
     if (!user) {
@@ -155,6 +220,7 @@ export const create = mutation({
     aiProvider: v.optional(providerValidator),
     aiModel: v.optional(v.string()),
   },
+  returns: v.id("projects"),
   handler: async (ctx, args) => {
     const key = await getRateLimitKey(ctx);
     await rateLimiter.limit(ctx, "projects:create", { key, throws: true });
@@ -320,6 +386,7 @@ export const update = mutation({
     snippetsEnabled: v.optional(v.boolean()),
     selectionToolbarEnabled: v.optional(v.boolean()),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const key = await getRateLimitKey(ctx);
     await rateLimiter.limit(ctx, "projects:update", { key, throws: true });
@@ -354,6 +421,7 @@ export const update = mutation({
     }
 
     await ctx.db.patch(projectId, fieldsToUpdate);
+    return null;
   },
 });
 
@@ -371,6 +439,17 @@ export const update = mutation({
  */
 export const remove = action({
   args: { projectId: v.id("projects") },
+  returns: v.object({
+    ok: v.literal(true),
+    summary: v.object({
+      documentsDeleted: v.number(),
+      mediaDeleted: v.number(),
+      scheduledCancelled: v.number(),
+      scheduledFailedToCancel: v.number(),
+      vaultDeleted: v.number(),
+      vaultOrphaned: v.number(),
+    }),
+  }),
   handler: async (
     ctx,
     args,
@@ -490,6 +569,18 @@ export const remove = action({
 
 export const _listProjectCancellationTargets = internalQuery({
   args: { projectId: v.id("projects") },
+  returns: v.array(
+    v.object({
+      _id: v.id("scheduled_publishes"),
+      workflowId: v.optional(v.string()),
+      status: v.union(
+        v.literal("pending"),
+        v.literal("processing"),
+        v.literal("completed"),
+        v.literal("failed"),
+      ),
+    }),
+  ),
   handler: async (
     ctx,
     args,
@@ -534,6 +625,7 @@ export const _listProjectCancellationTargets = internalQuery({
 
 export const _listProjectVaultIds = internalQuery({
   args: { projectId: v.id("projects") },
+  returns: v.array(v.string()),
   handler: async (ctx, args): Promise<string[]> => {
     const ids: string[] = [];
 
@@ -576,6 +668,11 @@ export const _wipeProjectChunk = internalMutation({
     projectId: v.id("projects"),
     batch: v.number(),
   },
+  returns: v.object({
+    remaining: v.number(),
+    documentsDeleted: v.number(),
+    mediaDeleted: v.number(),
+  }),
   handler: async (
     ctx,
     args,
@@ -961,6 +1058,10 @@ export const _wipeProjectChunk = internalMutation({
  */
 export const _deleteProjectRow = internalMutation({
   args: { projectId: v.id("projects") },
+  returns: v.object({
+    deleted: v.boolean(),
+    remaining: v.number(),
+  }),
   handler: async (
     ctx,
     args,
@@ -1093,6 +1194,7 @@ async function countProjectRemaining(
  */
 export const internalGet = internalQuery({
   args: { projectId: v.id("projects") },
+  returns: v.union(v.null(), PROJECT_DOC),
   handler: async (ctx, args) => {
     return await ctx.db.get(args.projectId);
   },
@@ -1105,6 +1207,10 @@ export const internalGet = internalQuery({
  */
 export const _backfillDocumentCounts = internalMutation({
   args: {},
+  returns: v.object({
+    total: v.number(),
+    updated: v.number(),
+  }),
   handler: async (ctx) => {
     const projects = await ctx.db.query("projects").take(1000);
     let updated = 0;
