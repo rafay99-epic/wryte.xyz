@@ -65,8 +65,8 @@ export function resolveDoubleClickOffset(
   const stamped = target.closest<HTMLElement>("[data-source-line]");
   const word = window.getSelection()?.toString().trim() || null;
 
-  if (stamped) {
-    const line = Number(stamped.dataset["sourceLine"]);
+  const line = stamped ? Number(stamped.dataset["sourceLine"]) : Number.NaN;
+  if (stamped && Number.isInteger(line) && line >= 1) {
     const start = lineStartOffset(content, line);
     if (word) {
       // ponytail: word search bounded to 2000 chars past the block start —

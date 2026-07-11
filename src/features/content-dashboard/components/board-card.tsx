@@ -149,18 +149,6 @@ function DraggableBoardCard({
     throw new Error("DraggableBoardCard requires item.id");
   }
 
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({
-    id: sortableId,
-    data: { item, columnId },
-  });
-
   const activeItem = useBoardStore((s) => s.activeItem);
   const isBeingDragged = activeItem?.id === item.id;
   const isFocused = useFocusedRing(item.id);
@@ -171,6 +159,25 @@ function DraggableBoardCard({
   });
 
   const [isEditingTags, setIsEditingTags] = useState(false);
+  const isEditing = rename.isRenaming || isEditingTags;
+
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: sortableId,
+    data: { item, columnId },
+    // While a rename or tag edit is open the card must stop being a drag
+    // handle — otherwise selecting text in the input (pointer moves > the
+    // sensor's 5px constraint) starts dragging the card, and Space/Enter
+    // keystrokes feed the keyboard sensor. This is what tore cards apart
+    // mid-rename.
+    disabled: isEditing,
+  });
   const tagEditor = useTagEditor({ documentId: item.id, initialTags: tags });
 
   const { duplicate, moveToColumn } = useDocumentActions({
@@ -236,16 +243,20 @@ function DraggableBoardCard({
           selectionActive
             ? "cursor-pointer"
             : "cursor-grab active:cursor-grabbing",
+          isEditing && "cursor-default active:cursor-default",
           isFocused && "ring-2 ring-primary/60 border-primary/40",
           selected && "border-primary/50 bg-primary/5 ring-1 ring-primary/20",
         )}
         onClick={handleCardClick}
-        {...listeners}
+        {...(isEditing ? {} : listeners)}
       >
-        {/* Preview popover — portaled to escape column overflow clipping */}
+        {/* Preview popover — portaled to escape column overflow clipping.
+            Suppressed while editing: the pointer necessarily hovers the card
+            being renamed, and the popover would sit right on top of it. */}
         {previewRect &&
           item.excerpt &&
           !isDragging &&
+          !isEditing &&
           createPortal(
             <div
               className="pointer-events-none fixed z-50 w-72 -translate-y-full rounded-lg border bg-popover p-3 text-xs text-popover-foreground shadow-lg"
@@ -403,6 +414,8 @@ function DraggableBoardCard({
               <div
                 className="flex items-center gap-1.5"
                 onClick={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
+                onKeyDown={(e) => e.stopPropagation()}
               >
                 <input
                   ref={rename.inputRef}
@@ -416,9 +429,13 @@ function DraggableBoardCard({
                   onBlur={() => void rename.saveRename()}
                   className="min-w-0 flex-1 rounded border border-input bg-transparent px-1.5 py-0.5 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-ring"
                 />
+                {/* preventDefault on mousedown keeps focus in the input, so
+                    its onBlur (which saves) can't fire before these clicks —
+                    without it, X would save the rename instead of cancelling. */}
                 <Button
                   variant="ghost"
                   size="icon-xs"
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={() => void rename.saveRename()}
                 >
                   <Check className="size-3" />
@@ -426,6 +443,7 @@ function DraggableBoardCard({
                 <Button
                   variant="ghost"
                   size="icon-xs"
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={rename.cancelRename}
                 >
                   <X className="size-3" />
@@ -448,6 +466,8 @@ function DraggableBoardCard({
               <div
                 className="mt-2 space-y-1.5"
                 onClick={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
+                onKeyDown={(e) => e.stopPropagation()}
               >
                 <div className="flex flex-wrap gap-1">
                   {tagEditor.tags.map((tag) => (
@@ -458,6 +478,7 @@ function DraggableBoardCard({
                       {tag}
                       <button
                         type="button"
+                        onMouseDown={(e) => e.preventDefault()}
                         onClick={() => tagEditor.removeTag(tag)}
                         className="ml-0.5 rounded-full p-0.5 hover:bg-foreground/10"
                       >

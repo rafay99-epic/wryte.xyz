@@ -117,7 +117,7 @@ export function MarkdownPreview() {
   // runs as an interruptible background render — typing in split mode never
   // blocks on it.
   const deferredContent = useDeferredValue(content);
-  const handleDoubleClick = usePreviewJump();
+  const handleDoubleClick = usePreviewJump(deferredContent);
 
   const rendered = useMemo(
     () => (

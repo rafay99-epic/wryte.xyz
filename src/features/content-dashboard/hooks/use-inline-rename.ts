@@ -18,6 +18,10 @@ export function useInlineRename({
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(currentTitle);
   const inputRef = useRef<HTMLInputElement>(null);
+  // Guards against the save firing twice — Enter triggers a save, and the
+  // input's blur (focus moving away as edit mode closes or the user clicks
+  // elsewhere) triggers another while the first mutation is still in flight.
+  const isSavingRef = useRef(false);
 
   const updateDocument = useMutation(api.cms.documents.update);
 
@@ -28,11 +32,13 @@ export function useInlineRename({
   }, [currentTitle]);
 
   const saveRename = useCallback(async () => {
+    if (isSavingRef.current) return;
     const trimmed = renameValue.trim();
     if (!trimmed || trimmed === currentTitle) {
       setIsRenaming(false);
       return;
     }
+    isSavingRef.current = true;
     try {
       await updateDocument({
         documentId: documentId as Id<"documents">,
@@ -41,6 +47,8 @@ export function useInlineRename({
       setIsRenaming(false);
     } catch {
       toast.error("Failed to rename document");
+    } finally {
+      isSavingRef.current = false;
     }
   }, [renameValue, currentTitle, documentId, updateDocument]);
 
