@@ -22,11 +22,21 @@ type SearchState = {
   /** Current search query (transient — never persisted). */
   query: string;
 
+  /**
+   * One-shot search handoff from the command palette. Set before navigating
+   * to a project's articles page and consumed (cleared) by that page on
+   * mount. A direct `setQuery` can't survive the trip: the outgoing project
+   * page clears the live query in its unmount cleanup, which runs after the
+   * palette has already written it.
+   */
+  pendingQuery: { projectId: string; query: string } | null;
+
   /** Per-project persisted preferences. Keyed by projectId. */
   projects: Record<string, SearchPerProject>;
 
   // --- Actions ---
   setQuery: (q: string) => void;
+  setPendingQuery: (p: { projectId: string; query: string } | null) => void;
 
   getSortOrder: (projectId: string) => SortOrder;
   setSortOrder: (projectId: string, order: SortOrder) => void;
@@ -77,9 +87,11 @@ export const useSearchStore = create<SearchState>()(
   persist(
     (set, get) => ({
       query: "",
+      pendingQuery: null,
       projects: {},
 
       setQuery: (q) => set({ query: q }),
+      setPendingQuery: (p) => set({ pendingQuery: p }),
 
       getSortOrder: (projectId) => getProject(get(), projectId).sortOrder,
       setSortOrder: (projectId, order) =>

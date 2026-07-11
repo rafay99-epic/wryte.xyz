@@ -18,14 +18,23 @@ import {
   Sun,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Fragment,
+  type ReactNode,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { splitShortcutKeys } from "@/lib/shortcuts";
 import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/stores/editor-store";
+import { useSearchStore } from "@/stores/search-store";
 import { useShortcutsStore } from "@/stores/shortcuts-store";
 import { useThemeStore } from "@/stores/theme-store";
 import { api } from "../../../convex/_generated/api";
+import { scoreItem } from "./lib/fuzzy";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -35,13 +44,25 @@ type CommandItem = {
   id: string;
   label: string;
   description?: string | undefined;
+  /**
+   * Extra invisible haystack the fuzzy matcher searches alongside the label
+   * (slugs, tags, synonyms like "kanban" for the board). Never displayed.
+   */
+  keywords?: string | undefined;
   icon: React.ElementType;
   /** When true, pass fill="currentColor" (e.g. favorite star). */
   iconFilled?: boolean | undefined;
   shortcutId?: string | undefined;
   category: "action" | "project" | "article" | "navigation";
+  /** 0..1 freshness for articles — small ranking boost, newest wins ties. */
+  recency?: number | undefined;
   onSelect: () => void;
 };
+
+/** A command item plus the matched label indices for highlighting. */
+type RenderItem = CommandItem & { labelPositions?: number[] | undefined };
+
+type Section = { label: string; items: RenderItem[] };
 
 type CommandPaletteProps = {
   open: boolean;
@@ -50,7 +71,7 @@ type CommandPaletteProps = {
 
 type Category = CommandItem["category"];
 
-/** Display order of category sections — drives both sorting and labels. */
+/** Display order of category sections when the query is empty. */
 const CATEGORY_ORDER: readonly Category[] = [
   "action",
   "navigation",
@@ -64,6 +85,12 @@ const CATEGORY_LABELS: Record<Category, string> = {
   project: "Projects",
   article: "Recent Articles",
 };
+
+/** Articles shown in the idle (empty-query) state. */
+const IDLE_ARTICLE_COUNT = 10;
+
+/** Result rows kept after ranking — beyond this nobody scrolls. */
+const MAX_RESULTS = 50;
 
 // ---------------------------------------------------------------------------
 // Component
@@ -91,11 +118,28 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const activeProjectId = useEditorStore((s) => s.activeProjectId);
 
   // ---------------------------------------------------------------------------
-  // Data sources
+  // Data sources — lazy: nothing is subscribed until the palette first opens,
+  // then the subscriptions stay warm for instant reopens. The document
+  // catalog is one metadata-only query; every keystroke after that is
+  // matched client-side and costs zero Convex calls.
   // ---------------------------------------------------------------------------
 
-  const projects = useQuery(api.cms.projects.list);
-  const recentDocs = useQuery(api.cms.documents.listRecent, { limit: 20 });
+  const [activated, setActivated] = useState(false);
+  useEffect(() => {
+    if (open) setActivated(true);
+  }, [open]);
+
+  const projects = useQuery(api.cms.projects.list, activated ? {} : "skip");
+  const documents = useQuery(
+    api.cms.documents.listPalette,
+    activated ? {} : "skip",
+  );
+
+  const projectNames = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const p of projects ?? []) map.set(p._id, p.name);
+    return map;
+  }, [projects]);
 
   // ---------------------------------------------------------------------------
   // Build command items
@@ -112,6 +156,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       description: activeProjectId
         ? "Create in current project"
         : "Select a project first",
+      keywords: "create write post draft document",
       icon: Plus,
       shortcutId: "newArticle",
       category: "action",
@@ -126,6 +171,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     items.push({
       id: "action-dashboard",
       label: "Go to Dashboard",
+      keywords: "home overview projects",
       icon: Home,
       shortcutId: "goToDashboard",
       category: "navigation",
@@ -138,6 +184,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     items.push({
       id: "action-settings",
       label: "Settings",
+      keywords: "preferences config account profile",
       icon: Settings,
       shortcutId: "goToSettings",
       category: "navigation",
@@ -150,6 +197,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     items.push({
       id: "action-toggle-sidebar",
       label: "Toggle Sidebar",
+      keywords: "hide show collapse expand panel navigation",
       icon: PanelLeft,
       shortcutId: "toggleSidebar",
       category: "action",
@@ -162,6 +210,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     items.push({
       id: "action-switch-layout",
       label: "Switch Layout (Table / Board)",
+      keywords: "kanban view columns list grid calendar",
       icon: Layout,
       shortcutId: "switchLayout",
       category: "action",
@@ -174,6 +223,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     items.push({
       id: "action-toggle-theme-light",
       label: "Switch to Light Theme",
+      keywords: "appearance day mode color",
       icon: Sun,
       category: "action",
       onSelect: () => {
@@ -185,6 +235,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     items.push({
       id: "action-toggle-theme-dark",
       label: "Switch to Dark Theme",
+      keywords: "appearance night mode color",
       icon: Moon,
       category: "action",
       onSelect: () => {
@@ -196,6 +247,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     items.push({
       id: "action-toggle-theme-system",
       label: "Switch to System Theme",
+      keywords: "appearance auto mode color",
       icon: Palette,
       category: "action",
       onSelect: () => {
@@ -208,6 +260,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       id: "action-keyboard-shortcuts",
       label: "Keyboard Shortcuts",
       description: "View and customize shortcuts",
+      keywords: "keys hotkeys bindings",
       icon: Keyboard,
       category: "navigation",
       onSelect: () => {
@@ -223,6 +276,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
           id: `project-${project._id}`,
           label: project.name,
           description: project.githubRepo ?? "Local project",
+          keywords: `${project.slug} project switch open`,
           icon: project.isFavorite ? Star : FolderOpen,
           iconFilled: project.isFavorite,
           category: "project",
@@ -235,15 +289,22 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       }
     }
 
-    // Recent articles
-    if (recentDocs) {
-      for (const doc of recentDocs) {
+    // Articles — the full catalog, every project. The idle view slices the
+    // most recent few; searching ranks across all of them.
+    if (documents) {
+      const newest = documents[0]?.updatedAt ?? 0;
+      const oldest = documents[documents.length - 1]?.updatedAt ?? 0;
+      const span = Math.max(1, newest - oldest);
+      for (const doc of documents) {
+        const projectName = projectNames.get(doc.projectId);
         items.push({
           id: `article-${doc._id}`,
           label: doc.title || "Untitled",
-          description: doc.status,
+          description: [projectName, doc.status].filter(Boolean).join(" · "),
+          keywords: `${doc.slug} ${(doc.tags ?? []).join(" ")} ${projectName ?? ""}`,
           icon: FileText,
           category: "article",
+          recency: (doc.updatedAt - oldest) / span,
           onSelect: () => {
             close();
             router.push(`/editor/${doc._id}`);
@@ -253,34 +314,85 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     }
 
     return items;
-  }, [projects, recentDocs, activeProjectId, router, onOpenChange]);
+  }, [
+    projects,
+    documents,
+    projectNames,
+    activeProjectId,
+    router,
+    onOpenChange,
+  ]);
 
   // ---------------------------------------------------------------------------
-  // Filtering
+  // Filtering & ranking
   // ---------------------------------------------------------------------------
 
-  const filteredItems = useMemo(() => {
-    const base = !query.trim()
-      ? commandItems
-      : commandItems.filter((item) => {
-          const lower = query.toLowerCase();
-          return (
-            item.label.toLowerCase().includes(lower) ||
-            item.description?.toLowerCase().includes(lower)
-          );
+  const { sections, flatItems } = useMemo(() => {
+    const trimmed = query.trim();
+    let sections: Section[];
+
+    if (!trimmed) {
+      // Idle: grouped by category, articles capped to the most recent few.
+      sections = CATEGORY_ORDER.flatMap((cat) => {
+        let catItems = commandItems.filter((i) => i.category === cat);
+        if (cat === "article") catItems = catItems.slice(0, IDLE_ARTICLE_COUNT);
+        return catItems.length
+          ? [{ label: CATEGORY_LABELS[cat], items: catItems }]
+          : [];
+      });
+    } else {
+      // Searching: one flat list ranked across every category — Raycast
+      // style. Articles get a small freshness boost to break score ties.
+      const scored: { item: RenderItem; score: number }[] = [];
+      for (const item of commandItems) {
+        const haystack = [item.keywords, item.description]
+          .filter(Boolean)
+          .join(" ");
+        const match = scoreItem(trimmed, item.label, haystack);
+        if (!match) continue;
+        scored.push({
+          item: { ...item, labelPositions: match.labelPositions },
+          score: match.score + (item.recency ?? 0) * 6,
         });
-    // Sort by category so the flat-array order matches the grouped render
-    // order. Without this, items rendered under one category can share a
-    // globalIndex with items rendered under another (because the grouped
-    // map starts a new run while filteredItems is still interleaved),
-    // producing two simultaneously-highlighted rows.
-    // Array.sort is stable (ES2019+), so items within the same category
-    // keep their original order.
-    return [...base].sort(
-      (a, b) =>
-        CATEGORY_ORDER.indexOf(a.category) - CATEGORY_ORDER.indexOf(b.category),
-    );
-  }, [commandItems, query]);
+      }
+      scored.sort((a, b) => b.score - a.score);
+      const results = scored.slice(0, MAX_RESULTS).map((s) => s.item);
+
+      // Escape hatch into full-text search: titles/slugs/tags live in the
+      // palette, bodies don't — hand the query to the project's content
+      // search instead of paying for a server-side body index.
+      if (activeProjectId) {
+        results.push({
+          id: "action-deep-search",
+          label: `Search content for "${trimmed}"`,
+          description: `Full-text search in ${
+            projectNames.get(activeProjectId) ?? "current project"
+          }`,
+          icon: Search,
+          category: "action",
+          onSelect: () => {
+            onOpenChange(false);
+            useSearchStore.getState().setPendingQuery({
+              projectId: activeProjectId,
+              query: trimmed,
+            });
+            router.push(`/projects/${activeProjectId}/articles`);
+          },
+        });
+      }
+
+      sections = results.length ? [{ label: "Results", items: results }] : [];
+    }
+
+    return { sections, flatItems: sections.flatMap((s) => s.items) };
+  }, [
+    commandItems,
+    query,
+    activeProjectId,
+    projectNames,
+    router,
+    onOpenChange,
+  ]);
 
   // ---------------------------------------------------------------------------
   // Keyboard navigation
@@ -289,11 +401,11 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   // Mirror reactive state into refs so the native keydown listener (attached
   // once when the palette opens) always sees the latest values without
   // needing to be detached and re-attached on every render.
-  const filteredItemsRef = useRef(filteredItems);
+  const flatItemsRef = useRef(flatItems);
   const selectedIndexRef = useRef(selectedIndex);
   useEffect(() => {
-    filteredItemsRef.current = filteredItems;
-  }, [filteredItems]);
+    flatItemsRef.current = flatItems;
+  }, [flatItems]);
   useEffect(() => {
     selectedIndexRef.current = selectedIndex;
   }, [selectedIndex]);
@@ -313,7 +425,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
           e.stopImmediatePropagation();
           isKeyboardNav.current = true;
           setSelectedIndex((prev) => {
-            const len = filteredItemsRef.current.length;
+            const len = flatItemsRef.current.length;
             if (len === 0) return 0;
             return prev < len - 1 ? prev + 1 : 0;
           });
@@ -323,7 +435,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
           e.stopImmediatePropagation();
           isKeyboardNav.current = true;
           setSelectedIndex((prev) => {
-            const len = filteredItemsRef.current.length;
+            const len = flatItemsRef.current.length;
             if (len === 0) return 0;
             return prev > 0 ? prev - 1 : len - 1;
           });
@@ -338,12 +450,12 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
           e.preventDefault();
           e.stopImmediatePropagation();
           isKeyboardNav.current = true;
-          setSelectedIndex(Math.max(0, filteredItemsRef.current.length - 1));
+          setSelectedIndex(Math.max(0, flatItemsRef.current.length - 1));
           break;
         case "Enter": {
           e.preventDefault();
           e.stopImmediatePropagation();
-          const item = filteredItemsRef.current[selectedIndexRef.current];
+          const item = flatItemsRef.current[selectedIndexRef.current];
           if (item) item.onSelect();
           break;
         }
@@ -385,10 +497,10 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   // disturb where the user has navigated.
   useEffect(() => {
     setSelectedIndex((prev) => {
-      if (filteredItems.length === 0) return 0;
-      return Math.min(prev, filteredItems.length - 1);
+      if (flatItems.length === 0) return 0;
+      return Math.min(prev, flatItems.length - 1);
     });
-  }, [filteredItems.length]);
+  }, [flatItems.length]);
 
   // Keep the selected item in view as the user navigates. Instant (not smooth)
   // so rapid key presses feel responsive — smooth would lag behind input.
@@ -406,29 +518,10 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   }, [selectedIndex]);
 
   // ---------------------------------------------------------------------------
-  // Group filtered items by category for display
-  // ---------------------------------------------------------------------------
-
-  const grouped = useMemo(() => {
-    const groups = new Map<
-      Category,
-      { items: CommandItem[]; startIndex: number }
-    >();
-    let idx = 0;
-    for (const item of filteredItems) {
-      const cat = item.category;
-      if (!groups.has(cat)) {
-        groups.set(cat, { items: [], startIndex: idx });
-      }
-      groups.get(cat)?.items.push(item);
-      idx++;
-    }
-    return groups;
-  }, [filteredItems]);
-
-  // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
+
+  let runningIndex = 0;
 
   return (
     <AnimatePresence>
@@ -464,7 +557,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                   type="text"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Type a command or search..."
+                  placeholder="Search articles, projects, commands..."
                   className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/50"
                   autoComplete="off"
                   spellCheck={false}
@@ -489,81 +582,82 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                   isKeyboardNav.current = false;
                 }}
               >
-                {filteredItems.length === 0 ? (
+                {flatItems.length === 0 ? (
                   <div className="px-4 py-10 text-center text-sm text-muted-foreground/70">
                     No results found for &ldquo;{query}&rdquo;
                   </div>
                 ) : (
-                  Array.from(grouped.entries()).map(
-                    ([category, { items, startIndex }]) => (
-                      <div key={category}>
-                        <p className="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">
-                          {CATEGORY_LABELS[category]}
-                        </p>
-                        {items.map((item, i) => {
-                          const globalIndex = startIndex + i;
-                          const isSelected = globalIndex === selectedIndex;
-                          const Icon = item.icon;
-                          const shortcutKeys = item.shortcutId
-                            ? splitShortcutKeys(getKeys(item.shortcutId))
-                            : [];
+                  sections.map((section) => (
+                    <div key={section.label}>
+                      <p className="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">
+                        {section.label}
+                      </p>
+                      {section.items.map((item) => {
+                        const globalIndex = runningIndex++;
+                        const isSelected = globalIndex === selectedIndex;
+                        const Icon = item.icon;
+                        const shortcutKeys = item.shortcutId
+                          ? splitShortcutKeys(getKeys(item.shortcutId))
+                          : [];
 
-                          return (
-                            <button
-                              key={item.id}
-                              type="button"
-                              data-index={globalIndex}
-                              data-selected={isSelected}
+                        return (
+                          <button
+                            key={item.id}
+                            type="button"
+                            data-index={globalIndex}
+                            data-selected={isSelected}
+                            className={cn(
+                              "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm outline-none transition-colors duration-75",
+                              isSelected
+                                ? "bg-muted text-foreground"
+                                : "text-foreground/75 hover:bg-muted/40 hover:text-foreground",
+                            )}
+                            onClick={() => {
+                              const target = flatItems[globalIndex];
+                              if (target) target.onSelect();
+                            }}
+                            onPointerEnter={() => {
+                              if (isKeyboardNav.current) return;
+                              setSelectedIndex(globalIndex);
+                            }}
+                          >
+                            <Icon
                               className={cn(
-                                "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm outline-none transition-colors duration-75",
-                                isSelected
-                                  ? "bg-muted text-foreground"
-                                  : "text-foreground/75 hover:bg-muted/40 hover:text-foreground",
+                                "size-4 shrink-0",
+                                item.iconFilled
+                                  ? "text-amber-400"
+                                  : isSelected
+                                    ? "text-foreground"
+                                    : "text-muted-foreground/70",
                               )}
-                              onClick={() => {
-                                const target = filteredItems[globalIndex];
-                                if (target) target.onSelect();
-                              }}
-                              onPointerEnter={() => {
-                                if (isKeyboardNav.current) return;
-                                setSelectedIndex(globalIndex);
-                              }}
-                            >
-                              <Icon
-                                className={cn(
-                                  "size-4 shrink-0",
-                                  item.iconFilled
-                                    ? "text-amber-400"
-                                    : isSelected
-                                      ? "text-foreground"
-                                      : "text-muted-foreground/70",
-                                )}
-                                fill={
-                                  item.iconFilled ? "currentColor" : undefined
-                                }
-                              />
-                              <div className="min-w-0 flex-1">
-                                <span className="block truncate font-medium">
-                                  {item.label}
-                                </span>
-                                {item.description && (
-                                  <span className="block truncate text-xs text-muted-foreground/70">
-                                    {item.description}
-                                  </span>
-                                )}
-                              </div>
-                              {shortcutKeys.length > 0 && (
-                                <KbdGroup
-                                  keys={shortcutKeys}
-                                  className="shrink-0"
+                              fill={
+                                item.iconFilled ? "currentColor" : undefined
+                              }
+                            />
+                            <div className="min-w-0 flex-1">
+                              <span className="block truncate font-medium">
+                                <HighlightedText
+                                  text={item.label}
+                                  positions={item.labelPositions}
                                 />
+                              </span>
+                              {item.description && (
+                                <span className="block truncate text-xs text-muted-foreground/70">
+                                  {item.description}
+                                </span>
                               )}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    ),
-                  )
+                            </div>
+                            {shortcutKeys.length > 0 && (
+                              <KbdGroup
+                                keys={shortcutKeys}
+                                className="shrink-0"
+                              />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ))
                 )}
               </div>
 
@@ -577,8 +671,8 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                   <span>Select</span>
                 </span>
                 <span className="tabular-nums">
-                  {filteredItems.length} result
-                  {filteredItems.length !== 1 ? "s" : ""}
+                  {flatItems.length} result
+                  {flatItems.length !== 1 ? "s" : ""}
                 </span>
               </div>
             </div>
@@ -587,4 +681,50 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       )}
     </AnimatePresence>
   );
+}
+
+// ---------------------------------------------------------------------------
+// Match highlighting
+// ---------------------------------------------------------------------------
+
+/** Renders `text` with the fuzzy-matched characters emphasized. */
+function HighlightedText({
+  text,
+  positions,
+}: {
+  text: string;
+  positions?: number[] | undefined;
+}) {
+  if (!positions || positions.length === 0) return <>{text}</>;
+
+  const matched = new Set(positions);
+  const nodes: ReactNode[] = [];
+  let start = 0;
+  let inMatch = matched.has(0);
+
+  const flush = (end: number) => {
+    if (end === start) return;
+    const chunk = text.slice(start, end);
+    nodes.push(
+      inMatch ? (
+        <span key={start} className="text-primary">
+          {chunk}
+        </span>
+      ) : (
+        <Fragment key={start}>{chunk}</Fragment>
+      ),
+    );
+    start = end;
+  };
+
+  for (let i = 1; i < text.length; i++) {
+    const m = matched.has(i);
+    if (m !== inMatch) {
+      flush(i);
+      inMatch = m;
+    }
+  }
+  flush(text.length);
+
+  return <>{nodes}</>;
 }

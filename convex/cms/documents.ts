@@ -306,6 +306,54 @@ export const listRecent = query({
 });
 
 /**
+ * Lightweight catalog of every non-trashed document the user owns, across
+ * all projects — powers the command palette's client-side fuzzy search.
+ *
+ * One subscription replaces per-keystroke server searches: the client
+ * matches locally, so typing in the palette never costs a function call.
+ * Metadata projection only (~100 bytes/row), never bodies or excerpts.
+ */
+export const listPalette = query({
+  args: {},
+  returns: v.array(
+    v.object({
+      _id: v.id("documents"),
+      title: v.string(),
+      slug: v.string(),
+      status: v.string(),
+      tags: v.optional(v.array(v.string())),
+      projectId: v.id("projects"),
+      updatedAt: v.number(),
+    }),
+  ),
+  handler: async (ctx) => {
+    const user = await getAuthedUserOrNull(ctx);
+    if (!user) return [];
+
+    // ponytail: hard cap at 1000 rows — at ~100 bytes each that's a 100 KB
+    // read. Paginate or move to a server-side search index if a library
+    // ever outgrows this.
+    const documents = await ctx.db
+      .query("documents")
+      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .take(1000);
+
+    return documents
+      .filter((d) => d.trashedAt === undefined)
+      .sort((a, b) => b.updatedAt - a.updatedAt)
+      .map((d) => ({
+        _id: d._id,
+        title: d.title,
+        slug: d.slug,
+        status: d.status,
+        ...(d.tags ? { tags: d.tags } : {}),
+        projectId: d.projectId,
+        updatedAt: d.updatedAt,
+      }));
+  },
+});
+
+/**
  * Fetches a single document by ID with full ownership verification.
  *
  * @requires Authentication + document ownership (via parent project)
