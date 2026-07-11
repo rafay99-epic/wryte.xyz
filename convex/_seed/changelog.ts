@@ -1221,6 +1221,25 @@ No behavior changes — everything works exactly as before, just lighter and fas
 - No new search indexes, crons, writes, or storage — the whole feature is one read-only query and a 120-line dependency-free fuzzy matcher.
 `,
   },
+  {
+    title: "Social announcements that actually announce",
+    slug: "social-announcements-via-buffer",
+    description:
+      "Upload-Post is out, Buffer is in: reliable auto-announcements on publish, a channel picker that mirrors what you've actually connected, correct framework-aware post URLs, and fully automated announcement text.",
+    build: "af2492a",
+    publishedAt: Date.parse("2026-07-12T03:30:00+05:00"),
+    content: `## What's new
+
+- **Buffer powers social announcements now.** Upload-Post's flaky API is gone. Connect your social accounts in Buffer, paste one API key (stored encrypted in the vault, per project — every user brings their own), and publishing announces automatically. Verification is honest: the key is checked by listing your real connected channels.
+- **A channel picker that can't lie.** Settings shows exactly the channels connected to your Buffer account — X, LinkedIn, Threads, Instagram, YouTube, and more — as toggles. Connect a new platform in Buffer, hit Test Connection, and it appears. Announcements only go to channels you've enabled, and one failing channel never blocks the others.
+- **Announcement links finally point at the post.** URLs were built as \`site.com/slug\`, skipping the blog path entirely. They're now framework-aware (\`/blog/\` for Astro/Next.js, \`/posts/\` for Hugo) with a per-project **Post URL Path** override and a live preview in settings.
+- **No more template fiddling.** The announcement text is composed automatically from the live title and URL at publish time. Want a custom message? Type one in the publish or schedule dialog — and if you forget to include the link, it's appended for you. The preview always shows exactly what will be posted.
+
+## Migration
+
+- Projects still on Upload-Post keep their "post on publish" setting, and publishing never breaks — announcements simply pause with a clear reconnect prompt in Settings → Social until a Buffer key is added. A one-click cleanup removes the old credentials (vault entry included).
+`,
+  },
 ];
 
 const seedResult = v.object({
