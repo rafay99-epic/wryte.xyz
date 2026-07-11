@@ -1,0 +1,77 @@
+src/features/project-settings/types.ts
+  s_0fe6ed8c00d03f::t_02e0effd494495 44
+  s_0fe6ed8c00d03f::t_57aa922ce27514 127-145
+src/lib/social-template.ts
+  s_0fe6ed8c00d03f::t_c213d626345551 2,4-7,10-14
+convex/social/buffer.ts
+  s_0fe6ed8c00d03f::t_345ec1a8592d38 1-139
+src/features/editor/components/publish-dialog.tsx
+  s_0fe6ed8c00d03f::t_2756e06b5df83f 119-120,123-125,131-138,140
+  s_0fe6ed8c00d03f::t_53cba00a1b539d 27
+  s_0fe6ed8c00d03f::t_a768ec1eb61209 417,566
+  s_0fe6ed8c00d03f::t_f4e43914da1782 158-160,163
+src/features/project-settings/components/social-section.tsx
+  s_0fe6ed8c00d03f::t_ed924ec9d6ccf7 16,20,32-33,36-38,41-42,44,46-47,51-64,72,88-113,131-140,142,147,149,153,201-202,204-205,207-208,212-233,238-269,277,290,293-294
+  s_0fe6ed8c00d03f::t_e715f844c5016b 209-210
+convex/_lib/rateLimits.ts
+  s_0fe6ed8c00d03f::t_f574027aa336b4 574
+convex/_lib/publishedUrl.ts
+  s_0fe6ed8c00d03f::t_3b940e9ba32a16 1-62
+src/features/project-settings/hooks/use-social-section.ts
+  s_0fe6ed8c00d03f::t_e218354cd87505 8-21,23,34-38,40-44,47,53-60,69,73-76,91-92,100-111,115,130,132,134-138,153,155-157,164,166,171,176,182,197,203,206-222,254,256-261,265-266,269-271,274-275,277,279-280,284
+convex/integrations/github.ts
+  s_0fe6ed8c00d03f::t_ffdb90684e49f6 1098-1103
+  s_0fe6ed8c00d03f::t_cd79ce73ebaffd 27
+  s_0fe6ed8c00d03f::t_9939e8c64bd951 704-709
+src/components/forms/social-post-field.tsx
+  s_0fe6ed8c00d03f::t_49b165f1676f2c 12
+  s_0fe6ed8c00d03f::t_ca47bd9b083872 72-73,75
+convex/schema.ts
+  s_0fe6ed8c00d03f::t_f56fd9660dd30e 646-652
+  s_0fe6ed8c00d03f::t_a24e0cb14a4557 101-106
+convex/cms/projects.ts
+  s_0fe6ed8c00d03f::t_6198816064af5b 315-316
+convex/social/credentials.ts
+  s_0fe6ed8c00d03f::t_35c1da2b7b917e 2,7-10,12-15,25-40,51-52,54-58,62-63,68,71,89,92-95,97,102-115,124-125,159,166,178,180-182,184,188-191,194,209-222,224-234,243-247,275,292-293,313-322,336-338,342-344,351-357,368,372,376,378-379,387-388,390,392-395,399-402,404,412-429,460,464
+  s_0fe6ed8c00d03f::t_e715f844c5016b 59-61,339-341
+convex/social/post.ts
+  s_0fe6ed8c00d03f::t_1c09867622187f 2,8-12,21,23-24,33,38,40-50,52-55,61-79,81,87,94,99-102,104,106,109-115,117,120,134-138,144-145,162,166,169-170,172,182
+src/features/editor/components/schedule-dialog.tsx
+  s_0fe6ed8c00d03f::t_dc4b7d507f9dff 107-108,111-113,117-119,123-130,132
+  s_0fe6ed8c00d03f::t_281a4c092a367f 40
+  s_0fe6ed8c00d03f::t_1ea474e1f20e36 156-158
+  s_0fe6ed8c00d03f::t_61fbff146e46e1 181
+  s_0fe6ed8c00d03f::t_a768ec1eb61209 560
+convex/social/credentialsDb.ts
+  s_0fe6ed8c00d03f::t_d5d602d203c546 71-73,75-81
+  s_0fe6ed8c00d03f::t_10ac1d040b395e 93-110,116
+  s_0fe6ed8c00d03f::t_eb9fd80c118bc5 168,174
+  s_0fe6ed8c00d03f::t_08a9a544bef5ff 16-21,27-42
+  s_0fe6ed8c00d03f::t_4b4a7ad3e4fada 184,195
+  s_0fe6ed8c00d03f::t_696676ab9c4af3 211,226
+  s_0fe6ed8c00d03f::t_316304eb83cec8 251,257,260
+  s_0fe6ed8c00d03f::t_cadafa499024e2 142
+  s_0fe6ed8c00d03f::t_ff2d375d607761 236
+  s_0fe6ed8c00d03f::t_f215ce26dfd2aa 11-14,53-59,65-66,84
+  s_0fe6ed8c00d03f::t_e8c1911bc4e26a 129
+  s_0fe6ed8c00d03f::t_0e35b9a26da03d 15
+  s_0fe6ed8c00d03f::t_4b8d0cb801b5dd 51-52
+convex/_generated/api.d.ts
+  s_0fe6ed8c00d03f::t_c3ac4c261cdae0 20,74,99,153
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "af2492a771a4139a176abe6a33deab0884efcffb",
+  "prompts": {},
+  "sessions": {
+    "s_0fe6ed8c00d03f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7a688ff0-4b02-4830-a4ec-faebcb9eb3e3",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
