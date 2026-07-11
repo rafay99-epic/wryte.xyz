@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { useDeferredValue, useMemo } from "react";
 import type { Components } from "react-markdown";
 import ReactMarkdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
@@ -13,6 +14,8 @@ import {
   embedComponents,
 } from "@/components/markdown/embed-overrides";
 import { useEditorStore } from "@/stores/editor-store";
+import { usePreviewJump } from "../hooks/use-preview-jump";
+import { remarkSourceLines } from "../lib/source-lines";
 import { VideoEmbed } from "./video-embed";
 
 /**
@@ -26,6 +29,9 @@ const videoSchema: Options = {
   tagNames: [...(defaultSchema.tagNames ?? []), "video"],
   attributes: {
     ...defaultSchema.attributes,
+    // Keep the `data-source-line` stamps remarkSourceLines adds — they power
+    // double-click-to-edit and would otherwise be stripped here.
+    ["*"]: [...(defaultSchema.attributes?.["*"] ?? []), "data*"],
     ["code"]: [
       ...(defaultSchema.attributes?.["code"] ?? []),
       ["className", /^language-./],
@@ -106,6 +112,29 @@ const components: Components = {
  */
 export function MarkdownPreview() {
   const content = useEditorStore((state) => state.content);
+  // Deferred + memoized: a keystroke re-renders this component urgently but
+  // hits the memo (old content), while the expensive remark/rehype re-parse
+  // runs as an interruptible background render — typing in split mode never
+  // blocks on it.
+  const deferredContent = useDeferredValue(content);
+  const handleDoubleClick = usePreviewJump();
+
+  const rendered = useMemo(
+    () => (
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm, remarkSourceLines]}
+        rehypePlugins={[
+          rehypeRaw,
+          [rehypeSanitize, sanitizeSchema],
+          [rehypeHighlight, { plainText: ["mermaid"] }],
+        ]}
+        components={{ ...components, ...codeComponents, ...embedComponents }}
+      >
+        {deferredContent}
+      </ReactMarkdown>
+    ),
+    [deferredContent],
+  );
 
   if (!content) {
     return (
@@ -127,18 +156,11 @@ export function MarkdownPreview() {
   }
 
   return (
-    <article className="prose prose-neutral dark:prose-invert max-w-none px-8 py-6 prose-headings:font-heading prose-headings:tracking-tight prose-headings:font-semibold prose-h1:text-[1.75rem] prose-h1:leading-tight prose-h2:text-[1.35rem] prose-h3:text-[1.15rem] prose-p:leading-[1.8] prose-p:text-foreground/90 prose-li:leading-[1.8] prose-pre:bg-transparent prose-pre:p-0 prose-pre:border-0 prose-img:rounded-xl prose-strong:text-foreground prose-strong:font-semibold">
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        rehypePlugins={[
-          rehypeRaw,
-          [rehypeSanitize, sanitizeSchema],
-          [rehypeHighlight, { plainText: ["mermaid"] }],
-        ]}
-        components={{ ...components, ...codeComponents, ...embedComponents }}
-      >
-        {content}
-      </ReactMarkdown>
+    <article
+      onDoubleClick={handleDoubleClick}
+      className="prose prose-neutral dark:prose-invert max-w-none px-8 py-6 prose-headings:font-heading prose-headings:tracking-tight prose-headings:font-semibold prose-h1:text-[1.75rem] prose-h1:leading-tight prose-h2:text-[1.35rem] prose-h3:text-[1.15rem] prose-p:leading-[1.8] prose-p:text-foreground/90 prose-li:leading-[1.8] prose-pre:bg-transparent prose-pre:p-0 prose-pre:border-0 prose-img:rounded-xl prose-strong:text-foreground prose-strong:font-semibold"
+    >
+      {rendered}
     </article>
   );
 }

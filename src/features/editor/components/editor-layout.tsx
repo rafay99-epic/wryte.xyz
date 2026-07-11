@@ -2,11 +2,11 @@
 
 import { useQuery } from "convex/react";
 import dynamic from "next/dynamic";
-import { useCallback, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/stores/editor-store";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
+import { useSplitScrollSync } from "../hooks/use-split-scroll-sync";
 import { DraftTabBar } from "./draft-tab-bar";
 import { EditorProvider } from "./editor-context";
 import { EditorMediaDialogs } from "./editor-media-dialogs";
@@ -88,50 +88,13 @@ export function EditorLayout({
   const toggleOutlinePanel = useEditorStore(
     (state) => state.toggleOutlinePanel,
   );
-  const previewRef = useRef<HTMLDivElement>(null);
-  // Ref to the editor pane so the preview→editor sync doesn't have to call
-  // querySelector on every scroll event (which fires at the refresh rate of
-  // the user's input device, easily thousands of times per second on a
-  // momentum scroll).
-  const editorPaneRef = useRef<HTMLDivElement>(null);
-  const isSyncingScroll = useRef(false);
-
-  const handleEditorScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
-    if (isSyncingScroll.current) return;
-    const editor = e.currentTarget;
-    const preview = previewRef.current;
-    if (!preview) return;
-
-    const scrollRatio =
-      editor.scrollTop / (editor.scrollHeight - editor.clientHeight || 1);
-
-    isSyncingScroll.current = true;
-    preview.scrollTop =
-      scrollRatio * (preview.scrollHeight - preview.clientHeight);
-    requestAnimationFrame(() => {
-      isSyncingScroll.current = false;
-    });
-  }, []);
-
-  const handlePreviewScroll = useCallback(
-    (e: React.UIEvent<HTMLDivElement>) => {
-      if (isSyncingScroll.current) return;
-      const preview = e.currentTarget;
-      const editorPane = editorPaneRef.current;
-      if (!editorPane) return;
-
-      const scrollRatio =
-        preview.scrollTop / (preview.scrollHeight - preview.clientHeight || 1);
-
-      isSyncingScroll.current = true;
-      editorPane.scrollTop =
-        scrollRatio * (editorPane.scrollHeight - editorPane.clientHeight);
-      requestAnimationFrame(() => {
-        isSyncingScroll.current = false;
-      });
-    },
-    [],
-  );
+  const {
+    editorPaneRef,
+    previewRef,
+    onEditorScroll,
+    onPreviewScroll,
+    setOwner,
+  } = useSplitScrollSync(viewMode === "split");
 
   return (
     <EditorProvider>
@@ -209,7 +172,12 @@ export function EditorLayout({
                     ref={editorPaneRef}
                     data-editor-pane
                     className="h-full w-1/2 overflow-y-auto hide-scrollbar"
-                    onScroll={handleEditorScroll}
+                    onScroll={onEditorScroll}
+                    onPointerEnter={() => setOwner("editor")}
+                    onTouchStart={() => setOwner("editor")}
+                    // Typing scrolls the caret into view even while the
+                    // pointer rests over the preview — keys reclaim ownership.
+                    onKeyDownCapture={() => setOwner("editor")}
                   >
                     <MarkdownEditor
                       documentId={documentId}
@@ -224,7 +192,9 @@ export function EditorLayout({
                   <div
                     ref={previewRef}
                     className="h-full w-1/2 overflow-y-auto hide-scrollbar bg-muted/10"
-                    onScroll={handlePreviewScroll}
+                    onScroll={onPreviewScroll}
+                    onPointerEnter={() => setOwner("preview")}
+                    onTouchStart={() => setOwner("preview")}
                   >
                     <div className="mx-auto max-w-[640px]">
                       {isMdx ? <MdxPreview /> : <MarkdownPreview />}

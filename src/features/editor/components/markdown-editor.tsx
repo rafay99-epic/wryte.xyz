@@ -51,7 +51,18 @@ export function MarkdownEditor({
         isVersionSwitching: state.switchTarget !== null,
       })),
     );
-  const { textareaRef, getSelection, replaceRange } = useEditorContext();
+  const { textareaRef, getSelection, replaceRange, selectRange } =
+    useEditorContext();
+
+  // Double-click-to-edit jump from the preview. Runs after mount, so it also
+  // covers the preview→edit switch where the offset was queued before this
+  // textarea existed.
+  const pendingCaret = useEditorStore((s) => s.pendingCaret);
+  useEffect(() => {
+    if (pendingCaret === null) return;
+    selectRange(pendingCaret, pendingCaret);
+    useEditorStore.getState().setPendingCaret(null);
+  }, [pendingCaret, selectRange]);
 
   // Inline AI popover state
   const [inlineAiOpen, setInlineAiOpen] = useState(false);

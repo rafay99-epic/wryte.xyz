@@ -26,6 +26,7 @@ import remarkGfm from "remark-gfm";
 import { codeComponents } from "@/components/markdown/code-overrides";
 import { embedComponents } from "@/components/markdown/embed-overrides";
 import { useEditorStore } from "@/stores/editor-store";
+import { usePreviewJump } from "../hooks/use-preview-jump";
 import { VideoEmbed } from "./video-embed";
 
 type MdxModule = { default: React.ComponentType };
@@ -279,6 +280,7 @@ function CompileError({ message }: { message: string }) {
 
 export function MdxPreview() {
   const content = useEditorStore((state) => state.content);
+  const handleDoubleClick = usePreviewJump();
   const [compiled, setCompiled] = useState<MdxModule | null>(null);
   const [error, setError] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout>>(null);
@@ -349,7 +351,10 @@ export function MdxPreview() {
     <MdxErrorBoundary
       fallback={<CompileError message="Failed to render MDX content." />}
     >
-      <article className="prose prose-neutral dark:prose-invert max-w-none px-8 py-6 prose-headings:font-heading prose-headings:tracking-tight prose-headings:font-semibold prose-h1:text-[1.75rem] prose-h1:leading-tight prose-h2:text-[1.35rem] prose-h3:text-[1.15rem] prose-p:leading-[1.8] prose-p:text-foreground/90 prose-li:leading-[1.8] prose-pre:bg-transparent prose-pre:p-0 prose-pre:border-0 prose-img:rounded-xl prose-strong:text-foreground prose-strong:font-semibold">
+      <article
+        onDoubleClick={handleDoubleClick}
+        className="prose prose-neutral dark:prose-invert max-w-none px-8 py-6 prose-headings:font-heading prose-headings:tracking-tight prose-headings:font-semibold prose-h1:text-[1.75rem] prose-h1:leading-tight prose-h2:text-[1.35rem] prose-h3:text-[1.15rem] prose-p:leading-[1.8] prose-p:text-foreground/90 prose-li:leading-[1.8] prose-pre:bg-transparent prose-pre:p-0 prose-pre:border-0 prose-img:rounded-xl prose-strong:text-foreground prose-strong:font-semibold"
+      >
         <Content />
       </article>
     </MdxErrorBoundary>

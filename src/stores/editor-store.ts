@@ -46,6 +46,13 @@ type EditorState = {
    * so in-transit keystrokes can't land in the outgoing version's buffer.
    */
   switchTarget: string | null;
+  /**
+   * Caret offset the editor should jump to on its next render — set by the
+   * preview's double-click-to-edit, consumed (reset to null) by the markdown
+   * editor once applied. Survives the preview→edit mode switch, where the
+   * textarea doesn't exist yet at the moment of the click.
+   */
+  pendingCaret: number | null;
   researchPanelOpen: boolean;
   readabilityPanelOpen: boolean;
   outlinePanelOpen: boolean;
@@ -82,6 +89,7 @@ type EditorState = {
   toggleHistoryPanel: () => void;
   setActiveDraftId: (id: string | null) => void;
   setSwitchTarget: (target: string | null) => void;
+  setPendingCaret: (offset: number | null) => void;
   toggleResearchPanel: () => void;
   toggleReadabilityPanel: () => void;
   toggleOutlinePanel: () => void;
@@ -123,6 +131,7 @@ const initialState = {
   _preFocusSidebarOpen: null as boolean | null,
   activeDraftId: null as string | null,
   switchTarget: null as string | null,
+  pendingCaret: null as number | null,
   researchPanelOpen: false,
   readabilityPanelOpen: false,
   outlinePanelOpen: false,
@@ -165,6 +174,8 @@ export const useEditorStore = create<EditorState>()((set) => ({
       lastSavedAt: null,
       sessionStartWords: countWords(content),
       sessionStartedAt: Date.now(),
+      // A jump queued against the previous document must not fire in this one.
+      pendingCaret: null,
       ...sprintIdleState,
     })),
 
@@ -207,6 +218,8 @@ export const useEditorStore = create<EditorState>()((set) => ({
   setActiveDraftId: (id) => set({ activeDraftId: id }),
 
   setSwitchTarget: (target) => set({ switchTarget: target }),
+
+  setPendingCaret: (offset) => set({ pendingCaret: offset }),
 
   toggleResearchPanel: () =>
     set((state) => ({ researchPanelOpen: !state.researchPanelOpen })),
