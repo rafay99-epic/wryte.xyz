@@ -1,0 +1,37 @@
+src/features/command-palette/lib/frecency.ts
+  s_0fe6ed8c00d03f::t_6a5eb5b85a8c37 1-38
+src/features/command-palette/command-palette.tsx
+  s_0fe6ed8c00d03f::t_87e62336eb8717 577
+  s_0fe6ed8c00d03f::t_1ae5163390c101 152-154
+  s_0fe6ed8c00d03f::t_4b1a0deed66a5f 381-382
+  s_0fe6ed8c00d03f::t_f48b77e7874476 337
+  s_0fe6ed8c00d03f::t_6b03b4f0c21ce7 322,324
+  s_0fe6ed8c00d03f::t_2983c424dd7261 352-353,356-364
+  s_0fe6ed8c00d03f::t_341e2df655e108 37
+  s_0fe6ed8c00d03f::t_e8e90c2b6ad94c 147-151,155-157
+  s_0fe6ed8c00d03f::t_50c6ef8eb5942b 60-61
+src/features/editor/lib/recovery-buffer.ts
+  s_0fe6ed8c00d03f::t_b9ab2de4dade84 1-66
+src/features/editor/hooks/use-autosave.ts
+  s_0fe6ed8c00d03f::t_eccdb06de1ef3a 214-261,287
+  s_0fe6ed8c00d03f::t_ba4aee1d483b16 152
+  s_0fe6ed8c00d03f::t_7ea340b86b3847 5-9,12-13
+  s_0fe6ed8c00d03f::t_8dae23c07ad4bb 281-286
+  s_0fe6ed8c00d03f::t_fc0864679eadf8 180-182
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "285c258f7be5ad7a62e45513fe9f121794c93c00",
+  "prompts": {},
+  "sessions": {
+    "s_0fe6ed8c00d03f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7a688ff0-4b02-4830-a4ec-faebcb9eb3e3",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
