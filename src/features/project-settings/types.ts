@@ -41,6 +41,7 @@ export type ProjectData = {
   contentFormat?: "md" | "mdx";
   defaultDraft?: boolean;
   siteUrl?: string;
+  postUrlPrefix?: string;
   deployHookUrl?: string;
   frontmatterFormat?: "yaml" | "toml";
   framework?: string;
@@ -123,14 +124,25 @@ export const TABS: {
   { id: "tools", label: "Tools", icon: Wrench },
 ];
 
-export const UPLOAD_POST_PLATFORMS = [
-  { id: "x", label: "X (Twitter)" },
-  { id: "linkedin", label: "LinkedIn" },
-  { id: "bluesky", label: "Bluesky" },
-  { id: "threads", label: "Threads" },
-  { id: "facebook", label: "Facebook" },
-  { id: "reddit", label: "Reddit" },
-] as const;
+/** Pretty labels for Buffer's `service` enum on connected channels. */
+export const BUFFER_SERVICE_LABELS: Record<string, string> = {
+  twitter: "X (Twitter)",
+  x: "X (Twitter)",
+  linkedin: "LinkedIn",
+  bluesky: "Bluesky",
+  threads: "Threads",
+  facebook: "Facebook",
+  instagram: "Instagram",
+  tiktok: "TikTok",
+  youtube: "YouTube",
+  pinterest: "Pinterest",
+  mastodon: "Mastodon",
+  googlebusiness: "Google Business",
+};
+
+export function bufferServiceLabel(service: string): string {
+  return BUFFER_SERVICE_LABELS[service.toLowerCase()] ?? service;
+}
 
 export type VerifyStatus = "idle" | "verifying" | "connected" | "error";
 

@@ -8,12 +8,38 @@ import { v } from "convex/values";
 import { internalMutation, internalQuery, query } from "../_generated/server";
 import { getAuthedUserOrNull } from "../_lib/auth";
 
-const PROVIDER_VALIDATOR = v.literal("upload-post");
+const PROVIDER_VALIDATOR = v.union(
+  v.literal("upload-post"),
+  v.literal("buffer"),
+);
+
+const STATUS_VALIDATOR = v.union(
+  v.literal("active"),
+  v.literal("verifying"),
+  v.literal("invalid"),
+  v.literal("rotating"),
+);
 
 export const getPublicConfig = query({
   args: {
     projectId: v.id("projects"),
   },
+  returns: v.union(
+    v.null(),
+    v.object({ hasLegacyUploadPost: v.literal(true) }),
+    v.object({
+      _id: v.id("socialCredentials"),
+      provider: PROVIDER_VALIDATOR,
+      publicConfig: v.optional(v.string()),
+      status: STATUS_VALIDATOR,
+      lastVerifiedAt: v.optional(v.number()),
+      lastVerifyError: v.optional(v.string()),
+      rotatedAt: v.optional(v.number()),
+      createdAt: v.number(),
+      updatedAt: v.number(),
+      hasLegacyUploadPost: v.boolean(),
+    }),
+  ),
   handler: async (ctx, args) => {
     const user = await getAuthedUserOrNull(ctx);
     if (!user) return null;
@@ -24,21 +50,38 @@ export const getPublicConfig = query({
     const cred = await ctx.db
       .query("socialCredentials")
       .withIndex("by_projectId_and_provider", (q) =>
+        q.eq("projectId", args.projectId).eq("provider", "buffer"),
+      )
+      .unique();
+
+    // Legacy Upload-Post row (posting through it is retired) — surfaced so
+    // the settings UI can show a "reconnect with Buffer" migration prompt.
+    const legacy = await ctx.db
+      .query("socialCredentials")
+      .withIndex("by_projectId_and_provider", (q) =>
         q.eq("projectId", args.projectId).eq("provider", "upload-post"),
       )
       .unique();
-    if (!cred) return null;
+
+    if (!cred) return legacy ? { hasLegacyUploadPost: true as const } : null;
 
     return {
       _id: cred._id,
       provider: cred.provider,
-      publicConfig: cred.publicConfig,
+      ...(cred.publicConfig !== undefined
+        ? { publicConfig: cred.publicConfig }
+        : {}),
       status: cred.status,
-      lastVerifiedAt: cred.lastVerifiedAt,
-      lastVerifyError: cred.lastVerifyError,
-      rotatedAt: cred.rotatedAt,
+      ...(cred.lastVerifiedAt !== undefined
+        ? { lastVerifiedAt: cred.lastVerifiedAt }
+        : {}),
+      ...(cred.lastVerifyError !== undefined
+        ? { lastVerifyError: cred.lastVerifyError }
+        : {}),
+      ...(cred.rotatedAt !== undefined ? { rotatedAt: cred.rotatedAt } : {}),
       createdAt: cred.createdAt,
       updatedAt: cred.updatedAt,
+      hasLegacyUploadPost: legacy !== null,
     };
   },
 });
@@ -47,11 +90,30 @@ export const getPublicConfig = query({
 /*  Internal queries / mutations                                       */
 /* ------------------------------------------------------------------ */
 
+/** Full socialCredentials row — return shape of the internal find queries. */
+const CREDENTIAL_DOC = v.object({
+  _id: v.id("socialCredentials"),
+  _creationTime: v.number(),
+  projectId: v.id("projects"),
+  userId: v.id("users"),
+  provider: PROVIDER_VALIDATOR,
+  vaultSecretId: v.string(),
+  vaultVersionId: v.optional(v.string()),
+  publicConfig: v.optional(v.string()),
+  status: STATUS_VALIDATOR,
+  lastVerifiedAt: v.optional(v.number()),
+  lastVerifyError: v.optional(v.string()),
+  rotatedAt: v.optional(v.number()),
+  createdAt: v.number(),
+  updatedAt: v.number(),
+});
+
 export const _findByProject = internalQuery({
   args: {
     projectId: v.id("projects"),
     provider: PROVIDER_VALIDATOR,
   },
+  returns: v.union(v.null(), CREDENTIAL_DOC),
   handler: async (ctx, args) => {
     return await ctx.db
       .query("socialCredentials")
@@ -64,6 +126,7 @@ export const _findByProject = internalQuery({
 
 export const _findById = internalQuery({
   args: { credentialId: v.id("socialCredentials") },
+  returns: v.union(v.null(), CREDENTIAL_DOC),
   handler: async (ctx, args) => ctx.db.get(args.credentialId),
 });
 
@@ -76,6 +139,7 @@ export const _insert = internalMutation({
     vaultVersionId: v.optional(v.string()),
     publicConfig: v.optional(v.string()),
   },
+  returns: v.id("socialCredentials"),
   handler: async (ctx, args) => {
     const now = Date.now();
     return await ctx.db.insert("socialCredentials", {
@@ -101,11 +165,13 @@ export const _updatePublicConfig = internalMutation({
     credentialId: v.id("socialCredentials"),
     publicConfig: v.string(),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     await ctx.db.patch(args.credentialId, {
       publicConfig: args.publicConfig,
       updatedAt: Date.now(),
     });
+    return null;
   },
 });
 
@@ -115,6 +181,7 @@ export const _replaceVaultId = internalMutation({
     newVaultSecretId: v.string(),
     newVersionId: v.optional(v.string()),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const patch: Record<string, unknown> = {
       vaultSecretId: args.newVaultSecretId,
@@ -125,6 +192,7 @@ export const _replaceVaultId = internalMutation({
       patch["vaultVersionId"] = args.newVersionId;
     }
     await ctx.db.patch(args.credentialId, patch);
+    return null;
   },
 });
 
@@ -140,6 +208,7 @@ export const _setStatus = internalMutation({
     lastVerifyError: v.optional(v.string()),
     lastVerifiedAt: v.optional(v.number()),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const patch: Record<string, unknown> = {
       status: args.status,
@@ -154,6 +223,7 @@ export const _setStatus = internalMutation({
       patch["lastVerifiedAt"] = args.lastVerifiedAt;
     }
     await ctx.db.patch(args.credentialId, patch);
+    return null;
   },
 });
 
@@ -163,6 +233,7 @@ export const _markRotated = internalMutation({
     newVaultSecretId: v.string(),
     newVersionId: v.optional(v.string()),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const now = Date.now();
     const patch: Record<string, unknown> = {
@@ -177,12 +248,15 @@ export const _markRotated = internalMutation({
       patch["vaultVersionId"] = args.newVersionId;
     }
     await ctx.db.patch(args.credentialId, patch);
+    return null;
   },
 });
 
 export const _delete = internalMutation({
   args: { credentialId: v.id("socialCredentials") },
+  returns: v.null(),
   handler: async (ctx, args) => {
     await ctx.db.delete(args.credentialId);
+    return null;
   },
 });

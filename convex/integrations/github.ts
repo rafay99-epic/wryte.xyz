@@ -24,6 +24,7 @@ import type { ActionCtx } from "../_generated/server";
 import { action, internalAction } from "../_generated/server";
 import { getGithubToken } from "../_lib/auth";
 import { coerceFrontmatterArrays } from "../_lib/frontmatter";
+import { buildPublishedUrl } from "../_lib/publishedUrl";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
 import { importPool } from "../_pools/import";
 
@@ -700,7 +701,12 @@ export const publishToGithub = internalAction({
       } = {
         projectId: project._id,
         documentTitle: document.title,
-        publishedUrl: `${project.siteUrl.replace(/\/$/, "")}/${document.slug}`,
+        publishedUrl: buildPublishedUrl({
+          siteUrl: project.siteUrl,
+          slug: document.slug,
+          postUrlPrefix: project.postUrlPrefix,
+          framework: project.framework,
+        }),
       };
       if (args.socialPostText) announceArgs.customText = args.socialPostText;
       await ctx.scheduler.runAfter(
@@ -1089,7 +1095,12 @@ export const bulkPublish = action({
         await ctx.scheduler.runAfter(0, internal.social.post.announcePublish, {
           projectId: project._id,
           documentTitle: entry.doc.title,
-          publishedUrl: `${project.siteUrl.replace(/\/$/, "")}/${entry.doc.slug}`,
+          publishedUrl: buildPublishedUrl({
+            siteUrl: project.siteUrl,
+            slug: entry.doc.slug,
+            postUrlPrefix: project.postUrlPrefix,
+            framework: project.framework,
+          }),
         });
       }
     }

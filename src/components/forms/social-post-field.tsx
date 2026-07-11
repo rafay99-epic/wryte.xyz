@@ -9,7 +9,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
-  renderSocialText,
+  composeAnnouncementText,
   type SocialTemplateVars,
 } from "@/lib/social-template";
 import { cn } from "@/lib/utils";
@@ -69,8 +69,10 @@ export function SocialPostField({
   const count = value.length;
   const nearLimit = count >= MAX_LENGTH * 0.9;
 
+  // Mirrors the server's composition exactly: placeholders resolve, and the
+  // post URL is auto-appended when the message doesn't already include it.
   const preview = previewValues
-    ? renderSocialText(value, previewValues).trim()
+    ? composeAnnouncementText({ ...previewValues, customText: value }).trim()
     : "";
 
   return (

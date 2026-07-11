@@ -37,8 +37,7 @@ import { isSameDay } from "@/lib/calendar-utils";
 import { smoothTransition } from "@/lib/motion";
 import {
   buildPublishedUrl,
-  DEFAULT_SOCIAL_TEMPLATE,
-  renderSocialText,
+  composeAnnouncementText,
 } from "@/lib/social-template";
 import {
   formatLocalDate,
@@ -105,34 +104,32 @@ export function ScheduleDialog({
   const [socialPostText, setSocialPostText] = useState("");
   const [includeSocialPost, setIncludeSocialPost] = useState(true);
 
+  // getPublicConfig returns a legacy-marker variant without `status` while a
+  // project is still on retired Upload-Post credentials — narrow before use.
   const socialEnabled =
     project?.socialPostOnPublish === true &&
-    socialConfig?.status === "active" &&
+    socialConfig != null &&
+    "status" in socialConfig &&
+    socialConfig.status === "active" &&
     Boolean(project?.siteUrl);
 
-  // The textarea holds a TEMPLATE (placeholders intact); the server resolves
-  // {{title}}/{{url}} at fire-time so a scheduled post reflects the title/URL
-  // as they exist when it actually publishes, not when it was scheduled.
-  const defaultSocialTemplate = useMemo(() => {
-    if (!socialEnabled) return "";
-    let parsed: { postTemplate?: string } | null = null;
-    if (socialConfig?.publicConfig) {
-      try {
-        parsed = JSON.parse(socialConfig.publicConfig);
-      } catch {
-        /* corrupted config — fall through to default template */
-      }
-    }
-    return parsed?.postTemplate || DEFAULT_SOCIAL_TEMPLATE;
-  }, [socialEnabled, socialConfig?.publicConfig]);
-
   // Concrete values used only for the live preview shown under the textarea.
+  // The custom text (if any) is stored verbatim and composed server-side at
+  // fire-time, so a scheduled post reflects the title/URL as they exist when
+  // it actually publishes, not when it was scheduled.
   const socialPreview = useMemo(
     () => ({
       title: document?.title || "Untitled",
-      url: buildPublishedUrl(project?.siteUrl, document?.slug),
+      url: project?.siteUrl
+        ? buildPublishedUrl({
+            siteUrl: project.siteUrl,
+            slug: document?.slug ?? "untitled",
+            postUrlPrefix: project.postUrlPrefix,
+            framework: project.framework,
+          })
+        : "",
     }),
-    [project?.siteUrl, document?.slug, document?.title],
+    [project, document?.slug, document?.title],
   );
 
   const isAlreadyScheduled = document?.status === "scheduled";
@@ -156,7 +153,9 @@ export function ScheduleDialog({
   useEffect(() => {
     if (open) {
       setTimezone(projectTimezone);
-      setSocialPostText(defaultSocialTemplate);
+      // Empty custom text = the server composes the announcement from the
+      // live title and framework-aware URL at publish time.
+      setSocialPostText("");
       setIncludeSocialPost(true);
       if (existingScheduledAt) {
         // Read the existing instant *in the project timezone* so the calendar
@@ -179,7 +178,7 @@ export function ScheduleDialog({
         setMinute(0);
       }
     }
-  }, [open, existingScheduledAt, projectTimezone, defaultSocialTemplate]);
+  }, [open, existingScheduledAt, projectTimezone]);
 
   // When user picks a date, auto-adjust time if it would be in the past
   const handleDateSelect = useCallback(
@@ -558,7 +557,7 @@ export function ScheduleDialog({
                       Default message
                     </p>
                     <p className="whitespace-pre-wrap break-words text-xs leading-relaxed text-foreground/75">
-                      {renderSocialText(defaultSocialTemplate, socialPreview)}
+                      {composeAnnouncementText(socialPreview)}
                     </p>
                   </div>
                 )}

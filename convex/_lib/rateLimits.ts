@@ -571,7 +571,7 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
   },
 
   /* ------------------------------------------------------------------ */
-  /*  Social credentials (Upload-Post)                                   */
+  /*  Social credentials (Buffer)                                        */
   /* ------------------------------------------------------------------ */
 
   "socialCredentials:set": {

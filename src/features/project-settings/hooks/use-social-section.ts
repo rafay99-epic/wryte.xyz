@@ -5,9 +5,22 @@ import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
 import { setsEqual } from "../components/shared";
 
-export function useSocialSection({ projectId }: { projectId: Id<"projects"> }) {
+export type BufferChannel = { id: string; service: string; name: string };
+
+/**
+ * State + actions for the Buffer social section: API key lifecycle
+ * (save / rotate / test / delete), the enabled-channel selection, the
+ * project's post-URL prefix, and the legacy Upload-Post migration prompt.
+ */
+export function useSocialSection({
+  projectId,
+  initialPostUrlPrefix,
+}: {
+  projectId: Id<"projects">;
+  initialPostUrlPrefix: string | undefined;
+}) {
   const updateProject = useMutation(api.cms.projects.update);
-  const config = useQuery(api.social.credentialsDb.getPublicConfig, {
+  const rawConfig = useQuery(api.social.credentialsDb.getPublicConfig, {
     projectId,
   });
 
@@ -18,27 +31,33 @@ export function useSocialSection({ projectId }: { projectId: Id<"projects"> }) {
   const updateConfigAction = useAction(api.social.credentials.updateConfig);
   const sendTestPost = useAction(api.social.post.sendTestPost);
 
-  const [apiKey, setApiKey] = useState("");
-  const [username, setUsername] = useState("");
-  const [platforms, setPlatforms] = useState<Set<string>>(() => new Set());
-  const [postTemplate, setPostTemplate] = useState(
-    "New blog post: {{title}}\n\n{{url}}",
-  );
-  const [subreddit, setSubreddit] = useState("");
-  const [busy, setBusy] = useState<
-    "save" | "test" | "delete" | "config" | "testPost" | null
-  >(null);
+  // Narrow the union: a legacy-only project has no Buffer credential row.
+  const config = rawConfig && "_id" in rawConfig ? rawConfig : null;
+  const hasLegacyUploadPost = Boolean(rawConfig?.hasLegacyUploadPost);
+  const hasExisting = config !== null;
 
-  const hasExisting = config !== null && config !== undefined;
+  const [apiKey, setApiKey] = useState("");
+  const [enabledChannels, setEnabledChannels] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [postUrlPrefix, setPostUrlPrefix] = useState(
+    initialPostUrlPrefix ?? "",
+  );
+  const [busy, setBusy] = useState<
+    "save" | "test" | "delete" | "config" | "testPost" | "legacy" | null
+  >(null);
 
   const parsedConfig = useMemo(() => {
     if (!config?.publicConfig) return null;
     try {
-      return JSON.parse(config.publicConfig) as {
-        username?: string;
-        platforms?: string[];
-        postTemplate?: string;
-        subreddit?: string;
+      const parsed = JSON.parse(config.publicConfig) as {
+        channels?: BufferChannel[];
+        enabledChannelIds?: string[];
+      };
+      if (!Array.isArray(parsed.channels)) return null;
+      return {
+        channels: parsed.channels,
+        enabledChannelIds: parsed.enabledChannelIds ?? [],
       };
     } catch {
       return null;
@@ -47,14 +66,13 @@ export function useSocialSection({ projectId }: { projectId: Id<"projects"> }) {
 
   useEffect(() => {
     if (parsedConfig) {
-      setUsername(parsedConfig.username ?? "");
-      setPlatforms(new Set(parsedConfig.platforms ?? []));
-      setPostTemplate(
-        parsedConfig.postTemplate ?? "New blog post: {{title}}\n\n{{url}}",
-      );
-      setSubreddit(parsedConfig.subreddit ?? "");
+      setEnabledChannels(new Set(parsedConfig.enabledChannelIds));
     }
   }, [parsedConfig]);
+
+  useEffect(() => {
+    setPostUrlPrefix(initialPostUrlPrefix ?? "");
+  }, [initialPostUrlPrefix]);
 
   const toggleAutoPost = useCallback(
     async (checked: boolean) => {
@@ -70,8 +88,8 @@ export function useSocialSection({ projectId }: { projectId: Id<"projects"> }) {
     [updateProject, projectId],
   );
 
-  const togglePlatform = useCallback((id: string) => {
-    setPlatforms((prev) => {
+  const toggleChannel = useCallback((id: string) => {
+    setEnabledChannels((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -79,19 +97,22 @@ export function useSocialSection({ projectId }: { projectId: Id<"projects"> }) {
     });
   }, []);
 
+  const handleSavePrefix = useCallback(async () => {
+    try {
+      await updateProject({
+        projectId,
+        postUrlPrefix: postUrlPrefix.trim().replace(/^\/+|\/+$/g, ""),
+      });
+      toast.success("Post URL updated.");
+    } catch {
+      toast.error("Failed to save post URL prefix.");
+    }
+  }, [updateProject, projectId, postUrlPrefix]);
+
   const handleSave = useCallback(async () => {
     const trimmedKey = apiKey.trim();
     if (!trimmedKey) {
-      toast.error("Paste your Upload-Post API key.");
-      return;
-    }
-    const trimmedUsername = username.trim();
-    if (!trimmedUsername) {
-      toast.error("Enter your Upload-Post profile username.");
-      return;
-    }
-    if (platforms.size === 0) {
-      toast.error("Select at least one platform.");
+      toast.error("Paste your Buffer API key.");
       return;
     }
 
@@ -106,25 +127,15 @@ export function useSocialSection({ projectId }: { projectId: Id<"projects"> }) {
           toast.error(rotateResult.message ?? "Key rotation failed.");
           return;
         }
-        await updateConfigAction({
-          projectId,
-          username: trimmedUsername,
-          platforms: Array.from(platforms),
-          postTemplate,
-          subreddit,
-        });
-        toast.success("Credentials rotated and config updated.");
+        toast.success("Buffer key rotated.");
       } else {
-        const result = await setCredentials({
-          projectId,
-          secret: trimmedKey,
-          username: trimmedUsername,
-          platforms: Array.from(platforms),
-          postTemplate,
-          subreddit,
-        });
+        const result = await setCredentials({ projectId, secret: trimmedKey });
         if (result.ok) {
-          toast.success("Upload-Post connected.");
+          toast.success(
+            `Buffer connected — ${result.channels?.length ?? 0} channel${
+              result.channels?.length === 1 ? "" : "s"
+            } found.`,
+          );
         } else {
           toast.error(result.message ?? "Credentials failed verification.");
         }
@@ -139,62 +150,36 @@ export function useSocialSection({ projectId }: { projectId: Id<"projects"> }) {
     } finally {
       setBusy(null);
     }
-  }, [
-    apiKey,
-    username,
-    platforms,
-    postTemplate,
-    subreddit,
-    hasExisting,
-    projectId,
-    rotateAction,
-    updateConfigAction,
-    setCredentials,
-  ]);
+  }, [apiKey, hasExisting, projectId, rotateAction, setCredentials]);
 
-  const handleUpdateConfig = useCallback(async () => {
-    const trimmedUsername = username.trim();
-    if (!trimmedUsername) {
-      toast.error("Username is required.");
-      return;
-    }
-    if (platforms.size === 0) {
-      toast.error("Select at least one platform.");
+  const handleUpdateChannels = useCallback(async () => {
+    if (enabledChannels.size === 0) {
+      toast.error("Select at least one channel.");
       return;
     }
     setBusy("config");
     try {
       await updateConfigAction({
         projectId,
-        username: trimmedUsername,
-        platforms: Array.from(platforms),
-        postTemplate,
-        subreddit,
+        enabledChannelIds: Array.from(enabledChannels),
       });
-      toast.success("Social config updated.");
+      toast.success("Channel selection updated.");
     } catch (err) {
       const data = (err as { data?: { message?: string } })?.data;
       toast.error(
         data?.message ??
-          (err instanceof Error ? err.message : "Failed to update config."),
+          (err instanceof Error ? err.message : "Failed to update channels."),
       );
     } finally {
       setBusy(null);
     }
-  }, [
-    username,
-    platforms,
-    postTemplate,
-    subreddit,
-    updateConfigAction,
-    projectId,
-  ]);
+  }, [enabledChannels, updateConfigAction, projectId]);
 
   const handleTest = useCallback(async () => {
     setBusy("test");
     try {
       const result = await testCredentials({ projectId });
-      if (result.ok) toast.success("Connection verified.");
+      if (result.ok) toast.success("Connection verified — channels refreshed.");
       else toast.error(result.message ?? "Verification failed.");
     } catch (err) {
       const data = (err as { data?: { message?: string } })?.data;
@@ -209,19 +194,32 @@ export function useSocialSection({ projectId }: { projectId: Id<"projects"> }) {
   const handleDelete = useCallback(async () => {
     if (
       !window.confirm(
-        "Remove Upload-Post credentials? Social posting will stop until you reconfigure.",
+        "Remove Buffer credentials? Social posting will stop until you reconfigure.",
       )
     )
       return;
     setBusy("delete");
     try {
-      await deleteCredentials({ projectId });
+      await deleteCredentials({ projectId, provider: "buffer" });
       toast.success("Credentials removed.");
       setApiKey("");
-      setUsername("");
-      setPlatforms(new Set());
-      setPostTemplate("New blog post: {{title}}\n\n{{url}}");
-      setSubreddit("");
+      setEnabledChannels(new Set());
+    } catch (err) {
+      const data = (err as { data?: { message?: string } })?.data;
+      toast.error(
+        data?.message ??
+          (err instanceof Error ? err.message : "Failed to remove."),
+      );
+    } finally {
+      setBusy(null);
+    }
+  }, [deleteCredentials, projectId]);
+
+  const handleRemoveLegacy = useCallback(async () => {
+    setBusy("legacy");
+    try {
+      await deleteCredentials({ projectId, provider: "upload-post" });
+      toast.success("Old Upload-Post credentials removed.");
     } catch (err) {
       const data = (err as { data?: { message?: string } })?.data;
       toast.error(
@@ -253,34 +251,36 @@ export function useSocialSection({ projectId }: { projectId: Id<"projects"> }) {
     }
   }, [sendTestPost, projectId]);
 
-  const configChanged =
+  const channelsChanged =
     hasExisting &&
-    (username.trim() !== (parsedConfig?.username ?? "") ||
-      !setsEqual(platforms, new Set(parsedConfig?.platforms ?? [])) ||
-      postTemplate !==
-        (parsedConfig?.postTemplate ?? "New blog post: {{title}}\n\n{{url}}") ||
-      subreddit.trim() !== (parsedConfig?.subreddit ?? ""));
+    parsedConfig !== null &&
+    !setsEqual(enabledChannels, new Set(parsedConfig.enabledChannelIds));
+
+  const prefixChanged =
+    postUrlPrefix.trim().replace(/^\/+|\/+$/g, "") !==
+    (initialPostUrlPrefix ?? "");
 
   return {
     config,
+    hasLegacyUploadPost,
+    channels: parsedConfig?.channels ?? [],
     apiKey,
     setApiKey,
-    username,
-    setUsername,
-    platforms,
-    postTemplate,
-    setPostTemplate,
-    subreddit,
-    setSubreddit,
+    enabledChannels,
+    postUrlPrefix,
+    setPostUrlPrefix,
     busy,
     hasExisting,
-    configChanged,
+    channelsChanged,
+    prefixChanged,
     toggleAutoPost,
-    togglePlatform,
+    toggleChannel,
     handleSave,
-    handleUpdateConfig,
+    handleSavePrefix,
+    handleUpdateChannels,
     handleTest,
     handleTestPost,
     handleDelete,
+    handleRemoveLegacy,
   };
 }

@@ -1,14 +1,18 @@
 /**
- * socialCredentials — per-project Upload-Post key management.
+ * socialCredentials — per-project Buffer API key management.
  *
  * Mirrors `ai/credentials.ts`:
  *   - `setCredentials` (first-time save + verify)
  *   - `rotate` (replace the key; verifies before swapping)
- *   - `testCredentials` (re-verify the stored key)
- *   - `deleteCredentials` (remove vault entry + row)
- *   - `updateConfig` (change username/platforms without touching vault)
+ *   - `testCredentials` (re-verify the stored key + refresh channel list)
+ *   - `deleteCredentials` (remove vault entry + row; also clears the legacy
+ *     Upload-Post row when asked)
+ *   - `updateConfig` (change which channels announcements go to)
  *
- * Verification = a lightweight GET to Upload-Post's `/api/uploadposts/me`.
+ * Verification = listing the account's channels via Buffer's GraphQL API —
+ * a key that can't list channels can't post. The channel list is cached in
+ * `publicConfig` so the settings UI renders it without a live round-trip:
+ * `{ channels: [{id, service, name}], enabledChannelIds: string[] }`.
  */
 "use node";
 
@@ -18,56 +22,22 @@ import type { Id } from "../_generated/dataModel";
 import type { ActionCtx } from "../_generated/server";
 import { action } from "../_generated/server";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
+import { type BufferChannel, fetchBufferChannels } from "./buffer";
 
-const UPLOAD_POST_VERIFY_URL = "https://api.upload-post.com/api/uploadposts/me";
+export type BufferPublicConfig = {
+  channels: BufferChannel[];
+  enabledChannelIds: string[];
+};
 
-const ALLOWED_PLATFORMS = new Set([
-  "x",
-  "linkedin",
-  "bluesky",
-  "threads",
-  "facebook",
-  "reddit",
-]);
-
-function validatePlatforms(platforms: string[]): string[] {
-  const valid = platforms.filter((p) => ALLOWED_PLATFORMS.has(p));
-  if (valid.length === 0) {
-    throw new ConvexError({
-      message: "Select at least one valid platform to post to.",
-    });
-  }
-  return valid;
-}
-
-function normalizeSubreddit(raw: string): string {
-  return raw.trim().replace(/^r\//i, "").replace(/\/+$/, "");
-}
-
-/**
- * Upload-Post usernames are user identifiers in the third-party service,
- * not free-form text — keep them to the same shape as a typical
- * social handle. The previous validator was length-only, which let through
- * control characters, newlines, and Unicode oddities that downstream form
- * fields and rendered UI weren't expecting.
- */
-const USERNAME_RE = /^[A-Za-z0-9_.-]+$/;
-
-function validateUsername(raw: string): string {
-  const trimmed = raw.trim();
-  if (!trimmed) {
-    throw new ConvexError({ message: "Upload-Post username is required." });
-  }
-  if (trimmed.length > 100) {
-    throw new ConvexError({ message: "Username is too long." });
-  }
-  if (!USERNAME_RE.test(trimmed)) {
-    throw new ConvexError({
-      message:
-        "Username may only contain letters, numbers, dots, dashes, and underscores.",
-    });
-  }
-  return trimmed;
+function buildPublicConfig(
+  channels: BufferChannel[],
+  enabledChannelIds: string[],
+): string {
+  const valid = new Set(channels.map((c) => c.id));
+  return JSON.stringify({
+    channels,
+    enabledChannelIds: enabledChannelIds.filter((id) => valid.has(id)),
+  } satisfies BufferPublicConfig);
 }
 
 /* ------------------------------------------------------------------ */
@@ -78,18 +48,27 @@ export const setCredentials = action({
   args: {
     projectId: v.id("projects"),
     secret: v.string(),
-    username: v.string(),
-    platforms: v.array(v.string()),
-    postTemplate: v.optional(v.string()),
-    subreddit: v.optional(v.string()),
+    /** Channel ids to announce to; empty = enable all connected channels. */
+    enabledChannelIds: v.optional(v.array(v.string())),
   },
+  returns: v.object({
+    credentialId: v.union(v.id("socialCredentials"), v.null()),
+    ok: v.boolean(),
+    message: v.optional(v.string()),
+    channels: v.optional(
+      v.array(
+        v.object({ id: v.string(), service: v.string(), name: v.string() }),
+      ),
+    ),
+  }),
   handler: async (
     ctx,
     args,
   ): Promise<{
-    credentialId: Id<"socialCredentials">;
+    credentialId: Id<"socialCredentials"> | null;
     ok: boolean;
     message?: string;
+    channels?: BufferChannel[];
   }> => {
     const key = await getRateLimitKey(ctx);
     await rateLimiter.limit(ctx, "socialCredentials:set", {
@@ -104,48 +83,36 @@ export const setCredentials = action({
     if (!secret) throw new ConvexError({ message: "API key is required." });
     if (secret.length > 512)
       throw new ConvexError({ message: "API key is too long." });
-    const username = validateUsername(args.username);
-    const validPlatforms = validatePlatforms(args.platforms);
-    if (args.postTemplate && args.postTemplate.length > 2000)
-      throw new ConvexError({
-        message: "Post template is too long (max 2000 characters).",
-      });
-    const subredditNorm = args.subreddit
-      ? normalizeSubreddit(args.subreddit)
-      : "";
-    if (subredditNorm.length > 100)
-      throw new ConvexError({ message: "Subreddit name is too long." });
-    if (validPlatforms.includes("reddit") && !subredditNorm)
-      throw new ConvexError({
-        message: "Subreddit is required when Reddit is selected.",
-      });
 
     const existing = await ctx.runQuery(
       internal.social.credentialsDb._findByProject,
-      { projectId: args.projectId, provider: "upload-post" },
+      { projectId: args.projectId, provider: "buffer" },
     );
 
-    const configObj: {
-      username: string;
-      platforms: string[];
-      postTemplate?: string;
-      subreddit?: string;
-    } = { username, platforms: validPlatforms };
-    if (args.postTemplate !== undefined)
-      configObj.postTemplate = args.postTemplate;
-    if (subredditNorm) configObj.subreddit = subredditNorm;
-    const publicConfig = JSON.stringify(configObj);
-
-    // Verify-first when replacing an existing credential — never destroy
-    // the working vault entry on a bad new secret.
-    const verify = await verifyUploadPostKey(secret);
-    if (existing && !verify.ok) {
+    // Verify-first — never destroy a working vault entry on a bad new secret,
+    // and the channel list doubles as the config we store.
+    const verify = await fetchBufferChannels(secret);
+    if (!verify.ok) {
       return {
-        credentialId: existing._id,
+        credentialId: existing?._id ?? null,
         ok: false,
         message: verify.message,
       };
     }
+    if (verify.channels.length === 0) {
+      return {
+        credentialId: existing?._id ?? null,
+        ok: false,
+        message:
+          "The key works, but no channels are connected in Buffer. Connect your social accounts at buffer.com first.",
+      };
+    }
+
+    const enabled =
+      args.enabledChannelIds && args.enabledChannelIds.length > 0
+        ? args.enabledChannelIds
+        : verify.channels.map((c) => c.id);
+    const publicConfig = buildPublicConfig(verify.channels, enabled);
 
     const created = await ctx.runAction(
       internal.integrations.secretStore._create,
@@ -154,8 +121,8 @@ export const setCredentials = action({
         meta: {
           userId: user._id,
           projectId: args.projectId,
-          provider: "upload-post",
-          label: "upload-post-social-key",
+          provider: "buffer",
+          label: "buffer-social-key",
         },
       },
     );
@@ -189,14 +156,14 @@ export const setCredentials = action({
       const insertArgs: {
         projectId: Id<"projects">;
         userId: Id<"users">;
-        provider: "upload-post";
+        provider: "buffer";
         vaultSecretId: string;
         vaultVersionId?: string;
         publicConfig: string;
       } = {
         projectId: args.projectId,
         userId: user._id,
-        provider: "upload-post",
+        provider: "buffer",
         vaultSecretId: created.id,
         publicConfig,
       };
@@ -208,31 +175,23 @@ export const setCredentials = action({
       );
     }
 
-    const statusArgs: {
-      credentialId: Id<"socialCredentials">;
-      status: "active" | "invalid";
-      lastVerifyError?: string;
-      lastVerifiedAt?: number;
-    } = {
+    await ctx.runMutation(internal.social.credentialsDb._setStatus, {
       credentialId,
-      status: verify.ok ? "active" : "invalid",
-    };
-    if (verify.ok) statusArgs.lastVerifiedAt = Date.now();
-    else statusArgs.lastVerifyError = verify.message;
-    await ctx.runMutation(internal.social.credentialsDb._setStatus, statusArgs);
+      status: "active",
+      lastVerifiedAt: Date.now(),
+    });
 
-    const result: {
-      credentialId: Id<"socialCredentials">;
-      ok: boolean;
-      message?: string;
-    } = { credentialId, ok: verify.ok };
-    if (!verify.ok) result.message = verify.message;
-    return result;
+    return { credentialId, ok: true, channels: verify.channels };
   },
 });
 
+/**
+ * Re-verify the stored key. Also refreshes the cached channel list, so
+ * "Test Connection" doubles as "pick up newly connected Buffer channels".
+ */
 export const testCredentials = action({
   args: { projectId: v.id("projects") },
+  returns: v.object({ ok: v.boolean(), message: v.optional(v.string()) }),
   handler: async (ctx, args): Promise<{ ok: boolean; message?: string }> => {
     const key = await getRateLimitKey(ctx);
     await rateLimiter.limit(ctx, "socialCredentials:test", {
@@ -247,20 +206,32 @@ export const testCredentials = action({
       { id: cred.vaultSecretId },
     );
 
-    const verify = await verifyUploadPostKey(secret);
-    const patch: {
-      credentialId: Id<"socialCredentials">;
-      status: "active" | "invalid";
-      lastVerifyError?: string;
-      lastVerifiedAt?: number;
-    } = {
+    const verify = await fetchBufferChannels(secret);
+    if (!verify.ok) {
+      await ctx.runMutation(internal.social.credentialsDb._setStatus, {
+        credentialId: cred._id,
+        status: "invalid",
+        lastVerifyError: verify.message,
+      });
+      return verify;
+    }
+
+    // Keep prior enabled selection where those channels still exist; newly
+    // connected channels stay unselected until the user opts in.
+    const prior = parseConfig(cred.publicConfig);
+    await ctx.runMutation(internal.social.credentialsDb._updatePublicConfig, {
       credentialId: cred._id,
-      status: verify.ok ? "active" : "invalid",
-    };
-    if (verify.ok) patch.lastVerifiedAt = Date.now();
-    else patch.lastVerifyError = verify.message;
-    await ctx.runMutation(internal.social.credentialsDb._setStatus, patch);
-    return verify;
+      publicConfig: buildPublicConfig(
+        verify.channels,
+        prior?.enabledChannelIds ?? verify.channels.map((c) => c.id),
+      ),
+    });
+    await ctx.runMutation(internal.social.credentialsDb._setStatus, {
+      credentialId: cred._id,
+      status: "active",
+      lastVerifiedAt: Date.now(),
+    });
+    return { ok: true };
   },
 });
 
@@ -269,6 +240,11 @@ export const rotate = action({
     projectId: v.id("projects"),
     secret: v.string(),
   },
+  returns: v.object({
+    credentialId: v.id("socialCredentials"),
+    ok: v.boolean(),
+    message: v.optional(v.string()),
+  }),
   handler: async (
     ctx,
     args,
@@ -296,7 +272,7 @@ export const rotate = action({
       status: "rotating" as const,
     });
 
-    const verify = await verifyUploadPostKey(newSecret);
+    const verify = await fetchBufferChannels(newSecret);
     if (!verify.ok) {
       await ctx.runMutation(internal.social.credentialsDb._setStatus, {
         credentialId: cred._id,
@@ -313,8 +289,8 @@ export const rotate = action({
         meta: {
           userId: cred.userId,
           projectId: args.projectId,
-          provider: "upload-post",
-          label: "upload-post-social-key-rotated",
+          provider: "buffer",
+          label: "buffer-social-key-rotated",
         },
       });
     } catch (err) {
@@ -334,6 +310,16 @@ export const rotate = action({
       markArgs.newVersionId = created.versionId;
     await ctx.runMutation(internal.social.credentialsDb._markRotated, markArgs);
 
+    // Refresh the channel cache from the new key's account.
+    const prior = parseConfig(cred.publicConfig);
+    await ctx.runMutation(internal.social.credentialsDb._updatePublicConfig, {
+      credentialId: cred._id,
+      publicConfig: buildPublicConfig(
+        verify.channels,
+        prior?.enabledChannelIds ?? verify.channels.map((c) => c.id),
+      ),
+    });
+
     try {
       await ctx.runAction(internal.integrations.secretStore._delete, {
         id: cred.vaultSecretId,
@@ -347,15 +333,28 @@ export const rotate = action({
 });
 
 export const deleteCredentials = action({
-  args: { projectId: v.id("projects") },
-  handler: async (ctx, args): Promise<void> => {
+  args: {
+    projectId: v.id("projects"),
+    /** Also used to clear the retired Upload-Post row from the migration banner. */
+    provider: v.optional(
+      v.union(v.literal("buffer"), v.literal("upload-post")),
+    ),
+  },
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
     const key = await getRateLimitKey(ctx);
     await rateLimiter.limit(ctx, "socialCredentials:delete", {
       key,
       throws: true,
     });
 
-    const cred = await loadOwnedCredential(ctx, args.projectId);
+    await loadOwnerContext(ctx, args.projectId);
+    const cred = await ctx.runQuery(
+      internal.social.credentialsDb._findByProject,
+      { projectId: args.projectId, provider: args.provider ?? "buffer" },
+    );
+    if (!cred) return null;
+
     try {
       await ctx.runAction(internal.integrations.secretStore._delete, {
         id: cred.vaultSecretId,
@@ -366,18 +365,18 @@ export const deleteCredentials = action({
     await ctx.runMutation(internal.social.credentialsDb._delete, {
       credentialId: cred._id,
     });
+    return null;
   },
 });
 
+/** Change which connected channels announcements are sent to. */
 export const updateConfig = action({
   args: {
     projectId: v.id("projects"),
-    username: v.optional(v.string()),
-    platforms: v.optional(v.array(v.string())),
-    postTemplate: v.optional(v.string()),
-    subreddit: v.optional(v.string()),
+    enabledChannelIds: v.array(v.string()),
   },
-  handler: async (ctx, args): Promise<void> => {
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
     const key = await getRateLimitKey(ctx);
     await rateLimiter.limit(ctx, "socialCredentials:updateConfig", {
       key,
@@ -385,60 +384,48 @@ export const updateConfig = action({
     });
 
     const cred = await loadOwnedCredential(ctx, args.projectId);
-
-    const nextUsername =
-      args.username !== undefined ? validateUsername(args.username) : undefined;
-    if (args.postTemplate !== undefined && args.postTemplate.length > 2000)
+    const existing = parseConfig(cred.publicConfig);
+    if (!existing) {
       throw new ConvexError({
-        message: "Post template is too long (max 2000 characters).",
+        message: "No channel list cached — run Test Connection first.",
       });
-    const subredditNorm =
-      args.subreddit !== undefined
-        ? normalizeSubreddit(args.subreddit)
-        : undefined;
-    if (subredditNorm !== undefined && subredditNorm.length > 100)
-      throw new ConvexError({ message: "Subreddit name is too long." });
-
-    const existing: {
-      username?: string;
-      platforms?: string[];
-      postTemplate?: string;
-      subreddit?: string;
-    } = cred.publicConfig ? JSON.parse(cred.publicConfig) : {};
-    const updated = {
-      username: nextUsername ?? existing.username ?? "",
-      platforms: args.platforms
-        ? validatePlatforms(args.platforms)
-        : (existing.platforms ?? []),
-      postTemplate:
-        args.postTemplate !== undefined
-          ? args.postTemplate
-          : (existing.postTemplate ?? ""),
-      subreddit: subredditNorm ?? existing.subreddit ?? "",
-    };
-    if (!updated.username)
-      throw new ConvexError({
-        message: "Upload-Post username is required.",
-      });
-    if (updated.platforms.length === 0)
-      throw new ConvexError({
-        message: "Select at least one platform.",
-      });
-    if (updated.platforms.includes("reddit") && !updated.subreddit)
-      throw new ConvexError({
-        message: "Subreddit is required when Reddit is selected.",
-      });
+    }
+    if (args.enabledChannelIds.length === 0) {
+      throw new ConvexError({ message: "Select at least one channel." });
+    }
 
     await ctx.runMutation(internal.social.credentialsDb._updatePublicConfig, {
       credentialId: cred._id,
-      publicConfig: JSON.stringify(updated),
+      publicConfig: buildPublicConfig(
+        existing.channels,
+        args.enabledChannelIds,
+      ),
     });
+    return null;
   },
 });
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                             */
 /* ------------------------------------------------------------------ */
+
+export function parseConfig(
+  raw: string | undefined,
+): BufferPublicConfig | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as Partial<BufferPublicConfig>;
+    if (!Array.isArray(parsed.channels)) return null;
+    return {
+      channels: parsed.channels,
+      enabledChannelIds: Array.isArray(parsed.enabledChannelIds)
+        ? parsed.enabledChannelIds
+        : [],
+    };
+  } catch {
+    return null;
+  }
+}
 
 async function loadOwnerContext(
   ctx: ActionCtx,
@@ -470,11 +457,11 @@ async function loadOwnedCredential(
   await loadOwnerContext(ctx, projectId);
   const cred = await ctx.runQuery(
     internal.social.credentialsDb._findByProject,
-    { projectId, provider: "upload-post" },
+    { projectId, provider: "buffer" },
   );
   if (!cred) {
     throw new ConvexError({
-      message: "No Upload-Post credentials configured.",
+      message: "No Buffer credentials configured.",
     });
   }
   const result: {
@@ -491,30 +478,4 @@ async function loadOwnedCredential(
   };
   if (cred.publicConfig !== undefined) result.publicConfig = cred.publicConfig;
   return result;
-}
-
-async function verifyUploadPostKey(
-  apiKey: string,
-): Promise<{ ok: true } | { ok: false; message: string }> {
-  try {
-    const res = await fetch(UPLOAD_POST_VERIFY_URL, {
-      headers: { Authorization: `Apikey ${apiKey}` },
-      signal: AbortSignal.timeout(10_000),
-    });
-    if (res.ok) return { ok: true };
-    if (res.status === 401)
-      return { ok: false, message: "API key was rejected as invalid." };
-    if (res.status === 403)
-      return {
-        ok: false,
-        message: "API key lacks required permissions.",
-      };
-    return {
-      ok: false,
-      message: `Upload-Post returned ${res.status}. Try again later.`,
-    };
-  } catch (err) {
-    const msg = (err as { message?: string })?.message ?? "Verification failed";
-    return { ok: false, message: msg };
-  }
 }

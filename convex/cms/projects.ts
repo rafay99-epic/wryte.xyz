@@ -312,6 +312,8 @@ export const update = mutation({
      */
     trashRetentionDays: v.optional(v.number()),
     socialPostOnPublish: v.optional(v.boolean()),
+    /** Path segment between site URL and post slug ("" = site root). */
+    postUrlPrefix: v.optional(v.string()),
     readabilityLensEnabled: v.optional(v.boolean()),
     autoWatermarkRemoval: v.optional(v.boolean()),
     slashCommandsEnabled: v.optional(v.boolean()),

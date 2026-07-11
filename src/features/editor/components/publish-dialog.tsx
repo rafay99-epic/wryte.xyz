@@ -24,8 +24,7 @@ import { TimezoneSelect } from "@/components/ui/timezone-select";
 import { getFileExtension } from "@/lib/content-format";
 import {
   buildPublishedUrl,
-  DEFAULT_SOCIAL_TEMPLATE,
-  renderSocialText,
+  composeAnnouncementText,
 } from "@/lib/social-template";
 import {
   getBrowserTimezone,
@@ -117,30 +116,28 @@ export function PublishDialog({
     ? `Update ${title || "document"}`
     : `Add ${title || "document"}`;
 
+  // getPublicConfig returns a legacy-marker variant without `status` while a
+  // project is still on retired Upload-Post credentials — narrow before use.
   const socialEnabled =
     project?.socialPostOnPublish === true &&
-    socialConfig?.status === "active" &&
+    socialConfig != null &&
+    "status" in socialConfig &&
+    socialConfig.status === "active" &&
     Boolean(project?.siteUrl);
-
-  const defaultSocialTemplate = useMemo(() => {
-    if (!socialEnabled) return "";
-    let parsed: { postTemplate?: string } | null = null;
-    if (socialConfig?.publicConfig) {
-      try {
-        parsed = JSON.parse(socialConfig.publicConfig);
-      } catch {
-        /* corrupted config — fall through to default template */
-      }
-    }
-    return parsed?.postTemplate || DEFAULT_SOCIAL_TEMPLATE;
-  }, [socialEnabled, socialConfig?.publicConfig]);
 
   const socialPreview = useMemo(
     () => ({
       title: title || "Untitled",
-      url: buildPublishedUrl(project?.siteUrl, document?.slug),
+      url: project?.siteUrl
+        ? buildPublishedUrl({
+            siteUrl: project.siteUrl,
+            slug: document?.slug ?? "untitled",
+            postUrlPrefix: project.postUrlPrefix,
+            framework: project.framework,
+          })
+        : "",
     }),
-    [project?.siteUrl, document?.slug, title],
+    [project, document?.slug, title],
   );
 
   const contentPath = project?.contentPath ?? "content";
@@ -158,10 +155,12 @@ export function PublishDialog({
     if (open) {
       setTab("publish");
       setCommitMessage(defaultCommitMessage);
-      setSocialPostText(defaultSocialTemplate);
+      // Empty custom text = the server composes "New blog post: {title}\n\n{url}"
+      // automatically from the live title and framework-aware URL.
+      setSocialPostText("");
       setIncludeSocialPost(true);
     }
-  }, [open, defaultCommitMessage, defaultSocialTemplate]);
+  }, [open, defaultCommitMessage]);
 
   // ── Schedule state ───────────────────────────────────────────
 
@@ -415,7 +414,7 @@ export function PublishDialog({
                       Default message
                     </p>
                     <p className="break-words leading-relaxed">
-                      {renderSocialText(defaultSocialTemplate, socialPreview)}
+                      {composeAnnouncementText(socialPreview)}
                     </p>
                   </div>
                 )}
@@ -564,7 +563,7 @@ export function PublishDialog({
                       Default message
                     </p>
                     <p className="break-words leading-relaxed">
-                      {renderSocialText(defaultSocialTemplate, socialPreview)}
+                      {composeAnnouncementText(socialPreview)}
                     </p>
                   </div>
                 )}

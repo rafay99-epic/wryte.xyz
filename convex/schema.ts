@@ -98,6 +98,12 @@ export default defineSchema({
     defaultDraft: v.optional(v.boolean()),
     /** Site URL for preview links and canonical URLs */
     siteUrl: v.optional(v.string()),
+    /**
+     * URL path segment between the site URL and a post's slug, e.g. "blog"
+     * → https://site.com/blog/my-post. Absent = framework default (see
+     * `_lib/publishedUrl.ts`); empty string = posts live at the site root.
+     */
+    postUrlPrefix: v.optional(v.string()),
     /** Webhook URL to trigger after publishing (e.g. Vercel/Netlify deploy hook) */
     deployHookUrl: v.optional(v.string()),
     /** Frontmatter delimiter format */
@@ -637,7 +643,13 @@ export default defineSchema({
   socialCredentials: defineTable({
     projectId: v.id("projects"),
     userId: v.id("users"),
-    provider: v.literal("upload-post"),
+    /**
+     * "buffer" is the live provider. "upload-post" rows are legacy — kept so
+     * existing projects surface a "reconnect with Buffer" migration prompt
+     * instead of silently losing their configuration; posting through them
+     * is no longer supported.
+     */
+    provider: v.union(v.literal("upload-post"), v.literal("buffer")),
     vaultSecretId: v.string(),
     vaultVersionId: v.optional(v.string()),
     /** JSON: { username: string, platforms: string[] } */

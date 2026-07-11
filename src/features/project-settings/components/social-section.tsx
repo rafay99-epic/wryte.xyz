@@ -9,15 +9,15 @@ import {
   Share2,
   XCircle,
 } from "lucide-react";
-import { SocialPostField } from "@/components/forms/social-post-field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { staggerContainer, staggerItem } from "@/lib/motion";
+import { buildPublishedUrl, defaultPostUrlPrefix } from "@/lib/social-template";
 import { cn } from "@/lib/utils";
 import type { Id } from "../../../../convex/_generated/dataModel";
 import { useSocialSection } from "../hooks/use-social-section";
-import { type ProjectData, UPLOAD_POST_PLATFORMS } from "../types";
+import { bufferServiceLabel, type ProjectData } from "../types";
 import { Divider, FieldGroup, SaveButton, SectionHeader } from "./shared";
 
 export function SocialSection({
@@ -29,26 +29,39 @@ export function SocialSection({
 }) {
   const {
     config,
+    hasLegacyUploadPost,
+    channels,
     apiKey,
     setApiKey,
-    username,
-    setUsername,
-    platforms,
-    postTemplate,
-    setPostTemplate,
-    subreddit,
-    setSubreddit,
+    enabledChannels,
+    postUrlPrefix,
+    setPostUrlPrefix,
     busy,
     hasExisting,
-    configChanged,
+    channelsChanged,
+    prefixChanged,
     toggleAutoPost,
-    togglePlatform,
+    toggleChannel,
     handleSave,
-    handleUpdateConfig,
+    handleSavePrefix,
+    handleUpdateChannels,
     handleTest,
     handleTestPost,
     handleDelete,
-  } = useSocialSection({ projectId });
+    handleRemoveLegacy,
+  } = useSocialSection({
+    projectId,
+    initialPostUrlPrefix: project.postUrlPrefix,
+  });
+
+  const urlPreview = project.siteUrl
+    ? buildPublishedUrl({
+        siteUrl: project.siteUrl,
+        slug: "my-post",
+        postUrlPrefix: postUrlPrefix.trim() || undefined,
+        framework: project.framework,
+      })
+    : null;
 
   return (
     <motion.div variants={staggerContainer} initial="initial" animate="animate">
@@ -56,7 +69,7 @@ export function SocialSection({
         <SectionHeader
           icon={Share2}
           title="Social Media"
-          description="Auto-announce new posts to your connected social platforms via Upload-Post."
+          description="Auto-announce new posts to your connected social channels via Buffer."
         />
       </motion.div>
 
@@ -68,6 +81,32 @@ export function SocialSection({
               Set your <strong>Site URL</strong> in General settings first —
               it's used to build the blog post link in announcements.
             </p>
+          </div>
+        </motion.div>
+      )}
+
+      {hasLegacyUploadPost && !hasExisting && (
+        <motion.div variants={staggerItem}>
+          <div className="mb-5 flex items-start gap-2.5 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2.5">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-500" />
+            <div className="text-xs text-amber-700 dark:text-amber-400">
+              <p>
+                <strong>Upload-Post has been replaced by Buffer.</strong>{" "}
+                Announcements are paused for this project until you connect a
+                Buffer API key below — your "post on publish" setting is
+                unchanged.
+              </p>
+              <button
+                type="button"
+                onClick={() => void handleRemoveLegacy()}
+                disabled={busy !== null}
+                className="mt-1.5 font-medium underline underline-offset-2"
+              >
+                {busy === "legacy"
+                  ? "Removing…"
+                  : "Remove old Upload-Post credentials"}
+              </button>
+            </div>
           </div>
         </motion.div>
       )}
@@ -89,20 +128,29 @@ export function SocialSection({
         <Divider />
 
         <p className="text-xs text-muted-foreground">
-          Connect your social accounts at{" "}
+          Connect your social accounts in{" "}
           <a
-            href="https://upload-post.com"
+            href="https://buffer.com"
             target="_blank"
             rel="noopener noreferrer"
             className="text-primary underline underline-offset-2"
           >
-            upload-post.com
+            Buffer
           </a>
-          , then paste your API key below.
+          , create an API key at{" "}
+          <a
+            href="https://publish.buffer.com/settings/api"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary underline underline-offset-2"
+          >
+            publish.buffer.com/settings/api
+          </a>
+          , then paste it below.
         </p>
 
         {/* API Key */}
-        <FieldGroup label="API Key" htmlFor="social-api-key">
+        <FieldGroup label="Buffer API Key" htmlFor="social-api-key">
           <div className="flex gap-2">
             <Input
               id="social-api-key"
@@ -150,81 +198,75 @@ export function SocialSection({
           )}
         </FieldGroup>
 
-        {/* Username */}
-        <FieldGroup
-          label="Upload-Post Username"
-          htmlFor="social-username"
-          hint="Your profile username on upload-post.com."
-        >
-          <Input
-            id="social-username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            placeholder="e.g. johndoe"
-          />
-        </FieldGroup>
-
-        {/* Platform selector */}
-        <FieldGroup
-          label="Platforms"
-          hint="Select which platforms to announce to."
-        >
-          <div className="flex flex-wrap gap-2">
-            {UPLOAD_POST_PLATFORMS.map((p) => {
-              const selected = platforms.has(p.id);
-              return (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => togglePlatform(p.id)}
-                  className={cn(
-                    "rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors",
-                    selected
-                      ? "bg-primary/15 text-foreground ring-1 ring-primary/40"
-                      : "bg-muted/40 text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-                  )}
-                >
-                  {p.label}
-                </button>
-              );
-            })}
-          </div>
-        </FieldGroup>
-
-        {/* Subreddit (required when Reddit is selected) */}
-        {platforms.has("reddit") && (
+        {/* Connected channels — live from Buffer, refreshed by Test Connection */}
+        {hasExisting && (
           <FieldGroup
-            label="Subreddit"
-            htmlFor="social-subreddit"
-            hint="Required for Reddit. Just the name, e.g. webdev"
+            label="Channels"
+            hint="Announcements go to the selected channels. Connect more in Buffer, then Test Connection to refresh this list."
           >
-            <Input
-              id="social-subreddit"
-              value={subreddit}
-              onChange={(e) => setSubreddit(e.target.value)}
-              placeholder="e.g. webdev"
-              className="font-mono text-sm"
-            />
-            {/^r\/|\/$/i.test(subreddit) && (
-              <p className="text-xs text-amber-600 dark:text-amber-400">
-                Just the name — no{" "}
-                <code className="rounded bg-muted px-1 py-px text-[10px] font-mono">
-                  r/
-                </code>{" "}
-                prefix or trailing slash. We'll add it automatically.
+            {channels.length === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                No channels found — connect your social accounts in Buffer, then
+                run Test Connection.
               </p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {channels.map((channel) => {
+                  const selected = enabledChannels.has(channel.id);
+                  return (
+                    <button
+                      key={channel.id}
+                      type="button"
+                      onClick={() => toggleChannel(channel.id)}
+                      className={cn(
+                        "rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors",
+                        selected
+                          ? "bg-primary/15 text-foreground ring-1 ring-primary/40"
+                          : "bg-muted/40 text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+                      )}
+                    >
+                      {bufferServiceLabel(channel.service)}
+                      <span className="ml-1 opacity-60">{channel.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
             )}
           </FieldGroup>
         )}
 
-        {/* Post template */}
-        <FieldGroup label="Post Template" htmlFor="social-post-template">
-          <SocialPostField
-            id="social-post-template"
-            value={postTemplate}
-            onChange={setPostTemplate}
-            placeholder={"New blog post: {{title}}\n\n{{url}}"}
-          />
+        {/* Post URL prefix — where published posts live on the site */}
+        <FieldGroup
+          label="Post URL Path"
+          htmlFor="social-url-prefix"
+          hint={`Path between your site URL and the post slug. Empty uses the ${
+            project.framework ?? "framework"
+          } default ("${defaultPostUrlPrefix(project.framework)}").`}
+        >
+          <div className="flex items-center gap-2">
+            <Input
+              id="social-url-prefix"
+              value={postUrlPrefix}
+              onChange={(e) => setPostUrlPrefix(e.target.value)}
+              placeholder={defaultPostUrlPrefix(project.framework)}
+              className="max-w-[200px] font-mono text-sm"
+            />
+            {prefixChanged && (
+              <SaveButton
+                isSaving={false}
+                onClick={() => void handleSavePrefix()}
+                label="Save"
+              />
+            )}
+          </div>
+          {urlPreview && (
+            <p className="mt-1 text-xs text-muted-foreground/70">
+              Announcement links will look like{" "}
+              <code className="rounded bg-muted px-1 py-px font-mono text-[10px]">
+                {urlPreview}
+              </code>
+            </p>
+          )}
         </FieldGroup>
 
         {/* Action buttons */}
@@ -232,9 +274,7 @@ export function SocialSection({
           {!hasExisting ? (
             <SaveButton
               isSaving={busy === "save"}
-              disabled={
-                !apiKey.trim() || !username.trim() || platforms.size === 0
-              }
+              disabled={!apiKey.trim()}
               onClick={() => void handleSave()}
               label="Save & Connect"
             />
@@ -247,11 +287,11 @@ export function SocialSection({
                   label="Rotate Key"
                 />
               )}
-              {configChanged && !apiKey.trim() && (
+              {channelsChanged && !apiKey.trim() && (
                 <SaveButton
                   isSaving={busy === "config"}
-                  onClick={() => void handleUpdateConfig()}
-                  label="Update Config"
+                  onClick={() => void handleUpdateChannels()}
+                  label="Update Channels"
                 />
               )}
               <Button
