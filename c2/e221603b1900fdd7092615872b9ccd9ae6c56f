@@ -1,0 +1,32 @@
+src/features/command-palette/lib/fuzzy.ts
+  s_0fe6ed8c00d03f::t_2b58b0bc6d567f 1-114
+src/features/command-palette/command-palette.tsx
+  s_0fe6ed8c00d03f::t_d030fbd60e6b9f 317-324,388-395
+  s_0fe6ed8c00d03f::t_4bdb348e10f3ef 21-28,33,37,47-51,57-58,62-66,74,89-94,121-124,127-142,159,174,187,200,213,226,238,250,263,279,292-299,303-304,307,327,330-355,357-387,404,407-408,428,438,453,458,500-501,503,524-525,560,585,590-624,626-631,633-641,643-647,649-660,674-675,685-729
+  s_0fe6ed8c00d03f::t_750dc7c5d4e911 730
+src/stores/search-store.ts
+  s_0fe6ed8c00d03f::t_e2cf4aa46b71fe 90,94
+  s_0fe6ed8c00d03f::t_a627d3242626a5 25-33,39
+src/features/project-detail/project-detail-page.tsx
+  s_0fe6ed8c00d03f::t_631b7d3b949f61 79-87
+convex/cms/documents.ts
+  s_0fe6ed8c00d03f::t_9efbf6c640e867 349
+  s_0fe6ed8c00d03f::t_a81b9068bcb8dc 309-348,350-355
+  s_0fe6ed8c00d03f::t_67fcbed0070e3c 308
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "c2e221603b1900fdd7092615872b9ccd9ae6c56f",
+  "prompts": {},
+  "sessions": {
+    "s_0fe6ed8c00d03f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7a688ff0-4b02-4830-a4ec-faebcb9eb3e3",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
