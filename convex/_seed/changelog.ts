@@ -1185,10 +1185,32 @@ No behavior changes — everything works exactly as before, just lighter and fas
 - All client-side — zero new Convex functions, queries, or subscriptions.
 `,
   },
+  {
+    title: "Board renames that behave",
+    slug: "board-renames-that-behave",
+    description:
+      "Renaming a card on the board no longer tears the card apart mid-typing, the cancel button actually cancels, and a sweep of the surrounding code fixed a handful of races before anyone hit them.",
+    build: "9a68341",
+    publishedAt: Date.parse("2026-07-12T00:15:00+05:00"),
+    content: `## What's fixed
+
+- **Renaming a board card no longer fights drag-and-drop.** The card stayed a drag handle while its rename input was open, so selecting text in the input started dragging the whole card — cards visually tore apart mid-typing, and the drag's focus loss could save half-typed titles. Cards now stop being draggable the moment a rename or tag edit opens, and the hover preview stays out of the way while you type.
+- **Cancel means cancel.** Clicking ✗ on a rename blurred the input first, and the blur saved your edit before the cancel could run. Same story for removing a tag chip — it kicked off the editor's close timer mid-edit. Both now keep focus where it belongs and do what the button says.
+- **No more double-saves.** Confirming a rename with Enter while the save was already in flight could fire the mutation twice; a guard now makes the second call a no-op.
+- **Double-click-to-edit lands more precisely.** The jump now resolves against the exact content the preview rendered (not the store's slightly-newer text), and malformed source-line stamps fall back to word search instead of silently jumping to the top of the document.
+`,
+  },
 ];
+
+const seedResult = v.object({
+  inserted: v.number(),
+  updated: v.number(),
+  details: v.array(v.string()),
+});
 
 export const seed = action({
   args: {},
+  returns: seedResult,
   handler: async (
     ctx,
   ): Promise<{ inserted: number; updated: number; details: string[] }> => {
@@ -1218,6 +1240,7 @@ export const _seedInternal = internalMutation({
       }),
     ),
   },
+  returns: seedResult,
   handler: async (ctx, args) => {
     let inserted = 0;
     let updated = 0;
