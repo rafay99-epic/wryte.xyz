@@ -1,0 +1,37 @@
+src/features/content-dashboard/hooks/use-inline-rename.ts
+  s_0fe6ed8c00d03f::t_7721970257dd1f 35,41,50-51
+  s_0fe6ed8c00d03f::t_5125e47d9f7a0f 21-24
+src/features/editor/hooks/use-preview-jump.ts
+  s_0fe6ed8c00d03f::t_64a315bb3cee36 14-19,21-34
+src/features/editor/lib/source-lines.ts
+  s_0fe6ed8c00d03f::t_e18312997b2488 68-69
+src/features/editor/components/markdown-preview.tsx
+  s_0fe6ed8c00d03f::t_61f4d94341b9b5 120
+src/features/content-dashboard/components/board-card.tsx
+  s_0fe6ed8c00d03f::t_b0ac482a96e774 246
+  s_0fe6ed8c00d03f::t_8d0b854ca947ae 251,253-255,259
+  s_0fe6ed8c00d03f::t_e483b2c1291be7 162
+  s_0fe6ed8c00d03f::t_55b597e8c0b1d9 417-418
+  s_0fe6ed8c00d03f::t_1634b6b68e6f82 432-434,438,446
+  s_0fe6ed8c00d03f::t_81a58d66e85bd1 469-470
+  s_0fe6ed8c00d03f::t_90455968e06adf 163,174-179
+  s_0fe6ed8c00d03f::t_b23e4679aafee0 481
+  s_0fe6ed8c00d03f::t_dfde75a82f691b 159-161
+  s_0fe6ed8c00d03f::t_4eaaedfdf53eda 152-158
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "9a6834138091e0c2162297de23b5e066f2f33f63",
+  "prompts": {},
+  "sessions": {
+    "s_0fe6ed8c00d03f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7a688ff0-4b02-4830-a4ec-faebcb9eb3e3",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
