@@ -46,6 +46,12 @@ export function useSocialSection({
   const [busy, setBusy] = useState<
     "save" | "test" | "delete" | "config" | "testPost" | "legacy" | null
   >(null);
+  /**
+   * Last connect/rotate failure, kept on screen — a toast alone disappears
+   * before anyone reads it, leaving the form looking "saved" when nothing
+   * was. Cleared by the next successful save.
+   */
+  const [lastError, setLastError] = useState<string | null>(null);
 
   const parsedConfig = useMemo(() => {
     if (!config?.publicConfig) return null;
@@ -124,29 +130,36 @@ export function useSocialSection({
           secret: trimmedKey,
         });
         if (!rotateResult.ok) {
-          toast.error(rotateResult.message ?? "Key rotation failed.");
-          return;
+          const message = rotateResult.message ?? "Key rotation failed.";
+          setLastError(message);
+          toast.error(message);
+          return; // Keep the typed key so the user can correct and retry.
         }
+        setLastError(null);
         toast.success("Buffer key rotated.");
       } else {
         const result = await setCredentials({ projectId, secret: trimmedKey });
-        if (result.ok) {
-          toast.success(
-            `Buffer connected — ${result.channels?.length ?? 0} channel${
-              result.channels?.length === 1 ? "" : "s"
-            } found.`,
-          );
-        } else {
-          toast.error(result.message ?? "Credentials failed verification.");
+        if (!result.ok) {
+          const message = result.message ?? "Credentials failed verification.";
+          setLastError(message);
+          toast.error(message);
+          return; // Keep the typed key so the user can correct and retry.
         }
+        setLastError(null);
+        toast.success(
+          `Buffer connected — ${result.channels?.length ?? 0} channel${
+            result.channels?.length === 1 ? "" : "s"
+          } found.`,
+        );
       }
       setApiKey("");
     } catch (err) {
       const data = (err as { data?: { message?: string } })?.data;
-      toast.error(
+      const message =
         data?.message ??
-          (err instanceof Error ? err.message : "Failed to save."),
-      );
+        (err instanceof Error ? err.message : "Failed to save.");
+      setLastError(message);
+      toast.error(message);
     } finally {
       setBusy(null);
     }
@@ -262,6 +275,7 @@ export function useSocialSection({
 
   return {
     config,
+    lastError,
     hasLegacyUploadPost,
     channels: parsedConfig?.channels ?? [],
     apiKey,

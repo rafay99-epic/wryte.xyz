@@ -29,6 +29,7 @@ export function SocialSection({
 }) {
   const {
     config,
+    lastError,
     hasLegacyUploadPost,
     channels,
     apiKey,
@@ -160,8 +161,8 @@ export function SocialSection({
               placeholder={hasExisting ? "••••••••" : "Paste your API key"}
             />
           </div>
-          {config != null && (
-            <div className="mt-1.5 flex items-center gap-2 text-xs">
+          <div className="mt-1.5 flex items-center gap-2 text-xs">
+            {config != null ? (
               <span
                 className={cn(
                   "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium",
@@ -181,19 +182,28 @@ export function SocialSection({
                 {config.status === "verifying" && (
                   <Loader2 className="size-3 animate-spin" />
                 )}
-                {config.status.charAt(0).toUpperCase() + config.status.slice(1)}
+                {config.status === "active"
+                  ? "Connected"
+                  : config.status.charAt(0).toUpperCase() +
+                    config.status.slice(1)}
               </span>
-              {config.lastVerifiedAt && (
-                <span className="text-muted-foreground/50">
-                  verified{" "}
-                  {new Date(config.lastVerifiedAt).toLocaleDateString()}
-                </span>
-              )}
-            </div>
-          )}
-          {config?.lastVerifyError && (
+            ) : (
+              // Explicit resting state — an empty form with no badge left
+              // people unsure whether they were connected at all.
+              <span className="inline-flex items-center gap-1 rounded-full bg-muted/60 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                <XCircle className="size-3" />
+                Not connected
+              </span>
+            )}
+            {config?.lastVerifiedAt && (
+              <span className="text-muted-foreground/50">
+                verified {new Date(config.lastVerifiedAt).toLocaleDateString()}
+              </span>
+            )}
+          </div>
+          {(lastError ?? config?.lastVerifyError) && (
             <p className="mt-1 text-xs text-red-600">
-              {config.lastVerifyError}
+              {lastError ?? config?.lastVerifyError}
             </p>
           )}
         </FieldGroup>

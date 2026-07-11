@@ -60,3 +60,36 @@ export function composeAnnouncementText(opts: {
   if (opts.url && !text.includes(opts.url)) text = `${text}\n\n${opts.url}`;
   return text;
 }
+
+/**
+ * Character budgets for services that hard-truncate or reject long posts.
+ * Services without an entry (LinkedIn, Facebook, …) take the full text.
+ * X counts any URL as 23 chars — using its real length here is strictly
+ * conservative, so a text that fits by our count always fits for real.
+ */
+export const SERVICE_TEXT_LIMITS: Record<string, number> = {
+  twitter: 280,
+  x: 280,
+  bluesky: 300,
+  mastodon: 500,
+  threads: 500,
+};
+
+/**
+ * The announcement, shaped for one service: short-form platforms get the
+ * prose trimmed with an ellipsis while the URL always survives intact.
+ */
+export function composeForService(
+  service: string,
+  opts: { title: string; url: string; customText?: string | undefined },
+): string {
+  const full = composeAnnouncementText(opts);
+  const limit = SERVICE_TEXT_LIMITS[service.toLowerCase()];
+  if (!limit || full.length <= limit) return full;
+
+  // Trim prose, never the link. The URL is re-appended on its own line.
+  const prose = full.replace(opts.url, "").replace(/\s+$/, "");
+  const budget = limit - opts.url.length - 3; // "…" + "\n\n"
+  if (budget <= 0) return opts.url.slice(0, limit);
+  return `${prose.slice(0, budget).replace(/\s+\S*$/, "")}…\n\n${opts.url}`;
+}

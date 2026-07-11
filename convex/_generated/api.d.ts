@@ -75,6 +75,7 @@ import type * as social_buffer from "../social/buffer.js";
 import type * as social_credentials from "../social/credentials.js";
 import type * as social_credentialsDb from "../social/credentialsDb.js";
 import type * as social_post from "../social/post.js";
+import type * as social_postsDb from "../social/postsDb.js";
 import type * as support_featureRequests from "../support/featureRequests.js";
 import type * as support_tickets from "../support/tickets.js";
 import type * as workflows_rotateCredential from "../workflows/rotateCredential.js";
@@ -154,6 +155,7 @@ declare const fullApi: ApiFromModules<{
   "social/credentials": typeof social_credentials;
   "social/credentialsDb": typeof social_credentialsDb;
   "social/post": typeof social_post;
+  "social/postsDb": typeof social_postsDb;
   "support/featureRequests": typeof support_featureRequests;
   "support/tickets": typeof support_tickets;
   "workflows/rotateCredential": typeof workflows_rotateCredential;

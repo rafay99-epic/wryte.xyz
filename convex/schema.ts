@@ -671,6 +671,27 @@ export default defineSchema({
     .index("by_userId_and_provider", ["userId", "provider"]),
 
   /**
+   * Social announcement outcomes — one row per publish × channel, written
+   * only when an announcement is attempted (zero standing cost). Powers the
+   * per-channel status display and the retry button in the publish dialog.
+   */
+  social_posts: defineTable({
+    projectId: v.id("projects"),
+    documentId: v.id("documents"),
+    /** Buffer channel this attempt targeted. */
+    channelId: v.string(),
+    service: v.string(),
+    channelName: v.string(),
+    /** Final composed text that was (or would have been) posted. */
+    text: v.string(),
+    status: v.union(v.literal("posted"), v.literal("failed")),
+    error: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_documentId", ["documentId"])
+    .index("by_projectId", ["projectId"]),
+
+  /**
    * Media usage counters — denormalized so quota checks don't scan the media table
    * on every upload. Incremented in the same mutation that writes the media row,
    * decremented on delete. `uploadsThisMonth` resets when `monthBucket` rolls over.

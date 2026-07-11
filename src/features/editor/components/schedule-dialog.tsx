@@ -8,15 +8,16 @@ import {
   CheckCircle2,
   Clock,
   Loader2,
-  Share2,
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { SocialPostField } from "@/components/forms/social-post-field";
+import {
+  AnnouncementComposer,
+  AnnouncementSetupHint,
+} from "@/components/forms/announcement-composer";
 import { Button } from "@/components/ui/button";
 import { InlineCalendar } from "@/components/ui/inline-calendar";
-import { Label } from "@/components/ui/label";
 import {
   Sheet,
   SheetBody,
@@ -26,7 +27,6 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Switch } from "@/components/ui/switch";
 import { TimePicker } from "@/components/ui/time-picker";
 import { TimezoneSelect } from "@/components/ui/timezone-select";
 import {
@@ -35,10 +35,7 @@ import {
 } from "@/lib/build-initial-frontmatter";
 import { isSameDay } from "@/lib/calendar-utils";
 import { smoothTransition } from "@/lib/motion";
-import {
-  buildPublishedUrl,
-  composeAnnouncementText,
-} from "@/lib/social-template";
+import { buildPublishedUrl, parseEnabledChannels } from "@/lib/social-template";
 import {
   formatLocalDate,
   formatLocalDatetime,
@@ -106,11 +103,13 @@ export function ScheduleDialog({
 
   // getPublicConfig returns a legacy-marker variant without `status` while a
   // project is still on retired Upload-Post credentials — narrow before use.
-  const socialEnabled =
-    project?.socialPostOnPublish === true &&
+  const hasActiveCredential =
     socialConfig != null &&
     "status" in socialConfig &&
-    socialConfig.status === "active" &&
+    socialConfig.status === "active";
+  const socialEnabled =
+    project?.socialPostOnPublish === true &&
+    hasActiveCredential &&
     Boolean(project?.siteUrl);
 
   // Concrete values used only for the live preview shown under the textarea.
@@ -130,6 +129,14 @@ export function ScheduleDialog({
         : "",
     }),
     [project, document?.slug, document?.title],
+  );
+
+  const enabledChannelsList = useMemo(
+    () =>
+      socialConfig && "publicConfig" in socialConfig
+        ? parseEnabledChannels(socialConfig.publicConfig)
+        : [],
+    [socialConfig],
   );
 
   const isAlreadyScheduled = document?.status === "scheduled";
@@ -521,47 +528,30 @@ export function ScheduleDialog({
             </div>
 
             {/* Social announcement */}
-            {socialEnabled && (
+            {socialEnabled ? (
               <div className="border-t border-border/40 pt-5">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="space-y-1">
-                    <h3 className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">
-                      <Share2 className="size-3" />
-                      Social announcement
-                    </h3>
-                    <Label
-                      htmlFor="schedule-social-text"
-                      className="text-xs font-normal text-muted-foreground/70"
-                    >
-                      Customize the post that goes out when this publishes.
-                    </Label>
-                  </div>
-                  <Switch
-                    checked={includeSocialPost}
-                    onCheckedChange={setIncludeSocialPost}
+                <AnnouncementComposer
+                  idPrefix="schedule-social"
+                  channels={enabledChannelsList}
+                  include={includeSocialPost}
+                  onIncludeChange={setIncludeSocialPost}
+                  value={socialPostText}
+                  onChange={setSocialPostText}
+                  preview={socialPreview}
+                />
+              </div>
+            ) : (
+              project &&
+              document && (
+                <div className="border-t border-border/40 pt-5">
+                  <AnnouncementSetupHint
+                    projectId={document.projectId}
+                    hasSiteUrl={Boolean(project.siteUrl)}
+                    hasCredential={hasActiveCredential}
+                    postOnPublish={project.socialPostOnPublish === true}
                   />
                 </div>
-
-                {includeSocialPost ? (
-                  <div className="mt-3">
-                    <SocialPostField
-                      id="schedule-social-text"
-                      value={socialPostText}
-                      onChange={setSocialPostText}
-                      previewValues={socialPreview}
-                    />
-                  </div>
-                ) : (
-                  <div className="mt-3 space-y-1.5 rounded-lg bg-muted/40 px-3 py-2.5">
-                    <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">
-                      Default message
-                    </p>
-                    <p className="whitespace-pre-wrap break-words text-xs leading-relaxed text-foreground/75">
-                      {composeAnnouncementText(socialPreview)}
-                    </p>
-                  </div>
-                )}
-              </div>
+              )
             )}
 
             {/* Will publish on — flat callout with an icon badge */}

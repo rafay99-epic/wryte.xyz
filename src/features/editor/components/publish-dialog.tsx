@@ -1,11 +1,14 @@
 "use client";
 
 import { useAction, useMutation, useQuery } from "convex/react";
-import { CalendarIcon, Clock, Loader2, Send, Share2 } from "lucide-react";
+import { CalendarIcon, Clock, GitBranch, Loader2, Send } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useShallow } from "zustand/react/shallow";
-import { SocialPostField } from "@/components/forms/social-post-field";
+import {
+  AnnouncementComposer,
+  AnnouncementSetupHint,
+} from "@/components/forms/announcement-composer";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -17,14 +20,14 @@ import {
 import { InlineCalendar } from "@/components/ui/inline-calendar";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TimePicker } from "@/components/ui/time-picker";
 import { TimezoneSelect } from "@/components/ui/timezone-select";
 import { getFileExtension } from "@/lib/content-format";
 import {
+  bufferServiceLabel,
   buildPublishedUrl,
-  composeAnnouncementText,
+  parseEnabledChannels,
 } from "@/lib/social-template";
 import {
   getBrowserTimezone,
@@ -118,11 +121,13 @@ export function PublishDialog({
 
   // getPublicConfig returns a legacy-marker variant without `status` while a
   // project is still on retired Upload-Post credentials — narrow before use.
-  const socialEnabled =
-    project?.socialPostOnPublish === true &&
+  const hasActiveCredential =
     socialConfig != null &&
     "status" in socialConfig &&
-    socialConfig.status === "active" &&
+    socialConfig.status === "active";
+  const socialEnabled =
+    project?.socialPostOnPublish === true &&
+    hasActiveCredential &&
     Boolean(project?.siteUrl);
 
   const socialPreview = useMemo(
@@ -138,6 +143,14 @@ export function PublishDialog({
         : "",
     }),
     [project, document?.slug, title],
+  );
+
+  const enabledChannelsList = useMemo(
+    () =>
+      socialConfig && "publicConfig" in socialConfig
+        ? parseEnabledChannels(socialConfig.publicConfig)
+        : [],
+    [socialConfig],
   );
 
   const contentPath = project?.contentPath ?? "content";
@@ -333,24 +346,35 @@ export function PublishDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg gap-0 p-0 overflow-hidden">
-        {/* Header */}
-        <DialogHeader className="px-5 pt-5 pb-2">
-          <DialogTitle>{isUpdate ? "Update on GitHub" : "Publish"}</DialogTitle>
-          <p className="text-sm text-muted-foreground">
-            {isUpdate
-              ? "Update the existing file in your repository."
-              : "Publish now or schedule for later."}
-          </p>
+      <DialogContent className="sm:max-w-3xl gap-0 p-0 overflow-hidden">
+        {/* Header — what's shipping and where, before any controls. */}
+        <DialogHeader className="border-b border-border/40 px-6 pt-5 pb-4">
+          <DialogTitle className="pr-8">
+            {isUpdate ? "Update" : "Publish"} “{title || "Untitled"}”
+          </DialogTitle>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+            {project?.githubRepo && (
+              <span className="inline-flex items-center gap-1.5">
+                <GitBranch className="size-3" />
+                {project.githubRepo}
+                <span className="text-muted-foreground/50">
+                  @{project.githubBranch ?? "main"}
+                </span>
+              </span>
+            )}
+            <span className="truncate font-mono text-[11px] text-muted-foreground/60">
+              {filePath}
+            </span>
+          </div>
         </DialogHeader>
 
         {/* Tabs */}
         <Tabs
           value={tab}
           onValueChange={(v) => setTab(v as Tab)}
-          className="px-5"
+          className="px-6"
         >
-          <TabsList className="w-full">
+          <TabsList className="mt-4 w-full">
             <TabsTrigger value="publish" className="flex-1">
               <Send className="size-3.5" />
               Publish Now
@@ -362,79 +386,66 @@ export function PublishDialog({
           </TabsList>
 
           {/* ── Publish Now tab ─────────────────────────────── */}
-          <TabsContent value="publish" className="mt-0 pt-4 pb-0 space-y-4">
-            {/* File path */}
-            <div className="rounded-lg bg-muted/50 px-3 py-2 font-mono text-xs text-muted-foreground">
-              {filePath}
-            </div>
-
-            {/* Commit message */}
-            <div className="space-y-1.5">
-              <Label
-                htmlFor="commit-msg"
-                className="text-xs text-muted-foreground"
-              >
-                Commit message
-              </Label>
-              <Input
-                id="commit-msg"
-                value={commitMessage}
-                onChange={(e) => setCommitMessage(e.target.value)}
-                placeholder="Commit message"
-                className="text-sm"
-              />
-            </div>
-
-            {/* Social announcement */}
-            {socialEnabled && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
+          <TabsContent value="publish" className="mt-0 pt-5 pb-0">
+            <div className="grid gap-6 sm:grid-cols-[minmax(0,1fr)_280px]">
+              {/* Main column: the two decisions — commit + announcement. */}
+              <div className="min-w-0 space-y-5">
+                <div className="space-y-1.5">
                   <Label
-                    htmlFor="social-now"
-                    className="flex items-center gap-1.5 text-xs text-muted-foreground"
+                    htmlFor="commit-msg"
+                    className="text-xs text-muted-foreground"
                   >
-                    <Share2 className="size-3" />
-                    Social announcement
+                    Commit message
                   </Label>
-                  <Switch
-                    checked={includeSocialPost}
-                    onCheckedChange={setIncludeSocialPost}
+                  <Input
+                    id="commit-msg"
+                    value={commitMessage}
+                    onChange={(e) => setCommitMessage(e.target.value)}
+                    placeholder="Commit message"
+                    className="text-sm"
                   />
                 </div>
-                {includeSocialPost ? (
-                  <SocialPostField
-                    id="social-now"
+
+                {socialEnabled ? (
+                  <AnnouncementComposer
+                    idPrefix="social-now"
+                    channels={enabledChannelsList}
+                    include={includeSocialPost}
+                    onIncludeChange={setIncludeSocialPost}
                     value={socialPostText}
                     onChange={setSocialPostText}
-                    previewValues={socialPreview}
+                    preview={socialPreview}
+                    documentId={documentId as Id<"documents">}
                   />
                 ) : (
-                  <div className="rounded-lg bg-muted/30 px-3 py-2 text-xs text-muted-foreground/70">
-                    <p className="font-medium text-muted-foreground/50 text-[10px] uppercase tracking-wider mb-1">
-                      Default message
-                    </p>
-                    <p className="break-words leading-relaxed">
-                      {composeAnnouncementText(socialPreview)}
-                    </p>
-                  </div>
+                  project && (
+                    <AnnouncementSetupHint
+                      projectId={projectId}
+                      hasSiteUrl={Boolean(project.siteUrl)}
+                      hasCredential={hasActiveCredential}
+                      postOnPublish={project.socialPostOnPublish === true}
+                    />
+                  )
                 )}
               </div>
-            )}
 
-            {/* Pre-publish checklist */}
-            {projectId && (
-              <PublishChecklist
-                open={open}
-                projectId={projectId}
-                frontmatterRaw={document?.frontmatter}
-                frontmatterSchema={project?.frontmatterSchema}
-                contentFormat={project?.contentFormat}
-              />
-            )}
+              {/* Rail: read-only review — never competes with the inputs. */}
+              <div className="min-w-0 sm:border-l sm:border-border/40 sm:pl-5">
+                {projectId && (
+                  <PublishChecklist
+                    open={open}
+                    projectId={projectId}
+                    frontmatterRaw={document?.frontmatter}
+                    frontmatterSchema={project?.frontmatterSchema}
+                    contentFormat={project?.contentFormat}
+                  />
+                )}
+              </div>
+            </div>
           </TabsContent>
 
           {/* ── Schedule Later tab ──────────────────────────── */}
-          <TabsContent value="schedule" className="mt-0 pt-4 pb-0 space-y-4">
+          <TabsContent value="schedule" className="mt-0 pt-5 pb-0 space-y-4">
             {/* Status banners */}
             {(() => {
               const status = latestPublish?.status;
@@ -496,133 +507,142 @@ export function PublishDialog({
               return null;
             })()}
 
-            {/* Calendar + Time side by side */}
-            <div className="grid grid-cols-[1fr_auto] gap-4">
-              <div className="rounded-lg border border-border/40 p-3">
-                <InlineCalendar
-                  selected={selectedDate}
-                  onSelect={handleDateSelect}
-                />
-              </div>
-              <div className="flex flex-col items-center justify-center rounded-lg border border-border/40 p-3">
-                <TimePicker
-                  hour={scheduleHour}
-                  minute={scheduleMinute}
-                  onHourChange={setScheduleHour}
-                  onMinuteChange={setScheduleMinute}
-                />
-              </div>
-            </div>
-
-            {/* Timezone */}
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Timezone</Label>
-              <TimezoneSelect
-                value={scheduleTimezone}
-                onChange={setScheduleTimezone}
-              />
-              {scheduleTimezone !== projectTimezone && (
-                <p className="text-[11px] text-amber-500">
-                  Override · project default is {projectTimezone}
-                </p>
-              )}
-              {scheduleTimezone === projectTimezone &&
-                scheduleTimezone !== browserTimezone && (
-                  <p className="text-[11px] text-muted-foreground/60">
-                    Your browser is in {browserTimezone}
-                  </p>
-                )}
-            </div>
-
-            {/* Social announcement */}
-            {socialEnabled && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label
-                    htmlFor="social-schedule"
-                    className="flex items-center gap-1.5 text-xs text-muted-foreground"
-                  >
-                    <Share2 className="size-3" />
-                    Social announcement
-                  </Label>
-                  <Switch
-                    checked={includeSocialPost}
-                    onCheckedChange={setIncludeSocialPost}
-                  />
-                </div>
-                {includeSocialPost ? (
-                  <SocialPostField
-                    id="social-schedule"
-                    value={socialPostText}
-                    onChange={setSocialPostText}
-                    previewValues={socialPreview}
-                  />
-                ) : (
-                  <div className="rounded-lg bg-muted/30 px-3 py-2 text-xs text-muted-foreground/70">
-                    <p className="font-medium text-muted-foreground/50 text-[10px] uppercase tracking-wider mb-1">
-                      Default message
-                    </p>
-                    <p className="break-words leading-relaxed">
-                      {composeAnnouncementText(socialPreview)}
-                    </p>
+            <div className="grid gap-6 sm:grid-cols-[minmax(0,1fr)_280px]">
+              {/* Main column: when it goes out. */}
+              <div className="min-w-0 space-y-4">
+                <div className="grid grid-cols-[1fr_auto] gap-4">
+                  <div className="rounded-lg border border-border/40 p-3">
+                    <InlineCalendar
+                      selected={selectedDate}
+                      onSelect={handleDateSelect}
+                    />
                   </div>
-                )}
-              </div>
-            )}
-
-            {/* Will publish on */}
-            {formattedDateTime && (
-              <div
-                className={cn(
-                  "flex items-center gap-3 rounded-lg px-3.5 py-2.5",
-                  isInPast
-                    ? "bg-destructive/5 border border-destructive/20"
-                    : "bg-primary/5 border border-primary/10",
-                )}
-              >
-                <div
-                  className={cn(
-                    "flex size-8 shrink-0 items-center justify-center rounded-full",
-                    isInPast
-                      ? "bg-destructive/10 text-destructive"
-                      : "bg-primary/10 text-primary",
-                  )}
-                >
-                  <CalendarIcon className="size-4" />
+                  <div className="flex flex-col items-center justify-center rounded-lg border border-border/40 p-3">
+                    <TimePicker
+                      hour={scheduleHour}
+                      minute={scheduleMinute}
+                      onHourChange={setScheduleHour}
+                      onMinuteChange={setScheduleMinute}
+                    />
+                  </div>
                 </div>
-                <div className="min-w-0">
-                  <p
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">
+                    Timezone
+                  </Label>
+                  <TimezoneSelect
+                    value={scheduleTimezone}
+                    onChange={setScheduleTimezone}
+                  />
+                  {scheduleTimezone !== projectTimezone && (
+                    <p className="text-[11px] text-amber-500">
+                      Override · project default is {projectTimezone}
+                    </p>
+                  )}
+                  {scheduleTimezone === projectTimezone &&
+                    scheduleTimezone !== browserTimezone && (
+                      <p className="text-[11px] text-muted-foreground/60">
+                        Your browser is in {browserTimezone}
+                      </p>
+                    )}
+                </div>
+              </div>
+
+              {/* Rail: what happens at that moment. */}
+              <div className="min-w-0 space-y-4 sm:border-l sm:border-border/40 sm:pl-5">
+                {formattedDateTime && (
+                  <div
                     className={cn(
-                      "text-[11px] font-medium uppercase tracking-wider",
+                      "flex items-center gap-3 rounded-lg px-3.5 py-2.5",
                       isInPast
-                        ? "text-destructive"
-                        : "text-muted-foreground/60",
+                        ? "bg-destructive/5 border border-destructive/20"
+                        : "bg-primary/5 border border-primary/10",
                     )}
                   >
-                    {isInPast
-                      ? "Pick a later time or future date"
-                      : "Will publish on"}
-                  </p>
-                  <p className="text-sm font-semibold text-foreground truncate">
-                    {formattedDateTime}
-                  </p>
-                </div>
+                    <div
+                      className={cn(
+                        "flex size-8 shrink-0 items-center justify-center rounded-full",
+                        isInPast
+                          ? "bg-destructive/10 text-destructive"
+                          : "bg-primary/10 text-primary",
+                      )}
+                    >
+                      <CalendarIcon className="size-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p
+                        className={cn(
+                          "text-[11px] font-medium uppercase tracking-wider",
+                          isInPast
+                            ? "text-destructive"
+                            : "text-muted-foreground/60",
+                        )}
+                      >
+                        {isInPast
+                          ? "Pick a later time or future date"
+                          : "Will publish on"}
+                      </p>
+                      <p className="text-sm font-semibold text-foreground truncate">
+                        {formattedDateTime}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {socialEnabled ? (
+                  <AnnouncementComposer
+                    idPrefix="social-schedule"
+                    channels={enabledChannelsList}
+                    include={includeSocialPost}
+                    onIncludeChange={setIncludeSocialPost}
+                    value={socialPostText}
+                    onChange={setSocialPostText}
+                    preview={socialPreview}
+                  />
+                ) : (
+                  project && (
+                    <AnnouncementSetupHint
+                      projectId={projectId}
+                      hasSiteUrl={Boolean(project.siteUrl)}
+                      hasCredential={hasActiveCredential}
+                      postOnPublish={project.socialPostOnPublish === true}
+                    />
+                  )
+                )}
               </div>
-            )}
+            </div>
           </TabsContent>
         </Tabs>
 
-        {/* Footer */}
-        <DialogFooter className="mt-6 px-5 pb-5">
+        {/* Footer — plain-words summary of what the primary button does. */}
+        <DialogFooter className="mt-6 border-t border-border/40 bg-muted/20 px-6 py-4">
           <div className="flex w-full items-center justify-between gap-3">
-            <Button
-              variant="ghost"
-              onClick={() => onOpenChange(false)}
-              disabled={isPrimaryBusy}
-            >
-              Cancel
-            </Button>
-            <div className="flex items-center gap-2">
+            <p className="min-w-0 truncate text-xs text-muted-foreground/70">
+              {tab === "publish"
+                ? `Commits to ${project?.githubRepo ?? "GitHub"}${
+                    socialEnabled && includeSocialPost
+                      ? ` · announces to ${enabledChannelsList
+                          .map((c) => bufferServiceLabel(c.service))
+                          .join(", ")}`
+                      : " · no announcement"
+                  }`
+                : formattedDateTime
+                  ? `Publishes ${formattedDateTime}${
+                      socialEnabled && includeSocialPost
+                        ? " · then announces"
+                        : ""
+                    }`
+                  : "Pick a date and time"}
+            </p>
+            <div className="flex shrink-0 items-center gap-2">
+              <Button
+                variant="ghost"
+                onClick={() => onOpenChange(false)}
+                disabled={isPrimaryBusy}
+              >
+                Cancel
+              </Button>
               {tab === "schedule" && isAlreadyScheduled && (
                 <Button
                   variant="destructive"

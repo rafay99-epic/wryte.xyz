@@ -124,25 +124,7 @@ export const TABS: {
   { id: "tools", label: "Tools", icon: Wrench },
 ];
 
-/** Pretty labels for Buffer's `service` enum on connected channels. */
-export const BUFFER_SERVICE_LABELS: Record<string, string> = {
-  twitter: "X (Twitter)",
-  x: "X (Twitter)",
-  linkedin: "LinkedIn",
-  bluesky: "Bluesky",
-  threads: "Threads",
-  facebook: "Facebook",
-  instagram: "Instagram",
-  tiktok: "TikTok",
-  youtube: "YouTube",
-  pinterest: "Pinterest",
-  mastodon: "Mastodon",
-  googlebusiness: "Google Business",
-};
-
-export function bufferServiceLabel(service: string): string {
-  return BUFFER_SERVICE_LABELS[service.toLowerCase()] ?? service;
-}
+export { bufferServiceLabel } from "@/lib/social-template";
 
 export type VerifyStatus = "idle" | "verifying" | "connected" | "error";
 

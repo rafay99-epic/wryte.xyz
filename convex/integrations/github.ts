@@ -29,6 +29,19 @@ import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
 import { importPool } from "../_pools/import";
 
 /**
+ * Shape returned by the single-file import path — shared by the public
+ * `importFileFromGithub` action and the `_importOneFromGithubJob`
+ * workpool job (both delegate to `importOneFile`). `documentId` is
+ * typed `v.string()` (not `v.id`) because the underlying mutations
+ * declare their return as `string`.
+ */
+const IMPORTED_FILE_RESULT = v.object({
+  documentId: v.string(),
+  title: v.string(),
+  slug: v.string(),
+});
+
+/**
  * Assembles a complete markdown file with YAML frontmatter from structured data.
  * Handles quoting for strings that contain YAML-special characters, and supports
  * nested objects and arrays in the frontmatter values.
@@ -436,6 +449,7 @@ export const publishToGithub = internalAction({
     publishedAtMs: v.optional(v.number()),
     socialPostText: v.optional(v.string()),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const document = await ctx.runQuery(internal.cms.documents.internalGet, {
       documentId: args.documentId,
@@ -695,11 +709,13 @@ export const publishToGithub = internalAction({
     if (project.siteUrl && project.socialPostOnPublish) {
       const announceArgs: {
         projectId: Id<"projects">;
+        documentId: Id<"documents">;
         documentTitle: string;
         publishedUrl: string;
         customText?: string;
       } = {
         projectId: project._id,
+        documentId: document._id,
         documentTitle: document.title,
         publishedUrl: buildPublishedUrl({
           siteUrl: project.siteUrl,
@@ -715,6 +731,7 @@ export const publishToGithub = internalAction({
         announceArgs,
       );
     }
+    return null;
   },
 });
 
@@ -728,7 +745,8 @@ export const publish = action({
     commitMessage: v.optional(v.string()),
     socialPostText: v.optional(v.string()),
   },
-  handler: async (ctx, args): Promise<void> => {
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
     const key = await getRateLimitKey(ctx);
     await rateLimiter.limit(ctx, "github:publish", { key, throws: true });
 
@@ -775,6 +793,7 @@ export const publish = action({
         socialPostText: args.socialPostText,
       }),
     });
+    return null;
   },
 });
 
@@ -791,6 +810,11 @@ export const bulkPublish = action({
     projectId: v.id("projects"),
     documentIds: v.array(v.id("documents")),
   },
+  returns: v.object({
+    success: v.number(),
+    failed: v.number(),
+    commitUrl: v.optional(v.string()),
+  }),
   handler: async (
     ctx,
     args,
@@ -1094,6 +1118,7 @@ export const bulkPublish = action({
       if (project.siteUrl && project.socialPostOnPublish) {
         await ctx.scheduler.runAfter(0, internal.social.post.announcePublish, {
           projectId: project._id,
+          documentId: entry.doc.id,
           documentTitle: entry.doc.title,
           publishedUrl: buildPublishedUrl({
             siteUrl: project.siteUrl,
@@ -1127,6 +1152,7 @@ export const uploadMediaToGithub = action({
     base64Content: v.string(),
     contentType: v.string(),
   },
+  returns: v.string(),
   handler: async (ctx, args): Promise<string> => {
     const key = await getRateLimitKey(ctx);
     await rateLimiter.limit(ctx, "github:uploadMedia", { key, throws: true });
@@ -1433,6 +1459,7 @@ export const importFileFromGithub = action({
     projectId: v.id("projects"),
     filePath: v.string(),
   },
+  returns: IMPORTED_FILE_RESULT,
   handler: async (
     ctx,
     args,
@@ -1485,6 +1512,7 @@ export const _importOneFromGithubJob = internalAction({
     branch: v.string(),
     mode: v.union(v.literal("new"), v.literal("fastForward")),
   },
+  returns: IMPORTED_FILE_RESULT,
   handler: async (
     ctx,
     args,
@@ -1530,6 +1558,26 @@ export type BulkImportResult = {
   missing: string[];
 };
 
+/** Runtime validator mirroring {@link BulkImportResult}. */
+const BULK_IMPORT_RESULT = v.object({
+  batchId: v.union(v.id("import_batches"), v.null()),
+  counts: v.object({
+    new: v.number(),
+    fastForward: v.number(),
+    unchanged: v.number(),
+    conflict: v.number(),
+    missing: v.number(),
+  }),
+  conflicts: v.array(
+    v.object({
+      path: v.string(),
+      documentId: v.id("documents"),
+      conflictId: v.id("sync_conflicts"),
+    }),
+  ),
+  missing: v.array(v.string()),
+});
+
 /**
  * Public entry point for bulk import. Compares the requested files
  * against what's already in Convex *before* spinning up the workpool,
@@ -1560,6 +1608,7 @@ export const startBulkImport = action({
     projectId: v.id("projects"),
     filePaths: v.array(v.string()),
   },
+  returns: BULK_IMPORT_RESULT,
   handler: async (ctx, args): Promise<BulkImportResult> => {
     if (args.filePaths.length === 0) {
       throw new Error("No files to import");
@@ -1851,6 +1900,10 @@ export const verifyRepoAccess = action({
     repo: v.string(),
     pat: v.optional(v.string()),
   },
+  returns: v.object({
+    valid: v.boolean(),
+    error: v.optional(v.string()),
+  }),
   handler: async (ctx, args): Promise<{ valid: boolean; error?: string }> => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
@@ -1906,7 +1959,8 @@ export const deleteFileFromGithub = action({
     filePath: v.string(),
     sha: v.string(),
   },
-  handler: async (ctx, args): Promise<void> => {
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
     const key = await getRateLimitKey(ctx);
     await rateLimiter.limit(ctx, "github:deleteFile", { key, throws: true });
 
@@ -1952,6 +2006,7 @@ export const deleteFileFromGithub = action({
       sha: args.sha,
       branch,
     });
+    return null;
   },
 });
 
@@ -1985,7 +2040,8 @@ export const _deleteOneJob = internalAction({
     repo: v.optional(v.string()),
     branch: v.optional(v.string()),
   },
-  handler: async (ctx, args): Promise<void> => {
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
     // Step 1: local doc removal (cascades scheduled_publishes via the
     // internal mutation). Skip when the user asked for GitHub-only.
     if (args.mode !== "github" && args.documentId) {
@@ -2030,11 +2086,12 @@ export const _deleteOneJob = internalAction({
         if (e.status === 404) {
           // File already gone — idempotent success. Don't throw so the
           // batch counts this as succeeded.
-          return;
+          return null;
         }
         throw err;
       }
     }
+    return null;
   },
 });
 
@@ -2054,6 +2111,19 @@ export type BulkDeleteResult = {
     errors: Array<{ label: string; message: string }>;
   };
 };
+
+/** Runtime validator mirroring {@link BulkDeleteResult}. */
+const BULK_DELETE_RESULT = v.object({
+  batchId: v.union(v.id("delete_batches"), v.null()),
+  inlineSummary: v.optional(
+    v.object({
+      total: v.number(),
+      succeeded: v.number(),
+      failed: v.number(),
+      errors: v.array(v.object({ label: v.string(), message: v.string() })),
+    }),
+  ),
+});
 
 /**
  * Public entry point for bulk delete. Routes by mode to keep the
@@ -2084,6 +2154,7 @@ export const startBulkDelete = action({
       }),
     ),
   },
+  returns: BULK_DELETE_RESULT,
   handler: async (ctx, args): Promise<BulkDeleteResult> => {
     if (args.items.length === 0) {
       throw new Error("Nothing to delete");

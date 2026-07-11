@@ -84,9 +84,11 @@ export async function fetchBufferChannels(
 
   const channels: BufferChannel[] = [];
   for (const organizationId of orgIds) {
+    // NB: Buffer's schema uses custom scalars (OrganizationId, ChannelId) —
+    // declaring these variables as plain ID! fails GraphQL validation.
     const result = await bufferGraphQL<{ channels: BufferChannel[] }>(
       apiKey,
-      `query GetChannels($organizationId: ID!) {
+      `query GetChannels($organizationId: OrganizationId!) {
         channels(input: { organizationId: $organizationId }) {
           id
           name
@@ -114,12 +116,15 @@ export async function createBufferPost(
   type CreatePostResult = {
     createPost: { post?: { id: string }; message?: string } | null;
   };
+  // `assets` is a required input field (schema introspection) — text-only
+  // posts pass an empty list. ChannelId is a custom scalar, not ID.
   const result = await bufferGraphQL<CreatePostResult>(
     apiKey,
-    `mutation CreatePost($channelId: ID!, $text: String!) {
+    `mutation CreatePost($channelId: ChannelId!, $text: String!) {
       createPost(input: {
         channelId: $channelId,
         text: $text,
+        assets: [],
         schedulingType: automatic,
         mode: shareNow
       }) {
