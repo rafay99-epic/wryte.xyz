@@ -3,7 +3,7 @@ import {
   appendToEditor,
   getEditorTextarea,
   openSeededArticle,
-  SEED_PROJECT_NAME,
+  openSeededProject,
 } from "../support/editor";
 
 /**
@@ -23,23 +23,6 @@ const PROBE = [
   "",
   "The report was written by the team. Basically, it was very really quite good. At the end of the day, that is what matters.",
 ].join("\n");
-
-/** Navigate to /projects and open the seeded project, returning its id. */
-async function getSeededProjectId(page: Page): Promise<string> {
-  await page.goto("/projects");
-  await page
-    .getByRole("link", {
-      name: new RegExp(SEED_PROJECT_NAME.replace(".", "\\.")),
-    })
-    .first()
-    .click();
-  await page.waitForURL(/\/projects\/[^/]+$/, { timeout: 30_000 });
-  const match = /\/projects\/([^/?#]+)/.exec(page.url());
-  if (!match?.[1]) {
-    throw new Error(`Could not determine seeded project id from ${page.url()}`);
-  }
-  return match[1];
-}
 
 /**
  * Ensures the project's readability lens setting matches `enabled`, saving
@@ -70,7 +53,7 @@ test.describe("authenticated style lint", () => {
   test("flags passive voice, weasel words, and clichés in the Style section", async ({
     page,
   }) => {
-    const projectId = await getSeededProjectId(page);
+    const projectId = await openSeededProject(page);
 
     // Ensure the lens is on for this run; remember whether we had to flip it
     // so we can restore the project's original preference afterwards.

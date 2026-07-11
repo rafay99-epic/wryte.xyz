@@ -191,6 +191,7 @@ export function EditorLayout({
                   <div className="split-divider" />
                   <div
                     ref={previewRef}
+                    data-testid="split-preview-pane"
                     className="h-full w-1/2 overflow-y-auto hide-scrollbar bg-muted/10"
                     onScroll={onPreviewScroll}
                     onPointerEnter={() => setOwner("preview")}

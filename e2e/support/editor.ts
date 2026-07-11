@@ -7,6 +7,27 @@ export const SEED_PROJECT_NAME = "Rafay99.Com";
 export const SEED_ITEM_SELECTOR = '[data-testid^="content-item-seed-wl-"]';
 
 /**
+ * Navigate from the projects list into the seeded project's overview page
+ * (/projects/{id}) and return the project id. Visiting a project page also
+ * marks it as the active project (used by e.g. the command palette).
+ */
+export async function openSeededProject(page: Page): Promise<string> {
+  await page.goto("/projects");
+  await page
+    .getByRole("link", {
+      name: new RegExp(SEED_PROJECT_NAME.replace(".", "\\.")),
+    })
+    .first()
+    .click();
+  await page.waitForURL(/\/projects\/[^/]+$/, { timeout: 30_000 });
+  const match = /\/projects\/([^/?#]+)/.exec(page.url());
+  if (!match?.[1]) {
+    throw new Error(`Could not determine seeded project id from ${page.url()}`);
+  }
+  return match[1];
+}
+
+/**
  * Navigate from the projects list into the seeded project and open the first
  * seeded article ("Seeded article NN") in the editor. Returns once the editor
  * textarea is visible.
