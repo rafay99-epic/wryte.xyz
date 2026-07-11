@@ -1165,6 +1165,26 @@ No behavior changes — everything works exactly as before, just lighter and fas
 - The search preview and suggestion scanning are pure client-side (canvas text measurement, style-lint's offset-preserving masking) — the entire feature adds ONE metadata query per research-panel open and one bounded query while the project overview is on screen. No crons, no new subscriptions, no hot-path reads.
 `,
   },
+  {
+    title: "A split view that keeps up",
+    slug: "split-view-that-keeps-up",
+    description:
+      "The editor's split view now follows your caret as you write, the preview scrolls in lockstep in both directions without judder, and double-clicking anywhere in reading mode drops you into the editor at that exact spot.",
+    build: "d5282c8",
+    publishedAt: Date.parse("2026-07-11T12:00:00+05:00"),
+    content: `## What's new
+
+- **The preview follows your writing.** Typing in split view now keeps both panes on the caret: the editor nudges itself so the caret never slips off screen, and the preview scrolls to the exact rendered block you're editing — matched by source line, not a scroll-ratio guess. Hit Enter at the bottom of a long draft and the new line is right there on both sides.
+- **Double-click to edit.** In reading mode, double-click any paragraph, heading, or list item and you land in the editor with the caret on that exact word — no more switching modes and scrolling back down by hand. In split view it jumps the caret in the editing pane without leaving the layout.
+- **No more preview judder.** The preview used to re-parse the whole document on every keystroke, fighting your typing for the main thread. Rendering is now deferred and memoized, so keystrokes stay instant and the preview catches up the moment you pause.
+
+## Under the hood
+
+- Scroll sync got an ownership model: whichever pane you're actually using drives the other, and the echo events that used to make the panes fight each other are ignored outright.
+- Every rendered block carries its markdown source line (a tiny remark plugin), which powers both the caret-follow and double-click-to-edit. MDX previews compile positions away, so they fall back to word search and ratio sync.
+- All client-side — zero new Convex functions, queries, or subscriptions.
+`,
+  },
 ];
 
 export const seed = action({
