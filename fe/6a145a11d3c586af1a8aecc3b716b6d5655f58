@@ -1,0 +1,24 @@
+.github/scripts/bump-cask.sh
+  s_5651bd423f8c1a::t_72f670b86fdca4 41-43,46-47
+.github/workflows/desktop-release.yml
+  s_5651bd423f8c1a::t_7b0c0a21ed3a99 58-78,81
+  s_5651bd423f8c1a::t_ccca61e8a15db4 109,112-115,121-135,138,145
+package.json
+  s_5651bd423f8c1a::t_0cac42cdc428fb 113
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "fe6a145a11d3c586af1a8aecc3b716b6d5655f58",
+  "prompts": {},
+  "sessions": {
+    "s_5651bd423f8c1a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c2b74d80-e4d8-4b2b-9589-6a26ef015026",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
