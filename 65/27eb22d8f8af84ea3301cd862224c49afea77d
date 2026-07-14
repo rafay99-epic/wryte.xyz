@@ -1,0 +1,29 @@
+package.json
+  s_5651bd423f8c1a::t_989f7e2eca7d56 88
+  s_5651bd423f8c1a::t_e59a0defddfef8 93-96
+  s_5651bd423f8c1a::t_809422fcc5d91e 100-101,112-113
+  s_5651bd423f8c1a::t_d94f0fea57fd36 97-98
+  s_5651bd423f8c1a::t_2f9d30bb2013a4 99
+.github/workflows/desktop-release.yml
+  s_5651bd423f8c1a::t_1dcc8d78296ba4 96-112
+.github/scripts/bump-cask.sh
+  s_5651bd423f8c1a::t_9d3d64ee59cef6 1-68
+electron/afterpack-sign.cjs
+  s_5651bd423f8c1a::t_08457d92cc8070 1-21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "6527eb22d8f8af84ea3301cd862224c49afea77d",
+  "prompts": {},
+  "sessions": {
+    "s_5651bd423f8c1a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c2b74d80-e4d8-4b2b-9589-6a26ef015026",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
