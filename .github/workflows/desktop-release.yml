@@ -93,3 +93,20 @@ jobs:
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           bunx electron-builder --publish always -c.extraMetadata.version="$VERSION"
+
+      # macOS build is ad-hoc signed (no Apple account), so distribute it via
+      # the Homebrew tap whose cask strips the download quarantine on install —
+      # the same path Crisp/Quill use to bypass notarization. This rewrites the
+      # tap's wryte cask to the just-published Wryte.dmg.
+      - name: Bump Homebrew cask
+        if: matrix.os == 'macos-latest'
+        shell: bash
+        env:
+          TAP_TOKEN: ${{ secrets.TAP_TOKEN }}
+        run: |
+          if [ -z "${TAP_TOKEN:-}" ]; then
+            echo "No TAP_TOKEN secret — skipping cask bump."
+            exit 0
+          fi
+          VERSION="${GITHUB_REF_NAME#v}" CASK=wryte \
+            .github/scripts/bump-cask.sh dist/Wryte.dmg

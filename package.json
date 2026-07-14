@@ -85,12 +85,20 @@
       "public/wryte-icon.png"
     ],
     "npmRebuild": false,
+    "afterPack": "electron/afterpack-sign.cjs",
     "directories": {
       "buildResources": "build"
     },
     "mac": {
-      "target": "dmg",
-      "category": "public.app-category.productivity"
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.productivity",
+      "identity": null
+    },
+    "dmg": {
+      "artifactName": "${productName}.dmg"
     },
     "win": {
       "target": "nsis"
@@ -101,7 +109,8 @@
     "publish": {
       "provider": "github",
       "owner": "rafay99-epic",
-      "repo": "wryte.xyz"
+      "repo": "wryte.xyz",
+      "releaseType": "release"
     }
   },
   "devDependencies": {
