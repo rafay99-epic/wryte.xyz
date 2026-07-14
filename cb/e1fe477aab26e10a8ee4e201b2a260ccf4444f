@@ -1,0 +1,21 @@
+.github/workflows/desktop-release.yml
+  s_5651bd423f8c1a::t_76c2e7af5aca83 35-39
+package.json
+  s_5651bd423f8c1a::t_d84bb5e12f57e3 87
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "cbe1fe477aab26e10a8ee4e201b2a260ccf4444f",
+  "prompts": {},
+  "sessions": {
+    "s_5651bd423f8c1a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c2b74d80-e4d8-4b2b-9589-6a26ef015026",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
