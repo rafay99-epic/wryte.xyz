@@ -3,6 +3,7 @@
   "version": "0.20.0",
   "private": true,
   "license": "MIT",
+  "main": "electron/main.cjs",
   "scripts": {
     "dev": "concurrently -n NEXT,CONVEX -c blue,green \"next dev\" \"convex dev\"",
     "dev:local": "concurrently -n NEXT,CONVEX -c blue,green \"next dev\" \"convex dev \"",
@@ -19,7 +20,10 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:report": "playwright show-report",
-    "changelog:new": "bun scripts/changelog-new.ts"
+    "changelog:new": "bun scripts/changelog-new.ts",
+    "desktop:dev": "electron electron/main.cjs",
+    "desktop:pack": "electron-builder --dir",
+    "desktop:dist": "electron-builder"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.110.0",
@@ -46,6 +50,7 @@
     "clsx": "^2.1.1",
     "concurrently": "^10.0.3",
     "convex": "^1.42.1",
+    "electron-updater": "^6.3.9",
     "fflate": "^0.8.3",
     "framer-motion": "^12.42.2",
     "gray-matter": "^4.0.3",
@@ -72,8 +77,36 @@
     "uploadthing": "^7.7.4",
     "zustand": "^5.0.14"
   },
+  "build": {
+    "appId": "xyz.wryte.desktop",
+    "productName": "Wryte",
+    "files": [
+      "electron/**",
+      "public/wryte-icon.png"
+    ],
+    "directories": {
+      "buildResources": "build"
+    },
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.productivity"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "linux": {
+      "target": "AppImage"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "rafay99-epic",
+      "repo": "wryte.xyz"
+    }
+  },
   "devDependencies": {
     "@biomejs/biome": "2.4.15",
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8",
     "@clerk/testing": "^2.2.2",
     "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "^4.3.2",
@@ -92,7 +125,10 @@
   ],
   "trustedDependencies": [
     "sharp",
-    "unrs-resolver"
+    "unrs-resolver",
+    "electron",
+    "electron-builder",
+    "esbuild"
   ],
   "overrides": {
     "@hono/node-server": "1.19.13",

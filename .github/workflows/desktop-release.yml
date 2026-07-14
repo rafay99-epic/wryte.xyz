@@ -1,0 +1,52 @@
+name: Desktop Release
+
+# Builds the Electron desktop app (macOS .dmg, Windows .exe, Linux .AppImage)
+# and publishes the artifacts to a GitHub Release. electron-updater reads that
+# release (see package.json build.publish) to auto-update installed apps.
+#
+# Release the desktop app only — independent of the web app's SHA-based
+# versioning. Push a semver tag to cut a release:
+#   git tag v1.0.0 && git push origin v1.0.0
+# The tag's version is injected into the build (extraMetadata), so the web
+# app's package.json version is never touched.
+
+permissions:
+  contents: write
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    name: Build ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Ensure Electron binary
+        # bun skips postinstall for untrusted deps; download the binary explicitly.
+        run: node node_modules/electron/install.js
+
+      - name: Build and publish
+        shell: bash
+        env:
+          # electron-builder publishes to the repo's Releases with this token.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          bunx electron-builder --publish always -c.extraMetadata.version="$VERSION"

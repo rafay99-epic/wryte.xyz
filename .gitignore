@@ -18,7 +18,9 @@
 /out/
 
 # production
-/build
+/build/*
+# keep the Electron app icon (electron-builder buildResources)
+!/build/icon.png
 
 # misc
 .DS_Store
@@ -50,3 +52,6 @@ next-env.d.ts
 /playwright-report/
 /test-results/
 /playwright/.cache/
+
+# Electron desktop build output
+/dist
