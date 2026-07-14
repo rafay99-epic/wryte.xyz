@@ -1,4 +1,4 @@
-const { app, BrowserWindow, session, shell } = require("electron");
+const { app, BrowserWindow, dialog, session, shell } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const http = require("node:http");
 const path = require("node:path");
@@ -13,6 +13,7 @@ const isMac = process.platform === "darwin";
 const DEV_PORTS = [3000, 3001, 3002];
 const PROD_URL = "https://wryte.xyz";
 const MAX_LOAD_RETRIES = 5;
+const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000; // re-check every 6h
 
 // Kill the macOS elastic overscroll (the rubber-band bounce that makes a
 // wrapped web app feel unnative), and give the shell momentum scrolling.
@@ -134,6 +135,31 @@ function focusMainWindow() {
   mainWindow.focus();
 }
 
+// Auto-update from GitHub Releases. Downloads in the background, then tells the
+// user plainly and lets them restart on their terms — no silent surprise.
+function initAutoUpdate() {
+  autoUpdater.on("update-downloaded", async ({ version }) => {
+    const { response } = await dialog.showMessageBox({
+      type: "info",
+      buttons: ["Restart now", "Later"],
+      defaultId: 0,
+      cancelId: 1,
+      title: "Update ready",
+      message: `Wryte ${version} is ready to install.`,
+      detail: "Restart the app to apply it. It'll also install on next quit.",
+    });
+    if (response === 0) autoUpdater.quitAndInstall();
+  });
+  // Stay quiet on network/update errors — never nag on a failed check.
+  autoUpdater.on("error", () => undefined);
+
+  autoUpdater.checkForUpdates().catch(() => undefined);
+  setInterval(
+    () => autoUpdater.checkForUpdates().catch(() => undefined),
+    UPDATE_CHECK_INTERVAL_MS,
+  );
+}
+
 // Single instance: a second launch focuses the existing window instead of
 // opening a duplicate.
 if (!app.requestSingleInstanceLock()) {
@@ -162,8 +188,7 @@ if (!app.requestSingleInstanceLock()) {
     );
 
     createWindow(await resolveAppUrl());
-    // Auto-update from GitHub Releases (config in package.json build.publish).
-    if (app.isPackaged) autoUpdater.checkForUpdatesAndNotify();
+    if (app.isPackaged) initAutoUpdate();
 
     app.on("activate", async () => {
       if (BrowserWindow.getAllWindows().length === 0) {
