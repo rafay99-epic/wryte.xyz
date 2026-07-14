@@ -84,6 +84,7 @@
       "electron/**",
       "public/wryte-icon.png"
     ],
+    "npmRebuild": false,
     "directories": {
       "buildResources": "build"
     },
