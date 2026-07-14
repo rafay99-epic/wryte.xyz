@@ -1,0 +1,19 @@
+electron/RELEASE.md
+  s_5651bd423f8c1a::t_3df277739f8d59 1-73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "d7b55763ddec63e6aa4efeeb5e0bf6af3dd7a072",
+  "prompts": {},
+  "sessions": {
+    "s_5651bd423f8c1a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c2b74d80-e4d8-4b2b-9589-6a26ef015026",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
