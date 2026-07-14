@@ -106,8 +106,6 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.15",
-    "electron": "^33.0.0",
-    "electron-builder": "^25.1.8",
     "@clerk/testing": "^2.2.2",
     "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "^4.3.2",
@@ -117,6 +115,8 @@
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
     "babel-plugin-react-compiler": "1.0.0",
+    "electron": "^43.1.0",
+    "electron-builder": "^26.15.3",
     "tailwindcss": "^4.3.2",
     "typescript": "^6.0.3"
   },
@@ -146,7 +146,8 @@
     "@babel/core": "^7.29.7",
     "js-yaml": "^3.15.0",
     "@types/react": "19.2.17",
-    "@types/react-dom": "19.2.3"
+    "@types/react-dom": "19.2.3",
+    "tar": "^7.5.7"
   },
   "patchedDependencies": {
     "@convex-dev/persistent-text-streaming@0.3.2": "patches/@convex-dev%2Fpersistent-text-streaming@0.3.2.patch"
