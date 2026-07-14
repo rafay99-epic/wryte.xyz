@@ -110,7 +110,7 @@
       "provider": "github",
       "owner": "rafay99-epic",
       "repo": "wryte.xyz",
-      "releaseType": "release"
+      "releaseType": "draft"
     }
   },
   "devDependencies": {

@@ -38,11 +38,13 @@ CASK_FILE="Casks/${CASK}.rb"
 [ -f "$CASK_FILE" ] || { echo "::error::${CASK_FILE} not found in tap"; exit 1; }
 
 # Rewrite only the two pinned lines in the top stanza (anchored to a 2-space
-# indent so url/livecheck/etc. are never touched). BSD sed (macOS runner).
-sed -i '' -E \
+# indent so url/livecheck/etc. are never touched). Temp-file rewrite instead of
+# `sed -i` so it's portable across GNU (Linux) and BSD (macOS) sed.
+sed -E \
   -e "s|^  version \"[^\"]*\"|  version \"${VERSION}\"|" \
   -e "s|^  sha256 \"[0-9a-f]*\"|  sha256 \"${SHA}\"|" \
-  "$CASK_FILE"
+  "$CASK_FILE" > "${CASK_FILE}.tmp"
+mv "${CASK_FILE}.tmp" "$CASK_FILE"
 
 if git diff --quiet -- "$CASK_FILE"; then
   echo "::notice::${CASK} cask already at ${VERSION} (${SHA}) — nothing to push."
