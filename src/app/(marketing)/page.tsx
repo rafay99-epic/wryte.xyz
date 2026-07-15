@@ -10,6 +10,7 @@ import { CommitTicker } from "@/features/marketing/components/commit-ticker";
 import { ComparisonSection } from "@/features/marketing/components/comparison-section";
 import { ConnectedFlow } from "@/features/marketing/components/connected-flow";
 import { CtaDiff } from "@/features/marketing/components/cta-diff";
+import { DesktopApp } from "@/features/marketing/components/desktop-app";
 import { HeroDiff } from "@/features/marketing/components/hero-diff";
 import { PageBackground } from "@/features/marketing/components/page-background";
 
@@ -34,6 +35,7 @@ export default function LandingPage() {
             { label: "Editor", scrollTo: "editor" },
             { label: "Board", scrollTo: "board" },
             { label: "How it Works", scrollTo: "how" },
+            { label: "Desktop", scrollTo: "desktop" },
             { label: "Compare", scrollTo: "comparison" },
           ]}
           onScrollTo={scrollToSection}
@@ -48,6 +50,7 @@ export default function LandingPage() {
         <CanvasBoard />
         <ConnectedFlow />
         <ComparisonSection />
+        <DesktopApp />
         <CtaDiff isSignedIn={isSignedIn ?? false} />
         <MarketingFooter />
       </div>

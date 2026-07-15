@@ -59,7 +59,7 @@ export function MarketingNavbar({ items, onScrollTo }: MarketingNavbarProps) {
                     key={item.label}
                     type="button"
                     onClick={() => onScrollTo?.(item.scrollTo)}
-                    className="relative px-3 py-1.5 text-[13px] text-foreground/50 transition-colors duration-200 hover:text-foreground/80 dark:text-foreground/30 dark:hover:text-foreground/60"
+                    className="relative whitespace-nowrap px-3 py-1.5 text-[13px] text-foreground/50 transition-colors duration-200 hover:text-foreground/80 dark:text-foreground/30 dark:hover:text-foreground/60"
                   >
                     {item.label}
                   </button>
@@ -67,7 +67,7 @@ export function MarketingNavbar({ items, onScrollTo }: MarketingNavbarProps) {
                   <Link
                     key={item.label}
                     href={item.href}
-                    className="relative px-3 py-1.5 text-[13px] text-foreground/50 transition-colors duration-200 hover:text-foreground/80 dark:text-foreground/30 dark:hover:text-foreground/60"
+                    className="relative whitespace-nowrap px-3 py-1.5 text-[13px] text-foreground/50 transition-colors duration-200 hover:text-foreground/80 dark:text-foreground/30 dark:hover:text-foreground/60"
                   >
                     {item.label}
                   </Link>

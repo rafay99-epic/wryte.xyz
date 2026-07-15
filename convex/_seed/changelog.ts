@@ -1317,6 +1317,21 @@ No behavior changes — everything works exactly as before, just lighter and fas
 - **No background throttling.** Autosave and AI streaming keep running at full speed even when the window isn't focused.
 `,
   },
+  {
+    title: "Desktop app landing page section",
+    slug: "desktop-app-landing-page-section",
+    description:
+      "New landing page section showcasing the Electron desktop app with Homebrew install.",
+    category: "website",
+    build: "afb6d81",
+    publishedAt: Date.parse("2026-07-15T18:00:00+05:00"),
+    content: `## What's new
+
+- New "Desktop App" section on the landing page with Homebrew install command.
+- Desktop nav item in the marketing navbar.
+- Section matches the brand amber aesthetic, mobile-optimized.
+`,
+  },
 ];
 
 const seedResult = v.object({
