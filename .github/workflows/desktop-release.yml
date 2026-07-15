@@ -1,12 +1,14 @@
 name: Desktop Release
 
-# Builds the Electron desktop app (macOS .dmg, Windows .exe, Linux .AppImage)
-# and publishes the artifacts to a GitHub Release. electron-updater reads that
-# release (see package.json build.publish) to auto-update installed apps.
+# Builds the Electron desktop app (macOS .dmg/.zip, Windows .exe, Linux
+# .AppImage) and publishes the artifacts to a GitHub Release. electron-updater
+# reads that release (see package.json build.publish) to auto-update apps.
 #
-# Release the desktop app only — independent of the web app's SHA-based
-# versioning. Push a semver tag to cut a release:
-#   git tag v1.0.0 && git push origin v1.0.0
+# Two ways to run:
+#   • Push a semver tag:  git tag v1.0.0 && git push origin v1.0.0
+#   • Manually: Actions → Desktop Release → Run workflow, against an existing
+#     tag — handy for retrying a failed publish/cask bump without re-tagging.
+#
 # The tag's version is injected into the build (extraMetadata), so the web
 # app's package.json version is never touched.
 
@@ -17,14 +19,25 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to (re)build, e.g. v1.0.5"
+        required: true
+
+# Resolve the target tag once: the dispatch input for manual runs, otherwise
+# the pushed tag. Used in place of github.ref_name everywhere below.
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
 
 concurrency:
-  group: desktop-release-${{ github.ref }}
+  group: desktop-release-${{ inputs.tag || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
-  # tag pushes ignore `paths:` filters, so gate the paid 3-OS matrix here:
-  # only build when the desktop app actually changed since the previous tag.
+  # Tag pushes ignore `paths:` filters, so gate the paid 3-OS matrix here: only
+  # build when the desktop app actually changed since the previous tag. Manual
+  # dispatch always builds (you asked for it explicitly).
   detect:
     name: Detect desktop changes
     runs-on: ubuntu-latest
@@ -32,21 +45,27 @@ jobs:
       changed: ${{ steps.check.outputs.changed }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
+          ref: ${{ env.TAG }}
           fetch-depth: 0
 
       - name: Diff desktop files vs previous tag
         id: check
         shell: bash
         run: |
-          prev=$(git describe --tags --abbrev=0 "${GITHUB_REF_NAME}^" 2>/dev/null || echo "")
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "Manual dispatch — building."
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          prev=$(git describe --tags --abbrev=0 "${TAG}^" 2>/dev/null || echo "")
           if [ -z "$prev" ]; then
             echo "First tag — building."
             echo "changed=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          if git diff --name-only "$prev" "${GITHUB_REF_NAME}" -- \
+          if git diff --name-only "$prev" "${TAG}" -- \
                electron build .github/workflows/desktop-release.yml | grep -q .; then
             echo "Desktop files changed since $prev — building."
             echo "changed=true" >> "$GITHUB_OUTPUT"
@@ -67,12 +86,12 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            echo "Release ${GITHUB_REF_NAME} already exists — reusing."
+          if gh release view "${TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            echo "Release ${TAG} already exists — reusing."
           else
-            gh release create "${GITHUB_REF_NAME}" --draft \
-              --title "${GITHUB_REF_NAME}" \
-              --notes "Wryte ${GITHUB_REF_NAME} desktop build." \
+            gh release create "${TAG}" --draft \
+              --title "${TAG}" \
+              --notes "Wryte ${TAG} desktop build." \
               --repo "${GITHUB_REPOSITORY}"
           fi
 
@@ -89,10 +108,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ env.TAG }}
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 22
 
@@ -115,7 +136,7 @@ jobs:
           # platforms' assets are attached.
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          VERSION="${TAG#v}"
           bunx electron-builder --publish always -c.extraMetadata.version="$VERSION"
 
   # After all platforms upload to the draft, publish it (freezing it under
@@ -126,22 +147,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ env.TAG }}
 
       - name: Publish the draft release as latest
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release edit "${GITHUB_REF_NAME}" --draft=false --latest --repo "${GITHUB_REPOSITORY}"
+        run: gh release edit "${TAG}" --draft=false --latest --repo "${GITHUB_REPOSITORY}"
 
       - name: Bump Homebrew cask
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAP_TOKEN: ${{ secrets.TAP_TOKEN }}
+          TAP_TOKEN: ${{ secrets.HOME_BREW_TAP_TOKEN }}
         run: |
           if [ -z "${TAP_TOKEN:-}" ]; then
-            echo "No TAP_TOKEN secret — skipping cask bump."
+            echo "No HOME_BREW_TAP_TOKEN secret — skipping cask bump."
             exit 0
           fi
-          gh release download "${GITHUB_REF_NAME}" -p "Wryte.dmg" -D dist --repo "${GITHUB_REPOSITORY}"
-          VERSION="${GITHUB_REF_NAME#v}" CASK=wryte \
+          gh release download "${TAG}" -p "Wryte.dmg" -D dist --repo "${GITHUB_REPOSITORY}"
+          VERSION="${TAG#v}" CASK=wryte \
             .github/scripts/bump-cask.sh dist/Wryte.dmg
