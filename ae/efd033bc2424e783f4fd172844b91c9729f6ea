@@ -1,0 +1,30 @@
+electron/main.cjs
+  s_5651bd423f8c1a::t_d396b7aa6b1294 34-48,50-55,67-68,70-87
+  s_5651bd423f8c1a::t_44e2589ae69507 88
+  s_5651bd423f8c1a::t_f04646644595f6 89-107
+  s_5651bd423f8c1a::t_497397a86386da 167-178
+  s_5651bd423f8c1a::t_e25fc8a0a80ce0 416
+  s_5651bd423f8c1a::t_87b33c250eedf7 209
+  s_5651bd423f8c1a::t_64417288cd7629 6,11
+  s_5651bd423f8c1a::t_f8122af3f3a77b 146,148-151,165-166
+  s_5651bd423f8c1a::t_ca1e86172710b7 56-66,69
+  s_5651bd423f8c1a::t_c7068d71115434 347-356,358-372
+  s_5651bd423f8c1a::t_212d501bd6675f 49
+  s_5651bd423f8c1a::t_aef0231a01a58b 357
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "aeefd033bc2424e783f4fd172844b91c9729f6ea",
+  "prompts": {},
+  "sessions": {
+    "s_5651bd423f8c1a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c2b74d80-e4d8-4b2b-9589-6a26ef015026",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
