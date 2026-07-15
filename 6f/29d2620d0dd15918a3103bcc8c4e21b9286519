@@ -1,0 +1,47 @@
+convex/cms/changelog.ts
+  s_5651bd423f8c1a::t_9a91bce404181c 295
+  s_5651bd423f8c1a::t_60e22374e8de6d 107
+  s_5651bd423f8c1a::t_beacec5251b8d3 217
+  s_5651bd423f8c1a::t_0782650ebac4a5 254,275
+  s_5651bd423f8c1a::t_77fa3553ae6070 162
+  s_5651bd423f8c1a::t_f371c4703ecdfb 42-47,49,52-64
+  s_5651bd423f8c1a::t_7044692adc17dc 193
+  s_5651bd423f8c1a::t_006827c2117bce 322
+  s_5651bd423f8c1a::t_b2741a183c21af 28-31
+src/app/(app)/admin/changelog/_components/changelog-form.tsx
+  s_5651bd423f8c1a::t_ef5a22cb0fc1f5 83,95
+  s_5651bd423f8c1a::t_6616b4068868a5 112
+  s_5651bd423f8c1a::t_56c5d50b5af4f3 171-184
+  s_5651bd423f8c1a::t_cff0d6af62b4ac 46-48
+  s_5651bd423f8c1a::t_ffeccc4eda5aa7 25
+src/app/(marketing)/changelog/_components/changelog-list.tsx
+  s_5651bd423f8c1a::t_5c29117be711f3 5,8,13-18,20-22,29-51,53,58-64,70-71
+  s_5651bd423f8c1a::t_25ff27ffea4393 93-102
+  s_5651bd423f8c1a::t_a7c5248d3e9e02 25
+convex/_seed/changelog.ts
+  s_5651bd423f8c1a::t_9995278b7dbe1f 1243-1280
+  s_5651bd423f8c1a::t_56740677900bd7 33-34
+  s_5651bd423f8c1a::t_7641e13006747e 1319-1321
+  s_5651bd423f8c1a::t_b22c38a8f0a4bd 1352
+  s_5651bd423f8c1a::t_719ffb713c5828 1368
+src/app/(app)/admin/changelog/[id]/_components/changelog-edit.tsx
+  s_5651bd423f8c1a::t_3e71ec918c10bd 35
+convex/schema.ts
+  s_5651bd423f8c1a::t_bb0f0fd6b8f9ca 988-990
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "6f29d2620d0dd15918a3103bcc8c4e21b9286519",
+  "prompts": {},
+  "sessions": {
+    "s_5651bd423f8c1a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c2b74d80-e4d8-4b2b-9589-6a26ef015026",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
