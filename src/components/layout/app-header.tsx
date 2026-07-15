@@ -186,7 +186,7 @@ export function AppHeader() {
 
   return (
     <TooltipProvider>
-      <header className="flex h-12 shrink-0 items-center justify-between border-b border-border/50 px-3">
+      <header className="desktop-titlebar flex h-12 shrink-0 items-center justify-between border-b border-border/50 px-3">
         {/* ── Left section ── */}
         <div className="flex items-center gap-2">
           <Tooltip>

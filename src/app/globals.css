@@ -602,3 +602,35 @@ code.hljs {
   background-size: 200% 100%;
   animation: goal-shimmer 2s ease-in-out infinite;
 }
+
+/* ------------------------------------------------------------------ */
+/*  macOS desktop shell — the site header doubles as the title bar.    */
+/*  Applied only when the Electron preload marks the document (see      */
+/*  components/layout/desktop-chrome.tsx); the web is untouched.        */
+/* ------------------------------------------------------------------ */
+.wryte-desktop-mac .desktop-titlebar {
+  /* whole header is a drag handle for moving the window… */
+  -webkit-app-region: drag;
+  app-region: drag;
+  /* …with room on the left so the traffic-light buttons never overlap. */
+  padding-left: 80px;
+}
+
+/* …but the interactive bits inside must stay clickable, not draggable. */
+.wryte-desktop-mac .desktop-titlebar
+  :is(
+    a,
+    button,
+    input,
+    select,
+    textarea,
+    label,
+    [role="button"],
+    [role="menuitem"],
+    [role="tab"],
+    [contenteditable],
+    [tabindex]
+  ) {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}

@@ -102,12 +102,19 @@ function createWindow(appUrl) {
     title: "Wryte",
     backgroundColor: "#0a0a0a",
     icon: path.join(__dirname, "..", "..", "..", "public", "wryte-icon.png"),
+    // Frameless with inset traffic-lights on mac. The wrapped site reacts to
+    // the desktop flag (preload below) and turns its own header into the drag
+    // bar with room for the lights — so no overlap and the window still drags.
     titleBarStyle: isMac ? "hiddenInset" : undefined,
     autoHideMenuBar: true,
+    show: false, // revealed once the loading screen has painted (below)
     webPreferences: {
+      preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      // Keep autosave / AI streaming running at full speed when backgrounded.
+      backgroundThrottling: false,
     },
   });
   if (s.isMaximized) mainWindow.maximize();
@@ -171,7 +178,21 @@ function createWindow(appUrl) {
     }, 1500);
   });
 
-  mainWindow.loadURL(appUrl);
+  // Paint a local loading screen instantly, then load the app. Chromium holds
+  // the loading frame on-screen until the app produces its first paint (and
+  // keeps holding it across failed-load retries, since those never commit), so
+  // there's no blank window during the network wait.
+  let started = false;
+  const start = () => {
+    if (started || !mainWindow) return;
+    started = true;
+    mainWindow.show();
+    mainWindow.loadURL(appUrl);
+  };
+  mainWindow.once("ready-to-show", start);
+  setTimeout(start, 3000); // fallback so a slow first paint can't strand it hidden
+  mainWindow.loadFile(path.join(__dirname, "loading.html"));
+
   mainWindow.on("closed", () => {
     mainWindow = undefined;
   });
