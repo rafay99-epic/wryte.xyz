@@ -1,4 +1,11 @@
-const { app, BrowserWindow, dialog, session, shell } = require("electron");
+const {
+  app,
+  BrowserWindow,
+  dialog,
+  Menu,
+  session,
+  shell,
+} = require("electron");
 const { autoUpdater } = require("electron-updater");
 const http = require("node:http");
 const path = require("node:path");
@@ -160,6 +167,106 @@ function initAutoUpdate() {
   );
 }
 
+const REPO_URL = "https://github.com/rafay99-epic/wryte.xyz";
+
+let aboutWindow;
+function openAboutWindow() {
+  if (aboutWindow) {
+    aboutWindow.focus();
+    return;
+  }
+  aboutWindow = new BrowserWindow({
+    width: 400,
+    height: 520,
+    resizable: false,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    title: "About Wryte",
+    backgroundColor: "#0a0a0a",
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  });
+  aboutWindow.setMenu(null);
+  // Links in the About page open in the system browser, not in-app.
+  aboutWindow.webContents.setWindowOpenHandler(({ url }) => {
+    openExternal(url);
+    return { action: "deny" };
+  });
+  aboutWindow.loadFile(path.join(__dirname, "about.html"), {
+    query: { v: app.getVersion(), y: String(new Date().getFullYear()) },
+  });
+  aboutWindow.on("closed", () => {
+    aboutWindow = undefined;
+  });
+}
+
+function checkForUpdatesManually() {
+  if (!app.isPackaged) {
+    dialog.showMessageBox({
+      type: "info",
+      message: "Updates are only available in installed builds.",
+      detail: "You're running a development build.",
+    });
+    return;
+  }
+  autoUpdater.checkForUpdates().catch(() => undefined);
+  dialog.showMessageBox({
+    type: "info",
+    message: "Checking for updates…",
+    detail: "You'll be prompted to restart if a new version is ready.",
+  });
+}
+
+function buildAppMenu() {
+  const helpItems = [
+    { label: "Wryte on GitHub", click: () => openExternal(REPO_URL) },
+    {
+      label: "Report an Issue",
+      click: () => openExternal(`${REPO_URL}/issues/new`),
+    },
+  ];
+  const template = [
+    ...(isMac
+      ? [
+          {
+            label: "Wryte",
+            submenu: [
+              { label: "About Wryte", click: openAboutWindow },
+              { label: "Check for Updates…", click: checkForUpdatesManually },
+              { type: "separator" },
+              { role: "services" },
+              { type: "separator" },
+              { role: "hide" },
+              { role: "hideOthers" },
+              { role: "unhide" },
+              { type: "separator" },
+              { role: "quit" },
+            ],
+          },
+        ]
+      : []),
+    { role: "editMenu" },
+    { role: "viewMenu" },
+    { role: "windowMenu" },
+    {
+      role: "help",
+      submenu: isMac
+        ? helpItems
+        : [
+            { label: "About Wryte", click: openAboutWindow },
+            { label: "Check for Updates…", click: checkForUpdatesManually },
+            { type: "separator" },
+            ...helpItems,
+          ],
+    },
+  ];
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
 // Single instance: a second launch focuses the existing window instead of
 // opening a duplicate.
 if (!app.requestSingleInstanceLock()) {
@@ -187,6 +294,7 @@ if (!app.requestSingleInstanceLock()) {
         callback(ALLOWED_PERMISSIONS.has(permission)),
     );
 
+    buildAppMenu();
     createWindow(await resolveAppUrl());
     if (app.isPackaged) initAutoUpdate();
 

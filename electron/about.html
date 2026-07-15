@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy"
+          content="default-src 'none'; img-src 'self' data: file:; style-src 'unsafe-inline'; script-src 'unsafe-inline';" />
+    <title>About Wryte</title>
+    <style>
+      :root { color-scheme: dark; }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body {
+        -webkit-user-select: none;
+        font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+        color: #e7e7ea;
+        background: #0a0a0a;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        padding: 34px 28px 26px;
+        height: 100vh;
+      }
+      img.logo { width: 84px; height: 84px; border-radius: 20px; }
+      h1 { font-size: 20px; font-weight: 600; margin-top: 14px; letter-spacing: -0.01em; }
+      .version { color: #8a8a90; font-size: 12px; margin-top: 3px; }
+      .tagline { color: #a8a8ad; margin-top: 12px; max-width: 300px; }
+      .rows { margin-top: 20px; width: 100%; max-width: 320px; }
+      .row {
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 12px; padding: 10px 2px;
+        border-top: 1px solid rgba(255, 255, 255, 0.07);
+      }
+      .row .k { color: #8a8a90; }
+      .row .v { text-align: right; }
+      a { color: #f5a623; text-decoration: none; }
+      a:hover { text-decoration: underline; }
+      .gh {
+        display: inline-flex; align-items: center; gap: 7px;
+      }
+      .gh svg { width: 15px; height: 15px; fill: currentColor; }
+      .foot { margin-top: auto; padding-top: 18px; color: #6c6c72; font-size: 11px; }
+      .pills { display: inline-flex; gap: 6px; }
+      .pill {
+        border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 999px;
+        padding: 2px 9px; color: #b7b7bc; font-size: 11px;
+      }
+    </style>
+  </head>
+  <body>
+    <img class="logo" src="../public/wryte-icon.png" alt="Wryte" />
+    <h1>Wryte</h1>
+    <div class="version" id="version">Version —</div>
+    <div class="tagline">Git-native content workspace — a markdown editor that publishes straight to GitHub as clean commits.</div>
+
+    <div class="rows">
+      <div class="row">
+        <span class="k">Company</span>
+        <span class="v"><a href="https://syntaxlabtechnology.com" data-ext>Syntax Lab Technology</a></span>
+      </div>
+      <div class="row">
+        <span class="k">Author</span>
+        <span class="v"><a href="https://rafay99.com" data-ext>Abdul Rafay</a></span>
+      </div>
+      <div class="row">
+        <span class="k">Source</span>
+        <span class="v">
+          <a class="gh" href="https://github.com/rafay99-epic/wryte.xyz" data-ext>
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+            rafay99-epic/wryte.xyz
+          </a>
+        </span>
+      </div>
+      <div class="row">
+        <span class="k">License</span>
+        <span class="v pills">
+          <span class="pill">MIT</span>
+          <span class="pill">Open Source</span>
+        </span>
+      </div>
+    </div>
+
+    <div class="foot" id="copyright">© Syntax Lab Technology</div>
+
+    <script>
+      const params = new URLSearchParams(location.search);
+      const v = params.get("v");
+      const y = params.get("y");
+      if (v) document.getElementById("version").textContent = `Version ${v}`;
+      document.getElementById("copyright").textContent =
+        `© ${y || ""} Syntax Lab Technology · Abdul Rafay`;
+      // Route external links through the OS browser (handled in main via setWindowOpenHandler).
+      for (const a of document.querySelectorAll("a[data-ext]")) {
+        a.setAttribute("target", "_blank");
+        a.setAttribute("rel", "noopener");
+      }
+    </script>
+  </body>
+</html>
