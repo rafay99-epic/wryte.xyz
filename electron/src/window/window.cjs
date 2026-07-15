@@ -1,7 +1,8 @@
 "use strict";
 
-const { app, BrowserWindow, shell } = require("electron");
+const { app, BrowserWindow, ipcMain, shell } = require("electron");
 const http = require("node:http");
+const https = require("node:https");
 const path = require("node:path");
 const config = require("../config.cjs");
 const state = require("./state.cjs");
@@ -10,6 +11,8 @@ const isMac = process.platform === "darwin";
 
 /** @type {Electron.BrowserWindow | undefined} */
 let mainWindow;
+/** @type {string | undefined} */
+let pendingAppUrl;
 
 /** @returns {Electron.BrowserWindow | undefined} */
 function getMainWindow() {
@@ -106,6 +109,7 @@ function createWindow(appUrl) {
     // the desktop flag (preload below) and turns its own header into the drag
     // bar with room for the lights — so no overlap and the window still drags.
     titleBarStyle: isMac ? "hiddenInset" : undefined,
+    trafficLightPosition: { x: 12, y: 12 },
     autoHideMenuBar: true,
     show: false, // revealed once the loading screen has painted (below)
     webPreferences: {
@@ -178,24 +182,98 @@ function createWindow(appUrl) {
     }, 1500);
   });
 
-  // Paint a local loading screen instantly, then load the app. Chromium holds
-  // the loading frame on-screen until the app produces its first paint (and
-  // keeps holding it across failed-load retries, since those never commit), so
-  // there's no blank window during the network wait.
+  // Paint a local loading screen instantly, then check connectivity. If online,
+  // load the app URL; if offline, show the offline page and wait for a reconnect.
   let started = false;
   const start = () => {
     if (started || !mainWindow) return;
     started = true;
     mainWindow.show();
-    mainWindow.loadURL(appUrl);
+    loadAppOrOffline(appUrl);
   };
   mainWindow.once("ready-to-show", start);
-  setTimeout(start, 3000); // fallback so a slow first paint can't strand it hidden
+  setTimeout(start, 3000);
   mainWindow.loadFile(path.join(__dirname, "loading.html"));
 
   mainWindow.on("closed", () => {
     mainWindow = undefined;
   });
+}
+
+/** Quick HEAD request to see if the internet is reachable (5s timeout). */
+function checkConnectivity() {
+  return new Promise((resolve) => {
+    const req = https.request(
+      {
+        hostname: config.CONNECTIVITY_CHECK_HOST,
+        path: config.CONNECTIVITY_CHECK_PATH,
+        method: "HEAD",
+        timeout: 5000,
+      },
+      (res) => {
+        res.resume();
+        resolve(res.statusCode >= 200 && res.statusCode < 400);
+      },
+    );
+    req.on("error", () => resolve(false));
+    req.on("timeout", () => {
+      req.destroy();
+      resolve(false);
+    });
+    req.end();
+  });
+}
+
+/**
+ * Try to load the app URL. If the connectivity check fails, show the
+ * offline page so the user can retry. The connectivity worker keeps
+ * polling in the background and will trigger a reload when online.
+ */
+function loadAppOrOffline(appUrl) {
+  pendingAppUrl = appUrl;
+  checkConnectivity().then((online) => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    if (online) {
+      mainWindow.loadURL(appUrl);
+    } else {
+      mainWindow.loadFile(path.join(__dirname, "offline.html"));
+    }
+  });
+}
+
+/**
+ * Called by main.cjs when the connectivity worker detects a state change.
+ * When we come back online after showing the offline page, reload the app.
+ * @param {boolean} online
+ */
+function onConnectivityChange(online) {
+  if (!online || !mainWindow || mainWindow.isDestroyed()) return;
+  const url = mainWindow.webContents.getURL();
+  if (url.includes("offline.html") && pendingAppUrl) {
+    mainWindow.loadURL(pendingAppUrl);
+  }
+}
+
+// ── IPC: offline page retry ─────────────────────────────────────────────────
+ipcMain.on("offline-retry", () => {
+  if (!mainWindow || mainWindow.isDestroyed() || !pendingAppUrl) return;
+  checkConnectivity().then((online) => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    if (online) {
+      mainWindow.loadURL(pendingAppUrl);
+    }
+    // If still offline, stay on offline page — user can click Retry again.
+  });
+});
+
+/** Connectivity-aware reload. Shows loading screen, checks connectivity,
+ * then loads app URL if online or offline page if not. */
+function reloadWithCheck() {
+  if (pendingAppUrl) {
+    loadAppOrOffline(pendingAppUrl);
+  } else {
+    resolveAppUrl().then((url) => loadAppOrOffline(url));
+  }
 }
 
 module.exports = {
@@ -208,4 +286,6 @@ module.exports = {
   goForward,
   setZoom,
   nudgeZoom,
+  onConnectivityChange,
+  reloadWithCheck,
 };

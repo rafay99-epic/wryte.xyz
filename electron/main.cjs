@@ -2,13 +2,97 @@
 
 // Entry point: app lifecycle + wiring. Feature logic lives in the sibling
 // modules (config / state / window / menu / updater / about).
-const { app, BrowserWindow, session } = require("electron");
+const { app, BrowserWindow, ipcMain, session, webContents } =
+  require("electron");
+const path = require("node:path");
+const { fork } = require("node:child_process");
 const state = require("./src/window/state.cjs");
 const win = require("./src/window/window.cjs");
 const menu = require("./src/menu/menu.cjs");
 const updater = require("./src/updater/updater.cjs");
 
 const isMac = process.platform === "darwin";
+
+// ── Performance: V8 code caching ──────────────────────────────────────────
+// Pre-compile cached JS data so subsequent starts skip parse/compile.
+app.commandLine.appendSwitch("v8-cache-options", "code");
+
+// ── Performance: GPU acceleration ──────────────────────────────────────────
+// Force GPU rasterization + zero-copy for smoother rendering.
+app.commandLine.appendSwitch("disable-software-rasterizer");
+app.commandLine.appendSwitch("enable-gpu-rasterization");
+app.commandLine.appendSwitch("enable-zero-copy");
+
+// ── Worker processes ────────────────────────────────────────────────────────
+/** @type {import("node:child_process").ChildProcess | undefined} */
+let connectivityWorker;
+/** @type {import("node:child_process").ChildProcess | undefined} */
+let taskWorker;
+let lastOnline = null;
+
+function spawnWorkers() {
+  const workerDir = path.join(__dirname, "src", "workers");
+
+  function spawn(name, file) {
+    const child = fork(file, [], { stdio: ["pipe", "pipe", "pipe", "ipc"] });
+    console.log(`[workers] ${name} spawned pid=${child.pid}`);
+    child.on("error", (err) => {
+      console.error(`[workers] ${name} error: ${err.message}`);
+    });
+    child.on("exit", (code, signal) => {
+      console.log(`[workers] ${name} exited code=${code} signal=${signal}`);
+    });
+    child.stderr?.on("data", (d) => {
+      process.stderr.write(`[${name}-worker] ${d}`);
+    });
+    return child;
+  }
+
+  // Connectivity worker: periodic internet reachability checks.
+  connectivityWorker = spawn(
+    "connectivity",
+    path.join(workerDir, "connectivity-worker.cjs"),
+  );
+  connectivityWorker.on("message", (msg) => {
+    if (msg?.type === "connectivity-change") {
+      lastOnline = msg.online;
+      webContents.getAllWebContents().forEach((wc) => {
+        wc.send("connectivity-change", msg.online);
+      });
+      win.onConnectivityChange(msg.online);
+    }
+  });
+  connectivityWorker.send({ type: "start" });
+
+  // Task worker: general-purpose background computation.
+  taskWorker = spawn("task", path.join(workerDir, "task-worker.cjs"));
+  taskWorker.on("message", (msg) => {
+    if (msg?.type === "task-result") {
+      webContents.getAllWebContents().forEach((wc) => {
+        wc.send("task-result", msg);
+      });
+    }
+  });
+}
+
+/** @returns {{ connectivity: number | null, task: number | null }} */
+function workerStatus() {
+  return {
+    connectivity: connectivityWorker?.pid ?? null,
+    task: taskWorker?.pid ?? null,
+  };
+}
+
+function killWorkers() {
+  const s = workerStatus();
+  connectivityWorker?.kill();
+  taskWorker?.kill();
+  if (s.connectivity || s.task) {
+    console.log(
+      `[workers] killed connectivity=${s.connectivity} task=${s.task}`,
+    );
+  }
+}
 
 // Single instance: a second launch focuses the existing window.
 if (!app.requestSingleInstanceLock()) {
@@ -21,8 +105,31 @@ if (!app.requestSingleInstanceLock()) {
     contents.on("will-attach-webview", (e) => e.preventDefault());
   });
 
+  // ── Performance: memory pressure handler ──────────────────────────────
+  // When the OS signals low memory, clear session caches and hint GC.
+  app.on("memory-pressure", (_e, level) => {
+    if (level === "critical" || level === "moderate") {
+      session.defaultSession.clearCache().catch(() => undefined);
+      for (const wc of webContents.getAllWebContents()) {
+        wc.executeJavaScript("window.gc?.()", false).catch(() => undefined);
+      }
+    }
+  });
+
+  // ── IPC: renderer subscribes to connectivity ──────────────────────────
+  ipcMain.on("connectivity-subscribe", () => {
+    if (lastOnline !== null) return;
+  });
+
+  // ── IPC: renderer submits a background task ───────────────────────────
+  ipcMain.on("task-submit", (_event, msg) => {
+    taskWorker?.send(msg);
+  });
+
+  // ── IPC: renderer queries worker status (PIDs) ────────────────────────
+  ipcMain.handle("worker-status", () => workerStatus());
+
   app.whenReady().then(async () => {
-    // Deny device-level permissions by default; allow only what the editor uses.
     const ALLOWED = new Set([
       "clipboard-read",
       "clipboard-sanitized-write",
@@ -35,6 +142,7 @@ if (!app.requestSingleInstanceLock()) {
 
     state.load();
     menu.build();
+    spawnWorkers();
     win.createWindow(await win.resolveAppUrl());
     if (app.isPackaged) updater.init();
 
@@ -49,5 +157,9 @@ if (!app.requestSingleInstanceLock()) {
 
   app.on("window-all-closed", () => {
     if (!isMac) app.quit();
+  });
+
+  app.on("will-quit", () => {
+    killWorkers();
   });
 }

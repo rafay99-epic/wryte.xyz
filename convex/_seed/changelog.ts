@@ -1332,6 +1332,24 @@ No behavior changes — everything works exactly as before, just lighter and fas
 - Section matches the brand amber aesthetic, mobile-optimized.
 `,
   },
+  {
+    title: "Offline resilience and launch fixes",
+    slug: "desktop-1-0-7-offline-resilience-and-launch-fixes",
+    description:
+      "Offline page retry now works, refresh while offline shows the offline page, macOS launch warning gone, and a CSP header that froze the app on launch is removed.",
+    version: "1.0.7",
+    category: "desktop",
+    build: "a1777a7",
+    publishedAt: Date.parse("2026-07-15T19:42:00+05:00"),
+    content: `## Fixes
+
+- **App no longer freezes on launch.** Removed the Content-Security-Policy header that blocked the Next.js HMR WebSocket (\`ws://\`) and Convex connections — the app would render the menu bar then hang.
+- **Offline page retry actually works.** The inline script was blocked by the page's own CSP (\`default-src 'none'\` with no \`script-src\`), so the click handler never attached. Fixed by adding \`script-src 'unsafe-inline'\` to the offline page CSP.
+- **Retry now re-checks connectivity.** \`window.location.reload()\` only reloaded the offline page file — never re-ran the connectivity check. Replaced with an IPC call to the main process that re-checks and navigates to the app URL when back online.
+- **Refresh while offline shows the offline page.** The menu's reload action now routes through the connectivity check instead of calling \`webContents.reload()\` directly, so pressing \`Cmd+R\` while disconnected shows the offline page instead of hanging.
+- **macOS "Window move completed without beginning" warning fixed.** Added \`trafficLightPosition\` to the BrowserWindow config — a known Electron + \`hiddenInset\` issue on macOS 15+.
+`,
+  },
 ];
 
 const seedResult = v.object({

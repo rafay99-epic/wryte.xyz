@@ -45,7 +45,11 @@ function build() {
     {
       label: "View",
       submenu: [
-        { role: "reload" },
+        {
+          label: "Reload",
+          accelerator: "CmdOrCtrl+R",
+          click: () => win.reloadWithCheck(),
+        },
         { role: "forceReload" },
         { role: "toggleDevTools" },
         { type: "separator" },
