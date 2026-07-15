@@ -3,10 +3,12 @@ const {
   BrowserWindow,
   dialog,
   Menu,
+  screen,
   session,
   shell,
 } = require("electron");
 const { autoUpdater } = require("electron-updater");
+const fs = require("node:fs");
 const http = require("node:http");
 const path = require("node:path");
 
@@ -28,6 +30,80 @@ const SCROLL_CSS = `
   html, body { overscroll-behavior: none; }
   * { -webkit-overflow-scrolling: touch; }
 `;
+
+// Persisted window bounds + zoom, so the app reopens where you left it at the
+// size and zoom you set. Stored as a small JSON in userData.
+// ponytail: hand-rolled instead of the electron-window-state dep — it's ~30 lines.
+const DEFAULT_STATE = { width: 1280, height: 840, zoom: 0 };
+let winState = { ...DEFAULT_STATE };
+let saveTimer;
+
+function stateFile() {
+  return path.join(app.getPath("userData"), "window-state.json");
+}
+
+function loadState() {
+  try {
+    winState = {
+      ...DEFAULT_STATE,
+      ...JSON.parse(fs.readFileSync(stateFile(), "utf8")),
+    };
+  } catch {
+    // First launch / unreadable — defaults are fine.
+  }
+}
+
+function writeStateNow() {
+  clearTimeout(saveTimer);
+  try {
+    fs.writeFileSync(stateFile(), JSON.stringify(winState));
+  } catch {
+    // Non-fatal: a failed write just means we forget bounds this once.
+  }
+}
+
+// Debounced during live resizing/moving; on close we flush synchronously
+// (writeStateNow) since the app quits before a timer would fire.
+function saveState() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(writeStateNow, 400);
+}
+
+// Only restore a saved position if it still lands on a connected display —
+// otherwise a window saved on an unplugged monitor opens off-screen.
+function savedPositionVisible() {
+  if (typeof winState.x !== "number" || typeof winState.y !== "number")
+    return false;
+  return screen.getAllDisplays().some((d) => {
+    const a = d.workArea;
+    return (
+      winState.x < a.x + a.width &&
+      winState.x + 100 > a.x &&
+      winState.y < a.y + a.height &&
+      winState.y + 40 > a.y
+    );
+  });
+}
+
+function captureBounds() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  winState.isMaximized = mainWindow.isMaximized();
+  // Only persist bounds when normal — a maximized window's bounds are the
+  // whole screen, which we don't want to restore as the un-maximized size.
+  if (!winState.isMaximized) Object.assign(winState, mainWindow.getBounds());
+}
+
+function applyZoom() {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.setZoomLevel(winState.zoom || 0);
+  }
+}
+
+function setZoom(level) {
+  winState.zoom = Math.max(-3, Math.min(3, level));
+  applyZoom();
+  saveState();
+}
 
 // Only hand these schemes to the OS. Blocks a hostile page from launching
 // arbitrary local handlers via window.open("file://…" / "someapp://…").
@@ -67,9 +143,12 @@ async function resolveAppUrl() {
 let mainWindow;
 
 function createWindow(appUrl) {
+  const usePos = savedPositionVisible();
   mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 840,
+    width: winState.width,
+    height: winState.height,
+    x: usePos ? winState.x : undefined,
+    y: usePos ? winState.y : undefined,
     minWidth: 960,
     minHeight: 640,
     title: "Wryte",
@@ -82,6 +161,20 @@ function createWindow(appUrl) {
       nodeIntegration: false,
       sandbox: true,
     },
+  });
+  if (winState.isMaximized) mainWindow.maximize();
+
+  // Persist size/position/maximized as they change (debounced), and flush
+  // synchronously on close since the app quits before a timer would fire.
+  const onBoundsChange = () => {
+    captureBounds();
+    saveState();
+  };
+  mainWindow.on("resize", onBoundsChange);
+  mainWindow.on("move", onBoundsChange);
+  mainWindow.on("close", () => {
+    captureBounds();
+    writeStateNow();
   });
 
   const contents = mainWindow.webContents;
@@ -113,6 +206,7 @@ function createWindow(appUrl) {
   let cssKey = "";
   contents.on("did-finish-load", async () => {
     retries = 0;
+    applyZoom(); // zoom level resets on navigation; re-apply the saved one.
     // Replace the prior stylesheet so reloads/redirects don't stack copies.
     if (cssKey) contents.removeInsertedCSS(cssKey).catch(() => undefined);
     cssKey = await contents.insertCSS(SCROLL_CSS).catch(() => "");
@@ -250,7 +344,32 @@ function buildAppMenu() {
         ]
       : []),
     { role: "editMenu" },
-    { role: "viewMenu" },
+    {
+      label: "View",
+      submenu: [
+        { role: "reload" },
+        { role: "forceReload" },
+        { role: "toggleDevTools" },
+        { type: "separator" },
+        {
+          label: "Actual Size",
+          accelerator: "CmdOrCtrl+0",
+          click: () => setZoom(0),
+        },
+        {
+          label: "Zoom In",
+          accelerator: "CmdOrCtrl+Plus",
+          click: () => setZoom((winState.zoom || 0) + 0.5),
+        },
+        {
+          label: "Zoom Out",
+          accelerator: "CmdOrCtrl+-",
+          click: () => setZoom((winState.zoom || 0) - 0.5),
+        },
+        { type: "separator" },
+        { role: "togglefullscreen" },
+      ],
+    },
     { role: "windowMenu" },
     {
       role: "help",
@@ -294,6 +413,7 @@ if (!app.requestSingleInstanceLock()) {
         callback(ALLOWED_PERMISSIONS.has(permission)),
     );
 
+    loadState();
     buildAppMenu();
     createWindow(await resolveAppUrl());
     if (app.isPackaged) initAutoUpdate();
