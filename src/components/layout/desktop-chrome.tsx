@@ -46,7 +46,7 @@ export function DesktopChrome() {
       document.documentElement.classList.add("wryte-desktop-mac");
     }
 
-    let prev = null;
+    let prev: boolean | null = null;
     const unsub = d.onOnlineStatusChange((isOnline) => {
       setOnline(isOnline);
       document.documentElement.classList.toggle(
