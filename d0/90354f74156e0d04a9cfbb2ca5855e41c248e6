@@ -1,0 +1,19 @@
+src/components/layout/desktop-chrome.tsx
+  s_43ee4d6b87f2f8::t_8ffc8dbfd71c82 49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "d090354f74156e0d04a9cfbb2ca5855e41c248e6",
+  "prompts": {},
+  "sessions": {
+    "s_43ee4d6b87f2f8": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_099ffaf46ffem3aZFu5VD5wcbX",
+        "model": "deepseek-v4-flash-free"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
