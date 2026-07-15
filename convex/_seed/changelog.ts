@@ -1281,6 +1281,26 @@ No behavior changes — everything works exactly as before, just lighter and fas
 - Smoother scrolling — the macOS rubber-band overscroll that made a wrapped web app feel off is gone.
 `,
   },
+  {
+    title: "Updates you can watch",
+    slug: "desktop-1-0-5-updates-you-can-watch",
+    description:
+      "The in-app updater now shows real progress — checking, downloading with a live progress bar, then a one-click Restart & Install.",
+    version: "1.0.5",
+    category: "desktop",
+    build: "8c59ed1",
+    publishedAt: Date.parse("2026-07-15T15:00:00+05:00"),
+    content: `## What's new
+
+- **A visible update flow.** Check for Updates now opens a small window that walks the whole thing: checking → downloading (with a live progress bar and size) → **Restart & Install**, then the app relaunches into the new version.
+- **Quiet in the background.** Automatic checks stay out of your way and only surface the window once an update has finished downloading and is ready to install.
+- **Diagnosable.** Update activity is written to an \`updater.log\` in the app's data folder, so a stuck update leaves a trail instead of failing silently.
+
+## Note for macOS
+
+- The mac build is ad-hoc signed, so in-app install can be blocked by macOS's update signature checks. If an update won't apply, \`brew upgrade --cask wryte\` always works.
+`,
+  },
 ];
 
 const seedResult = v.object({
