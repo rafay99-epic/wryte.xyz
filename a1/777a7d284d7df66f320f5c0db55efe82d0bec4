@@ -1,0 +1,19 @@
+src/features/marketing/components/desktop-app.tsx
+  s_43ee4d6b87f2f8::t_a3a6bfdcc425a8 4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "a1777a7d284d7df66f320f5c0db55efe82d0bec4",
+  "prompts": {},
+  "sessions": {
+    "s_43ee4d6b87f2f8": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_099ffaf46ffem3aZFu5VD5wcbX",
+        "model": "deepseek-v4-flash-free"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
