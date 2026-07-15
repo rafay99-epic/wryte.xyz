@@ -2,35 +2,73 @@
 
 import { usePaginatedQuery } from "convex/react";
 import { Loader2 } from "lucide-react";
+import { useState } from "react";
 import { ChangelogMarkdown } from "@/components/changelog/changelog-markdown";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { api } from "../../../../../convex/_generated/api";
 
 const PAGE_SIZE = 10;
 
+const TABS = [
+  { label: "All", value: undefined },
+  { label: "Website", value: "website" as const },
+  { label: "Desktop app", value: "desktop" as const },
+];
+
 export function ChangelogList() {
+  const [category, setCategory] = useState<"website" | "desktop" | undefined>(
+    undefined,
+  );
   const { results, status, loadMore } = usePaginatedQuery(
     api.cms.changelog.listPublished,
-    {},
+    category ? { category } : {},
     { initialNumItems: PAGE_SIZE },
   );
 
+  const tabs = (
+    <div className="flex flex-wrap gap-1.5">
+      {TABS.map((tab) => {
+        const active = tab.value === category;
+        return (
+          <button
+            key={tab.label}
+            type="button"
+            onClick={() => setCategory(tab.value)}
+            className={cn(
+              "rounded-full px-3.5 py-1.5 text-[13px] font-medium transition-colors",
+              active
+                ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                : "text-foreground/55 hover:text-foreground hover:bg-foreground/[0.05]",
+            )}
+          >
+            {tab.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+
   if (status === "LoadingFirstPage") {
-    return null;
+    return <div className="mb-12">{tabs}</div>;
   }
 
   if (results.length === 0) {
     return (
-      <div className="rounded-2xl border border-dashed border-foreground/15 p-12 text-center">
-        <p className="text-sm text-foreground/60">
-          No releases yet — check back soon.
-        </p>
+      <div className="space-y-10">
+        {tabs}
+        <div className="rounded-2xl border border-dashed border-foreground/15 p-12 text-center">
+          <p className="text-sm text-foreground/60">
+            No releases in this view yet — check back soon.
+          </p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-20">
+    <div className="space-y-12">
+      {tabs}
       <ol className="relative space-y-20 border-l border-foreground/10 pl-8">
         {results.map((entry) => (
           <li key={entry._id} className="relative">
@@ -52,6 +90,16 @@ export function ChangelogList() {
                   v{entry.version}
                 </span>
               ) : null}
+              <span
+                className={cn(
+                  "rounded-full px-2.5 py-0.5 text-[11px] font-medium",
+                  entry.category === "desktop"
+                    ? "bg-sky-500/10 text-sky-600 dark:text-sky-400"
+                    : "bg-foreground/[0.06] text-foreground/55",
+                )}
+              >
+                {entry.category === "desktop" ? "Desktop app" : "Website"}
+              </span>
               <span className="font-mono text-[11px] text-foreground/40">
                 build {entry.build}
               </span>

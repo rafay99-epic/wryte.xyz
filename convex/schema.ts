@@ -985,6 +985,9 @@ export default defineSchema({
     // which runs on the deployed SHA (see src/hooks/use-version-check.ts).
     version: v.optional(v.string()),
     build: v.string(),
+    // Which surface the entry describes. Optional so every pre-existing entry
+    // stays valid; a missing value is treated as "website" everywhere.
+    category: v.optional(v.union(v.literal("website"), v.literal("desktop"))),
     publishedAt: v.optional(v.number()),
     authorClerkUserId: v.string(),
     createdAt: v.number(),

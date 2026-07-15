@@ -32,6 +32,7 @@ export function ChangelogEdit({ id }: { id: Id<"changelog"> }) {
         build: entry.build,
         publish: entry.publishedAt !== undefined,
         ...(entry.version ? { version: entry.version } : {}),
+        ...(entry.category ? { category: entry.category } : {}),
       });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to load entry");

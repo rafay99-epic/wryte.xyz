@@ -22,6 +22,7 @@ export type ChangelogFormInitial = {
   content: string;
   version?: string;
   build: string;
+  category?: "website" | "desktop";
   publish: boolean;
 };
 
@@ -42,6 +43,9 @@ export function ChangelogForm({ initial }: { initial?: ChangelogFormInitial }) {
   const [description, setDescription] = useState(initial?.description ?? "");
   const [content, setContent] = useState(initial?.content ?? "");
   const [version, setVersion] = useState(initial?.version ?? "");
+  const [category, setCategory] = useState<"website" | "desktop">(
+    initial?.category ?? "website",
+  );
   // Auto-fill the build SHA from the deployed build so admins don't hand-type
   // it; still editable for backdating entries about an older build.
   const [build, setBuild] = useState(initial?.build ?? APP_BUILD_SHA);
@@ -76,6 +80,7 @@ export function ChangelogForm({ initial }: { initial?: ChangelogFormInitial }) {
             description,
             content,
             build,
+            category,
             publish,
             ...(version ? { version } : {}),
           });
@@ -87,6 +92,7 @@ export function ChangelogForm({ initial }: { initial?: ChangelogFormInitial }) {
             description,
             content,
             build,
+            category,
             publish,
             ...(version ? { version } : {}),
           });
@@ -103,6 +109,7 @@ export function ChangelogForm({ initial }: { initial?: ChangelogFormInitial }) {
     [
       autoSlug,
       build,
+      category,
       content,
       createEntry,
       description,
@@ -160,6 +167,20 @@ export function ChangelogForm({ initial }: { initial?: ChangelogFormInitial }) {
             placeholder="abc1234"
             required
           />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="category">Category</Label>
+          <select
+            id="category"
+            value={category}
+            onChange={(e) =>
+              setCategory(e.target.value as "website" | "desktop")
+            }
+            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            <option value="website">Website</option>
+            <option value="desktop">Desktop app</option>
+          </select>
         </div>
       </div>
 

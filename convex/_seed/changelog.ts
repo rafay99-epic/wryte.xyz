@@ -30,6 +30,8 @@ type SeedEntry = {
   /** Optional cosmetic milestone label (e.g. "1.0") — omitted by default. */
   version?: string;
   build: string;
+  /** Which surface the entry describes. Defaults to "website". */
+  category?: "website" | "desktop";
   /** Unix ms — when this entry actually shipped. */
   publishedAt: number;
 };
@@ -1240,6 +1242,44 @@ No behavior changes — everything works exactly as before, just lighter and fas
 - Projects still on Upload-Post keep their "post on publish" setting, and publishing never breaks — announcements simply pause with a clear reconnect prompt in Settings → Social until a Buffer key is added. A one-click cleanup removes the old credentials (vault entry included).
 `,
   },
+  {
+    title: "Wryte for desktop",
+    slug: "desktop-1-0-0-wryte-for-desktop",
+    description:
+      "Wryte is now a native macOS desktop app — the full workspace in its own window, with automatic updates and a one-command Homebrew install.",
+    version: "1.0.0",
+    category: "desktop",
+    build: "6527eb2",
+    publishedAt: Date.parse("2026-07-14T18:00:00+05:00"),
+    content: `## What's new
+
+- **Native desktop app.** The whole Wryte workspace in a dedicated window, backed by the same Convex-cloud data — sign in once and everything syncs.
+- **Automatic updates.** New versions download in the background; you get a plain "Update ready — Restart now / Later" prompt instead of a silent swap.
+- **Install with Homebrew.** \`brew install --cask rafay99-epic/apps/wryte\` — opens cleanly, no Gatekeeper detours.
+- **Locked-down shell.** Sandboxed with context isolation; device permissions (camera, mic, location) are denied by default, external links open in your browser.
+`,
+  },
+  {
+    title: "Window memory, zoom, and a branded About",
+    slug: "desktop-1-0-4-window-memory-zoom-about",
+    description:
+      "Desktop quality-of-life: the app reopens exactly where you left it, text zoom that sticks, and a proper About window with project and license info.",
+    version: "1.0.4",
+    category: "desktop",
+    build: "aeefd03",
+    publishedAt: Date.parse("2026-07-15T13:00:00+05:00"),
+    content: `## What's new
+
+- **Window memory.** Size, position, and maximized state persist across launches — reopen right where you left off (and never off-screen if you unplug a monitor).
+- **Zoom controls.** \`Cmd +\` / \`Cmd −\` / \`Cmd 0\` scale the interface, and your zoom level is remembered.
+- **Branded About window.** Company (Syntax Lab Technology), author (Abdul Rafay), the GitHub repo, and the MIT / open-source status — reachable from the app menu.
+- **Real app menu.** About, Check for Updates, GitHub / Report an Issue, plus the standard editing and view shortcuts.
+
+## Fixes
+
+- Smoother scrolling — the macOS rubber-band overscroll that made a wrapped web app feel off is gone.
+`,
+  },
 ];
 
 const seedResult = v.object({
@@ -1276,6 +1316,9 @@ export const _seedInternal = internalMutation({
         content: v.string(),
         version: v.optional(v.string()),
         build: v.string(),
+        category: v.optional(
+          v.union(v.literal("website"), v.literal("desktop")),
+        ),
         publishedAt: v.number(),
       }),
     ),
@@ -1306,6 +1349,7 @@ export const _seedInternal = internalMutation({
           description: entry.description,
           content: entry.content,
           build: entry.build,
+          category: entry.category ?? "website",
           publishedAt: entry.publishedAt,
           version: entry.version,
           updatedAt: now,
@@ -1321,6 +1365,7 @@ export const _seedInternal = internalMutation({
         description: entry.description,
         content: entry.content,
         build: entry.build,
+        category: entry.category ?? "website",
         publishedAt: entry.publishedAt,
         authorClerkUserId: args.authorClerkUserId,
         createdAt: now,

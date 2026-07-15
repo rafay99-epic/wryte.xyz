@@ -25,6 +25,10 @@ import {
 import { requireAdmin } from "../_lib/admin";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
 
+/** Which surface an entry describes. Missing value == "website" (legacy rows). */
+const CATEGORY = v.union(v.literal("website"), v.literal("desktop"));
+type Category = "website" | "desktop";
+
 /* ------------------------------------------------------------------ */
 /*  Public reads                                                       */
 /* ------------------------------------------------------------------ */
@@ -35,13 +39,29 @@ import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
  * pagination so the page stays fast as the list grows.
  */
 export const listPublished = query({
-  args: { paginationOpts: paginationOptsValidator },
+  args: {
+    paginationOpts: paginationOptsValidator,
+    // Optional filter for the changelog page's tag switcher. "website" also
+    // matches legacy entries that predate the category field.
+    category: v.optional(CATEGORY),
+  },
   handler: async (ctx, args) => {
-    return await ctx.db
+    const base = ctx.db
       .query("changelog")
       .withIndex("by_publishedAt", (q) => q.gt("publishedAt", 0))
-      .order("desc")
-      .paginate(args.paginationOpts);
+      .order("desc");
+    const filtered =
+      args.category === "desktop"
+        ? base.filter((q) => q.eq(q.field("category"), "desktop"))
+        : args.category === "website"
+          ? base.filter((q) =>
+              q.or(
+                q.eq(q.field("category"), "website"),
+                q.eq(q.field("category"), undefined),
+              ),
+            )
+          : base;
+    return await filtered.paginate(args.paginationOpts);
   },
 });
 
@@ -84,6 +104,7 @@ export const getByIdForAdmin = action({
     content: string;
     version?: string;
     build: string;
+    category?: Category;
     publishedAt?: number;
     authorClerkUserId: string;
     createdAt: number;
@@ -138,6 +159,7 @@ export const listAllForAdmin = action({
       content: string;
       version?: string;
       build: string;
+      category?: Category;
       publishedAt?: number;
       authorClerkUserId: string;
       createdAt: number;
@@ -168,6 +190,7 @@ export const create = action({
     content: v.string(),
     version: v.optional(v.string()),
     build: v.string(),
+    category: v.optional(CATEGORY),
     publish: v.boolean(),
   },
   handler: async (ctx, args): Promise<Id<"changelog">> => {
@@ -191,6 +214,7 @@ export const update = action({
     content: v.string(),
     version: v.optional(v.string()),
     build: v.string(),
+    category: v.optional(CATEGORY),
     publish: v.boolean(),
   },
   handler: async (ctx, args): Promise<null> => {
@@ -227,6 +251,7 @@ export const _create = internalMutation({
     content: v.string(),
     version: v.optional(v.string()),
     build: v.string(),
+    category: v.optional(CATEGORY),
     publish: v.boolean(),
     authorClerkUserId: v.string(),
   },
@@ -247,6 +272,7 @@ export const _create = internalMutation({
       description: args.description,
       content: args.content,
       build: args.build,
+      category: args.category ?? "website",
       authorClerkUserId: args.authorClerkUserId,
       createdAt: now,
       updatedAt: now,
@@ -266,6 +292,7 @@ export const _update = internalMutation({
     content: v.string(),
     version: v.optional(v.string()),
     build: v.string(),
+    category: v.optional(CATEGORY),
     publish: v.boolean(),
   },
   handler: async (ctx, args) => {
@@ -292,6 +319,7 @@ export const _update = internalMutation({
       content: args.content,
       version: args.version,
       build: args.build,
+      category: args.category ?? "website",
       updatedAt: now,
       // `ctx.db.patch` treats `undefined` as "clear this field", which is
       // exactly what we want when transitioning published → draft.
