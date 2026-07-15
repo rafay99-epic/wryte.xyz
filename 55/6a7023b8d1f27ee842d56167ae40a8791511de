@@ -1,0 +1,33 @@
+electron/src/about/about.html
+  s_5651bd423f8c1a::t_86d3ab7e86ea5d 1-98
+electron/main.cjs
+  s_5651bd423f8c1a::t_86d3ab7e86ea5d 6-9
+electron/src/menu/menu.cjs
+  s_5651bd423f8c1a::t_86d3ab7e86ea5d 1-102
+electron/src/about/about.cjs
+  s_5651bd423f8c1a::t_86d3ab7e86ea5d 1-44
+electron/src/updater/updater.cjs
+  s_5651bd423f8c1a::t_86d3ab7e86ea5d 1-50
+convex/_seed/changelog.ts
+  s_5651bd423f8c1a::t_ef6e6fac87e7fc 1274
+electron/src/window/window.cjs
+  s_5651bd423f8c1a::t_86d3ab7e86ea5d 1-190
+.vscode/settings.json
+  s_5651bd423f8c1a::t_fda88ffeb436d0 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "556a7023b8d1f27ee842d56167ae40a8791511de",
+  "prompts": {},
+  "sessions": {
+    "s_5651bd423f8c1a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c2b74d80-e4d8-4b2b-9589-6a26ef015026",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
