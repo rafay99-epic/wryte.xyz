@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Apple, Download, Monitor, Terminal, ExternalLink } from "lucide-react";
+import { Apple, Download, ExternalLink, Monitor, Terminal } from "lucide-react";
 import { SectionHeading } from "@/features/marketing/components/section-heading";
 
 function HighlightChip({
