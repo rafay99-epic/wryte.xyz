@@ -1301,6 +1301,22 @@ No behavior changes — everything works exactly as before, just lighter and fas
 - The mac build is ad-hoc signed, so in-app install can be blocked by macOS's update signature checks. If an update won't apply, \`brew upgrade --cask wryte\` always works.
 `,
   },
+  {
+    title: "Smoother launch and a draggable header",
+    slug: "desktop-1-0-6-launch-and-title-bar",
+    description:
+      "A loading screen so launch never shows a blank window, a header you can grab to move the window, and background work that no longer gets throttled.",
+    version: "1.0.6",
+    category: "desktop",
+    build: "ae99e8f",
+    publishedAt: Date.parse("2026-07-15T17:00:00+05:00"),
+    content: `## What's new
+
+- **A real loading screen.** Launch now shows the Wryte mark and a spinner instantly and holds it until the app has painted — no more blank window during the initial load.
+- **A header you can grab.** On macOS the window is frameless and the app's own header doubles as the title bar — the traffic-light buttons get their own space instead of overlapping the logo, and you can drag the header to move the window, including between monitors.
+- **No background throttling.** Autosave and AI streaming keep running at full speed even when the window isn't focused.
+`,
+  },
 ];
 
 const seedResult = v.object({
