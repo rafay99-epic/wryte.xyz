@@ -3,7 +3,7 @@
 const { app, BrowserWindow, shell } = require("electron");
 const http = require("node:http");
 const path = require("node:path");
-const config = require("./config.cjs");
+const config = require("../config.cjs");
 const state = require("./state.cjs");
 
 const isMac = process.platform === "darwin";
@@ -101,7 +101,7 @@ function createWindow(appUrl) {
     minHeight: 640,
     title: "Wryte",
     backgroundColor: "#0a0a0a",
-    icon: path.join(__dirname, "..", "public", "wryte-icon.png"),
+    icon: path.join(__dirname, "..", "..", "..", "public", "wryte-icon.png"),
     titleBarStyle: isMac ? "hiddenInset" : undefined,
     autoHideMenuBar: true,
     webPreferences: {

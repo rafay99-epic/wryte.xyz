@@ -2,7 +2,7 @@
 
 const { app, dialog } = require("electron");
 const { autoUpdater } = require("electron-updater");
-const config = require("./config.cjs");
+const config = require("../config.cjs");
 
 /**
  * Auto-update from GitHub Releases: download in the background, then prompt

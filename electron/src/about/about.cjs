@@ -2,7 +2,7 @@
 
 const { app, BrowserWindow } = require("electron");
 const path = require("node:path");
-const { openExternal } = require("./window.cjs");
+const { openExternal } = require("../window/window.cjs");
 
 /** @type {Electron.BrowserWindow | undefined} */
 let aboutWindow;

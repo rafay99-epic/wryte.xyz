@@ -1,10 +1,10 @@
 "use strict";
 
 const { Menu } = require("electron");
-const config = require("./config.cjs");
-const win = require("./window.cjs");
-const { openAboutWindow } = require("./about.cjs");
-const updater = require("./updater.cjs");
+const config = require("../config.cjs");
+const win = require("../window/window.cjs");
+const { openAboutWindow } = require("../about/about.cjs");
+const updater = require("../updater/updater.cjs");
 
 const isMac = process.platform === "darwin";
 

@@ -1271,6 +1271,7 @@ No behavior changes — everything works exactly as before, just lighter and fas
     content: `## What's new
 
 - **Window memory.** Size, position, and maximized state persist across launches — reopen right where you left off (and never off-screen if you unplug a monitor).
+- **Back & forward.** Move through your history with \`Cmd [\` / \`Cmd ]\`, a trackpad swipe, or your mouse's side buttons.
 - **Zoom controls.** \`Cmd +\` / \`Cmd −\` / \`Cmd 0\` scale the interface, and your zoom level is remembered.
 - **Branded About window.** Company (Syntax Lab Technology), author (Abdul Rafay), the GitHub repo, and the MIT / open-source status — reachable from the app menu.
 - **Real app menu.** About, Check for Updates, GitHub / Report an Issue, plus the standard editing and view shortcuts.

@@ -3,10 +3,10 @@
 // Entry point: app lifecycle + wiring. Feature logic lives in the sibling
 // modules (config / state / window / menu / updater / about).
 const { app, BrowserWindow, session } = require("electron");
-const state = require("./state.cjs");
-const win = require("./window.cjs");
-const menu = require("./menu.cjs");
-const updater = require("./updater.cjs");
+const state = require("./src/window/state.cjs");
+const win = require("./src/window/window.cjs");
+const menu = require("./src/menu/menu.cjs");
+const updater = require("./src/updater/updater.cjs");
 
 const isMac = process.platform === "darwin";
 
