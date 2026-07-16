@@ -1,0 +1,41 @@
+convex/_lib/commitAttribution.ts
+  s_e1a6c1abf26516::t_053f6c13a7adc7 1-114
+convex/_lib/githubApp.ts
+  s_e1a6c1abf26516::t_63d83d6332a60d 1-154
+convex/cms/projects.ts
+  s_e1a6c1abf26516::t_18c27475b8f7b4 14,48-50,76,349-354,418-424,440-444
+convex/integrations/github.ts
+  s_e1a6c1abf26516::t_aaf4f7fd73ad61 26-30,32,495-501,586-603,624-627,906-912,1078-1099,1107
+convex/schema.ts
+  s_e1a6c1abf26516::t_f8990e3d93d22d 93-110
+scripts/commit-attribution.test.ts
+  s_e1a6c1abf26516::t_5d6f91c559c89c 1-84
+src/app/gh/route.ts
+  s_e1a6c1abf26516::t_e131370f2f1bfd 1-13
+src/features/editor/components/publish-dialog.tsx
+  s_e1a6c1abf26516::t_4fd840d8d4d3d6 44-47,160-174,422-429
+src/features/project-settings/components/publishing-section.tsx
+  s_e1a6c1abf26516::t_1b5b65f792ac6a 10-13,33-39,82-147,250
+src/features/project-settings/hooks/use-publishing-section.ts
+  s_e1a6c1abf26516::t_97651840c96c56 6,21-29,49-51,59-61,69-70,74-76,89-91,107-109,122-128
+src/features/project-settings/types.ts
+  s_e1a6c1abf26516::t_479092110f8726 40-42
+convex/_generated/api.d.ts
+  s_e1a6c1abf26516::t_9680e47460c9c5 13,96
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "7cc3bad844c60c747b7193aaedd6263ad4ec257d",
+  "prompts": {},
+  "sessions": {
+    "s_e1a6c1abf26516": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "065d2d05-08ed-47da-aa2b-6a10f883e5a5",
+        "model": "unknown"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
