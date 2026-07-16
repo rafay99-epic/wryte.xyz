@@ -1350,6 +1350,26 @@ No behavior changes — everything works exactly as before, just lighter and fas
 - **macOS "Window move completed without beginning" warning fixed.** Added \`trafficLightPosition\` to the BrowserWindow config — a known Electron + \`hiddenInset\` issue on macOS 15+.
 `,
   },
+  {
+    title: "Deployment verification: know when a post didn't go live",
+    slug: "deployment-verification-email-alerts",
+    description:
+      "Opt-in monitoring that confirms your site actually rebuilt after each publish — and emails you when the commit landed but the deployment failed.",
+    version: "0.22.0",
+    category: "website",
+    build: "823893e",
+    publishedAt: Date.parse("2026-07-16T15:30:00+05:00"),
+    content: `## What's new
+
+A publish is only half the job — your post isn't live until your site rebuilds. If the build fails, the commit sits on GitHub while your readers see nothing. Wryte can now catch that.
+
+- **Committed-but-not-deployed alerts.** After each publish, Wryte verifies the deployment and emails you if it never went live — with links to the commit and, where available, the build logs.
+- **Works with any host, zero setup.** With just a site URL configured, new posts are verified by checking their public URL after publishing. Vercel, Netlify, Cloudflare Pages — anything.
+- **Vercel integration for exact build status.** Connect a Vercel API token (stored encrypted, never in the database) to get precise build states, failure detection on post updates too, and direct links to the failing build's logs. Skipped builds from back-to-back commits are handled correctly.
+- **Off by default.** Enable it per project in Settings → Publishing → Deployment Verification.
+- **At most one email per publish.** No alert storms — a publish either resolves quietly or notifies you exactly once.
+`,
+  },
 ];
 
 const seedResult = v.object({
