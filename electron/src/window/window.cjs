@@ -11,6 +11,14 @@ const isMac = process.platform === "darwin";
 
 /** @type {Electron.BrowserWindow | undefined} */
 let mainWindow;
+/** Set to true by main.cjs when the system tray is active. */
+let trayEnabled = false;
+/**
+ * Set on `before-quit` so the close handler lets the window actually close.
+ * Without this, hide-to-tray's preventDefault would block app.quit() from
+ * every path — tray Quit, Cmd+Q, and updater restarts — forever.
+ */
+let isQuitting = false;
 /** @type {string | undefined} */
 let pendingAppUrl;
 
@@ -88,6 +96,7 @@ function goForward() {
 function focusMainWindow() {
   if (!mainWindow) return;
   if (mainWindow.isMinimized()) mainWindow.restore();
+  if (!mainWindow.isVisible()) mainWindow.show();
   mainWindow.focus();
 }
 
@@ -130,9 +139,15 @@ function createWindow(appUrl) {
   };
   mainWindow.on("resize", onBounds);
   mainWindow.on("move", onBounds);
-  mainWindow.on("close", () => {
+  mainWindow.on("close", (event) => {
     state.capture(mainWindow);
     state.writeNow();
+    // When tray is active, hide to tray instead of closing. Quit via
+    // tray menu or Cmd+Q (isQuitting lets those actually close the window).
+    if (trayEnabled && !isQuitting) {
+      event.preventDefault();
+      mainWindow.hide();
+    }
   });
 
   // Back/forward via trackpad swipe (macOS) and mouse side-buttons (Win/Linux).
@@ -146,6 +161,11 @@ function createWindow(appUrl) {
   });
 
   const contents = mainWindow.webContents;
+
+  // Native spell check (all platforms, language list is a hint — the OS
+  // decides which dictionaries are actually available).
+  contents.session.setSpellCheckerEnabled(true);
+  contents.session.setSpellCheckerLanguages(["en-US"]);
 
   // window.open (Clerk OAuth popups): keep http(s) in-app, deny the rest.
   contents.setWindowOpenHandler(({ url }) => {
@@ -276,6 +296,14 @@ function reloadWithCheck() {
   }
 }
 
+function setTrayEnabled(enabled) {
+  trayEnabled = enabled;
+}
+
+function setQuitting(quitting) {
+  isQuitting = quitting;
+}
+
 module.exports = {
   createWindow,
   getMainWindow,
@@ -288,4 +316,6 @@ module.exports = {
   nudgeZoom,
   onConnectivityChange,
   reloadWithCheck,
+  setTrayEnabled,
+  setQuitting,
 };

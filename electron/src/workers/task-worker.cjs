@@ -23,8 +23,8 @@ const handlers = {
   ping: async (params) => {
     const { url, timeout = 5000 } = params;
     const start = Date.now();
-    const https = require("https");
-    const http = require("http");
+    const https = require("node:https");
+    const http = require("node:http");
     const httpMod = url.startsWith("https") ? https : http;
     return new Promise((resolve) => {
       const req = httpMod.request(url, { method: "HEAD" }, (res) => {

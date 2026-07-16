@@ -11,7 +11,7 @@ process.on("uncaughtException", (err) => {
   process.exit(1);
 });
 
-const https = require("https");
+const https = require("node:https");
 const config = require("../config.cjs");
 
 const CHECK_OPTIONS = {
@@ -60,5 +60,8 @@ process.on("message", (msg) => {
   if (msg?.type === "stop") {
     clearInterval(timer);
     timer = undefined;
+  }
+  if (msg?.type === "check-now") {
+    check();
   }
 });

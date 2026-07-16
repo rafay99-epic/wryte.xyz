@@ -2,7 +2,7 @@
 
 // Entry point: app lifecycle + wiring. Feature logic lives in the sibling
 // modules (config / state / window / menu / updater / about).
-const { app, BrowserWindow, ipcMain, session, webContents } =
+const { app, BrowserWindow, ipcMain, session, webContents, powerMonitor } =
   require("electron");
 const path = require("node:path");
 const { fork } = require("node:child_process");
@@ -10,6 +10,7 @@ const state = require("./src/window/state.cjs");
 const win = require("./src/window/window.cjs");
 const menu = require("./src/menu/menu.cjs");
 const updater = require("./src/updater/updater.cjs");
+const tray = require("./src/tray/tray.cjs");
 
 const isMac = process.platform === "darwin";
 
@@ -35,12 +36,12 @@ function spawnWorkers() {
 
   function spawn(name, file) {
     const child = fork(file, [], { stdio: ["pipe", "pipe", "pipe", "ipc"] });
-    console.log(`[workers] ${name} spawned pid=${child.pid}`);
+    console.info(`[workers] ${name} spawned pid=${child.pid}`);
     child.on("error", (err) => {
       console.error(`[workers] ${name} error: ${err.message}`);
     });
     child.on("exit", (code, signal) => {
-      console.log(`[workers] ${name} exited code=${code} signal=${signal}`);
+      console.info(`[workers] ${name} exited code=${code} signal=${signal}`);
     });
     child.stderr?.on("data", (d) => {
       process.stderr.write(`[${name}-worker] ${d}`);
@@ -88,7 +89,7 @@ function killWorkers() {
   connectivityWorker?.kill();
   taskWorker?.kill();
   if (s.connectivity || s.task) {
-    console.log(
+    console.info(
       `[workers] killed connectivity=${s.connectivity} task=${s.task}`,
     );
   }
@@ -143,7 +144,26 @@ if (!app.requestSingleInstanceLock()) {
     state.load();
     menu.build();
     spawnWorkers();
+
+    // Native system tray (shown after window is created).
     win.createWindow(await win.resolveAppUrl());
+    const mainWin = win.getMainWindow();
+    if (mainWin) {
+      try {
+        tray.createTray(mainWin);
+        win.setTrayEnabled(true);
+      } catch {
+        // Tray may be unsupported (headless Linux, sandboxed).
+        win.setTrayEnabled(false);
+      }
+    }
+
+    // Re-check connectivity when the system wakes from sleep.
+    powerMonitor.on("resume", () => {
+      if (!connectivityWorker || connectivityWorker.killed) return;
+      connectivityWorker.send({ type: "check-now" });
+    });
+
     if (app.isPackaged) updater.init();
 
     app.on("activate", async () => {
@@ -159,7 +179,14 @@ if (!app.requestSingleInstanceLock()) {
     if (!isMac) app.quit();
   });
 
+  // Flag every quit path (tray Quit, Cmd+Q, updater restart) so the
+  // hide-to-tray close handler doesn't preventDefault the real quit.
+  app.on("before-quit", () => {
+    win.setQuitting(true);
+  });
+
   app.on("will-quit", () => {
     killWorkers();
+    tray.destroyTray();
   });
 }
