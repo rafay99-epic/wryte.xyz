@@ -1,0 +1,44 @@
+electron/src/window/window.cjs
+  s_43ee4d6b87f2f8::t_260122204b3f9f 142
+  s_43ee4d6b87f2f8::t_7d93d4384ef263 14-15
+  s_43ee4d6b87f2f8::t_2a693e1294f154 16-18
+  s_33e03156a52246::t_c86005d56fb8d2 19-21,99,145-150,165-169,299-306,319-320
+electron/src/tray/tray.cjs
+  s_43ee4d6b87f2f8::t_a9b226b9c5c7eb 15-20
+  s_43ee4d6b87f2f8::t_8259393885045c 1-14,21-81
+electron/main.cjs
+  s_43ee4d6b87f2f8::t_e5f5c8586f2587 147-148,160-166
+  s_43ee4d6b87f2f8::t_dd5c651b88ad82 151-159
+  s_43ee4d6b87f2f8::t_740716f11e6388 13
+  s_43ee4d6b87f2f8::t_7830aee8190f5e 190
+  s_43ee4d6b87f2f8::t_ea1d49ffd65d38 150
+  s_43ee4d6b87f2f8::t_74b3d68be94cb4 5
+electron/src/workers/connectivity-worker.cjs
+  s_33e03156a52246::t_8a578c29562af2 14,64-66
+electron/src/workers/task-worker.cjs
+  s_33e03156a52246::t_a73679a950279b 26-27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "591355385cff906da9e91a0963365971359c7b82",
+  "prompts": {},
+  "sessions": {
+    "s_33e03156a52246": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "14ab503a-6aac-45d6-a3e9-082c77d7a50d",
+        "model": "unknown"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    },
+    "s_43ee4d6b87f2f8": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_099ffaf46ffem3aZFu5VD5wcbX",
+        "model": "deepseek-v4-flash-free"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
