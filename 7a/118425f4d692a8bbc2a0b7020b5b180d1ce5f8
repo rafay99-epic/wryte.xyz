@@ -1,0 +1,109 @@
+android/app/capacitor.build.gradle
+  s_e1a6c1abf26516::t_574ff0b761a1a2 1-19
+android/capacitor.settings.gradle
+  s_e1a6c1abf26516::t_30e0126b77469f 1-3
+biome.json
+  s_e1a6c1abf26516::t_9cfbd83e696ab1 16-19
+bun.lock
+  s_e1a6c1abf26516::t_a949352279a810 10-12,65,200-207,408-423,720-721,742,764,818-819,832-833,928,1070,1132-1133,1146,1228-1229,1262,1294,1400-1401,1422,1456,1756-1757,1806,1846,1854-1855,1868,1938,1996,2060,2066,2086-2087,2106,2112,2150-2151,2228-2229,2280-2281,2294-2295,2364-2365,2370,2372,2374,2376,2388-2391,2394-2395,2402-2403,2424-2426,2428-2430,2434,2444-2445,2450,2476,2478,2482-2483,2490-2491,2496-2503,2506-2507,2510-2511,2522-2523,2526-2527,2570-2571,2576,2594-2595,2598-2599,2602,2612,2618,2620,2718-2719,2722-2723,2732-2734,2736,2738,2744,2754,2764-2766,2790-2792,2816,2818,2820,2822,2836-2837,2842-2845,2850-2852,2854,2868-2871,2874,2876,2880-2881,2892
+capacitor.config.ts
+  s_e1a6c1abf26516::t_0787743343b782 1-23
+capacitor/www/index.html
+  s_e1a6c1abf26516::t_309fbc218871e5 1
+ios/.gitignore
+  s_e1a6c1abf26516::t_38136f8ec4f66b 1-13
+ios/App/App.xcodeproj/project.pbxproj
+  s_e1a6c1abf26516::t_15d2fa152fd067 1-376
+ios/App/App.xcodeproj/project.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist
+  s_e1a6c1abf26516::t_5417114b3b6c79 1-8
+ios/App/App/AppDelegate.swift
+  s_e1a6c1abf26516::t_abf418f17d3502 1-49
+ios/App/App/Assets.xcassets/AppIcon.appiconset/Contents.json
+  s_e1a6c1abf26516::t_155ab69b359fda 1-14
+ios/App/App/Assets.xcassets/Contents.json
+  s_e1a6c1abf26516::t_4d0f02e8232277 1-6
+ios/App/App/Assets.xcassets/Splash.imageset/Contents.json
+  s_e1a6c1abf26516::t_9ea09daf8637ae 1-23
+ios/App/App/Base.lproj/LaunchScreen.storyboard
+  s_e1a6c1abf26516::t_bdcb544c07f2d1 1-32
+ios/App/App/Base.lproj/Main.storyboard
+  s_e1a6c1abf26516::t_b00388dfc24310 1-19
+ios/App/App/Info.plist
+  s_e1a6c1abf26516::t_e6b08e0f62f717 1-51
+ios/App/CapApp-SPM/.gitignore
+  s_e1a6c1abf26516::t_11d66b6dca5180 1-9
+ios/App/CapApp-SPM/Package.swift
+  s_e1a6c1abf26516::t_158fda29d0446a 1-25
+ios/App/CapApp-SPM/README.md
+  s_e1a6c1abf26516::t_7930f2900c19ae 1-5
+ios/App/CapApp-SPM/Sources/CapApp-SPM/CapApp-SPM.swift
+  s_e1a6c1abf26516::t_48ef4744f83b6d 1
+ios/debug.xcconfig
+  s_e1a6c1abf26516::t_f10071c1ca0364 1
+package.json
+  s_e1a6c1abf26516::t_8af11dd6d08802 24-26,34-36,125
+android/.gitignore
+  s_e1a6c1abf26516::t_f52b3af6b697ee 1-101
+android/app/.gitignore
+  s_e1a6c1abf26516::t_4e21173232b1a7 1-2
+android/app/build.gradle
+  s_e1a6c1abf26516::t_6e81caccf82c18 1-54
+android/app/proguard-rules.pro
+  s_e1a6c1abf26516::t_f588463ce96cec 1-21
+android/app/src/androidTest/java/com/getcapacitor/myapp/ExampleInstrumentedTest.java
+  s_e1a6c1abf26516::t_d06975f4001d90 1-26
+android/app/src/main/AndroidManifest.xml
+  s_e1a6c1abf26516::t_fafd832dd1dcd5 1-41
+android/app/src/main/java/xyz/wryte/app/MainActivity.java
+  s_e1a6c1abf26516::t_27384fd77ba25d 1-5
+android/app/src/main/res/drawable-v24/ic_launcher_foreground.xml
+  s_e1a6c1abf26516::t_55eda1611973f6 1-34
+android/app/src/main/res/drawable/ic_launcher_background.xml
+  s_e1a6c1abf26516::t_e4478e7ed24bef 1-170
+android/app/src/main/res/layout/activity_main.xml
+  s_e1a6c1abf26516::t_caf0672d7c7940 1-12
+android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
+  s_e1a6c1abf26516::t_911de71ece0284 1-5
+android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml
+  s_e1a6c1abf26516::t_3d74798dfe6638 1-5
+android/app/src/main/res/values/ic_launcher_background.xml
+  s_e1a6c1abf26516::t_97a9690f615812 1-4
+android/app/src/main/res/values/strings.xml
+  s_e1a6c1abf26516::t_f4b9f9517cf33c 1-7
+android/app/src/main/res/values/styles.xml
+  s_e1a6c1abf26516::t_1d966f9ceebab0 1-22
+android/app/src/main/res/xml/file_paths.xml
+  s_e1a6c1abf26516::t_7e3b99ba5d4858 1-5
+android/app/src/test/java/com/getcapacitor/myapp/ExampleUnitTest.java
+  s_e1a6c1abf26516::t_0bd7ae42cac69a 1-18
+android/build.gradle
+  s_e1a6c1abf26516::t_cf735bbf07fa34 1-29
+android/gradle.properties
+  s_e1a6c1abf26516::t_c4de8aa570ea21 1-22
+android/gradle/wrapper/gradle-wrapper.properties
+  s_e1a6c1abf26516::t_39543736a709ac 1-7
+android/gradlew
+  s_e1a6c1abf26516::t_2fb46a57a8ec54 1-251
+android/gradlew.bat
+  s_e1a6c1abf26516::t_2758182d28ec54 1-94
+android/settings.gradle
+  s_e1a6c1abf26516::t_da408450983c4b 1-5
+android/variables.gradle
+  s_e1a6c1abf26516::t_1e3c4a05a536d9 1-16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "7a118425f4d692a8bbc2a0b7020b5b180d1ce5f8",
+  "prompts": {},
+  "sessions": {
+    "s_e1a6c1abf26516": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "065d2d05-08ed-47da-aa2b-6a10f883e5a5",
+        "model": "unknown"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
