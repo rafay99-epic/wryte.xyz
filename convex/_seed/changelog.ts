@@ -1370,6 +1370,27 @@ A publish is only half the job — your post isn't live until your site rebuilds
 - **At most one email per publish.** No alert storms — a publish either resolves quietly or notifies you exactly once.
 `,
   },
+  {
+    title: "System tray, wake-up reconnect, and spell check",
+    slug: "desktop-1-0-8-system-tray-and-wake-reconnect",
+    description:
+      "Wryte now lives in your system tray — closing the window keeps it running — plus instant reconnect after sleep and native spell check in the editor.",
+    version: "1.0.8",
+    category: "desktop",
+    build: "5913553",
+    publishedAt: Date.parse("2026-07-16T16:00:00+05:00"),
+    content: `## What's new
+
+- **System tray.** Wryte now sits in your tray/menu bar. Closing the window hides the app instead of quitting — click the tray icon to bring it right back, or quit for real from the tray menu (Cmd+Q still works too).
+- **Instant reconnect after sleep.** Waking your machine now triggers an immediate connectivity check instead of waiting for the next scheduled one — no more brief "offline" flash when everything is actually fine.
+- **Native spell check.** The editor now uses your OS spell checker, with squiggles where you'd expect them.
+
+## Fixes
+
+- Quitting from the tray menu, Cmd+Q, and update restarts all close the app cleanly — hide-to-tray can't swallow a real quit.
+- A missing tray icon now falls back to normal window-close behavior instead of an invisible tray.
+`,
+  },
 ];
 
 const seedResult = v.object({
