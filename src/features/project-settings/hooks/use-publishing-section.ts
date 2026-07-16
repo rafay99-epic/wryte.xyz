@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
+import { validateAttributionText } from "../../../../convex/_lib/commitAttribution";
 import type { ProjectData } from "../types";
 
 export function usePublishingSection({
@@ -16,6 +17,15 @@ export function usePublishingSection({
 
   const [commitTemplate, setCommitTemplate] = useState(
     project.commitMessageTemplate ?? "docs: publish {{filename}}",
+  );
+  const [attributionEnabled, setAttributionEnabled] = useState(
+    project.commitAttribution ?? true,
+  );
+  const [attributionText, setAttributionText] = useState(
+    project.commitAttributionText ?? "",
+  );
+  const [verifiedCommits, setVerifiedCommits] = useState(
+    project.verifiedCommits ?? false,
   );
   const [defaultDraft, setDefaultDraft] = useState(
     project.defaultDraft ?? true,
@@ -36,6 +46,9 @@ export function usePublishingSection({
     setCommitTemplate(
       project.commitMessageTemplate ?? "docs: publish {{filename}}",
     );
+    setAttributionEnabled(project.commitAttribution ?? true);
+    setAttributionText(project.commitAttributionText ?? "");
+    setVerifiedCommits(project.verifiedCommits ?? false);
     setDefaultDraft(project.defaultDraft ?? true);
     setFrontmatterFormat(project.frontmatterFormat ?? "yaml");
     setTimezone(project.timezone ?? "");
@@ -43,6 +56,9 @@ export function usePublishingSection({
     setTrashRetentionDays(project.trashRetentionDays ?? 30);
   }, [
     project.commitMessageTemplate,
+    project.commitAttribution,
+    project.commitAttributionText,
+    project.verifiedCommits,
     project.defaultDraft,
     project.frontmatterFormat,
     project.timezone,
@@ -50,9 +66,14 @@ export function usePublishingSection({
     project.trashRetentionDays,
   ]);
 
+  const attributionError = validateAttributionText(attributionText.trim());
+
   const hasChanges =
     commitTemplate.trim() !==
       (project.commitMessageTemplate ?? "docs: publish {{filename}}") ||
+    attributionEnabled !== (project.commitAttribution ?? true) ||
+    attributionText.trim() !== (project.commitAttributionText ?? "") ||
+    verifiedCommits !== (project.verifiedCommits ?? false) ||
     defaultDraft !== (project.defaultDraft ?? true) ||
     frontmatterFormat !== (project.frontmatterFormat ?? "yaml") ||
     timezone !== (project.timezone ?? "") ||
@@ -65,6 +86,9 @@ export function usePublishingSection({
       const args: Parameters<typeof updateProject>[0] = {
         projectId,
         commitMessageTemplate: commitTemplate.trim(),
+        commitAttribution: attributionEnabled,
+        commitAttributionText: attributionText.trim(),
+        verifiedCommits,
         defaultDraft,
         frontmatterFormat,
         timezone,
@@ -80,6 +104,9 @@ export function usePublishingSection({
     }
   }, [
     commitTemplate,
+    attributionEnabled,
+    attributionText,
+    verifiedCommits,
     defaultDraft,
     frontmatterFormat,
     timezone,
@@ -92,6 +119,13 @@ export function usePublishingSection({
   return {
     commitTemplate,
     setCommitTemplate,
+    attributionEnabled,
+    setAttributionEnabled,
+    attributionText,
+    setAttributionText,
+    attributionError,
+    verifiedCommits,
+    setVerifiedCommits,
     defaultDraft,
     setDefaultDraft,
     frontmatterFormat,

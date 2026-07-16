@@ -90,6 +90,24 @@ export default defineSchema({
     frontmatterSchema: v.optional(v.string()),
     /** Custom commit message template, e.g. "docs: update {{filename}}" */
     commitMessageTemplate: v.optional(v.string()),
+    /**
+     * Append the "Published with Wryte" attribution line to publish commits.
+     * Absent = enabled (default ON); false = off. See _lib/commitAttribution.ts.
+     */
+    commitAttribution: v.optional(v.boolean()),
+    /**
+     * Custom attribution phrase replacing "Published with Wryte". The
+     * wryte.xyz/gh link is always appended by the module — this is only the
+     * text before it. Validated single-line (see validateAttributionText).
+     */
+    commitAttributionText: v.optional(v.string()),
+    /**
+     * Commit via the wryte-xyz GitHub App installation token — committer
+     * becomes wryte-xyz[bot] with a Verified badge, author stays the user.
+     * Requires the App installed on the repo; publishes silently fall back
+     * to the user's token otherwise. Absent = off. See _lib/githubApp.ts.
+     */
+    verifiedCommits: v.optional(v.boolean()),
     /** Filename pattern for new posts, e.g. "{{slug}}.md" or "{{date}}-{{slug}}.md" */
     filenamePattern: v.optional(v.string()),
     /** Content file format — controls extension (.md or .mdx) and editor behaviour */

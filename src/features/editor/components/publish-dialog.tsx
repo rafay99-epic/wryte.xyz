@@ -41,6 +41,10 @@ import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/stores/editor-store";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
+import {
+  attributionLine,
+  renderCommitTemplate,
+} from "../../../../convex/_lib/commitAttribution";
 import { PublishChecklist } from "./publish-checklist";
 
 const documentsUpdate = api.cms.documents.update;
@@ -115,10 +119,6 @@ export function PublishDialog({
   const isAlreadyScheduled = document?.status === "scheduled";
   const existingScheduledAt = document?.scheduledAt;
 
-  const defaultCommitMessage = isUpdate
-    ? `Update ${title || "document"}`
-    : `Add ${title || "document"}`;
-
   // getPublicConfig returns a legacy-marker variant without `status` while a
   // project is still on retired Upload-Post credentials — narrow before use.
   const hasActiveCredential =
@@ -156,6 +156,21 @@ export function PublishDialog({
   const contentPath = project?.contentPath ?? "content";
   const slug = document?.slug ?? "untitled";
   const filePath = `${contentPath}/${slug}${getFileExtension(project?.contentFormat)}`;
+
+  // Seed the commit message from the project template (same substitution the
+  // server applies when no message is passed), falling back to Update/Add.
+  const defaultCommitMessage = project?.commitMessageTemplate
+    ? renderCommitTemplate(project.commitMessageTemplate, {
+        title: title || "document",
+        slug,
+        filename: `${slug}${getFileExtension(project?.contentFormat)}`,
+        date: new Date().toISOString().slice(0, 10),
+      })
+    : isUpdate
+      ? `Update ${title || "document"}`
+      : `Add ${title || "document"}`;
+
+  const attributionEnabled = project?.commitAttribution !== false;
 
   // ── Publish state ────────────────────────────────────────────
 
@@ -404,6 +419,14 @@ export function PublishDialog({
                     placeholder="Commit message"
                     className="text-sm"
                   />
+                  {attributionEnabled && (
+                    <p className="text-xs text-muted-foreground">
+                      + {attributionLine(project?.commitAttributionText)}{" "}
+                      <span className="opacity-70">
+                        (disable in project settings)
+                      </span>
+                    </p>
+                  )}
                 </div>
 
                 {socialEnabled ? (

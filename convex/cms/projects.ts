@@ -11,6 +11,7 @@ import {
   query,
 } from "../_generated/server";
 import { getAuthedUserOrNull, getCurrentUser } from "../_lib/auth";
+import { validateAttributionText } from "../_lib/commitAttribution";
 import { compressionSettingsValidator } from "../_lib/compression";
 import { contentFormatValidator } from "../_lib/contentFormat";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
@@ -44,6 +45,9 @@ const projectFields = {
   ),
   frontmatterSchema: v.optional(v.string()),
   commitMessageTemplate: v.optional(v.string()),
+  commitAttribution: v.optional(v.boolean()),
+  commitAttributionText: v.optional(v.string()),
+  verifiedCommits: v.optional(v.boolean()),
   filenamePattern: v.optional(v.string()),
   contentFormat: v.optional(contentFormatValidator),
   defaultDraft: v.optional(v.boolean()),
@@ -69,6 +73,7 @@ const projectFields = {
   autoSaveEnabled: v.optional(v.boolean()),
   isFavorite: v.optional(v.boolean()),
   sortOrder: v.optional(v.number()),
+  deployVerificationEnabled: v.optional(v.boolean()),
   compressionSettings: v.optional(compressionSettingsValidator),
   maxUploadBytes: v.optional(v.number()),
   trashRetentionDays: v.optional(v.number()),
@@ -341,6 +346,12 @@ export const update = mutation({
     ),
     frontmatterSchema: v.optional(v.string()),
     commitMessageTemplate: v.optional(v.string()),
+    /** Attribution line on publish commits — absent = ON, false = off. */
+    commitAttribution: v.optional(v.boolean()),
+    /** Custom attribution phrase ("" clears back to the default). */
+    commitAttributionText: v.optional(v.string()),
+    /** Commit as wryte-xyz[bot] via App installation token (Verified badge). */
+    verifiedCommits: v.optional(v.boolean()),
     filenamePattern: v.optional(v.string()),
     contentFormat: v.optional(contentFormatValidator),
     defaultDraft: v.optional(v.boolean()),
@@ -404,6 +415,13 @@ export const update = mutation({
       throw new Error("Unauthorized: you do not own this project");
     }
 
+    if (args.commitAttributionText !== undefined) {
+      const error = validateAttributionText(args.commitAttributionText.trim());
+      if (error) {
+        throw new Error(error);
+      }
+    }
+
     const { projectId, ...updates } = args;
     const fieldsToUpdate: Record<string, unknown> = { updatedAt: Date.now() };
 
@@ -417,6 +435,11 @@ export const update = mutation({
       }
       if (k === "maxUploadBytes" && value === null) {
         fieldsToUpdate["maxUploadBytes"] = undefined;
+        continue;
+      }
+      // Empty custom attribution text clears the field (default phrase applies).
+      if (k === "commitAttributionText" && typeof value === "string") {
+        fieldsToUpdate[k] = value.trim() || undefined;
         continue;
       }
       fieldsToUpdate[k] = value;

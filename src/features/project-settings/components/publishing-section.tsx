@@ -7,6 +7,10 @@ import { Switch } from "@/components/ui/switch";
 import { TimezoneSelect } from "@/components/ui/timezone-select";
 import { smoothTransition, staggerContainer, staggerItem } from "@/lib/motion";
 import type { Id } from "../../../../convex/_generated/dataModel";
+import {
+  attributionLine,
+  DEFAULT_ATTRIBUTION_TEXT,
+} from "../../../../convex/_lib/commitAttribution";
 import { usePublishingSection } from "../hooks/use-publishing-section";
 import type { ProjectData } from "../types";
 import {
@@ -26,6 +30,13 @@ export function PublishingSection({
   const {
     commitTemplate,
     setCommitTemplate,
+    attributionEnabled,
+    setAttributionEnabled,
+    attributionText,
+    setAttributionText,
+    attributionError,
+    verifiedCommits,
+    setVerifiedCommits,
     defaultDraft,
     setDefaultDraft,
     frontmatterFormat,
@@ -67,6 +78,72 @@ export function PublishingSection({
             className="font-mono text-sm"
           />
         </FieldGroup>
+
+        <div className="rounded-xl border border-border/40 bg-card px-4 py-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium">Wryte attribution</p>
+              <p className="text-xs text-muted-foreground">
+                Append{" "}
+                <code className="rounded bg-muted px-1 py-px text-[10px]">
+                  {attributionLine(attributionText)}
+                </code>{" "}
+                to publish commits.
+              </p>
+            </div>
+            <Switch
+              checked={attributionEnabled}
+              onCheckedChange={(checked) => setAttributionEnabled(checked)}
+            />
+          </div>
+          {attributionEnabled && (
+            <div className="mt-3 space-y-1">
+              <Input
+                value={attributionText}
+                onChange={(e) => setAttributionText(e.target.value)}
+                placeholder={DEFAULT_ATTRIBUTION_TEXT}
+                className="font-mono text-sm"
+                aria-label="Custom attribution text"
+              />
+              <p
+                className={
+                  attributionError
+                    ? "text-xs text-destructive"
+                    : "text-xs text-muted-foreground"
+                }
+              >
+                {attributionError ??
+                  "Optional custom phrase — the wryte.xyz/gh link is always appended. Variables: {{title}}, {{filename}}"}
+              </p>
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between rounded-xl border border-border/40 bg-card px-4 py-3">
+          <div>
+            <p className="text-sm font-medium">Verified commits</p>
+            <p className="text-xs text-muted-foreground">
+              Commit as{" "}
+              <code className="rounded bg-muted px-1 py-px text-[10px]">
+                wryte-xyz[bot]
+              </code>{" "}
+              with GitHub&apos;s Verified badge — you stay the author. Requires{" "}
+              <a
+                href="https://github.com/apps/wryte-xyz/installations/new"
+                target="_blank"
+                rel="noreferrer"
+                className="underline underline-offset-2"
+              >
+                installing the wryte-xyz app
+              </a>{" "}
+              on your repo; falls back to your token otherwise.
+            </p>
+          </div>
+          <Switch
+            checked={verifiedCommits}
+            onCheckedChange={(checked) => setVerifiedCommits(checked)}
+          />
+        </div>
 
         <div className="flex items-center justify-between rounded-xl border border-border/40 bg-card px-4 py-3">
           <div>
@@ -170,7 +247,7 @@ export function PublishingSection({
 
         <SaveButton
           isSaving={isSaving}
-          disabled={!hasChanges}
+          disabled={!hasChanges || Boolean(attributionError)}
           onClick={() => void handleSave()}
         />
       </motion.div>

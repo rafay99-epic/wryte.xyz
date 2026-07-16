@@ -10,6 +10,7 @@
 
 import type * as _lib_admin from "../_lib/admin.js";
 import type * as _lib_auth from "../_lib/auth.js";
+import type * as _lib_commitAttribution from "../_lib/commitAttribution.js";
 import type * as _lib_compression from "../_lib/compression.js";
 import type * as _lib_contentFormat from "../_lib/contentFormat.js";
 import type * as _lib_contentHash from "../_lib/contentHash.js";
@@ -92,6 +93,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   "_lib/admin": typeof _lib_admin;
   "_lib/auth": typeof _lib_auth;
+  "_lib/commitAttribution": typeof _lib_commitAttribution;
   "_lib/compression": typeof _lib_compression;
   "_lib/contentFormat": typeof _lib_contentFormat;
   "_lib/contentHash": typeof _lib_contentHash;

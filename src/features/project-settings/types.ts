@@ -37,6 +37,9 @@ export type ProjectData = {
   mediaStorageMode?: MediaStorageMode;
   frontmatterSchema?: string;
   commitMessageTemplate?: string;
+  commitAttribution?: boolean;
+  commitAttributionText?: string;
+  verifiedCommits?: boolean;
   filenamePattern?: string;
   contentFormat?: "md" | "mdx";
   defaultDraft?: boolean;

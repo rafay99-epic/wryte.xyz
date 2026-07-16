@@ -23,7 +23,13 @@ import type { Id } from "../_generated/dataModel";
 import type { ActionCtx } from "../_generated/server";
 import { action, internalAction } from "../_generated/server";
 import { getGithubToken } from "../_lib/auth";
+import {
+  type CommitTemplateVars,
+  renderCommitTemplate,
+  withAttribution,
+} from "../_lib/commitAttribution";
 import { coerceFrontmatterArrays } from "../_lib/frontmatter";
+import { resolveCommitClient } from "../_lib/githubApp";
 import { buildPublishedUrl } from "../_lib/publishedUrl";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
 import { importPool } from "../_pools/import";
@@ -486,7 +492,13 @@ export const publishToGithub = internalAction({
       `${document.slug}${ext}`,
     );
 
-    const octokit = new Octokit({ auth: token });
+    const { octokit, commitAuthor } = await resolveCommitClient({
+      userToken: token,
+      project,
+      owner,
+      repo,
+      githubUsername: user.githubUsername,
+    });
 
     let frontmatterData: Record<string, unknown> = {
       title: document.title,
@@ -571,9 +583,24 @@ export const publishToGithub = internalAction({
     }
 
     const isUpdate = Boolean(existingSha);
-    const commitMessage =
-      args.commitMessage ||
-      (isUpdate ? `Update ${document.title}` : `Add ${document.title}`);
+    const templateVars: CommitTemplateVars = {
+      title: document.title,
+      slug: document.slug,
+      filename: `${document.slug}${ext}`,
+      date: new Date().toISOString().slice(0, 10),
+    };
+    const baseMessage =
+      args.commitMessage?.trim() ||
+      (project.commitMessageTemplate
+        ? renderCommitTemplate(project.commitMessageTemplate, templateVars)
+        : isUpdate
+          ? `Update ${document.title}`
+          : `Add ${document.title}`);
+    const commitMessage = withAttribution(baseMessage, {
+      enabled: project.commitAttribution !== false,
+      customText: project.commitAttributionText,
+      vars: templateVars,
+    });
 
     // Diagnostic: log the exact values we're about to send so when GitHub
     // 404s we have one log line telling us whether the bug is in branch,
@@ -594,6 +621,10 @@ export const publishToGithub = internalAction({
         content: base64Content,
         branch,
         ...(existingSha ? { sha: existingSha } : {}),
+        // Verified commits: committer defaults to the App token identity
+        // (wryte-xyz[bot]); the explicit author keeps the user's avatar
+        // and contribution graph on the commit.
+        ...(commitAuthor ? { author: commitAuthor } : {}),
       });
     } catch (error: unknown) {
       const err = error as { status?: number; message?: string };
@@ -872,7 +903,13 @@ export const bulkPublish = action({
     const branch = project.githubBranch ?? "main";
     const contentPath = normalizeRepoPath(project.contentPath ?? "content");
 
-    const octokit = new Octokit({ auth: token });
+    const { octokit, commitAuthor } = await resolveCommitClient({
+      userToken: token,
+      project,
+      owner,
+      repo,
+      githubUsername: user.githubUsername,
+    });
 
     const docs: Array<{
       id: (typeof args.documentIds)[number];
@@ -1038,10 +1075,28 @@ export const bulkPublish = action({
     });
 
     const titles = docFileMap.map((d) => d.doc.title);
-    const commitMessage =
-      titles.length === 1
-        ? `Publish ${titles[0]}`
-        : `Publish ${String(titles.length)} articles: ${titles.slice(0, 3).join(", ")}${titles.length > 3 ? "..." : ""}`;
+    // Single-doc bulk publishes honor the project's commit message template;
+    // multi-doc commits keep the generated summary ({{title}} is ambiguous).
+    const soleEntry = docFileMap.length === 1 ? docFileMap[0] : undefined;
+    const bulkTemplateVars: CommitTemplateVars | undefined = soleEntry
+      ? {
+          title: soleEntry.doc.title,
+          slug: soleEntry.doc.slug,
+          filename: soleEntry.filePath.split("/").pop() ?? "",
+          date: new Date().toISOString().slice(0, 10),
+        }
+      : undefined;
+    const baseBulkMessage =
+      soleEntry && project.commitMessageTemplate && bulkTemplateVars
+        ? renderCommitTemplate(project.commitMessageTemplate, bulkTemplateVars)
+        : titles.length === 1
+          ? `Publish ${titles[0]}`
+          : `Publish ${String(titles.length)} articles: ${titles.slice(0, 3).join(", ")}${titles.length > 3 ? "..." : ""}`;
+    const commitMessage = withAttribution(baseBulkMessage, {
+      enabled: project.commitAttribution !== false,
+      customText: project.commitAttributionText,
+      vars: bulkTemplateVars,
+    });
 
     const { data: newCommit } = await octokit.git.createCommit({
       owner,
@@ -1049,6 +1104,7 @@ export const bulkPublish = action({
       message: commitMessage,
       tree: newTree.sha,
       parents: [baseCommitSha],
+      ...(commitAuthor ? { author: commitAuthor } : {}),
     });
 
     await octokit.git.updateRef({
