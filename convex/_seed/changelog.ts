@@ -1391,6 +1391,27 @@ A publish is only half the job — your post isn't live until your site rebuilds
 - A missing tray icon now falls back to normal window-close behavior instead of an invisible tray.
 `,
   },
+  {
+    title: "Commit attribution and verified commits",
+    slug: "commit-attribution-verified-commits",
+    description:
+      "Publish commits can now credit Wryte with a customizable attribution line, and optionally ship as wryte-xyz[bot] with GitHub's Verified badge — you stay the author.",
+    version: "0.23.0",
+    category: "website",
+    build: "b09a9a9",
+    publishedAt: Date.parse("2026-07-17T03:40:00+05:00"),
+    content: `## What's new
+
+- **"Published with Wryte" attribution.** Publish commits now end with a small attribution line linking to wryte.xyz. On by default, one click off in Settings → Publishing, and the publish dialog always previews the exact line before you commit.
+- **Custom attribution phrase.** Replace the default text with your own — \`{{title}}\` and \`{{filename}}\` variables supported. The link is appended automatically, and the phrase is validated server-side so nothing malformed ever reaches your git history.
+- **Verified commits (opt-in).** Install the [wryte-xyz GitHub App](https://github.com/apps/wryte-xyz) on your repo and enable the toggle: publishes are committed by \`wryte-xyz[bot]\` with GitHub's **Verified** badge while you remain the git author — your avatar and contribution graph stay intact. If the App isn't installed, publishing silently falls back to your own token.
+- **Commit message templates now actually work.** The template setting (\`docs: publish {{filename}}\`) existed but was never applied — it now drives the default commit message in both single and bulk publishes, with \`{{title}}\`, \`{{slug}}\`, \`{{filename}}\`, and \`{{date}}\` variables.
+
+## Fixes
+
+- The deployment-verification toggle now correctly reflects its saved state after a reload.
+`,
+  },
 ];
 
 const seedResult = v.object({
