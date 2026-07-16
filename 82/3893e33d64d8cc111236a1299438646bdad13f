@@ -1,0 +1,25 @@
+bun.lock
+  s_33e03156a52246::t_f48c27908917c8 14,212-213,1830-1831,1926-1927,1936-1937,2090-2091
+convex/convex.config.ts
+  s_33e03156a52246::t_cc62e039c6d170 3,10
+convex/deployments/targets.ts
+  s_33e03156a52246::t_89327bbbd253ee 1-158
+convex/deployments/verify.ts
+  s_33e03156a52246::t_1502e107820c45 1-378
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "823893e33d64d8cc111236a1299438646bdad13f",
+  "prompts": {},
+  "sessions": {
+    "s_33e03156a52246": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "14ab503a-6aac-45d6-a3e9-082c77d7a50d",
+        "model": "unknown"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
