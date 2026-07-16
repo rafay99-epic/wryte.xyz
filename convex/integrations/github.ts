@@ -706,6 +706,31 @@ export const publishToGithub = internalAction({
       historyArgs,
     );
 
+    // Deployment verification — confirm the host actually builds this
+    // commit; emails the user if it doesn't (convex/deployments/verify.ts).
+    // Opt-in per project: skipped entirely unless enabled in settings.
+    if (project.deployVerificationEnabled) {
+      await ctx.scheduler.runAfter(0, internal.deployments.verify.start, {
+        projectId: document.projectId,
+        documentId: args.documentId,
+        userId: project.userId,
+        commitSha: commitSha ?? newSha,
+        documentTitle: document.title,
+        isUpdate,
+        ...(commitUrl ? { commitUrl } : {}),
+        ...(project.siteUrl
+          ? {
+              publishedUrl: buildPublishedUrl({
+                siteUrl: project.siteUrl,
+                slug: document.slug,
+                postUrlPrefix: project.postUrlPrefix,
+                framework: project.framework,
+              }),
+            }
+          : {}),
+      });
+    }
+
     if (project.siteUrl && project.socialPostOnPublish) {
       const announceArgs: {
         projectId: Id<"projects">;

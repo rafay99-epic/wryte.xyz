@@ -53,6 +53,8 @@ import type * as cms_snapshots from "../cms/snapshots.js";
 import type * as cms_snippets from "../cms/snippets.js";
 import type * as cms_trash from "../cms/trash.js";
 import type * as crons from "../crons.js";
+import type * as deployments_targets from "../deployments/targets.js";
+import type * as deployments_verify from "../deployments/verify.js";
 import type * as http from "../http.js";
 import type * as integrations_clerk from "../integrations/clerk.js";
 import type * as integrations_github from "../integrations/github.js";
@@ -133,6 +135,8 @@ declare const fullApi: ApiFromModules<{
   "cms/snippets": typeof cms_snippets;
   "cms/trash": typeof cms_trash;
   crons: typeof crons;
+  "deployments/targets": typeof deployments_targets;
+  "deployments/verify": typeof deployments_verify;
   http: typeof http;
   "integrations/clerk": typeof integrations_clerk;
   "integrations/github": typeof integrations_github;
@@ -190,6 +194,7 @@ export declare const internal: FilterApi<
 
 export declare const components: {
   workflow: import("@convex-dev/workflow/_generated/component.js").ComponentApi<"workflow">;
+  resend: import("@convex-dev/resend/_generated/component.js").ComponentApi<"resend">;
   persistentTextStreaming: import("@convex-dev/persistent-text-streaming/_generated/component.js").ComponentApi<"persistentTextStreaming">;
   rateLimiter: import("@convex-dev/rate-limiter/_generated/component.js").ComponentApi<"rateLimiter">;
   githubImportPool: import("@convex-dev/workpool/_generated/component.js").ComponentApi<"githubImportPool">;

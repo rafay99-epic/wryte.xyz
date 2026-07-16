@@ -135,6 +135,11 @@ export default defineSchema({
     aiPromptTemplates: v.optional(v.string()),
     /** Auto-post to connected social media when publishing */
     socialPostOnPublish: v.optional(v.boolean()),
+    /**
+     * Verify deployments after publish and email on failure (see
+     * convex/deployments/verify.ts). Opt-in: absent = disabled.
+     */
+    deployVerificationEnabled: v.optional(v.boolean()),
     /** Editor: show the readability lens side panel (default off) */
     readabilityLensEnabled: v.optional(v.boolean()),
     /**
@@ -1076,4 +1081,59 @@ export default defineSchema({
       searchField: "name",
       filterFields: ["projectId"],
     }),
+
+  /**
+   * Deployment verification targets — one row per host integration connected
+   * to a project (multiple targets per project supported). Provider API
+   * tokens live in the secret store (WorkOS Vault) referenced by
+   * `vaultSecretId`, never in the database. Only Vercel today; the `provider`
+   * union widens as adapters are added (see convex/deployments/verify.ts).
+   */
+  deployment_targets: defineTable({
+    projectId: v.id("projects"),
+    userId: v.id("users"),
+    provider: v.union(v.literal("vercel")),
+    /** Provider-side project ID (normalized from name at connect time) */
+    providerProjectId: v.string(),
+    /** Vercel team ID — absent for personal accounts */
+    teamId: v.optional(v.string()),
+    /** Secret-store id of the provider API token */
+    vaultSecretId: v.string(),
+    enabled: v.boolean(),
+    createdAt: v.number(),
+  }).index("by_projectId", ["projectId"]),
+
+  /**
+   * One verification attempt-chain per publish commit (and per target).
+   * Created when a publish lands on GitHub; resolved by the scheduled
+   * check loop in convex/deployments/verify.ts. `emailSentAt` guarantees
+   * at most one notification email per verification.
+   */
+  deploy_verifications: defineTable({
+    projectId: v.id("projects"),
+    documentId: v.id("documents"),
+    userId: v.id("users"),
+    /** Absent for url_poll verifications (no provider integration) */
+    targetId: v.optional(v.id("deployment_targets")),
+    method: v.union(v.literal("vercel"), v.literal("url_poll")),
+    commitSha: v.string(),
+    commitUrl: v.optional(v.string()),
+    publishedUrl: v.optional(v.string()),
+    documentTitle: v.string(),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("deployed"),
+      v.literal("failed"),
+      v.literal("timeout"),
+    ),
+    failReason: v.optional(v.string()),
+    /** Provider build-inspector URL when the failure has one */
+    deploymentUrl: v.optional(v.string()),
+    attempts: v.number(),
+    emailSentAt: v.optional(v.number()),
+    createdAt: v.number(),
+    resolvedAt: v.optional(v.number()),
+  })
+    .index("by_documentId", ["documentId"])
+    .index("by_projectId", ["projectId"]),
 });

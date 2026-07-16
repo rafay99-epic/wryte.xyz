@@ -56,6 +56,7 @@ export type ProjectData = {
   maxUploadBytes?: number;
   trashRetentionDays?: number;
   socialPostOnPublish?: boolean;
+  deployVerificationEnabled?: boolean;
   readabilityLensEnabled?: boolean;
   slashCommandsEnabled?: boolean;
   snippetsEnabled?: boolean;

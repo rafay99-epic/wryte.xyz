@@ -378,6 +378,8 @@ export const update = mutation({
      */
     trashRetentionDays: v.optional(v.number()),
     socialPostOnPublish: v.optional(v.boolean()),
+    /** Opt-in deployment verification — email when a publish doesn't deploy. */
+    deployVerificationEnabled: v.optional(v.boolean()),
     /** Path segment between site URL and post slug ("" = site root). */
     postUrlPrefix: v.optional(v.string()),
     readabilityLensEnabled: v.optional(v.boolean()),

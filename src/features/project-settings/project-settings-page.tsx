@@ -12,6 +12,7 @@ import type { Id } from "../../../convex/_generated/dataModel";
 import { AiSection } from "./components/ai-section";
 import { ContentSection } from "./components/content-section";
 import { DangerZoneSection } from "./components/danger-zone-section";
+import { DeploymentSection } from "./components/deployment-section";
 import { EditorSection } from "./components/editor-section";
 import { FrontmatterSection } from "./components/frontmatter-section";
 import { GeneralSection } from "./components/general-section";
@@ -132,7 +133,11 @@ export function ProjectSettingsPage() {
                 <MediaSection projectId={projectId} project={project} />
               )}
               {activeTab === "publishing" && (
-                <PublishingSection projectId={projectId} project={project} />
+                <>
+                  <PublishingSection projectId={projectId} project={project} />
+                  <Divider />
+                  <DeploymentSection projectId={projectId} project={project} />
+                </>
               )}
               {activeTab === "frontmatter" && (
                 <FrontmatterSection projectId={projectId} project={project} />

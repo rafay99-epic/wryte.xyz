@@ -1,6 +1,6 @@
 {
   "name": "wrypte.xyz",
-  "version": "0.21.1",
+  "version": "0.22.0",
   "private": true,
   "license": "MIT",
   "main": "electron/main.cjs",
@@ -32,6 +32,7 @@
     "@clerk/nextjs": "^7.5.12",
     "@convex-dev/persistent-text-streaming": "^0.3.2",
     "@convex-dev/rate-limiter": "^0.3.2",
+    "@convex-dev/resend": "^0.2.5",
     "@convex-dev/workflow": "^0.4.4",
     "@convex-dev/workpool": "^0.4.7",
     "@dnd-kit/core": "^6.3.1",
