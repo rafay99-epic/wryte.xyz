@@ -1,5 +1,6 @@
 "use client";
 
+import { useQuery } from "convex/react";
 import { motion } from "framer-motion";
 import {
   ArrowRight,
@@ -21,8 +22,10 @@ import { RecentDocsList } from "@/features/dashboard/components/recent-docs-list
 import { ShortcutsPanel } from "@/features/dashboard/components/shortcuts-panel";
 import { StatPill } from "@/features/dashboard/components/stat-pill";
 import { UpcomingSchedule } from "@/features/dashboard/components/upcoming-schedule";
+import { WritingStreak } from "@/features/dashboard/components/writing-streak";
 import { fadeSlideUp, smoothTransition } from "@/lib/motion";
 import { useEditorStore } from "@/stores/editor-store";
+import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { IdeasPanel } from "./components/ideas-panel";
 import { StaleContentSection } from "./components/stale-content-section";
@@ -35,6 +38,7 @@ export function ProjectDashboardPage() {
 
   const { stats, recentDocs, upcoming, isLoading, totalDocs, statusCounts } =
     useProjectDashboard(projectId);
+  const editorStats = useQuery(api.analytics.writingStats.getEditorStats, {});
 
   useEffect(() => {
     useEditorStore.getState().setActiveProjectId(projectId);
@@ -71,7 +75,16 @@ export function ProjectDashboardPage() {
             </>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-4">
+          {/* User-level streak (same lean editor-stats subscription the
+              toolbar already uses) — cadence belongs where the writing
+              happens, not only on the global dashboard. */}
+          {editorStats && editorStats.currentStreak > 0 && (
+            <WritingStreak
+              currentStreak={editorStats.currentStreak}
+              longestStreak={editorStats.longestStreak}
+            />
+          )}
           <Link
             href={`/projects/${projectId}/articles`}
             className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border/60 bg-background px-3 text-xs font-medium text-foreground transition-colors hover:bg-muted"

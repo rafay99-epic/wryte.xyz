@@ -140,6 +140,11 @@ export function AppSidebar() {
                   label="Home"
                 />
                 <NavLink href="/projects" icon={Layers} label="Projects" />
+                <NavLink
+                  href="/calendar"
+                  icon={CalendarDays}
+                  label="Calendar"
+                />
                 <NavLink href="/settings" icon={Settings} label="Settings" />
               </div>
 

@@ -28,6 +28,7 @@ import { TodaysProgress } from "./components/todays-progress";
 import { UpcomingSchedule } from "./components/upcoming-schedule";
 import { WritingStreak } from "./components/writing-streak";
 import { useDashboardStats } from "./hooks/use-dashboard-stats";
+import { wordsThisWeek } from "./lib/weekly-progress";
 
 function getGreeting(): string {
   const hour = new Date().getHours();
@@ -193,6 +194,11 @@ export function DashboardPage() {
               <TodaysProgress
                 wordsToday={dashStats?.wordsToday ?? 0}
                 dailyWordGoal={dashStats?.dailyWordGoal ?? null}
+                weeklyWordGoal={dashStats?.weeklyWordGoal ?? null}
+                wordsThisWeek={wordsThisWeek(
+                  dashStats?.recentActivity ?? [],
+                  dashStats?.wordsToday ?? 0,
+                )}
               />
             )}
           </div>

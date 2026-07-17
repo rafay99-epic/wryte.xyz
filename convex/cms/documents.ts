@@ -1757,6 +1757,78 @@ export const listForCalendar = query({
 });
 
 /**
+ * Cross-project calendar feed — one lean row per dated document across all
+ * of the user's projects. Only documents with a `scheduledAt` or
+ * `publishedAt` are returned (the global calendar has no unscheduled
+ * panel), so the payload stays proportional to the writing cadence, not
+ * the archive size.
+ *
+ * Bounds: 25 projects × 300 docs read worst-case (well inside transaction
+ * limits); mounted only while /calendar is open — no standing cost.
+ */
+export const listForCalendarAllProjects = query({
+  args: {},
+  returns: v.array(
+    v.object({
+      _id: v.id("documents"),
+      projectId: v.id("projects"),
+      projectName: v.string(),
+      title: v.string(),
+      status: v.string(),
+      scheduledAt: v.optional(v.number()),
+      publishedAt: v.optional(v.number()),
+    }),
+  ),
+  handler: async (ctx) => {
+    const user = await getAuthedUserOrNull(ctx);
+    if (!user) return [];
+
+    const projects = await ctx.db
+      .query("projects")
+      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .take(25);
+
+    const rows: Array<{
+      _id: Id<"documents">;
+      projectId: Id<"projects">;
+      projectName: string;
+      title: string;
+      status: string;
+      scheduledAt?: number;
+      publishedAt?: number;
+    }> = [];
+
+    for (const project of projects) {
+      const documents = await ctx.db
+        .query("documents")
+        .withIndex("by_projectId_and_trashedAt", (q) =>
+          q.eq("projectId", project._id).eq("trashedAt", undefined),
+        )
+        .take(300);
+      for (const d of documents) {
+        if (d.scheduledAt === undefined && d.publishedAt === undefined) {
+          continue;
+        }
+        rows.push({
+          _id: d._id,
+          projectId: project._id,
+          projectName: project.name,
+          title: d.title,
+          status: d.status,
+          ...(d.scheduledAt !== undefined
+            ? { scheduledAt: d.scheduledAt }
+            : {}),
+          ...(d.publishedAt !== undefined
+            ? { publishedAt: d.publishedAt }
+            : {}),
+        });
+      }
+    }
+    return rows;
+  },
+});
+
+/**
  * Stale-content radar: published documents that haven't been touched in
  * `olderThanMonths` (default 6). Bounded index read + in-memory filter —
  * no cron, no extra table; subscribed only while the project overview is

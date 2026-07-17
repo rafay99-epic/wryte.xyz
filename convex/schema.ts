@@ -1040,6 +1040,8 @@ export default defineSchema({
     wordsToday: v.number(),
     todayDate: v.string(),
     dailyWordGoal: v.optional(v.number()),
+    /** Rolling 7-day word target — computed client-side from recentActivity. */
+    weeklyWordGoal: v.optional(v.number()),
     totalWords: v.number(),
     totalPublished: v.number(),
     recentActivity: v.array(v.object({ date: v.string(), words: v.number() })),

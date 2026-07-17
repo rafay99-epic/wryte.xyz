@@ -1,7 +1,8 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Rocket } from "lucide-react";
+import { Check, Copy, Rocket } from "lucide-react";
+import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { TimezoneSelect } from "@/components/ui/timezone-select";
@@ -19,6 +20,51 @@ import {
   SaveButton,
   SectionHeader,
 } from "./shared";
+
+/** README badge markdown — image served from /badge.svg, click measured via /gh. */
+const BADGE_SNIPPET =
+  "[![Published with Wryte](https://wryte.xyz/badge.svg)](https://wryte.xyz/gh?utm_medium=badge)";
+
+/** Copy box for the README badge snippet (share-link dialog's copy pattern). */
+function BadgeSnippet() {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    void navigator.clipboard.writeText(BADGE_SNIPPET).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  return (
+    <div className="mt-3 border-t border-border/40 pt-3">
+      <div className="mb-1.5 flex items-center gap-2">
+        <p className="text-xs font-medium">README badge</p>
+        <img src="/badge.svg" alt="Published with Wryte" height={20} />
+      </div>
+      <div className="flex items-center gap-2">
+        <code className="min-w-0 flex-1 truncate rounded-lg border border-border/40 bg-muted/40 px-2.5 py-1.5 font-mono text-[11px] text-muted-foreground">
+          {BADGE_SNIPPET}
+        </code>
+        <button
+          type="button"
+          onClick={handleCopy}
+          aria-label="Copy badge markdown"
+          className="flex shrink-0 items-center justify-center rounded-lg border border-border/40 p-2 text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+        >
+          {copied ? (
+            <Check className="size-3.5 text-emerald-500" />
+          ) : (
+            <Copy className="size-3.5" />
+          )}
+        </button>
+      </div>
+      <p className="mt-1.5 text-xs text-muted-foreground">
+        Paste into your repo&apos;s README — the badge links back to Wryte.
+      </p>
+    </div>
+  );
+}
 
 export function PublishingSection({
   projectId,
@@ -117,6 +163,7 @@ export function PublishingSection({
               </p>
             </div>
           )}
+          <BadgeSnippet />
         </div>
 
         <div className="flex items-center justify-between rounded-xl border border-border/40 bg-card px-4 py-3">

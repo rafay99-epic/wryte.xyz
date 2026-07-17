@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import type { MutationCtx } from "../_generated/server";
 import { internalMutation, mutation, query } from "../_generated/server";
 import { getAuthedUserOrNull, getCurrentUser } from "../_lib/auth";
 import {
@@ -81,6 +82,7 @@ export const getDashboardStats = query({
       longestStreak: writingStats?.longestStreak ?? 0,
       wordsToday: displayWordsToday,
       dailyWordGoal: writingStats?.dailyWordGoal ?? null,
+      weeklyWordGoal: writingStats?.weeklyWordGoal ?? null,
       recentActivity: writingStats?.recentActivity ?? [],
       totalDocs,
       totalWords: writingStats?.totalWords ?? totalWords,
@@ -119,6 +121,7 @@ export const getEditorStats = query({
   ): Promise<{
     wordsToday: number;
     currentStreak: number;
+    longestStreak: number;
     dailyWordGoal: number | null;
   } | null> => {
     const user = await getAuthedUserOrNull(ctx);
@@ -129,7 +132,12 @@ export const getEditorStats = query({
       .withIndex("by_userId", (q) => q.eq("userId", user._id))
       .unique();
     if (!stats) {
-      return { wordsToday: 0, currentStreak: 0, dailyWordGoal: null };
+      return {
+        wordsToday: 0,
+        currentStreak: 0,
+        longestStreak: 0,
+        dailyWordGoal: null,
+      };
     }
 
     const tz = stats.timezone ?? "UTC";
@@ -147,6 +155,7 @@ export const getEditorStats = query({
     return {
       wordsToday: stats.todayDate === todayStr ? stats.wordsToday : 0,
       currentStreak,
+      longestStreak: stats.longestStreak,
       dailyWordGoal: stats.dailyWordGoal ?? null,
     };
   },
@@ -239,50 +248,73 @@ export const getProjectDashboardStats = query({
 /*  Public mutations                                                   */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Shared upsert for the word-goal mutations. Validates the range,
+ * rate-limits, and either patches the user's stats row or creates a
+ * fresh one carrying only the goal being set.
+ */
+async function upsertWordGoal(
+  ctx: MutationCtx,
+  field: "dailyWordGoal" | "weeklyWordGoal",
+  goal: number | null,
+  maxWords: number,
+): Promise<void> {
+  if (
+    goal !== null &&
+    (!Number.isFinite(goal) || goal < 1 || goal > maxWords)
+  ) {
+    throw new Error(
+      `Goal must be between 1 and ${maxWords.toLocaleString()} words.`,
+    );
+  }
+
+  const key = await getRateLimitKey(ctx);
+  await rateLimiter.limit(ctx, "writingStats:setGoal", {
+    key,
+    throws: true,
+  });
+
+  const user = await getCurrentUser(ctx);
+  const stats = await ctx.db
+    .query("writing_stats")
+    .withIndex("by_userId", (q) => q.eq("userId", user._id))
+    .unique();
+
+  if (stats) {
+    await ctx.db.patch(stats._id, {
+      [field]: goal === null ? undefined : goal,
+      updatedAt: Date.now(),
+    });
+  } else {
+    const now = Date.now();
+    const todayStr = dateInTimezone(now, "UTC");
+    await ctx.db.insert("writing_stats", {
+      userId: user._id,
+      currentStreak: 0,
+      longestStreak: 0,
+      lastActiveDate: todayStr,
+      wordsToday: 0,
+      todayDate: todayStr,
+      ...(goal !== null && { [field]: goal }),
+      totalWords: 0,
+      totalPublished: 0,
+      recentActivity: [],
+      updatedAt: now,
+    });
+  }
+}
+
 export const setDailyWordGoal = mutation({
   args: { goal: v.union(v.number(), v.null()) },
   handler: async (ctx, args) => {
-    if (
-      args.goal !== null &&
-      (!Number.isFinite(args.goal) || args.goal < 1 || args.goal > 100000)
-    ) {
-      throw new Error("Goal must be between 1 and 100,000 words.");
-    }
+    await upsertWordGoal(ctx, "dailyWordGoal", args.goal, 100000);
+  },
+});
 
-    const key = await getRateLimitKey(ctx);
-    await rateLimiter.limit(ctx, "writingStats:setGoal", {
-      key,
-      throws: true,
-    });
-
-    const user = await getCurrentUser(ctx);
-    const stats = await ctx.db
-      .query("writing_stats")
-      .withIndex("by_userId", (q) => q.eq("userId", user._id))
-      .unique();
-
-    if (stats) {
-      await ctx.db.patch(stats._id, {
-        dailyWordGoal: args.goal === null ? undefined : args.goal,
-        updatedAt: Date.now(),
-      });
-    } else {
-      const now = Date.now();
-      const todayStr = dateInTimezone(now, "UTC");
-      await ctx.db.insert("writing_stats", {
-        userId: user._id,
-        currentStreak: 0,
-        longestStreak: 0,
-        lastActiveDate: todayStr,
-        wordsToday: 0,
-        todayDate: todayStr,
-        ...(args.goal !== null && { dailyWordGoal: args.goal }),
-        totalWords: 0,
-        totalPublished: 0,
-        recentActivity: [],
-        updatedAt: now,
-      });
-    }
+export const setWeeklyWordGoal = mutation({
+  args: { goal: v.union(v.number(), v.null()) },
+  handler: async (ctx, args) => {
+    await upsertWordGoal(ctx, "weeklyWordGoal", args.goal, 700000);
   },
 });
 
