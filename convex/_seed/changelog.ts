@@ -1462,7 +1462,7 @@ A publish is only half the job — your post isn't live until your site rebuilds
     category: "website",
     build: "41fd3b8",
     publishedAt: Date.parse("2026-07-18T01:05:00+05:00"),
-    content: \`## What's new
+    content: `## What's new
 
 - **A calmer settings surface.** The wall of boxed cards is gone — settings are now flat, hairline-divided rows inside collapsible groups whose headers show the current value even when closed. Groups open with a smooth animation, and the content column is wider.
 - **One way to save.** A save bar slides up whenever a tab has unsaved changes and disappears once you've saved — no more hunting for the right one of four Save buttons. Instant actions (Connect, Test, Rotate) keep their own buttons on purpose.
@@ -1475,7 +1475,7 @@ A publish is only half the job — your post isn't live until your site rebuilds
 - Switching settings tabs no longer silently discards unsaved edits — you're asked first.
 - Switching tabs now starts at the top of the new tab instead of wherever you'd scrolled.
 - Every destructive action (removing keys or credentials, clearing schema defaults) now asks with the same styled confirmation dialog — two of them previously asked nothing at all.
-\`,
+`,
   },
 ];
 
