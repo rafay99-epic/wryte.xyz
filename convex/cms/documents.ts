@@ -452,8 +452,41 @@ export const get = query({
     // editor) keeps receiving `document.content` unchanged. This is a
     // single-document read — it does NOT reintroduce the list-query read
     // amplification this migration removed.
+    //
+    // NOTE: because the content row is a read-dependency, a LIVE
+    // subscription to this query re-runs (and re-sends the full body) on
+    // every autosave tick. Always-mounted UI must subscribe to `getMeta`
+    // instead and fetch the body one-shot — see `getMeta` below.
     const content = await readContent(ctx, document);
     return { ...document, content };
+  },
+});
+
+/**
+ * Metadata-only variant of {@link get} — same ownership/trash rules, but
+ * never reads the `document_content` row, so it does NOT re-run (or
+ * re-bill) when autosave writes the body. This is the subscription for
+ * always-mounted chrome (app header, draft tab bar, editor shell) that
+ * renders title/status/etc. but never the body — mirroring how
+ * `documentDrafts.list` deliberately excludes draft bodies.
+ */
+export const getMeta = query({
+  args: { documentId: v.id("documents") },
+  returns: v.union(v.null(), DOCUMENT_DOC),
+  handler: async (ctx, args) => {
+    const user = await getAuthedUserOrNull(ctx);
+    if (!user) {
+      throw new Error("Not authenticated");
+    }
+    const document = await verifyDocumentOwnership(
+      ctx,
+      args.documentId,
+      user._id,
+    );
+    if (document.trashedAt !== undefined) {
+      return null;
+    }
+    return document;
   },
 });
 

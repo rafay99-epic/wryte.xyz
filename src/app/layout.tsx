@@ -5,6 +5,7 @@ import { Analytics } from "@vercel/analytics/next";
 import { DesktopChrome } from "@/components/layout/desktop-chrome";
 import { Providers } from "@/components/providers/convex-provider";
 import { QueryProvider } from "@/components/providers/query-provider";
+import { ServiceWorkerRegistration } from "@/components/providers/service-worker-registration";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { BRAND, resolveBrandAsset } from "@/lib/branding";
@@ -82,10 +83,17 @@ export const metadata: Metadata = {
       { url: "/favicon.ico", sizes: "any" },
       { url: BRAND_ICON_URL, type: "image/png", sizes: "512x512" },
     ],
-    apple: [{ url: BRAND_ICON_URL, sizes: "512x512" }],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180" }],
   },
 
   manifest: "/manifest.webmanifest",
+
+  /* iOS home-screen install (PWA) — standalone display + status bar. */
+  appleWebApp: {
+    capable: true,
+    title: SITE_NAME,
+    statusBarStyle: "black-translucent",
+  },
 
   /* Open Graph — shared previews on Facebook, LinkedIn, Discord, etc. */
   openGraph: {
@@ -290,6 +298,7 @@ export default function RootLayout({
           <QueryProvider>
             <ThemeProvider>{children}</ThemeProvider>
             <Toaster />
+            <ServiceWorkerRegistration />
           </QueryProvider>
         </Providers>
         <Analytics />

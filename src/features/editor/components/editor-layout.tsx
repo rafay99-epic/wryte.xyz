@@ -37,6 +37,12 @@ const MdxPreview = dynamic(
 type EditorLayoutProps = {
   documentId: string;
   projectId: string;
+  /**
+   * Main document title+content from the editor page's live subscription —
+   * threaded down so the draft tab bar never opens its own body-bearing
+   * subscription (see documents.getMeta rationale).
+   */
+  mainDocument: { title: string; content: string } | null | undefined;
   onRequestSave: () => Promise<void>;
   onSynthesisOpen: () => void;
 };
@@ -44,6 +50,7 @@ type EditorLayoutProps = {
 export function EditorLayout({
   documentId,
   projectId,
+  mainDocument,
   onRequestSave,
   onSynthesisOpen,
 }: EditorLayoutProps) {
@@ -110,6 +117,7 @@ export function EditorLayout({
           <DraftTabBar
             documentId={documentId}
             projectId={projectId}
+            mainDocument={mainDocument}
             onRequestSave={onRequestSave}
             onSynthesisOpen={onSynthesisOpen}
           />

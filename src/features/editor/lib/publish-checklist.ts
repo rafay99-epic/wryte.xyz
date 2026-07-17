@@ -290,6 +290,107 @@ function checkStructure(content: string, words: number): ChecklistItem {
   return { ...base, severity: "pass", detail: "Headings look well-formed." };
 }
 
+/* ────────────────────────── SEO rows ────────────────────────── */
+
+/** Search snippets truncate titles around this length. */
+const SEO_TITLE_MAX = 60;
+/** Meta description sweet spot — below reads thin, above gets cut. */
+const SEO_DESC_MIN = 80;
+const SEO_DESC_MAX = 165;
+
+/** Best-effort parse of the raw frontmatter JSON; null when absent/broken
+ *  (the frontmatter row above already warns about parse failures). */
+function parseFrontmatterObject(
+  raw: string | undefined,
+): Record<string, unknown> | null {
+  if (!raw?.trim()) return null;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function checkSeoTitle(title: string): ChecklistItem {
+  const base = { id: "seo-title", label: "SEO title" } as const;
+  const length = title.trim().length;
+  if (length === 0) {
+    return { ...base, severity: "warn", detail: "The document has no title." };
+  }
+  if (length > SEO_TITLE_MAX) {
+    return {
+      ...base,
+      severity: "warn",
+      detail: `${length} chars — search results truncate around ${SEO_TITLE_MAX}.`,
+    };
+  }
+  return {
+    ...base,
+    severity: "pass",
+    detail: `${length} chars — fits search snippets.`,
+  };
+}
+
+function checkSeoDescription(
+  frontmatter: Record<string, unknown> | null,
+): ChecklistItem {
+  const base = { id: "seo-description", label: "Meta description" } as const;
+  const value = frontmatter?.["description"] ?? frontmatter?.["excerpt"];
+  const text = typeof value === "string" ? value.trim() : "";
+  if (!text) {
+    return {
+      ...base,
+      severity: "warn",
+      detail:
+        "Missing — search engines will improvise one. The AI frontmatter assistant can write it.",
+    };
+  }
+  if (text.length > SEO_DESC_MAX) {
+    return {
+      ...base,
+      severity: "warn",
+      detail: `${text.length} chars — gets cut around ${SEO_DESC_MAX} in results.`,
+    };
+  }
+  if (text.length < SEO_DESC_MIN) {
+    return {
+      ...base,
+      severity: "info",
+      detail: `${text.length} chars — a fuller ${SEO_DESC_MIN}–${SEO_DESC_MAX} chars earns the whole snippet.`,
+    };
+  }
+  return {
+    ...base,
+    severity: "pass",
+    detail: `${text.length} chars — snippet-sized.`,
+  };
+}
+
+function checkSeoTags(
+  frontmatter: Record<string, unknown> | null,
+): ChecklistItem {
+  const base = { id: "seo-tags", label: "Tags" } as const;
+  const value = frontmatter?.["tags"] ?? frontmatter?.["keywords"];
+  const count = Array.isArray(value)
+    ? value.filter((t) => typeof t === "string" && t.trim()).length
+    : 0;
+  if (count === 0) {
+    return {
+      ...base,
+      severity: "info",
+      detail: "No tags or keywords — topical phrases help discovery.",
+    };
+  }
+  return {
+    ...base,
+    severity: "pass",
+    detail: `${count} tag${count === 1 ? "" : "s"} set.`,
+  };
+}
+
 /** Neutral length / reading-time context row. */
 function lengthRow(words: number): ChecklistItem {
   const minutes = readingMinutes(words);
@@ -311,8 +412,12 @@ function lengthRow(words: number): ChecklistItem {
 export function buildPublishChecklist(input: ChecklistInput): ChecklistResult {
   const words = countWords(input.content);
 
+  const seoFrontmatter = parseFrontmatterObject(input.frontmatter.raw);
   const items: ChecklistItem[] = [
     checkFrontmatter(input),
+    checkSeoTitle(input.title),
+    checkSeoDescription(seoFrontmatter),
+    checkSeoTags(seoFrontmatter),
     checkImageAltText(input.content),
     checkInternalLinks(input.content, input.knownDocs),
     checkWorkMarkers(input.content),

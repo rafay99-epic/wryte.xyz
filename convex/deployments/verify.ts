@@ -99,6 +99,20 @@ export const start = internalMutation({
         { verificationId },
       );
     }
+
+    // Retention cap — newest 20 verifications per document, mirroring the
+    // publish_history pattern. Without this the table grows one row per
+    // publish per target forever (it was the only per-publish table with
+    // no cap and no purge coverage).
+    const DEPLOY_VERIFICATION_CAP = 20;
+    const overflow = await ctx.db
+      .query("deploy_verifications")
+      .withIndex("by_documentId", (q) => q.eq("documentId", args.documentId))
+      .order("desc")
+      .take(DEPLOY_VERIFICATION_CAP + 10);
+    for (const row of overflow.slice(DEPLOY_VERIFICATION_CAP)) {
+      await ctx.db.delete(row._id);
+    }
     return null;
   },
 });

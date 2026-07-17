@@ -35,6 +35,8 @@ import { DraftCompareSheet } from "./draft-compare-sheet";
 type DraftTabBarProps = {
   documentId: string;
   projectId: string;
+  /** Main doc from the editor page's subscription — no own body query here. */
+  mainDocument: { title: string; content: string } | null | undefined;
   onRequestSave: () => Promise<void>;
   onSynthesisOpen: () => void;
 };
@@ -42,6 +44,7 @@ type DraftTabBarProps = {
 export function DraftTabBar({
   documentId,
   projectId,
+  mainDocument,
   onRequestSave,
   onSynthesisOpen,
 }: DraftTabBarProps) {
@@ -52,9 +55,6 @@ export function DraftTabBar({
     })),
   );
 
-  const document = useQuery(api.cms.documents.get, {
-    documentId: documentId as Id<"documents">,
-  });
   const drafts = useQuery(api.cms.documentDrafts.list, {
     documentId: documentId as Id<"documents">,
   });
@@ -78,7 +78,7 @@ export function DraftTabBar({
   const { switchToDraft, evictDraft, seedDraft, applyPromotedMain } =
     useDraftSwitching({
       projectId,
-      document,
+      document: mainDocument,
       drafts,
       onRequestSave,
     });
@@ -128,13 +128,14 @@ export function DraftTabBar({
         documentId: documentId as Id<"documents">,
         copyFromMain: true,
       });
-      // Seed from the live Main subscription so the switch is instant;
-      // unverified (one background check) in case the subscription lagged
-      // the server's copy by a beat.
-      if (document) {
+      // Seed from the editor page's live Main subscription (threaded down
+      // as a prop — this bar deliberately has no body query of its own) so
+      // the switch is instant; unverified (one background check) in case
+      // the prop lagged the server's copy by a beat.
+      if (mainDocument) {
         seedDraft(
           id,
-          { title: document.title, content: document.content },
+          { title: mainDocument.title, content: mainDocument.content },
           false,
         );
       }
@@ -145,7 +146,7 @@ export function DraftTabBar({
         error instanceof Error ? error.message : "Failed to create draft",
       );
     }
-  }, [createDraft, documentId, switchToDraft, seedDraft, document]);
+  }, [createDraft, documentId, switchToDraft, seedDraft, mainDocument]);
 
   const handleDelete = useCallback(
     async (draftId: string) => {

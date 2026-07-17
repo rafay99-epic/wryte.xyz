@@ -206,12 +206,37 @@ async function streamByProvider(
   });
 }
 
-function hasSentenceDelimiter(text: string): boolean {
-  return text.includes(".") || text.includes("!") || text.includes("?");
-}
+/**
+ * Minimum buffered characters before a stream chunk is persisted.
+ *
+ * Every `addChunk` insert makes each live reader re-collect ALL prior
+ * chunks (the component's `getStreamBody` is a full `.collect()`), so
+ * total read bandwidth is O(chunks²). Flushing by size instead of on
+ * every sentence/JSON delimiter cuts chunk count ~10× — and the
+ * quadratic read cost ~100× — while a ~sentence-sized batch still
+ * streams smoothly in the UI.
+ */
+const CHUNK_FLUSH_MIN_CHARS = 200;
 
-function hasJsonDelimiter(text: string): boolean {
-  return text.includes("}") || text.includes(",") || text.includes("]");
+function createBufferedWriter(
+  write: (text: string, final: boolean) => Promise<void>,
+): ChunkWriter & { finish(): Promise<void> } {
+  let pending = "";
+  return {
+    addChunk: async (text: string) => {
+      pending += text;
+      if (pending.length >= CHUNK_FLUSH_MIN_CHARS) {
+        const out = pending;
+        pending = "";
+        await write(out, false);
+      }
+    },
+    finish: async () => {
+      const out = pending;
+      pending = "";
+      await write(out, true);
+    },
+  };
 }
 
 function extractApiMessage(err: unknown): string | undefined {
@@ -322,19 +347,13 @@ export const runEnhancement = internalAction({
     }
 
     const streamId = args.streamId;
-    let pending = "";
-    const writer = {
-      addChunk: async (text: string) => {
-        pending += text;
-        if (hasSentenceDelimiter(text)) {
-          await ctx.runMutation(
-            components.persistentTextStreaming.lib.addChunk,
-            { streamId, text: pending, final: false },
-          );
-          pending = "";
-        }
-      },
-    };
+    const writer = createBufferedWriter((text, final) =>
+      ctx.runMutation(components.persistentTextStreaming.lib.addChunk, {
+        streamId,
+        text,
+        final,
+      }),
+    );
 
     try {
       const enhancePrompt =
@@ -350,11 +369,7 @@ export const runEnhancement = internalAction({
         writer,
       );
 
-      await ctx.runMutation(components.persistentTextStreaming.lib.addChunk, {
-        streamId,
-        text: pending,
-        final: true,
-      });
+      await writer.finish();
     } catch (error) {
       const message = describeProviderError(error, args.provider);
       await writeStreamError(ctx, streamId, message);
@@ -461,19 +476,13 @@ export const runFinalDraft = internalAction({
     }
 
     const streamId = args.streamId;
-    let pending = "";
-    const writer = {
-      addChunk: async (text: string) => {
-        pending += text;
-        if (hasSentenceDelimiter(text)) {
-          await ctx.runMutation(
-            components.persistentTextStreaming.lib.addChunk,
-            { streamId, text: pending, final: false },
-          );
-          pending = "";
-        }
-      },
-    };
+    const writer = createBufferedWriter((text, final) =>
+      ctx.runMutation(components.persistentTextStreaming.lib.addChunk, {
+        streamId,
+        text,
+        final,
+      }),
+    );
 
     try {
       const draftPrompt =
@@ -489,11 +498,7 @@ export const runFinalDraft = internalAction({
         writer,
       );
 
-      await ctx.runMutation(components.persistentTextStreaming.lib.addChunk, {
-        streamId,
-        text: pending,
-        final: true,
-      });
+      await writer.finish();
     } catch (error) {
       const message = describeProviderError(error, args.provider);
       await writeStreamError(ctx, streamId, message);
@@ -531,7 +536,6 @@ export const runInlineEnhancement = internalAction({
     }
 
     const streamId = args.streamId;
-    let pending = "";
     // Both `instruction` and `selectedText` are user-controlled. Wrap each
     // in explicit delimiters and tell the model to treat them as data so a
     // malicious paste can't escape into the system prompt scope.
@@ -548,18 +552,13 @@ export const runInlineEnhancement = internalAction({
       "<<<END SELECTED TEXT>>>",
     ].join("\n");
 
-    const writer = {
-      addChunk: async (text: string) => {
-        pending += text;
-        if (hasSentenceDelimiter(text)) {
-          await ctx.runMutation(
-            components.persistentTextStreaming.lib.addChunk,
-            { streamId, text: pending, final: false },
-          );
-          pending = "";
-        }
-      },
-    };
+    const writer = createBufferedWriter((text, final) =>
+      ctx.runMutation(components.persistentTextStreaming.lib.addChunk, {
+        streamId,
+        text,
+        final,
+      }),
+    );
 
     try {
       const inlinePrompt =
@@ -575,11 +574,7 @@ export const runInlineEnhancement = internalAction({
         writer,
       );
 
-      await ctx.runMutation(components.persistentTextStreaming.lib.addChunk, {
-        streamId,
-        text: pending,
-        final: true,
-      });
+      await writer.finish();
     } catch (error) {
       const message = describeProviderError(error, args.provider);
       await writeStreamError(ctx, streamId, message);
@@ -698,7 +693,6 @@ export const runFrontmatterSuggestion = internalAction({
     }
 
     const streamId = args.streamId;
-    let pending = "";
 
     const { fragment, eligibleNames } = buildSchemaPromptFragment(
       args.frontmatterSchema,
@@ -763,21 +757,13 @@ export const runFrontmatterSuggestion = internalAction({
       currentForPrompt,
     ].join("\n");
 
-    const writer = {
-      addChunk: async (text: string) => {
-        pending += text;
-        // JSON output: flush on closing braces/commas/brackets so the UI
-        // can render the response as it arrives without waiting for the
-        // entire object to be parsed.
-        if (hasJsonDelimiter(text)) {
-          await ctx.runMutation(
-            components.persistentTextStreaming.lib.addChunk,
-            { streamId, text: pending, final: false },
-          );
-          pending = "";
-        }
-      },
-    };
+    const writer = createBufferedWriter((text, final) =>
+      ctx.runMutation(components.persistentTextStreaming.lib.addChunk, {
+        streamId,
+        text,
+        final,
+      }),
+    );
 
     try {
       await streamByProvider(
@@ -789,11 +775,7 @@ export const runFrontmatterSuggestion = internalAction({
         writer,
       );
 
-      await ctx.runMutation(components.persistentTextStreaming.lib.addChunk, {
-        streamId,
-        text: pending,
-        final: true,
-      });
+      await writer.finish();
     } catch (error) {
       const message = describeProviderError(error, args.provider);
       await writeStreamError(ctx, streamId, message);

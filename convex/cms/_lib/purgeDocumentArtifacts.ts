@@ -147,7 +147,20 @@ export async function purgeDocumentArtifacts(
     }
   }
 
-  /* 8. document_research */
+  /* 8. deploy_verifications */
+  if (budget > 0) {
+    const rows = await ctx.db
+      .query("deploy_verifications")
+      .withIndex("by_documentId", (q) => q.eq("documentId", documentId))
+      .take(budget);
+    for (const row of rows) {
+      await ctx.db.delete(row._id);
+      budget--;
+      deleted++;
+    }
+  }
+
+  /* 9. document_research */
   if (budget > 0) {
     const rows = await ctx.db
       .query("document_research")
@@ -160,7 +173,7 @@ export async function purgeDocumentArtifacts(
     }
   }
 
-  /* 9. share_links */
+  /* 10. share_links */
   if (budget > 0) {
     const rows = await ctx.db
       .query("share_links")
@@ -173,7 +186,7 @@ export async function purgeDocumentArtifacts(
     }
   }
 
-  /* 10. scheduled_publishes — mirrors the semantics of
+  /* 11. scheduled_publishes — mirrors the semantics of
    *     `cascadeDeleteScheduledPublishesForDoc` in `cms/documents.ts`
    *     (deletes every row regardless of status, no filter). A trashed
    *     document should already have zero rows here — soft-delete cancels
@@ -191,7 +204,7 @@ export async function purgeDocumentArtifacts(
     }
   }
 
-  /* 11. document_links — drain edges in BOTH directions (rows where this
+  /* 12. document_links — drain edges in BOTH directions (rows where this
    *     document is the source AND rows where it is the target), sharing the
    *     same budget so a heavily-linked doc can't breach transaction limits. */
   if (budget > 0) {
@@ -242,6 +255,10 @@ async function hasRemainingArtifacts(
       .take(1),
     ctx.db
       .query("publish_history")
+      .withIndex("by_documentId", (q) => q.eq("documentId", documentId))
+      .take(1),
+    ctx.db
+      .query("deploy_verifications")
       .withIndex("by_documentId", (q) => q.eq("documentId", documentId))
       .take(1),
     ctx.db

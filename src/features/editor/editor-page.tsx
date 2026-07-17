@@ -27,6 +27,11 @@ export function EditorPage() {
   const params = useParams();
   const documentId = params["documentId"] as string;
 
+  // Deliberately the FULL live subscription (body included) — and the only
+  // always-mounted one allowed to be. The `!isDirty` effect below re-syncs
+  // an idle editor when another device autosaves; without it, typing from a
+  // stale base would overwrite newer content. Chrome that doesn't render
+  // the body (header, draft tab bar) must use `getMeta` instead.
   const document = useQuery(api.cms.documents.get, {
     documentId: documentId as Id<"documents">,
   });
@@ -266,6 +271,7 @@ export function EditorPage() {
       <EditorLayout
         documentId={documentId}
         projectId={document.projectId as string}
+        mainDocument={{ title: document.title, content: document.content }}
         onRequestSave={handleRequestSave}
         onSynthesisOpen={() => setSynthesisOpen(true)}
       />

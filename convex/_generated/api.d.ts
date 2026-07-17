@@ -17,6 +17,7 @@ import type * as _lib_contentHash from "../_lib/contentHash.js";
 import type * as _lib_dateUtils from "../_lib/dateUtils.js";
 import type * as _lib_documentCount from "../_lib/documentCount.js";
 import type * as _lib_frontmatter from "../_lib/frontmatter.js";
+import type * as _lib_githubApp from "../_lib/githubApp.js";
 import type * as _lib_projectStats from "../_lib/projectStats.js";
 import type * as _lib_publishedUrl from "../_lib/publishedUrl.js";
 import type * as _lib_quotas from "../_lib/quotas.js";
@@ -100,6 +101,7 @@ declare const fullApi: ApiFromModules<{
   "_lib/dateUtils": typeof _lib_dateUtils;
   "_lib/documentCount": typeof _lib_documentCount;
   "_lib/frontmatter": typeof _lib_frontmatter;
+  "_lib/githubApp": typeof _lib_githubApp;
   "_lib/projectStats": typeof _lib_projectStats;
   "_lib/publishedUrl": typeof _lib_publishedUrl;
   "_lib/quotas": typeof _lib_quotas;

@@ -93,9 +93,10 @@ export function AppHeader() {
     activeProjectId ? { projectId: activeProjectId as Id<"projects"> } : "skip",
   );
 
-  // Fetch current document for bookmark state
+  // Fetch current document for bookmark state — metadata-only query so
+  // this always-mounted header never re-receives the body on autosave.
   const document = useQuery(
-    api.cms.documents.get,
+    api.cms.documents.getMeta,
     isEditorPage && documentId
       ? { documentId: documentId as Id<"documents"> }
       : "skip",
