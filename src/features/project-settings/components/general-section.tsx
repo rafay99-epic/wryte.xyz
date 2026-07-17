@@ -3,12 +3,13 @@
 import { motion } from "framer-motion";
 import { Globe, Settings2, User } from "lucide-react";
 import { MediaPickerInput } from "@/components/forms/media-picker-input";
+import { SaveBar } from "@/components/settings/save-bar";
 import { Input } from "@/components/ui/input";
 import { smoothTransition, staggerContainer, staggerItem } from "@/lib/motion";
 import type { Id } from "../../../../convex/_generated/dataModel";
 import { useGeneralSection } from "../hooks/use-general-section";
 import type { ProjectData } from "../types";
-import { FieldGroup, SaveButton, SectionHeader } from "./shared";
+import { FieldGroup, SectionHeader } from "./shared";
 
 export function GeneralSection({
   projectId,
@@ -112,12 +113,12 @@ export function GeneralSection({
             <span className="font-mono text-foreground/70">{project.slug}</span>{" "}
             cannot be changed after creation.
           </p>
-          <SaveButton
-            isSaving={isSaving}
-            disabled={!hasChanges}
-            onClick={handleSave}
-          />
         </div>
+        <SaveBar
+          hasChanges={hasChanges}
+          isSaving={isSaving}
+          onSave={handleSave}
+        />
       </motion.div>
     </motion.div>
   );

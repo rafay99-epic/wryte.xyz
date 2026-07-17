@@ -9,6 +9,8 @@ import {
   Share2,
   XCircle,
 } from "lucide-react";
+import { useState } from "react";
+import { ConfirmActionDialog } from "@/components/settings/confirm-action-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -54,6 +56,7 @@ export function SocialSection({
     projectId,
     initialPostUrlPrefix: project.postUrlPrefix,
   });
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const urlPreview = project.siteUrl
     ? buildPublishedUrl({
@@ -332,7 +335,7 @@ export function SocialSection({
                 size="sm"
                 variant="outline"
                 disabled={busy !== null}
-                onClick={() => void handleDelete()}
+                onClick={() => setConfirmDelete(true)}
                 className="text-red-600 hover:text-red-700"
               >
                 {busy === "delete" && (
@@ -343,6 +346,13 @@ export function SocialSection({
             </>
           )}
         </div>
+        <ConfirmActionDialog
+          open={confirmDelete}
+          onOpenChange={setConfirmDelete}
+          title="Remove Buffer credentials?"
+          description="Auto-posting stops until you connect a new API key."
+          onConfirm={() => void handleDelete()}
+        />
       </motion.div>
     </motion.div>
   );

@@ -10,6 +10,7 @@ import {
   Loader2,
   XCircle,
 } from "lucide-react";
+import { SaveBar } from "@/components/settings/save-bar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -269,13 +270,13 @@ export function GitHubSection({ projectId, project }: GitHubSectionProps) {
                 )}
                 Verify
               </Button>
-              <SaveButton
-                isSaving={isSavingRepo}
-                disabled={!repoHasChanges}
-                onClick={handleSaveRepo}
-              />
             </div>
           </div>
+          <SaveBar
+            hasChanges={repoHasChanges}
+            isSaving={isSavingRepo}
+            onSave={handleSaveRepo}
+          />
         </div>
       </motion.div>
     </motion.div>

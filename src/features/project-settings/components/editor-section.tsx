@@ -2,12 +2,12 @@
 
 import { motion } from "framer-motion";
 import { PenLine } from "lucide-react";
-import { Switch } from "@/components/ui/switch";
+import { SaveBar } from "@/components/settings/save-bar";
 import { smoothTransition, staggerContainer, staggerItem } from "@/lib/motion";
 import type { Id } from "../../../../convex/_generated/dataModel";
 import { useEditorSection } from "../hooks/use-editor-section";
 import type { ProjectData } from "../types";
-import { SaveButton, SectionHeader } from "./shared";
+import { RowList, SectionHeader, SettingsGroup, ToggleRow } from "./shared";
 import { SnippetsManager } from "./snippets-manager";
 
 export function EditorSection({
@@ -36,89 +36,61 @@ export function EditorSection({
       <SectionHeader
         icon={PenLine}
         title="Editor"
-        description="Optional writing aids. Off by default to keep the editor fast."
+        description="Optional writing aids — off by default"
       />
 
       <motion.div
         variants={staggerItem}
         transition={smoothTransition}
-        className="space-y-4"
+        className="space-y-3"
       >
-        <div className="flex items-center justify-between rounded-xl border border-border/40 bg-card px-4 py-3">
-          <div className="pr-4">
-            <p className="text-sm font-medium">Readability lens</p>
-            <p className="text-xs text-muted-foreground">
-              A side panel with a reading-ease score and a clickable list of
-              long, passive, and adverb-heavy sentences to tighten your prose.
-            </p>
-          </div>
-          <Switch
+        <RowList>
+          <ToggleRow
+            title="Readability lens"
+            line="Reading-ease score in a side panel."
+            info="Shows a reading-ease score plus a clickable list of long, passive, and adverb-heavy sentences so you can tighten your prose."
             checked={readabilityLensEnabled}
-            onCheckedChange={(checked) => setReadabilityLensEnabled(checked)}
-            data-testid="readability-lens-toggle"
+            onCheckedChange={setReadabilityLensEnabled}
+            testId="readability-lens-toggle"
           />
-        </div>
-
-        <div className="flex items-center justify-between rounded-xl border border-border/40 bg-card px-4 py-3">
-          <div className="pr-4">
-            <p className="text-sm font-medium">Slash commands</p>
-            <p className="text-xs text-muted-foreground">
-              Type{" "}
-              <code className="rounded bg-muted px-1 py-px text-[10px]">/</code>{" "}
-              at the start of a line to quickly insert headings, lists, quotes,
-              code, tables, and AI actions.
-            </p>
-          </div>
-          <Switch
+          <ToggleRow
+            title="Slash commands"
+            line="Type / for quick inserts."
+            info="Type / at the start of a line to insert headings, lists, quotes, code, tables, and AI actions without leaving the keyboard."
             checked={slashCommandsEnabled}
-            onCheckedChange={(checked) => setSlashCommandsEnabled(checked)}
+            onCheckedChange={setSlashCommandsEnabled}
           />
-        </div>
-
-        <div className="flex items-center justify-between rounded-xl border border-border/40 bg-card px-4 py-3">
-          <div className="pr-4">
-            <p className="text-sm font-medium">Snippets</p>
-            <p className="text-xs text-muted-foreground">
-              Reusable text blocks (sign-offs, bios, CTAs, disclaimers) you can
-              paste from the editor's{" "}
-              <code className="rounded bg-muted px-1 py-px text-[10px]">/</code>{" "}
-              menu under <span className="font-medium">Snippets</span>. Manage
-              them below.
-            </p>
-          </div>
-          <Switch
+          <ToggleRow
+            title="Snippets"
+            line="Reusable text blocks in the / menu."
+            info="Sign-offs, bios, CTAs, disclaimers — saved once, pasted from the editor's / menu under Snippets. Manage them in the Snippets group below."
             checked={snippetsEnabled}
-            onCheckedChange={(checked) => setSnippetsEnabled(checked)}
+            onCheckedChange={setSnippetsEnabled}
           />
-        </div>
-
-        <div className="flex items-center justify-between rounded-xl border border-border/40 bg-card px-4 py-3">
-          <div className="pr-4">
-            <p className="text-sm font-medium">Selection toolbar</p>
-            <p className="text-xs text-muted-foreground">
-              A floating toolbar that appears when you select text — quick
-              Bold/Italic/Link plus one-click AI actions (Improve, Shorten,
-              Expand, Fix grammar). On by default.
-            </p>
-          </div>
-          <Switch
+          <ToggleRow
+            title="Selection toolbar"
+            line="Floating toolbar on selected text."
+            info="Appears when you select text: quick Bold/Italic/Link plus one-click AI actions (Improve, Shorten, Expand, Fix grammar). On by default."
             checked={selectionToolbarEnabled}
-            onCheckedChange={(checked) => setSelectionToolbarEnabled(checked)}
+            onCheckedChange={setSelectionToolbarEnabled}
           />
-        </div>
+        </RowList>
 
-        <SaveButton
+        <SaveBar
+          hasChanges={hasChanges}
           isSaving={isSaving}
-          disabled={!hasChanges}
-          onClick={() => void handleSave()}
+          onSave={() => void handleSave()}
         />
 
-        <div className="border-t border-border/40 pt-4">
+        <SettingsGroup
+          title="Snippets library"
+          summary={`${String(project.snippetCount ?? 0)} snippet${(project.snippetCount ?? 0) === 1 ? "" : "s"}`}
+        >
           <SnippetsManager
             projectId={projectId}
             snippetCount={project.snippetCount ?? 0}
           />
-        </div>
+        </SettingsGroup>
       </motion.div>
     </motion.div>
   );

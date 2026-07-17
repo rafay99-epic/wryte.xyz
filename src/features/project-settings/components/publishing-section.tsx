@@ -3,6 +3,8 @@
 import { motion } from "framer-motion";
 import { Check, Copy, Rocket } from "lucide-react";
 import { useState } from "react";
+import { SaveBar } from "@/components/settings/save-bar";
+import { InfoHint } from "@/components/ui/info-hint";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { TimezoneSelect } from "@/components/ui/timezone-select";
@@ -17,8 +19,10 @@ import type { ProjectData } from "../types";
 import {
   FieldGroup,
   MediaModeOption,
-  SaveButton,
+  RowList,
   SectionHeader,
+  SettingsGroup,
+  ToggleRow,
 } from "./shared";
 
 /** README badge markdown — image served from /badge.svg, click measured via /gh. */
@@ -41,6 +45,11 @@ function BadgeSnippet() {
       <div className="mb-1.5 flex items-center gap-2">
         <p className="text-xs font-medium">README badge</p>
         <img src="/badge.svg" alt="Published with Wryte" height={20} />
+        <InfoHint>
+          Paste this markdown into your repo&apos;s README. The badge image is
+          served from wryte.xyz and links back through the /gh vanity URL, so
+          badge clicks show up in analytics separately from commit-link clicks.
+        </InfoHint>
       </div>
       <div className="flex items-center gap-2">
         <code className="min-w-0 flex-1 truncate rounded-lg border border-border/40 bg-muted/40 px-2.5 py-1.5 font-mono text-[11px] text-muted-foreground">
@@ -59,9 +68,6 @@ function BadgeSnippet() {
           )}
         </button>
       </div>
-      <p className="mt-1.5 text-xs text-muted-foreground">
-        Paste into your repo&apos;s README — the badge links back to Wryte.
-      </p>
     </div>
   );
 }
@@ -98,204 +104,247 @@ export function PublishingSection({
     handleSave,
   } = usePublishingSection({ projectId, project });
 
+  const retentionLabel =
+    trashRetentionDays >= 36500 ? "forever" : `${trashRetentionDays}d trash`;
+
   return (
     <motion.div variants={staggerContainer} initial="initial" animate="animate">
       <SectionHeader
         icon={Rocket}
         title="Publishing"
-        description="Control how content is committed and deployed"
+        description="How content is committed and deployed"
       />
 
       <motion.div
         variants={staggerItem}
         transition={smoothTransition}
-        className="space-y-4"
+        className="space-y-3"
       >
-        <FieldGroup
-          label="Commit Message Template"
-          htmlFor="s-commit"
-          hint="Variables: {{filename}}, {{title}}, {{slug}}, {{date}}"
+        <SettingsGroup
+          title="Commits"
+          summary={commitTemplate || "docs: publish {{filename}}"}
+          defaultOpen
         >
-          <Input
-            id="s-commit"
-            value={commitTemplate}
-            onChange={(e) => setCommitTemplate(e.target.value)}
-            placeholder="docs: publish {{filename}}"
-            className="font-mono text-sm"
-          />
-        </FieldGroup>
-
-        <div className="rounded-xl border border-border/40 bg-card px-4 py-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium">Wryte attribution</p>
-              <p className="text-xs text-muted-foreground">
-                Append{" "}
-                <code className="rounded bg-muted px-1 py-px text-[10px]">
-                  {attributionLine(attributionText)}
-                </code>{" "}
-                to publish commits.
-              </p>
-            </div>
-            <Switch
-              checked={attributionEnabled}
-              onCheckedChange={(checked) => setAttributionEnabled(checked)}
+          <FieldGroup
+            label="Commit message template"
+            htmlFor="s-commit"
+            hint="Default message for every publish."
+            info={
+              <>
+                Used when you don&apos;t type a custom message in the publish
+                dialog. Variables: <code>{"{{filename}}"}</code>,{" "}
+                <code>{"{{title}}"}</code>, <code>{"{{slug}}"}</code>,{" "}
+                <code>{"{{date}}"}</code>.
+              </>
+            }
+          >
+            <Input
+              id="s-commit"
+              value={commitTemplate}
+              onChange={(e) => setCommitTemplate(e.target.value)}
+              placeholder="docs: publish {{filename}}"
+              className="font-mono text-sm"
             />
-          </div>
-          {attributionEnabled && (
-            <div className="mt-3 space-y-1">
-              <Input
-                value={attributionText}
-                onChange={(e) => setAttributionText(e.target.value)}
-                placeholder={DEFAULT_ATTRIBUTION_TEXT}
-                className="font-mono text-sm"
-                aria-label="Custom attribution text"
+          </FieldGroup>
+
+          <div className="py-1">
+            <div className="flex items-center justify-between">
+              <div className="min-w-0">
+                <p className="flex items-center text-sm font-medium">
+                  Wryte attribution
+                  <InfoHint>
+                    Appends{" "}
+                    <code className="text-primary">
+                      {attributionLine(attributionText)}
+                    </code>{" "}
+                    to publish commits. The publish dialog always previews the
+                    exact line before you commit. Customize the phrase below —
+                    the wryte.xyz/gh link is always appended. Variables:{" "}
+                    <code>{"{{title}}"}</code>, <code>{"{{filename}}"}</code>.
+                  </InfoHint>
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Credit Wryte in commit messages.
+                </p>
+              </div>
+              <Switch
+                checked={attributionEnabled}
+                onCheckedChange={(checked) => setAttributionEnabled(checked)}
               />
-              <p
-                className={
-                  attributionError
-                    ? "text-xs text-destructive"
-                    : "text-xs text-muted-foreground"
-                }
-              >
-                {attributionError ??
-                  "Optional custom phrase — the wryte.xyz/gh link is always appended. Variables: {{title}}, {{filename}}"}
-              </p>
             </div>
-          )}
-          <BadgeSnippet />
-        </div>
-
-        <div className="flex items-center justify-between rounded-xl border border-border/40 bg-card px-4 py-3">
-          <div>
-            <p className="text-sm font-medium">Verified commits</p>
-            <p className="text-xs text-muted-foreground">
-              Commit as{" "}
-              <code className="rounded bg-muted px-1 py-px text-[10px]">
-                wryte-xyz[bot]
-              </code>{" "}
-              with GitHub&apos;s Verified badge — you stay the author. Requires{" "}
-              <a
-                href="https://github.com/apps/wryte-xyz/installations/new"
-                target="_blank"
-                rel="noreferrer"
-                className="underline underline-offset-2"
-              >
-                installing the wryte-xyz app
-              </a>{" "}
-              on your repo; falls back to your token otherwise.
-            </p>
+            {attributionEnabled && (
+              <div className="mt-3 space-y-1">
+                <Input
+                  value={attributionText}
+                  onChange={(e) => setAttributionText(e.target.value)}
+                  placeholder={DEFAULT_ATTRIBUTION_TEXT}
+                  className="font-mono text-sm"
+                  aria-label="Custom attribution text"
+                />
+                {attributionError && (
+                  <p className="text-xs text-destructive">{attributionError}</p>
+                )}
+              </div>
+            )}
+            <BadgeSnippet />
           </div>
-          <Switch
-            checked={verifiedCommits}
-            onCheckedChange={(checked) => setVerifiedCommits(checked)}
-          />
-        </div>
 
-        <div className="flex items-center justify-between rounded-xl border border-border/40 bg-card px-4 py-3">
-          <div>
-            <p className="text-sm font-medium">Default to draft</p>
-            <p className="text-xs text-muted-foreground">
-              New documents will have{" "}
-              <code className="rounded bg-muted px-1 py-px text-[10px]">
-                draft: true
-              </code>{" "}
-              in frontmatter.
-            </p>
-          </div>
-          <Switch
-            checked={defaultDraft}
-            onCheckedChange={(checked) => setDefaultDraft(checked)}
-          />
-        </div>
-
-        <div className="flex items-center justify-between rounded-xl border border-border/40 bg-card px-4 py-3">
-          <div>
-            <p className="text-sm font-medium">Auto-save</p>
-            <p className="text-xs text-muted-foreground">
-              When on, edits persist a few seconds after you stop typing. When
-              off, use{" "}
-              <code className="rounded bg-muted px-1 py-px text-[10px]">
-                {"⌘S"}
-              </code>{" "}
-              /{" "}
-              <code className="rounded bg-muted px-1 py-px text-[10px]">
-                Ctrl+S
-              </code>{" "}
-              to save manually.
-            </p>
-          </div>
-          <Switch
-            checked={autoSaveEnabled}
-            onCheckedChange={(checked) => setAutoSaveEnabled(checked)}
-          />
-        </div>
-
-        <FieldGroup label="Frontmatter Format">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <MediaModeOption
-              active={frontmatterFormat === "yaml"}
-              onClick={() => setFrontmatterFormat("yaml")}
-              title="YAML"
-              description="Delimited with --- (most common)"
+          <RowList>
+            <ToggleRow
+              title="Verified commits"
+              line="Commit as wryte-xyz[bot] with a Verified badge."
+              info={
+                <>
+                  Requires installing the{" "}
+                  <a
+                    href="https://github.com/apps/wryte-xyz/installations/new"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline underline-offset-2"
+                  >
+                    wryte-xyz GitHub App
+                  </a>{" "}
+                  on your repo. Publishes are then committed by the bot with
+                  GitHub&apos;s Verified badge while you remain the git author —
+                  your avatar and contribution graph stay intact. Without the
+                  App installed, publishing quietly falls back to your own
+                  token.
+                </>
+              }
+              checked={verifiedCommits}
+              onCheckedChange={setVerifiedCommits}
             />
-            <MediaModeOption
-              active={frontmatterFormat === "toml"}
-              onClick={() => setFrontmatterFormat("toml")}
-              title="TOML"
-              description="Delimited with +++ (Hugo default)"
-            />
-          </div>
-        </FieldGroup>
+          </RowList>
+        </SettingsGroup>
 
-        <FieldGroup
-          label="Publishing Timezone"
-          htmlFor="s-timezone"
-          hint="Drives how scheduled publish times are interpreted and how the publish-date frontmatter field is rendered. Leave on browser default to use whatever timezone you happen to be in."
+        <SettingsGroup
+          title="Writing behavior"
+          summary={`Draft ${defaultDraft ? "on" : "off"} · Auto-save ${autoSaveEnabled ? "on" : "off"}`}
         >
-          <TimezoneSelect
-            id="s-timezone"
-            value={timezone}
-            onChange={setTimezone}
-          />
-        </FieldGroup>
+          <RowList>
+            <ToggleRow
+              title="Default to draft"
+              line="New posts start as drafts."
+              info={
+                <>
+                  New documents get <code>draft: true</code> in their
+                  frontmatter, so your site skips them until you flip the flag
+                  at publish time.
+                </>
+              }
+              checked={defaultDraft}
+              onCheckedChange={setDefaultDraft}
+            />
+            <ToggleRow
+              title="Auto-save"
+              line="Saves as you type."
+              info={
+                <>
+                  Edits persist a few seconds after you stop typing. Turned off,
+                  nothing saves until you press <kbd>⌘S</kbd> /{" "}
+                  <kbd>Ctrl+S</kbd>.
+                </>
+              }
+              checked={autoSaveEnabled}
+              onCheckedChange={setAutoSaveEnabled}
+            />
+          </RowList>
+        </SettingsGroup>
 
-        <FieldGroup
-          label="Trash retention"
-          hint="How long deleted documents stay in this project's trash before being permanently removed. Restorable any time before then."
+        <SettingsGroup
+          title="Format & time"
+          summary={`${frontmatterFormat.toUpperCase()} · ${timezone || "browser tz"} · ${retentionLabel}`}
         >
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-            <MediaModeOption
-              active={trashRetentionDays === 7}
-              onClick={() => setTrashRetentionDays(7)}
-              title="7 days"
-              description="Quick cleanup"
-            />
-            <MediaModeOption
-              active={trashRetentionDays === 30}
-              onClick={() => setTrashRetentionDays(30)}
-              title="30 days"
-              description="Recommended"
-            />
-            <MediaModeOption
-              active={trashRetentionDays === 90}
-              onClick={() => setTrashRetentionDays(90)}
-              title="90 days"
-              description="Long memory"
-            />
-            <MediaModeOption
-              active={trashRetentionDays >= 36500}
-              onClick={() => setTrashRetentionDays(36500)}
-              title="Forever"
-              description="Manual only"
-            />
-          </div>
-        </FieldGroup>
+          <FieldGroup
+            label="Frontmatter format"
+            info={
+              <>
+                YAML frontmatter is delimited with <code>---</code> and is what
+                most frameworks expect. TOML uses <code>+++</code> and is
+                Hugo&apos;s default.
+              </>
+            }
+          >
+            <div className="grid gap-3 sm:grid-cols-2">
+              <MediaModeOption
+                active={frontmatterFormat === "yaml"}
+                onClick={() => setFrontmatterFormat("yaml")}
+                title="YAML"
+                description="--- delimiters"
+              />
+              <MediaModeOption
+                active={frontmatterFormat === "toml"}
+                onClick={() => setFrontmatterFormat("toml")}
+                title="TOML"
+                description="+++ (Hugo)"
+              />
+            </div>
+          </FieldGroup>
 
-        <SaveButton
+          <FieldGroup
+            label="Publishing timezone"
+            htmlFor="s-timezone"
+            hint="For scheduled publish times."
+            info={
+              <>
+                Drives how scheduled publish times are interpreted and how the
+                publish-date frontmatter field is rendered. Leave on browser
+                default to use whatever timezone you happen to be in.
+              </>
+            }
+          >
+            <TimezoneSelect
+              id="s-timezone"
+              value={timezone}
+              onChange={setTimezone}
+            />
+          </FieldGroup>
+
+          <FieldGroup
+            label="Trash retention"
+            hint="Deleted posts stay restorable this long."
+            info={
+              <>
+                How long deleted documents stay in this project&apos;s trash
+                before being permanently removed. Restorable any time before
+                then; &quot;Forever&quot; means only manual cleanup.
+              </>
+            }
+          >
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              <MediaModeOption
+                active={trashRetentionDays === 7}
+                onClick={() => setTrashRetentionDays(7)}
+                title="7 days"
+                description="Quick cleanup"
+              />
+              <MediaModeOption
+                active={trashRetentionDays === 30}
+                onClick={() => setTrashRetentionDays(30)}
+                title="30 days"
+                description="Recommended"
+              />
+              <MediaModeOption
+                active={trashRetentionDays === 90}
+                onClick={() => setTrashRetentionDays(90)}
+                title="90 days"
+                description="Long memory"
+              />
+              <MediaModeOption
+                active={trashRetentionDays >= 36500}
+                onClick={() => setTrashRetentionDays(36500)}
+                title="Forever"
+                description="Manual only"
+              />
+            </div>
+          </FieldGroup>
+        </SettingsGroup>
+
+        <SaveBar
+          hasChanges={hasChanges}
           isSaving={isSaving}
-          disabled={!hasChanges || Boolean(attributionError)}
-          onClick={() => void handleSave()}
+          disabled={Boolean(attributionError)}
+          onSave={() => void handleSave()}
         />
       </motion.div>
     </motion.div>

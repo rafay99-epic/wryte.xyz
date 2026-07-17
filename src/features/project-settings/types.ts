@@ -115,17 +115,105 @@ export const TABS: {
   id: SettingsTab;
   label: string;
   icon: React.ElementType;
+  /** Search terms for the settings filter beyond the label. */
+  keywords: string[];
 }[] = [
-  { id: "general", label: "General", icon: Settings2 },
-  { id: "github", label: "GitHub", icon: GitBranch },
-  { id: "content", label: "Content", icon: FolderTree },
-  { id: "media", label: "Media", icon: ImageIcon },
-  { id: "publishing", label: "Publishing", icon: Rocket },
-  { id: "frontmatter", label: "Frontmatter", icon: Code2 },
-  { id: "ai", label: "AI", icon: Sparkles },
-  { id: "editor", label: "Editor", icon: PenLine },
-  { id: "social", label: "Social", icon: Share2 },
-  { id: "tools", label: "Tools", icon: Wrench },
+  {
+    id: "general",
+    label: "General",
+    icon: Settings2,
+    keywords: ["name", "site url", "author", "avatar", "delete", "danger"],
+  },
+  {
+    id: "github",
+    label: "GitHub",
+    icon: GitBranch,
+    keywords: ["repository", "repo", "branch", "token", "pat", "oauth"],
+  },
+  {
+    id: "content",
+    label: "Content",
+    icon: FolderTree,
+    keywords: ["directory", "path", "format", "mdx", "markdown", "filename"],
+  },
+  {
+    id: "media",
+    label: "Media",
+    icon: ImageIcon,
+    keywords: [
+      "storage",
+      "uploadthing",
+      "cloudinary",
+      "compression",
+      "watermark",
+      "upload size",
+      "images",
+    ],
+  },
+  {
+    id: "publishing",
+    label: "Publishing",
+    icon: Rocket,
+    keywords: [
+      "commit",
+      "attribution",
+      "badge",
+      "verified",
+      "draft",
+      "autosave",
+      "timezone",
+      "trash",
+      "deployment",
+      "vercel",
+    ],
+  },
+  {
+    id: "frontmatter",
+    label: "Frontmatter",
+    icon: Code2,
+    keywords: ["schema", "fields", "yaml", "json", "tags", "description"],
+  },
+  {
+    id: "ai",
+    label: "AI",
+    icon: Sparkles,
+    keywords: [
+      "provider",
+      "model",
+      "api key",
+      "anthropic",
+      "openai",
+      "openrouter",
+      "gemini",
+      "groq",
+      "prompt",
+    ],
+  },
+  {
+    id: "editor",
+    label: "Editor",
+    icon: PenLine,
+    keywords: [
+      "readability",
+      "slash",
+      "snippets",
+      "toolbar",
+      "selection",
+      "lens",
+    ],
+  },
+  {
+    id: "social",
+    label: "Social",
+    icon: Share2,
+    keywords: ["buffer", "channels", "post", "announce", "url prefix"],
+  },
+  {
+    id: "tools",
+    label: "Tools",
+    icon: Wrench,
+    keywords: ["export", "backup", "links", "check", "zip"],
+  },
 ];
 
 export { bufferServiceLabel } from "@/lib/social-template";

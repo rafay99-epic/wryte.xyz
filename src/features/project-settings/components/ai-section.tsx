@@ -6,6 +6,8 @@ import { Eye, EyeOff, Loader2, Plus, Sparkles, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { AI_PROVIDER_MARKS } from "@/components/branding/provider-logos";
+import { ConfirmActionDialog } from "@/components/settings/confirm-action-dialog";
+import { SaveBar } from "@/components/settings/save-bar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -16,7 +18,7 @@ import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
 import { useAiSection } from "../hooks/use-ai-section";
 import type { AiProviderId, ProjectData } from "../types";
-import { Divider, FieldGroup, SaveButton, SectionHeader } from "./shared";
+import { Divider, FieldGroup, SectionHeader, SettingsGroup } from "./shared";
 
 export function AiSection({
   projectId,
@@ -112,11 +114,9 @@ export function AiSection({
                     aria-checked={selected}
                     onClick={() => setModel(m.value)}
                     className={cn(
-                      "flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-all",
+                      "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-all",
                       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-                      selected
-                        ? "border-primary/40 bg-primary/5 shadow-sm"
-                        : "border-border/40 bg-transparent hover:border-border hover:bg-muted/30",
+                      selected ? "bg-primary/10" : "hover:bg-muted/30",
                     )}
                   >
                     <div
@@ -174,17 +174,16 @@ export function AiSection({
           </div>
         )}
 
-        <div className="flex justify-end pt-1">
-          <SaveButton
-            isSaving={isSaving}
-            disabled={!hasChanges || !provider || !model}
-            onClick={() => void handleSave()}
-          />
-        </div>
+        <SaveBar
+          hasChanges={hasChanges}
+          isSaving={isSaving}
+          disabled={!provider || !model}
+          onSave={() => void handleSave()}
+        />
 
-        <Divider />
-
-        <PromptTemplatesEditor projectId={projectId} />
+        <SettingsGroup title="Prompt templates" summary="Auto-saved library">
+          <PromptTemplatesEditor projectId={projectId} />
+        </SettingsGroup>
       </motion.div>
     </motion.div>
   );
@@ -303,7 +302,7 @@ function PromptTemplatesEditor({ projectId }: { projectId: Id<"projects"> }) {
         </div>
       )}
 
-      <div className="space-y-2 rounded-lg border border-border/40 bg-muted/10 p-3">
+      <div className="space-y-2 py-1">
         <Input
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
@@ -367,7 +366,7 @@ function PromptTemplateRow({
   }, [template.name, template.prompt]);
 
   return (
-    <div className="group flex items-start gap-2 rounded-lg border border-border/40 bg-background p-2.5">
+    <div className="group flex items-start gap-2 border-b border-border/40 py-2.5 last:border-b-0">
       <div className="min-w-0 flex-1 space-y-1.5">
         <input
           value={name}
@@ -478,14 +477,9 @@ function AiCredentialsForm({
     }
   }, [projectId, provider, testCredentials]);
 
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
   const handleDelete = useCallback(async () => {
-    if (
-      !window.confirm(
-        "Remove this API key? AI enhancements will stop working until you reconfigure.",
-      )
-    ) {
-      return;
-    }
     setBusy("delete");
     try {
       await deleteCredentials({ projectId, provider });
@@ -504,7 +498,7 @@ function AiCredentialsForm({
   const providerLabel = entry.label;
 
   return (
-    <div className="space-y-4 rounded-lg border bg-muted/30 p-4">
+    <div className="space-y-4 border-t border-border/40 pt-4">
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-sm font-semibold">{providerLabel} API key</h3>
@@ -601,7 +595,7 @@ function AiCredentialsForm({
           <Button
             size="sm"
             variant="ghost"
-            onClick={handleDelete}
+            onClick={() => setConfirmDelete(true)}
             disabled={busy !== null || isRotating}
             className="text-destructive hover:bg-destructive/10 hover:text-destructive"
           >
@@ -613,6 +607,13 @@ function AiCredentialsForm({
             Remove
           </Button>
         )}
+        <ConfirmActionDialog
+          open={confirmDelete}
+          onOpenChange={setConfirmDelete}
+          title="Remove this API key?"
+          description="AI enhancements stop working until you reconfigure a provider key."
+          onConfirm={() => void handleDelete()}
+        />
         {hasExisting && config.lastVerifiedAt && (
           <span className="ml-auto text-[11px] text-muted-foreground">
             Last verified{" "}

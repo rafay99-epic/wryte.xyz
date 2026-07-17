@@ -15,6 +15,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useState } from "react";
+import { ConfirmActionDialog } from "@/components/settings/confirm-action-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -72,6 +73,8 @@ export function FrontmatterSection({
     isDetecting,
     canReDetect,
   } = useFrontmatterSection({ projectId, project });
+  const [showClearDefaultsConfirm, setShowClearDefaultsConfirm] =
+    useState(false);
 
   const [showReDetectConfirm, setShowReDetectConfirm] = useState(false);
 
@@ -158,7 +161,7 @@ export function FrontmatterSection({
             {hasAnyDefaults && editorMode === "visual" ? (
               <button
                 type="button"
-                onClick={clearAllDefaults}
+                onClick={() => setShowClearDefaultsConfirm(true)}
                 className="inline-flex items-center gap-1.5 rounded-md border border-border/60 bg-muted/30 px-2 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:border-destructive/40 hover:bg-destructive/5 hover:text-destructive"
                 title="Wipe every field's default value — useful for cleaning up values that auto-detect copied from an existing post"
               >
@@ -169,6 +172,15 @@ export function FrontmatterSection({
           </div>
         </div>
       </motion.div>
+
+      <ConfirmActionDialog
+        open={showClearDefaultsConfirm}
+        onOpenChange={setShowClearDefaultsConfirm}
+        title="Clear every default value?"
+        description="Wipes the default value from all schema fields. The fields themselves stay."
+        confirmLabel="Clear defaults"
+        onConfirm={clearAllDefaults}
+      />
 
       {/* Re-detect confirmation — replaces the current schema, so confirm first */}
       <Dialog open={showReDetectConfirm} onOpenChange={setShowReDetectConfirm}>
@@ -334,7 +346,7 @@ export function FrontmatterSection({
           <SaveButton
             isSaving={isSaving}
             onClick={handleSave}
-            label="Save Schema"
+            label="Save schema"
           />
         </div>
       </motion.div>

@@ -1,7 +1,11 @@
-import { Loader2 } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import { ChevronRight, Loader2 } from "lucide-react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { InfoHint } from "@/components/ui/info-hint";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 
 export function SectionHeader({
@@ -36,23 +40,141 @@ export function FieldGroup({
   label,
   htmlFor,
   hint,
+  info,
   children,
 }: {
   label: string;
   htmlFor?: string;
+  /** One short line, always visible. Keep it ≤ ~12 words. */
   hint?: string;
+  /** Full explanation, shown on demand behind the ⓘ. */
+  info?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
     <div className="space-y-1.5">
-      <Label
-        htmlFor={htmlFor}
-        className="text-xs font-medium text-muted-foreground"
-      >
-        {label}
-      </Label>
+      <span className="flex items-center">
+        <Label
+          htmlFor={htmlFor}
+          className="text-xs font-medium text-muted-foreground"
+        >
+          {label}
+        </Label>
+        {info && <InfoHint>{info}</InfoHint>}
+      </span>
       {children}
       {hint && <p className="text-[11px] text-muted-foreground/60">{hint}</p>}
+    </div>
+  );
+}
+
+/**
+ * Hairline-divided row list — the container that replaces the
+ * card-per-setting grid. Rows inside (ToggleRow, custom rows) are
+ * borderless; this wrapper provides the single border and the dividers.
+ */
+export function RowList({ children }: { children: React.ReactNode }) {
+  return <div className="divide-y divide-border/40">{children}</div>;
+}
+
+/** Borderless toggle row — lives inside a RowList or SettingsGroup. */
+export function ToggleRow({
+  title,
+  line,
+  info,
+  checked,
+  onCheckedChange,
+  testId,
+}: {
+  title: string;
+  line: string;
+  info: React.ReactNode;
+  checked: boolean;
+  onCheckedChange: (checked: boolean) => void;
+  /** data-testid forwarded to the Switch for e2e selectors. */
+  testId?: string;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4 py-3.5">
+      <div className="min-w-0">
+        <p className="flex items-center text-sm font-medium">
+          {title}
+          <InfoHint>{info}</InfoHint>
+        </p>
+        <p className="text-xs text-muted-foreground">{line}</p>
+      </div>
+      <Switch
+        checked={checked}
+        onCheckedChange={onCheckedChange}
+        {...(testId ? { "data-testid": testId } : {})}
+      />
+    </div>
+  );
+}
+
+/**
+ * Collapsible settings group — the antidote to tabs that staple several
+ * features together. Closed, the header still informs via `summary`
+ * ("Storage: GitHub"); open, the body unfolds with an animated height
+ * transition (framer, per the app's motion conventions).
+ */
+export function SettingsGroup({
+  title,
+  summary,
+  defaultOpen = false,
+  children,
+}: {
+  title: string;
+  /** Current value shown while collapsed, e.g. "GitHub" or "On · 500 KB". */
+  summary?: string;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+
+  return (
+    <div className="border-b border-border/40 last:border-b-0">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="flex w-full cursor-pointer select-none items-center justify-between gap-3 py-3.5 text-sm font-medium transition-colors hover:text-primary"
+      >
+        <span className="flex items-center gap-2.5">
+          <ChevronRight
+            className={cn(
+              "size-3.5 text-muted-foreground transition-transform duration-200",
+              open && "rotate-90",
+            )}
+          />
+          {title}
+        </span>
+        <AnimatePresence initial={false}>
+          {summary && !open && (
+            <motion.span
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="truncate text-xs font-normal text-muted-foreground"
+            >
+              {summary}
+            </motion.span>
+          )}
+        </AnimatePresence>
+      </button>
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
+          >
+            <div className="space-y-4 pb-5 pl-6">{children}</div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -3,20 +3,20 @@
 import { useAction, useMutation, useQuery } from "convex/react";
 import { motion } from "framer-motion";
 import {
-  Bot,
   Eye,
   EyeOff,
-  HardDrive,
   ImageIcon,
   Loader2,
   RotateCcw,
-  Sparkles,
   Trash2,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { CompressionSettingsForm } from "@/components/forms/compression-settings-form";
+import { ConfirmActionDialog } from "@/components/settings/confirm-action-dialog";
+import { SaveBar } from "@/components/settings/save-bar";
 import { Button } from "@/components/ui/button";
+import { InfoHint } from "@/components/ui/info-hint";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -37,11 +37,10 @@ import type { Id } from "../../../../convex/_generated/dataModel";
 import { useMediaSection } from "../hooks/use-media-section";
 import type { ProjectData } from "../types";
 import {
-  Divider,
   FieldGroup,
   MediaModeOption,
-  SaveButton,
   SectionHeader,
+  SettingsGroup,
 } from "./shared";
 
 export function MediaSection({
@@ -62,87 +61,107 @@ export function MediaSection({
     pathHint,
   } = useMediaSection({ projectId, project });
 
+  const storageLabel =
+    mediaStorageMode === "github"
+      ? "GitHub"
+      : mediaStorageMode === "uploadthing"
+        ? "UploadThing"
+        : "Cloudinary";
+
   return (
     <motion.div variants={staggerContainer} initial="initial" animate="animate">
       <SectionHeader
         icon={ImageIcon}
-        title="Media Storage"
-        description="Where images uploaded in the editor are stored"
+        title="Media"
+        description="Storage, compression, and upload limits"
       />
 
       <motion.div
         variants={staggerItem}
         transition={smoothTransition}
-        className="space-y-4"
+        className="space-y-3"
       >
-        <FieldGroup
-          label="Media Directory"
-          htmlFor="s-media-path"
-          hint={pathHint}
-        >
-          <Input
-            id="s-media-path"
-            value={mediaPath}
-            onChange={(e) => setMediaPath(e.target.value)}
-            placeholder="public/images"
-            className="font-mono text-sm"
-          />
-        </FieldGroup>
-
-        <FieldGroup
-          label="Storage Backend"
-          hint="Each project can use a different backend. Switching does not move existing media."
-        >
-          <div className="grid gap-3 sm:grid-cols-3">
-            <MediaModeOption
-              active={mediaStorageMode === "github"}
-              onClick={() => setMediaStorageMode("github")}
-              title="GitHub Repository"
-              description="Commit images directly into the project's repo."
+        <SettingsGroup title="Storage" summary={storageLabel} defaultOpen>
+          <FieldGroup
+            label="Media directory"
+            htmlFor="s-media-path"
+            hint={pathHint}
+          >
+            <Input
+              id="s-media-path"
+              value={mediaPath}
+              onChange={(e) => setMediaPath(e.target.value)}
+              placeholder="public/images"
+              className="font-mono text-sm"
             />
-            <MediaModeOption
-              active={mediaStorageMode === "uploadthing"}
-              onClick={() => setMediaStorageMode("uploadthing")}
-              title="UploadThing"
-              description="Use your own UploadThing account."
-            />
-            <MediaModeOption
-              active={mediaStorageMode === "cloudinary"}
-              onClick={() => setMediaStorageMode("cloudinary")}
-              title="Cloudinary"
-              description="Use your own Cloudinary account."
-            />
-          </div>
-        </FieldGroup>
+          </FieldGroup>
 
-        {(mediaStorageMode === "uploadthing" ||
-          mediaStorageMode === "cloudinary") && (
-          <MediaCredentialsForm
-            projectId={projectId}
-            provider={mediaStorageMode}
-          />
-        )}
+          <FieldGroup
+            label="Storage backend"
+            hint="Per project. Switching doesn't move existing media."
+          >
+            <div className="grid gap-3 sm:grid-cols-3">
+              <MediaModeOption
+                active={mediaStorageMode === "github"}
+                onClick={() => setMediaStorageMode("github")}
+                title="GitHub"
+                description="Commit into the repo"
+              />
+              <MediaModeOption
+                active={mediaStorageMode === "uploadthing"}
+                onClick={() => setMediaStorageMode("uploadthing")}
+                title="UploadThing"
+                description="Your own account"
+              />
+              <MediaModeOption
+                active={mediaStorageMode === "cloudinary"}
+                onClick={() => setMediaStorageMode("cloudinary")}
+                title="Cloudinary"
+                description="Your own account"
+              />
+            </div>
+          </FieldGroup>
 
-        <div className="mt-4 flex justify-end">
-          <SaveButton
+          {(mediaStorageMode === "uploadthing" ||
+            mediaStorageMode === "cloudinary") && (
+            <MediaCredentialsForm
+              projectId={projectId}
+              provider={mediaStorageMode}
+            />
+          )}
+
+          <SaveBar
+            hasChanges={hasChanges}
             isSaving={isSaving}
-            disabled={!hasChanges}
-            onClick={handleSave}
+            onSave={handleSave}
           />
-        </div>
+        </SettingsGroup>
+
+        <SettingsGroup
+          title="Image compression"
+          summary={project.compressionSettings ? "Custom" : "Account default"}
+        >
+          <ProjectCompressionSection projectId={projectId} project={project} />
+        </SettingsGroup>
+
+        <SettingsGroup
+          title="Watermark removal"
+          summary={(project.autoWatermarkRemoval ?? true) ? "On" : "Off"}
+        >
+          <ProjectWatermarkSection projectId={projectId} project={project} />
+        </SettingsGroup>
+
+        <SettingsGroup
+          title="Upload size limit"
+          summary={
+            project.maxUploadBytes
+              ? `${String(Math.round(project.maxUploadBytes / (1024 * 1024)))} MB`
+              : "Default"
+          }
+        >
+          <ProjectUploadLimitSection projectId={projectId} project={project} />
+        </SettingsGroup>
       </motion.div>
-
-      <Divider />
-
-      <ProjectCompressionSection projectId={projectId} project={project} />
-
-      <Divider />
-
-      <ProjectWatermarkSection projectId={projectId} project={project} />
-
-      <Divider />
-
-      <ProjectUploadLimitSection projectId={projectId} project={project} />
     </motion.div>
   );
 }
@@ -210,24 +229,13 @@ function ProjectUploadLimitSection({
   const defaultMb = DEFAULT_MAX_UPLOAD_BYTES / 1_000_000;
 
   return (
-    <motion.div variants={staggerContainer} initial="initial" animate="animate">
-      <SectionHeader
-        icon={HardDrive}
-        title="Upload Size Limit"
-        description="Maximum size per image after compression. Applied everywhere uploads happen — editor, picker, and library."
-      />
-
-      <motion.div
-        variants={staggerItem}
-        transition={smoothTransition}
-        className="space-y-4"
-      >
+    <div>
+      <div className="space-y-4">
         <FieldGroup
           label="Maximum upload size (MB)"
           htmlFor="s-max-upload-mb"
-          hint={`Between ${minMb} and ${maxMb} MB. Default ${defaultMb} MB.${
-            isCustomized ? " This project uses a custom limit." : ""
-          }`}
+          hint={`${minMb}–${maxMb} MB · default ${defaultMb} MB${isCustomized ? " · custom" : ""}`}
+          info="Maximum size per image after compression. Applied everywhere uploads happen — editor, picker, and library."
         >
           <div className="flex items-center gap-2">
             <Input
@@ -262,15 +270,16 @@ function ProjectUploadLimitSection({
               Reset to default
             </Button>
           )}
-          <SaveButton
-            isSaving={isSaving}
-            disabled={!isDirty || !isValid}
-            onClick={handleSave}
-            label="Save limit"
-          />
         </div>
-      </motion.div>
-    </motion.div>
+        <SaveBar
+          hasChanges={isDirty}
+          isSaving={isSaving}
+          disabled={!isValid}
+          onSave={handleSave}
+          label="Save limit"
+        />
+      </div>
+    </div>
   );
 }
 
@@ -334,25 +343,22 @@ function ProjectCompressionSection({
   }, [accountDefault]);
 
   return (
-    <motion.div variants={staggerContainer} initial="initial" animate="animate">
-      <SectionHeader
-        icon={Sparkles}
-        title="Image Compression"
-        description="Reduce upload size and convert formats before files leave the browser"
-      />
-
-      <motion.div
-        variants={staggerItem}
-        transition={smoothTransition}
-        className="space-y-4"
-      >
-        <div className="flex items-start justify-between gap-3 rounded-lg border border-border/40 bg-card px-3 py-2.5">
+    <div>
+      <div className="space-y-4">
+        <div className="flex items-start justify-between gap-3 py-1">
           <div className="min-w-0">
-            <p className="text-sm font-medium">Override account default</p>
+            <p className="flex items-center text-sm font-medium">
+              Override account default
+              <InfoHint>
+                Compression runs in the browser before upload — smaller files,
+                converted formats. Off, this project follows your account-wide
+                default from account settings.
+              </InfoHint>
+            </p>
             <p className="mt-0.5 text-[11px] text-muted-foreground">
               {overrideEnabled
-                ? "This project uses the settings below."
-                : "This project inherits your account-wide default."}
+                ? "Using project settings."
+                : "Inheriting account default."}
             </p>
           </div>
           <Switch
@@ -366,7 +372,7 @@ function ProjectCompressionSection({
             value={draft}
             onChange={setDraft}
             inheritanceBanner={
-              <div className="flex items-center justify-between rounded-lg border border-border/40 bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground">
+              <div className="flex items-center justify-between border-y border-border/40 py-2 text-[11px] text-muted-foreground">
                 <span>
                   Starting from your account default. Reset to drop this
                   override and follow account changes again.
@@ -384,16 +390,14 @@ function ProjectCompressionSection({
           />
         )}
 
-        <div className="mt-2 flex justify-end">
-          <SaveButton
-            isSaving={isSaving}
-            disabled={!isDirty}
-            onClick={handleSave}
-            label={overrideEnabled ? "Save compression" : "Use account default"}
-          />
-        </div>
-      </motion.div>
-    </motion.div>
+        <SaveBar
+          hasChanges={isDirty}
+          isSaving={isSaving}
+          onSave={handleSave}
+          label={overrideEnabled ? "Save compression" : "Use account default"}
+        />
+      </div>
+    </div>
   );
 }
 
@@ -434,41 +438,30 @@ function ProjectWatermarkSection({
   }, [enabled, projectId, updateProject]);
 
   return (
-    <motion.div variants={staggerContainer} initial="initial" animate="animate">
-      <SectionHeader
-        icon={Bot}
-        title="Gemini Watermark Removal"
-        description="Automatically detect and remove the Gemini AI logo from uploaded images"
-      />
-
-      <motion.div
-        variants={staggerItem}
-        transition={smoothTransition}
-        className="space-y-4"
-      >
-        <div className="flex items-start justify-between gap-3 rounded-lg border border-border/40 bg-card px-3 py-2.5">
+    <div>
+      <div className="space-y-4">
+        <div className="flex items-start justify-between gap-3 py-1">
           <div className="min-w-0">
-            <p className="text-sm font-medium">
-              Remove Gemini watermark automatically
+            <p className="flex items-center text-sm font-medium">
+              Remove Gemini watermark
+              <InfoHint>
+                Uploads are scanned for the Gemini AI logo (bottom-right). Only
+                images with a detected watermark are reprocessed — clean images
+                skip the extra work entirely.
+              </InfoHint>
             </p>
             <p className="mt-0.5 text-[11px] text-muted-foreground">
               {enabled
-                ? "Images are scanned for the Gemini logo on upload. Only images with a detected watermark are reprocessed."
-                : "Uploaded images pass through without watermark scanning."}
+                ? "Scanning uploads."
+                : "Uploads pass through untouched."}
             </p>
           </div>
           <Switch checked={enabled} onCheckedChange={setEnabled} />
         </div>
 
-        <div className="mt-2 flex justify-end">
-          <SaveButton
-            isSaving={isSaving}
-            disabled={!isDirty}
-            onClick={handleSave}
-          />
-        </div>
-      </motion.div>
-    </motion.div>
+        <SaveBar hasChanges={isDirty} isSaving={isSaving} onSave={handleSave} />
+      </div>
+    </div>
   );
 }
 
@@ -633,14 +626,9 @@ function MediaCredentialsForm({
     }
   }, [projectId, provider, testCredentials]);
 
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
   const handleDelete = useCallback(async () => {
-    if (
-      !window.confirm(
-        "Remove these credentials? Existing media URLs keep working, but new uploads will fail until you reconfigure.",
-      )
-    ) {
-      return;
-    }
     setBusy("delete");
     try {
       await deleteCredentials({ projectId, provider });
@@ -657,7 +645,7 @@ function MediaCredentialsForm({
   }, [deleteCredentials, projectId, provider]);
 
   return (
-    <div className="mt-4 space-y-4 rounded-lg border bg-muted/30 p-4">
+    <div className="mt-4 space-y-4 border-t border-border/40 pt-4">
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-sm font-semibold">
@@ -849,7 +837,7 @@ function MediaCredentialsForm({
           <Button
             size="sm"
             variant="ghost"
-            onClick={handleDelete}
+            onClick={() => setConfirmDelete(true)}
             disabled={busy !== null || isRotating}
             className="text-destructive hover:bg-destructive/10 hover:text-destructive"
           >
@@ -861,6 +849,13 @@ function MediaCredentialsForm({
             Remove
           </Button>
         )}
+        <ConfirmActionDialog
+          open={confirmDelete}
+          onOpenChange={setConfirmDelete}
+          title="Remove these credentials?"
+          description="Existing media URLs keep working, but new uploads fail until you reconfigure."
+          onConfirm={() => void handleDelete()}
+        />
         {hasExisting && config.lastVerifiedAt && (
           <span className="ml-auto text-[11px] text-muted-foreground">
             Last verified{" "}

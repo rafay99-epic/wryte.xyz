@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { Check, FolderTree } from "lucide-react";
+import { SaveBar } from "@/components/settings/save-bar";
 import { Input } from "@/components/ui/input";
 import type { ContentFormat } from "@/lib/content-format";
 import { smoothTransition, staggerContainer, staggerItem } from "@/lib/motion";
@@ -9,7 +10,7 @@ import { cn } from "@/lib/utils";
 import type { Id } from "../../../../convex/_generated/dataModel";
 import { useContentSection } from "../hooks/use-content-section";
 import type { ProjectData } from "../types";
-import { FieldGroup, SaveButton, SectionHeader } from "./shared";
+import { FieldGroup, SectionHeader } from "./shared";
 
 export function ContentSection({
   projectId,
@@ -94,13 +95,11 @@ export function ContentSection({
           />
         </FieldGroup>
 
-        <div className="mt-4 flex justify-end">
-          <SaveButton
-            isSaving={isSaving}
-            disabled={!hasChanges}
-            onClick={handleSave}
-          />
-        </div>
+        <SaveBar
+          hasChanges={hasChanges}
+          isSaving={isSaving}
+          onSave={handleSave}
+        />
       </motion.div>
     </motion.div>
   );
