@@ -1412,6 +1412,28 @@ A publish is only half the job — your post isn't live until your site rebuilds
 - The deployment-verification toggle now correctly reflects its saved state after a reload.
 `,
   },
+  {
+    title:
+      "Install Wryte on your phone, SEO checks at publish, and a leaner backend",
+    slug: "pwa-seo-checks-cost-fixes",
+    description:
+      "Wryte is now an installable PWA with an offline fallback, the publish checklist gained SEO rows, and a round of backend fixes cut database bandwidth substantially.",
+    version: "0.24.0",
+    category: "website",
+    build: "bca4f9b",
+    publishedAt: Date.parse("2026-07-17T18:15:00+05:00"),
+    content: `## What's new
+
+- **Install Wryte like an app.** Wryte is now a full PWA: install it from your browser (Android, desktop, and iOS via Safari's share sheet) and it opens standalone from your home screen. A lightweight service worker serves an on-brand offline page when the network drops and caches static assets for faster loads — your content and live sync are never cached or intercepted.
+- **SEO checks in the publish dialog.** The pre-publish checklist now reviews your post the way a search engine will: SEO title length, meta description presence and size (with the 80–165 character sweet spot), and tags/keywords. All checks run instantly and offline; the AI frontmatter assistant — which already writes SEO-tuned titles, descriptions, and long-tail keywords with any of the supported providers — fills the gaps on request.
+
+## Fixes
+
+- **Editor bandwidth, round two.** Autosave no longer echoes the full document body back to the app header and draft tab bar on every tick — they now subscribe to metadata only, converging on the same pattern the drafts system already used. The editor keeps its live subscription so a document open on two devices still stays in sync.
+- **AI streaming writes ~10× fewer chunks.** Responses are buffered and flushed by size instead of on every sentence or comma, which also makes streamed suggestions dramatically cheaper to read back.
+- **Deployment verification history is now capped** at the newest 20 entries per document and cleaned up when a document is deleted.
+`,
+  },
 ];
 
 const seedResult = v.object({
