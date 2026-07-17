@@ -1,0 +1,47 @@
+convex/analytics/writingStats.ts
+  s_e1a6c1abf26516::t_4c8009c57fb938 2,85,124,135-140,158,251-306,310-312,314-317
+convex/cms/documents.ts
+  s_e1a6c1abf26516::t_db05fc1f57ac22 1757-1828
+convex/schema.ts
+  s_e1a6c1abf26516::t_7a95e46f46cd7e 1043-1044
+scripts/weekly-progress.test.ts
+  s_e1a6c1abf26516::t_2bd7c5a95e68c6 1-61
+src/app/(app)/calendar/page.tsx
+  s_e1a6c1abf26516::t_f67e7031f8e022 1-9
+src/app/(marketing)/preview/[token]/preview-page.tsx
+  s_e1a6c1abf26516::t_5da099d086cdb0 4-5,9,13-54,58-59,72-82,88-99,101-102,107-114,116-118,120-122,124-144
+src/app/badge.svg/route.ts
+  s_e1a6c1abf26516::t_91fb9ccbe6ce3a 1-44
+src/app/gh/route.ts
+  s_e1a6c1abf26516::t_67cc5f83d7b299 3-5,7-10,13-15,17
+src/components/layout/app-sidebar.tsx
+  s_e1a6c1abf26516::t_96dadfdf43dfdb 143-147
+src/features/calendar/global-calendar-page.tsx
+  s_e1a6c1abf26516::t_d9be77cdbafb7a 1-280
+src/features/dashboard/components/todays-progress.tsx
+  s_e1a6c1abf26516::t_74613bf3636cb3 16,21-22,26-27,30-32,34,44-50,84-100,151-178,236-287
+src/features/dashboard/dashboard-page.tsx
+  s_e1a6c1abf26516::t_66fc3f95a1da8d 31,197-201
+src/features/dashboard/lib/weekly-progress.ts
+  s_e1a6c1abf26516::t_2d28737ca4ca45 1-46
+src/features/project-dashboard/project-dashboard-page.tsx
+  s_e1a6c1abf26516::t_6a748cf24eb114 3,25,28,41,78-87
+src/features/project-settings/components/publishing-section.tsx
+  s_e1a6c1abf26516::t_134fcea7b56fb6 4-5,24-68,166
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "3fb3956a80d384b9fb70274339f50ece3ed02ccf",
+  "prompts": {},
+  "sessions": {
+    "s_e1a6c1abf26516": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "065d2d05-08ed-47da-aa2b-6a10f883e5a5",
+        "model": "unknown"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
