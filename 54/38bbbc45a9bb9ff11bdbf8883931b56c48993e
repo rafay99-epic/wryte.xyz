@@ -1,0 +1,21 @@
+src/app/(marketing)/privacy/page.tsx
+  s_e1a6c1abf26516::t_998f90a39c7843 107-111
+src/app/(marketing)/terms/page.tsx
+  s_e1a6c1abf26516::t_411145f14874d6 172-181
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "5438bbbc45a9bb9ff11bdbf8883931b56c48993e",
+  "prompts": {},
+  "sessions": {
+    "s_e1a6c1abf26516": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "065d2d05-08ed-47da-aa2b-6a10f883e5a5",
+        "model": "unknown"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
