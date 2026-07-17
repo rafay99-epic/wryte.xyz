@@ -105,6 +105,11 @@ export default function PrivacyPage() {
                     color: "bg-emerald-400",
                   },
                   {
+                    label: "GitHub App Installations",
+                    desc: "If you install the wryte-xyz GitHub App and enable verified commits, Wryte generates short-lived installation tokens to commit on your behalf. These tokens are created per publish, never stored, and the App collects no data from your repositories beyond what is needed to write the content you publish.",
+                    color: "bg-rose-400",
+                  },
+                  {
                     label: "Usage Data",
                     desc: "We may collect anonymized usage analytics (e.g., page views, feature usage) to improve the Service.",
                     color: "bg-blue-400",

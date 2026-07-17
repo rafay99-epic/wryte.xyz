@@ -169,6 +169,16 @@ export default function TermsPage() {
                 explicitly grant access to. You may revoke this access at any
                 time through your GitHub account settings.
               </p>
+              <p className="mt-3 text-[15px] leading-relaxed text-foreground/65 dark:text-foreground/35">
+                By default, commits created through the Service include a short
+                attribution line linking to wryte.xyz. You can customize or
+                disable this per project in your publishing settings. If you
+                install the wryte-xyz GitHub App and enable verified commits,
+                publishes are committed by wryte-xyz[bot] using a short-lived
+                installation token while you remain the git author; uninstalling
+                the App or disabling the setting reverts to commits made with
+                your own token.
+              </p>
             </Section>
 
             <Section delay={0.04}>
