@@ -1,0 +1,45 @@
+convex/ai/enhanceActions.ts
+  s_e1a6c1abf26516::t_67a1ceceb5ea8e 209-219,221-239,350-356,372,479-485,501,555-561,577,760-766,778
+convex/cms/_lib/purgeDocumentArtifacts.ts
+  s_e1a6c1abf26516::t_5095e3a777b8f4 150-163,176,189,207,260-263
+convex/cms/documents.ts
+  s_e1a6c1abf26516::t_63d8b617206b16 455-459,465-492
+convex/deployments/verify.ts
+  s_e1a6c1abf26516::t_8a3214e72d83e8 102-115
+public/sw.js
+  s_e1a6c1abf26516::t_2ee36f4abae1b3 1-82
+scripts/publish-checklist-seo.test.ts
+  s_e1a6c1abf26516::t_ea552721e6f22d 1-73
+src/app/layout.tsx
+  s_e1a6c1abf26516::t_3da002e959d229 8,86,91-97,301
+src/app/offline/page.tsx
+  s_e1a6c1abf26516::t_57ddd937a826cf 1-44
+src/components/layout/app-header.tsx
+  s_e1a6c1abf26516::t_4017d64704ad76 96-97,99
+src/components/providers/service-worker-registration.tsx
+  s_e1a6c1abf26516::t_c2016f7259448c 1-29
+src/features/editor/components/draft-tab-bar.tsx
+  s_e1a6c1abf26516::t_986b1e1c51d32a 38-39,47,81,131-135,138,149
+src/features/editor/components/editor-layout.tsx
+  s_e1a6c1abf26516::t_84440ecc4b116b 40-45,53,120
+src/features/editor/editor-page.tsx
+  s_e1a6c1abf26516::t_9a271c3dd59137 30-34,274
+src/features/editor/lib/publish-checklist.ts
+  s_e1a6c1abf26516::t_612d2acdeedc1f 293-393,415,418-420
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "bca4f9b33e4a3398b4089327decb7d99bbc67cd0",
+  "prompts": {},
+  "sessions": {
+    "s_e1a6c1abf26516": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "065d2d05-08ed-47da-aa2b-6a10f883e5a5",
+        "model": "unknown"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
