@@ -16,6 +16,8 @@
  *
  * Node runtime only (node:crypto) — import exclusively from "use node" files.
  */
+"use node";
+
 import { createSign } from "node:crypto";
 import { Octokit } from "@octokit/rest";
 
