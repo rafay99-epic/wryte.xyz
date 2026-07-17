@@ -1,0 +1,55 @@
+src/components/settings/confirm-action-dialog.tsx
+  s_e1a6c1abf26516::t_b13da880de62ac 1-58
+src/components/settings/save-bar.tsx
+  s_e1a6c1abf26516::t_2c4faa9c2191cd 1-56
+src/components/settings/settings-dirty-context.tsx
+  s_e1a6c1abf26516::t_353e7e6f2367ec 1-89
+src/components/settings/settings-shell.tsx
+  s_e1a6c1abf26516::t_393e05cf16dc00 1-246
+src/components/ui/info-hint.tsx
+  s_e1a6c1abf26516::t_ce251081245510 1-33
+src/features/account-settings/account-settings-page.tsx
+  s_e1a6c1abf26516::t_09bdf9f88727e0 6,40-46,48-67
+src/features/project-settings/components/ai-section.tsx
+  s_e1a6c1abf26516::t_9cbeced683ed25 9-10,21,117,119,177-182,184-186,305,369,480-481,501,598,610-616
+src/features/project-settings/components/content-section.tsx
+  s_e1a6c1abf26516::t_214cd1a77a286d 5,13,98-102
+src/features/project-settings/components/editor-section.tsx
+  s_e1a6c1abf26516::t_a1de6e57d2069d 5,10,39,45,47-51,53-54,56-59,61,63-66,68,70-73,75,77,79-80,82,85-88,93
+src/features/project-settings/components/frontmatter-section.tsx
+  s_e1a6c1abf26516::t_316de9e220ef23 18,76-77,164,176-184,349
+src/features/project-settings/components/general-section.tsx
+  s_e1a6c1abf26516::t_2cd67225d94941 6,12,117-121
+src/features/project-settings/components/github-section.tsx
+  s_e1a6c1abf26516::t_47ccdeaa774a43 13,275-279
+src/features/project-settings/components/media-section.tsx
+  s_e1a6c1abf26516::t_bdfbd159f52cf4 16-17,19,43,64-70,75-76,82,84-95,97,99-123,125-134,136,138,140-145,147-164,232-233,237-238,274-282,346-348,350-357,360-361,375,393-400,441-443,445-451,455-456,462-464,629-630,648,840,852-858
+src/features/project-settings/components/publishing-section.tsx
+  s_e1a6c1abf26516::t_1c6dfa2139cbc9 6-7,22,24-25,48-52,107-109,115,121,123-126,128-146,148-172,175-189,192-218,220-236,238-249,251-252,254-256,258-282,284-299,301-341,343-344,346-347
+src/features/project-settings/components/shared.tsx
+  s_e1a6c1abf26516::t_f792c82ceea441 1-3,5,8,43,48,50-51,56-64,71-181
+src/features/project-settings/components/snippets-manager.tsx
+  s_e1a6c1abf26516::t_da47c84728797d 105,208
+src/features/project-settings/components/social-section.tsx
+  s_e1a6c1abf26516::t_f0d68778823fa9 12-13,59,338,349-355
+src/features/project-settings/project-settings-page.tsx
+  s_e1a6c1abf26516::t_038c94910a026f 6,59-65,67-105
+src/features/project-settings/types.ts
+  s_e1a6c1abf26516::t_21dab930346f05 118-119,121-216
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "41fd3b831b8e7c7a4d60c096ce1361c97326c6a3",
+  "prompts": {},
+  "sessions": {
+    "s_e1a6c1abf26516": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "065d2d05-08ed-47da-aa2b-6a10f883e5a5",
+        "model": "unknown"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
