@@ -1453,6 +1453,30 @@ A publish is only half the job — your post isn't live until your site rebuilds
 - **Shared previews got a face.** Draft preview links now carry the Wryte header and a proper footer — readers finally know what made the page. Preview links stay unlisted and reveal nothing about you beyond what you share.
 `,
   },
+  {
+    title: "Settings, redesigned: calmer, faster, and safe to wander",
+    slug: "settings-redesign-flat-save-bar",
+    description:
+      "A flat, scannable settings surface with collapsible groups, one consistent save bar, search, mobile navigation, and guardrails against losing unsaved edits.",
+    version: "0.26.0",
+    category: "website",
+    build: "41fd3b8",
+    publishedAt: Date.parse("2026-07-18T01:05:00+05:00"),
+    content: \`## What's new
+
+- **A calmer settings surface.** The wall of boxed cards is gone — settings are now flat, hairline-divided rows inside collapsible groups whose headers show the current value even when closed. Groups open with a smooth animation, and the content column is wider.
+- **One way to save.** A save bar slides up whenever a tab has unsaved changes and disappears once you've saved — no more hunting for the right one of four Save buttons. Instant actions (Connect, Test, Rotate) keep their own buttons on purpose.
+- **Read less, learn more.** Helper text is down to one short line per setting; the full explanation now lives behind a small ⓘ next to each label.
+- **Find a setting.** Type in the search box above the tabs — "badge", "cloudinary", "timezone" — and jump straight to the right tab.
+- **Settings on your phone.** The tab rail becomes a swipeable pill bar on small screens.
+
+## Fixes
+
+- Switching settings tabs no longer silently discards unsaved edits — you're asked first.
+- Switching tabs now starts at the top of the new tab instead of wherever you'd scrolled.
+- Every destructive action (removing keys or credentials, clearing schema defaults) now asks with the same styled confirmation dialog — two of them previously asked nothing at all.
+\`,
+  },
 ];
 
 const seedResult = v.object({
