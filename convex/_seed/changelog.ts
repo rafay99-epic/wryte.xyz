@@ -1434,6 +1434,25 @@ A publish is only half the job — your post isn't live until your site rebuilds
 - **Deployment verification history is now capped** at the newest 20 entries per document and cleaned up when a document is deleted.
 `,
   },
+  {
+    title:
+      "Growth pack: cross-project calendar, weekly goals, and a README badge",
+    slug: "growth-pack-calendar-goals-badge",
+    description:
+      "See your whole writing cadence on one calendar, set a weekly word goal beside the daily one, put a Wryte badge in your README, and shared draft previews got a proper face.",
+    version: "0.25.0",
+    category: "website",
+    build: "3fb3956",
+    publishedAt: Date.parse("2026-07-17T19:50:00+05:00"),
+    content: `## What's new
+
+- **Calendar, across every project.** A new Calendar entry in the sidebar shows all your published and scheduled posts on one month grid — per-project colors, filled dots for published, rings for scheduled, and a day panel that jumps straight to the editor. The per-project calendar (with drag-to-reschedule) is unchanged.
+- **Weekly word goal.** Next to your daily goal there's now a rolling 7-day target with its own progress bar. Computed from activity you're already tracking — nothing new to configure beyond picking a number.
+- **Streak on the project dashboard.** Your writing streak now shows where the writing happens, not just on the home dashboard.
+- **README badge.** Settings → Publishing has a copy-paste snippet for a "published with wryte" badge — one line in your repo's README.
+- **Shared previews got a face.** Draft preview links now carry the Wryte header and a proper footer — readers finally know what made the page. Preview links stay unlisted and reveal nothing about you beyond what you share.
+`,
+  },
 ];
 
 const seedResult = v.object({
