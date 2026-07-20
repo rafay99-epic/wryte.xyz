@@ -1,0 +1,94 @@
+name: Dependency check
+
+# Weekly audit: checks for outdated packages and security advisories,
+# creates/updates a GitHub Issue with the results.
+
+on:
+  schedule:
+    - cron: "0 9 * * 1" # Every Monday at 09:00 UTC
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+jobs:
+  check:
+    name: Check dependencies
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+
+      - name: Run bun outdated
+        id: outdated
+        continue-on-error: true
+        shell: bash
+        run: |
+          bun outdated 2>&1 | tee /tmp/outdated.txt
+
+      - name: Run bun audit
+        id: audit
+        continue-on-error: true
+        shell: bash
+        run: |
+          bun audit 2>&1 | tee /tmp/audit.txt
+
+      - name: Create or update issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const outdatedPath = '/tmp/outdated.txt';
+            const auditPath = '/tmp/audit.txt';
+
+            let body = '## 📦 Dependency Check Report\n\n';
+
+            if (fs.existsSync(outdatedPath)) {
+              const outdated = fs.readFileSync(outdatedPath, 'utf8').trim();
+              if (outdated) {
+                body += `### Outdated Packages\n\`\`\`\n${outdated}\n\`\`\`\n\n`;
+              }
+            }
+
+            if (fs.existsSync(auditPath)) {
+              const audit = fs.readFileSync(auditPath, 'utf8').trim();
+              if (audit) {
+                body += `### Audit Warnings\n\`\`\`\n${audit}\n\`\`\`\n`;
+              }
+            }
+
+            if (body === '## 📦 Dependency Check Report\n\n') {
+              body += 'All dependencies are up-to-date. ✅\n';
+            }
+
+            const { data: issues } = await github.rest.issues.listForRepo({
+              ...context.repo,
+              state: 'open',
+              labels: ['dependencies'],
+            });
+
+            const existing = issues.find(i =>
+              i.title === 'Dependency Check Report'
+            );
+
+            if (existing) {
+              await github.rest.issues.update({
+                ...context.repo,
+                issue_number: existing.number,
+                body,
+              });
+              console.log('Updated existing issue #' + existing.number);
+            } else if (body.includes('Outdated') || body.includes('Audit')) {
+              await github.rest.issues.create({
+                ...context.repo,
+                title: 'Dependency Check Report',
+                body,
+                labels: ['dependencies', 'automated'],
+              });
+              console.log('Created new issue');
+            } else {
+              console.log('Everything up to date — no issue needed.');
+            }

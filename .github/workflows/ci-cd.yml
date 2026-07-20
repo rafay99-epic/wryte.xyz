@@ -1,0 +1,231 @@
+name: CI/CD
+
+# Unified pipeline: detects what changed on each push to main, then runs
+# the appropriate path(s). Website changes → quality checks + Vercel deploy.
+# Electron changes → quality checks + build + release + Homebrew cask bump.
+# Both paths run in parallel if both changed.
+
+on:
+  push:
+    branches: [main, master]
+
+permissions:
+  contents: write
+  issues: write
+
+env:
+  NEXT_TELEMETRY_DISABLED: "1"
+  # Build-time placeholders so `next build` succeeds without real secrets.
+  NEXT_PUBLIC_CONVEX_URL: https://ci-placeholder.convex.cloud
+  NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_ci_placeholder
+  CLERK_SECRET_KEY: sk_test_ci_placeholder
+
+concurrency:
+  group: ci-cd-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── DETECT: What changed? ─────────────────────────────────────────────
+  detect:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      src_changed: ${{ steps.check.outputs.src_changed }}
+      electron_changed: ${{ steps.check.outputs.electron_changed }}
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
+
+      - name: Check changed paths
+        id: check
+        shell: bash
+        run: |
+          BASE="HEAD~1"
+          if ! git rev-parse "$BASE" 2>/dev/null; then
+            echo "src_changed=true" >> "$GITHUB_OUTPUT"
+            echo "electron_changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if git diff --name-only "$BASE" HEAD -- 'src/' | grep -q .; then
+            echo "src_changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "src_changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          # Electron path includes the workflow itself (changes to CI/CD trigger rebuild).
+          if git diff --name-only "$BASE" HEAD -- \
+              'electron/' 'build/' '.github/workflows/ci-cd.yml' | grep -q .; then
+            echo "electron_changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "electron_changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  # ── PATH A: Website quality ──────────────────────────────────────────
+  quality-website:
+    name: Website — quality checks
+    needs: detect
+    if: needs.detect.outputs.src_changed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run lint
+      - run: bun run type
+      - run: bun audit --ignore GHSA-gv7w-rqvm-qjhr
+
+  # ── PATH A: Website deploy (Vercel) ──────────────────────────────────
+  # Vercel's build command (package.json build) handles both Next.js build
+  # and Convex deployment — we just trigger vercel deploy --prod.
+  deploy-website:
+    name: Website — deploy to Vercel
+    needs: [detect, quality-website]
+    if: needs.detect.outputs.src_changed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+
+      - name: Deploy to Vercel
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+        run: |
+          bunx vercel pull --yes --token "$VERCEL_TOKEN" \
+            --environment production
+          bunx vercel deploy --prod --token "$VERCEL_TOKEN"
+
+  # ── PATH B: Desktop quality ──────────────────────────────────────────
+  quality-desktop:
+    name: Desktop — quality checks
+    needs: detect
+    if: needs.detect.outputs.electron_changed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run lint
+      - run: bun run type
+      - name: Type-check electron (.cjs)
+        run: bunx tsc --noEmit --project electron/tsconfig.json
+      - run: bun audit --ignore GHSA-gv7w-rqvm-qjhr
+
+  # ── PATH B: Create draft release ─────────────────────────────────────
+  # Version is auto-derived: package.json version + run number.
+  # e.g. v0.30.0+r123.abc1234
+  prepare-release:
+    name: Desktop — create draft release
+    needs: [detect, quality-desktop]
+    if: needs.detect.outputs.electron_changed == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Derive version and tag
+        id: version
+        shell: bash
+        run: |
+          VERSION=$(jq -r '.version' package.json)
+          TAG="v${VERSION}+r${GITHUB_RUN_NUMBER}.${GITHUB_SHA:0:7}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $TAG already exists — reusing."
+          else
+            gh release create "$TAG" --draft \
+              --title "Wryte ${{ steps.version.outputs.version }}" \
+              --notes "Auto-built from commit ${GITHUB_SHA:0:7}" \
+              --repo "$GITHUB_REPOSITORY"
+          fi
+
+  # ── PATH B: Build matrix (3 OS) ──────────────────────────────────────
+  build-desktop:
+    name: Desktop — build ${{ matrix.os }}
+    needs: [detect, quality-desktop, prepare-release]
+    if: needs.detect.outputs.electron_changed == 'true'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - run: bun install --frozen-lockfile
+      - run: node node_modules/electron/install.js
+
+      - name: Build & upload to draft release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ needs.prepare-release.outputs.tag }}"
+          VERSION="${{ needs.prepare-release.outputs.version }}"
+          bunx electron-builder --publish always \
+            -c.extraMetadata.version="$VERSION"
+
+  # ── PATH B: Publish release + bump Homebrew cask ─────────────────────
+  finalize-desktop:
+    name: Desktop — publish release & bump cask
+    needs: [detect, build-desktop, prepare-release]
+    if: needs.detect.outputs.electron_changed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Publish draft as latest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          TAG="${{ needs.prepare-release.outputs.tag }}"
+          gh release edit "$TAG" --draft=false --latest \
+            --repo "$GITHUB_REPOSITORY"
+
+      - name: Bump Homebrew cask
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAP_TOKEN: ${{ secrets.HOME_BREW_TAP_TOKEN }}
+        shell: bash
+        run: |
+          if [ -z "${TAP_TOKEN:-}" ]; then
+            echo "No HOME_BREW_TAP_TOKEN — skipping cask bump."
+            exit 0
+          fi
+          TAG="${{ needs.prepare-release.outputs.tag }}"
+          gh release download "$TAG" -p "Wryte.dmg" -D dist \
+            --repo "$GITHUB_REPOSITORY"
+          VERSION="${TAG#v}" CASK=wryte \
+            .github/scripts/bump-cask.sh dist/Wryte.dmg
