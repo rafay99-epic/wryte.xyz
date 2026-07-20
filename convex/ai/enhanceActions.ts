@@ -71,8 +71,9 @@ Type reference:
 - color                    → JSON string like "#3b82f6"
 
 Field-specific hints when the schema includes them:
-- title       → 50–70 characters, click-worthy without being clickbait
-- description → 120–160 characters, meta-description that summarises the value
+- title       → ≤60 characters, lead with the article's main topic keyword, no clickbait
+- description → 140–160 characters, lead with the article's main topic keyword, no clickbait
+- summary     → 140–160 characters, lead with the article's main topic keyword, no clickbait
 - excerpt     → 1–2 sentences, max ~200 characters, a teaser that hooks the reader
 - keywords    → array of 5–10 SEO phrases — long-tail beats generic`;
 
@@ -624,8 +625,15 @@ type SchemaField = {
  * allowed to propose values for, then formats them as a compact prompt
  * fragment listing each field's name, type, optional description, and
  * (for select fields) its allowed options.
+ *
+ * `restrictToFields`, when given, narrows the eligible set further to just
+ * those names — used for per-field regenerate so the model (and the
+ * eligibility check below) never sees fields the caller isn't asking about.
  */
-function buildSchemaPromptFragment(schemaJson: string): {
+function buildSchemaPromptFragment(
+  schemaJson: string,
+  restrictToFields?: string[],
+): {
   fragment: string;
   eligibleNames: string[];
 } {
@@ -638,7 +646,7 @@ function buildSchemaPromptFragment(schemaJson: string): {
   }
   if (!Array.isArray(parsed)) return { fragment: "", eligibleNames: [] };
 
-  const eligible = parsed.filter(
+  let eligible = parsed.filter(
     (f) =>
       !!f.name &&
       !!f.type &&
@@ -646,6 +654,11 @@ function buildSchemaPromptFragment(schemaJson: string): {
       !AI_EXCLUDED_TYPES.has(f.type) &&
       !AI_EXCLUDED_NAMES.has(f.name),
   );
+
+  if (restrictToFields && restrictToFields.length > 0) {
+    const restrictSet = new Set(restrictToFields);
+    eligible = eligible.filter((f) => restrictSet.has(f.name));
+  }
 
   if (eligible.length === 0) return { fragment: "", eligibleNames: [] };
 
@@ -678,6 +691,8 @@ export const runFrontmatterSuggestion = internalAction({
     frontmatterSchema: v.string(),
     currentFrontmatter: v.string(),
     vaultSecretId: v.string(),
+    existingTags: v.optional(v.array(v.string())),
+    fields: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
     const apiKey = await ctx.runAction(
@@ -696,6 +711,7 @@ export const runFrontmatterSuggestion = internalAction({
 
     const { fragment, eligibleNames } = buildSchemaPromptFragment(
       args.frontmatterSchema,
+      args.fields,
     );
 
     if (eligibleNames.length === 0) {
@@ -710,7 +726,16 @@ export const runFrontmatterSuggestion = internalAction({
       return;
     }
 
-    const systemPrompt = `${FRONTMATTER_SYSTEM_PROMPT_PREFIX}${fragment}`;
+    const tagsFragment =
+      args.existingTags && args.existingTags.length > 0
+        ? `\n\nPrefer these existing site tags where relevant: ${args.existingTags.join(", ")}`
+        : "";
+    const fieldsFragment =
+      args.fields && args.fields.length > 0
+        ? `\n\nOnly propose values for these fields: ${args.fields.join(", ")}. Do not include any other keys.`
+        : "";
+
+    const systemPrompt = `${FRONTMATTER_SYSTEM_PROMPT_PREFIX}${fragment}${tagsFragment}${fieldsFragment}`;
 
     // Trim current frontmatter to just the AI-eligible fields so we don't
     // spend tokens on slug, draft, dates, etc. that the model isn't

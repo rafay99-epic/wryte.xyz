@@ -159,10 +159,23 @@ export function FrontmatterAiDrawer({
   const [streamId, setStreamId] = useState<string | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const [accepted, setAccepted] = useState<Set<string>>(new Set());
+  // Per-field regenerate overlays a single field's freshly-streamed value on
+  // top of the main suggestion set without touching the rest.
+  const [fieldOverrides, setFieldOverrides] = useState<SuggestionMap>({});
+  const [regeneratingField, setRegeneratingField] = useState<string | null>(
+    null,
+  );
+  const [fieldStreamId, setFieldStreamId] = useState<string | undefined>(
+    undefined,
+  );
 
   const streamBody = useQuery(
     api.ai.enhance.getStreamBody,
     streamId ? { streamId } : "skip",
+  );
+  const fieldStreamBody = useQuery(
+    api.ai.enhance.getStreamBody,
+    fieldStreamId ? { streamId: fieldStreamId } : "skip",
   );
 
   const isStreaming =
@@ -201,25 +214,80 @@ export function FrontmatterAiDrawer({
     }
   }, [isDone, streamBody?.text]);
 
+  // Merge the one-shot suggestions with any per-field regenerates layered
+  // on top so the rest of the drawer only has one map to read from.
+  const effectiveSuggestions: SuggestionMap | null = useMemo(() => {
+    if (!suggestions) return null;
+    return { ...suggestions, ...fieldOverrides };
+  }, [suggestions, fieldOverrides]);
+
   /**
    * Field metadata the drawer renders for. Only fields that the AI
    * actually returned a value for (and that match the eligibility list)
    * make it into this list, so the UI doesn't show empty cards.
    */
   const populatedFields = useMemo(() => {
-    if (!suggestions) return [] as EligibleField[];
+    if (!effectiveSuggestions) return [] as EligibleField[];
     return eligibleFields.filter(
-      (f) => suggestions[f.name] !== undefined && suggestions[f.name] !== "",
+      (f) =>
+        effectiveSuggestions[f.name] !== undefined &&
+        effectiveSuggestions[f.name] !== "",
     );
-  }, [eligibleFields, suggestions]);
+  }, [eligibleFields, effectiveSuggestions]);
 
   useEffect(() => {
     if (open) {
       setStreamId(undefined);
       setError(null);
       setAccepted(new Set());
+      setFieldOverrides({});
+      setRegeneratingField(null);
+      setFieldStreamId(undefined);
     }
   }, [open]);
+
+  // Consume the per-field regenerate stream once it finishes, merging just
+  // that field's fresh value into `fieldOverrides` and re-opening its
+  // "Apply" state since the previously accepted value is now stale.
+  useEffect(() => {
+    if (!fieldStreamId || !regeneratingField) return;
+    if (fieldStreamBody?.status === "done") {
+      try {
+        let raw = (fieldStreamBody.text ?? "").trim();
+        if (raw.startsWith("```")) {
+          raw = raw.replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "");
+        }
+        const parsed = JSON.parse(raw) as SuggestionMap;
+        if (
+          parsed &&
+          typeof parsed === "object" &&
+          parsed[regeneratingField] !== undefined
+        ) {
+          setFieldOverrides((prev) => ({
+            ...prev,
+            [regeneratingField]: parsed[regeneratingField],
+          }));
+          setAccepted((prev) => {
+            if (!prev.has(regeneratingField)) return prev;
+            const next = new Set(prev);
+            next.delete(regeneratingField);
+            return next;
+          });
+        } else {
+          toast.error("Couldn't parse the regenerated field.");
+        }
+      } catch {
+        toast.error("Couldn't parse the regenerated field.");
+      }
+      setRegeneratingField(null);
+      setFieldStreamId(undefined);
+    } else if (fieldStreamBody?.status === "error") {
+      const result = extractStreamError(fieldStreamBody.text ?? "");
+      toast.error(result?.error ?? "Failed to regenerate field.");
+      setRegeneratingField(null);
+      setFieldStreamId(undefined);
+    }
+  }, [fieldStreamBody, fieldStreamId, regeneratingField]);
 
   const handleGenerate = useCallback(async () => {
     if (!documentContent.trim()) {
@@ -264,21 +332,27 @@ export function FrontmatterAiDrawer({
 
   const handleAcceptField = useCallback(
     (field: EligibleField) => {
-      if (!suggestions) return;
-      const coerced = coerceForStorage(field.type, suggestions[field.name]);
+      if (!effectiveSuggestions) return;
+      const coerced = coerceForStorage(
+        field.type,
+        effectiveSuggestions[field.name],
+      );
       if (coerced === null) return;
       onAccept({ [field.name]: coerced });
       setAccepted((prev) => new Set([...prev, field.name]));
     },
-    [suggestions, onAccept],
+    [effectiveSuggestions, onAccept],
   );
 
   const handleAcceptAll = useCallback(() => {
-    if (!suggestions) return;
+    if (!effectiveSuggestions) return;
     const merged: Record<string, string | boolean> = {};
     const acceptedNames: string[] = [];
     for (const field of populatedFields) {
-      const coerced = coerceForStorage(field.type, suggestions[field.name]);
+      const coerced = coerceForStorage(
+        field.type,
+        effectiveSuggestions[field.name],
+      );
       if (coerced !== null) {
         merged[field.name] = coerced;
         acceptedNames.push(field.name);
@@ -293,7 +367,35 @@ export function FrontmatterAiDrawer({
     toast.success(
       `Applied ${acceptedNames.length} field${acceptedNames.length === 1 ? "" : "s"}`,
     );
-  }, [suggestions, populatedFields, onAccept]);
+  }, [effectiveSuggestions, populatedFields, onAccept]);
+
+  const handleRegenerateField = useCallback(
+    async (field: EligibleField) => {
+      if (!documentContent.trim() || regeneratingField) return;
+      setRegeneratingField(field.name);
+      try {
+        const result = await createStream({
+          projectId: projectId as Id<"projects">,
+          content: documentContent,
+          currentFrontmatter,
+          fields: [field.name],
+        });
+        setFieldStreamId(result.streamId);
+      } catch (err: unknown) {
+        const msg =
+          (err as { message?: string }).message ?? "Failed to regenerate field";
+        toast.error(msg);
+        setRegeneratingField(null);
+      }
+    },
+    [
+      documentContent,
+      currentFrontmatter,
+      createStream,
+      projectId,
+      regeneratingField,
+    ],
+  );
 
   const allAccepted =
     populatedFields.length > 0 &&
@@ -377,7 +479,7 @@ export function FrontmatterAiDrawer({
                 className="space-y-2.5"
               >
                 {populatedFields.map((field, index) => {
-                  const raw = suggestions[field.name];
+                  const raw = effectiveSuggestions?.[field.name];
                   const isAccepted = accepted.has(field.name);
                   return (
                     <SuggestionCard
@@ -386,7 +488,9 @@ export function FrontmatterAiDrawer({
                       field={field}
                       raw={raw}
                       isAccepted={isAccepted}
+                      isRegenerating={regeneratingField === field.name}
                       onApply={() => handleAcceptField(field)}
+                      onRegenerate={() => void handleRegenerateField(field)}
                     />
                   );
                 })}
@@ -503,13 +607,17 @@ function SuggestionCard({
   field,
   raw,
   isAccepted,
+  isRegenerating,
   onApply,
+  onRegenerate,
 }: {
   index: number;
   field: EligibleField;
   raw: unknown;
   isAccepted: boolean;
+  isRegenerating: boolean;
   onApply: () => void;
+  onRegenerate: () => void;
 }) {
   return (
     <motion.div
@@ -527,33 +635,102 @@ function SuggestionCard({
         <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
           {field.label ?? humanizeFieldName(field.name)}
         </span>
-        <button
-          type="button"
-          onClick={onApply}
-          disabled={isAccepted}
-          className={cn(
-            "flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-medium transition-colors",
-            isAccepted
-              ? "text-green-600 dark:text-green-400"
-              : "text-primary hover:bg-primary/10",
-          )}
-        >
-          {isAccepted ? (
-            <>
-              <Check className="size-3" />
-              Applied
-            </>
-          ) : (
-            <>
-              <ArrowRight className="size-3" />
-              Apply
-            </>
-          )}
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={onRegenerate}
+            disabled={isRegenerating}
+            title="Regenerate this field"
+            className="flex items-center justify-center rounded-md p-1 text-muted-foreground/60 transition-colors hover:bg-muted/60 hover:text-foreground disabled:opacity-50"
+          >
+            <RotateCcw
+              className={cn("size-3", isRegenerating && "animate-spin")}
+            />
+          </button>
+          <button
+            type="button"
+            onClick={onApply}
+            disabled={isAccepted}
+            className={cn(
+              "flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-medium transition-colors",
+              isAccepted
+                ? "text-green-600 dark:text-green-400"
+                : "text-primary hover:bg-primary/10",
+            )}
+          >
+            {isAccepted ? (
+              <>
+                <Check className="size-3" />
+                Applied
+              </>
+            ) : (
+              <>
+                <ArrowRight className="size-3" />
+                Apply
+              </>
+            )}
+          </button>
+        </div>
       </div>
       <SuggestionPreview field={field} raw={raw} />
+      <FieldCharCount field={field} raw={raw} />
     </motion.div>
   );
+}
+
+/** Matches field names loosely — schemas name these fields freely. */
+const TITLE_FIELD_NAME_PATTERN = /title/i;
+const DESCRIPTION_FIELD_NAME_PATTERN = /description|summary/i;
+
+/**
+ * Tiny inline char-count hint under title-like and description-like
+ * suggestions so the author can see at a glance whether the AI's proposal
+ * fits the SEO constraints from the system prompt (title ≤60, description
+ * 140–160).
+ */
+function FieldCharCount({
+  field,
+  raw,
+}: {
+  field: EligibleField;
+  raw: unknown;
+}) {
+  if (typeof raw !== "string") return null;
+  const len = raw.length;
+
+  if (TITLE_FIELD_NAME_PATTERN.test(field.name)) {
+    const ok = len <= 60;
+    return (
+      <span
+        className={cn(
+          "mt-1 block text-[10px]",
+          ok
+            ? "text-green-600 dark:text-green-400"
+            : "text-amber-600 dark:text-amber-400",
+        )}
+      >
+        {len}/60 characters
+      </span>
+    );
+  }
+
+  if (DESCRIPTION_FIELD_NAME_PATTERN.test(field.name)) {
+    const ok = len >= 140 && len <= 160;
+    return (
+      <span
+        className={cn(
+          "mt-1 block text-[10px]",
+          ok
+            ? "text-green-600 dark:text-green-400"
+            : "text-amber-600 dark:text-amber-400",
+        )}
+      >
+        {len} characters (140–160 ideal)
+      </span>
+    );
+  }
+
+  return null;
 }
 
 function SuggestionPreview({

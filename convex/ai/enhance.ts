@@ -282,11 +282,36 @@ export const createInlineEnhanceStream = mutation({
   },
 });
 
+/**
+ * Caps at 50 distinct tags across up to 200 of the project's most recent
+ * documents — bounded reads on both axes so the mutation stays cheap
+ * regardless of project size (never an unbounded `.collect()`).
+ */
+async function gatherExistingTags(
+  ctx: MutationCtx,
+  projectId: Doc<"projects">["_id"],
+): Promise<string[]> {
+  const docs = await ctx.db
+    .query("documents")
+    .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+    .take(200);
+
+  const tags = new Set<string>();
+  for (const doc of docs) {
+    for (const tag of doc.tags ?? []) {
+      tags.add(tag);
+      if (tags.size >= 50) return Array.from(tags);
+    }
+  }
+  return Array.from(tags);
+}
+
 export const createFrontmatterStream = mutation({
   args: {
     projectId: v.id("projects"),
     content: v.string(),
     currentFrontmatter: v.optional(v.string()),
+    fields: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
     const key = await getRateLimitKey(ctx);
@@ -305,6 +330,8 @@ export const createFrontmatterStream = mutation({
       throws: true,
     });
 
+    const existingTags = await gatherExistingTags(ctx, args.projectId);
+
     const streamId = await streaming.createStream(ctx);
     await trackStreamOwner(ctx, streamId, user._id, project._id);
 
@@ -319,6 +346,10 @@ export const createFrontmatterStream = mutation({
         frontmatterSchema: project.frontmatterSchema ?? "",
         currentFrontmatter: args.currentFrontmatter ?? "",
         vaultSecretId,
+        ...(existingTags.length > 0 ? { existingTags } : {}),
+        ...(args.fields && args.fields.length > 0
+          ? { fields: args.fields }
+          : {}),
       },
     );
 
