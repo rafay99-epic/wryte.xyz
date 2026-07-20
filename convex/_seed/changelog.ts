@@ -1552,7 +1552,8 @@ A publish is only half the job — your post isn't live until your site rebuilds
 `,
   },
   {
-    title: "Desktop dev/prod separation, local logs, and silky-smooth performance",
+    title:
+      "Desktop dev/prod separation, local logs, and silky-smooth performance",
     slug: "electron-dev-prod-isolation-logs-performance",
     description:
       "The Electron desktop app now runs independently for dev and production builds, writes structured logs to ~/.wryte, and eliminates scroll jank with a rewritten startup pipeline.",
