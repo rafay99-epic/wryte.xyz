@@ -1503,6 +1503,29 @@ A publish is only half the job — your post isn't live until your site rebuilds
 - Unpublishing in Wryte never deletes remote posts. Medium isn't supported — it discontinued its write API; use Medium's own import-by-URL tool if you need it.
 `,
   },
+  {
+    title: "Know your numbers: analytics, publish diffs, and smarter metadata",
+    slug: "analytics-publish-diff-seo-metadata",
+    description:
+      "See pageviews without leaving Wryte (Plausible/Umami, free share links supported), compare any two publishes line by line, and get SEO-sized AI metadata suggestions.",
+    version: "0.28.0",
+    category: "website",
+    build: "3e3ced2",
+    publishedAt: Date.parse("2026-07-20T22:30:00+05:00"),
+    content: `## What's new
+
+- **Analytics, inside Wryte.** A new Analytics page in your project sidebar shows how your published posts perform. Connect Plausible or Umami two ways: paste your dashboard's **share link** (free on every plan — Wryte embeds the live dashboard, or opens it in a tab if the provider forbids embedding), or an **API key** (provider paid tiers; self-hosted is free) which unlocks a per-post views column right in your content table plus 30-day totals and a top-pages chart.
+- **Guided setup, off by default.** One enable switch, then a three-step flow: pick your provider, pick free-share-link or API mode (each explained), follow the numbered steps for exactly where to click in Plausible/Umami. Connecting validates everything first — bad links and disabled shares fail with a message that says what to fix, not a blank screen.
+- **See what a publish changed.** Every entry in the History panel's Publishes tab now has a Diff button: green is what that publish added, red what it removed, frontmatter changes shown separately. Restore lives inside the diff — you see exactly what rolling back changes before you do it.
+- **AI metadata that fits.** Frontmatter suggestions now respect SEO limits — titles ≤ 60 characters, descriptions 140–160 — with live character hints on every suggestion, a regenerate button per field, and tag suggestions that reuse your site's existing tags instead of inventing near-duplicates like nextjs vs next-js.
+
+## Good to know
+
+- Analytics costs you nothing when off, and API mode caches results for 15 minutes — your provider's rate limits are never in danger.
+- GA4 isn't supported: it has no paste-a-token auth, only OAuth/service accounts. Fathom may come later.
+- Views match posts by their published URL path; posts with no recorded traffic show a dash, not a zero.
+`,
+  },
 ];
 
 const seedResult = v.object({
