@@ -74,6 +74,7 @@ import type * as media_credentials from "../media/credentials.js";
 import type * as media_credentialsDb from "../media/credentialsDb.js";
 import type * as media_uploads from "../media/uploads.js";
 import type * as media_uploadsDb from "../media/uploadsDb.js";
+import type * as profiles from "../profiles.js";
 import type * as providers_cloudinary from "../providers/cloudinary.js";
 import type * as providers_errors from "../providers/errors.js";
 import type * as providers_github from "../providers/github.js";
@@ -172,6 +173,7 @@ declare const fullApi: ApiFromModules<{
   "media/credentialsDb": typeof media_credentialsDb;
   "media/uploads": typeof media_uploads;
   "media/uploadsDb": typeof media_uploadsDb;
+  profiles: typeof profiles;
   "providers/cloudinary": typeof providers_cloudinary;
   "providers/errors": typeof providers_errors;
   "providers/github": typeof providers_github;

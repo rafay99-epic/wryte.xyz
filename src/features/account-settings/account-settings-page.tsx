@@ -9,6 +9,7 @@ import { api } from "../../../convex/_generated/api";
 import { AccountTab } from "./components/account-tab";
 import { AppearanceTab } from "./components/appearance-tab";
 import { MediaTab } from "./components/media-tab";
+import { ProfileTab } from "./components/profile-tab";
 import { SelfDestructTab } from "./components/self-destruct-tab";
 import { SettingsSkeleton } from "./components/shared";
 import { ShortcutsTab } from "./components/shortcuts-tab";
@@ -57,6 +58,7 @@ export function AccountSettingsPage() {
           githubUsername={convexUser?.githubUsername}
         />
       )}
+      {activeTab === "profile" && <ProfileTab />}
       {activeTab === "appearance" && <AppearanceTab />}
       {activeTab === "media" && (
         <MediaTab current={convexUser?.defaultCompressionSettings ?? null} />

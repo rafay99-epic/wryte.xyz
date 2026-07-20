@@ -43,6 +43,18 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     period: MINUTE,
     capacity: 5,
   },
+  "profiles:sync": {
+    kind: "token bucket",
+    rate: 10,
+    period: MINUTE,
+    capacity: 5,
+  },
+  "profiles:update": {
+    kind: "token bucket",
+    rate: 20,
+    period: MINUTE,
+    capacity: 8,
+  },
   /** GitHub token update — rare, deliberate action. */
   "users:updateGithubToken": {
     kind: "fixed window",

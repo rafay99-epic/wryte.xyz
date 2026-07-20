@@ -2,6 +2,7 @@ import {
   CheckCircle2,
   Clock,
   Command,
+  Globe,
   HelpCircle,
   ImageIcon,
   MessageSquare,
@@ -14,6 +15,7 @@ import type { ShortcutCategory } from "@/stores/shortcuts-store";
 
 export type SettingsTab =
   | "account"
+  | "profile"
   | "appearance"
   | "media"
   | "shortcuts"
@@ -26,6 +28,7 @@ export const TABS: {
   icon: React.ElementType;
 }[] = [
   { id: "account", label: "Account", icon: User },
+  { id: "profile", label: "Profile", icon: Globe },
   { id: "appearance", label: "Appearance", icon: Palette },
   { id: "media", label: "Media", icon: ImageIcon },
   { id: "shortcuts", label: "Shortcuts", icon: Command },

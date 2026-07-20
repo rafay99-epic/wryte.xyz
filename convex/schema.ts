@@ -50,6 +50,31 @@ export default defineSchema({
     githubVaultSecretId: v.optional(v.string()),
     githubUsername: v.optional(v.string()),
     /**
+     * Public writing profile at `wryte.xyz/@username`. `username` mirrors
+     * the Clerk username (source of truth), synced by `profiles.syncMyUsername`
+     * and stored lowercased for the `by_username` lookup. Everything stays
+     * private until `profilePublic` is true; `profileShowStats` gates the
+     * streak + heatmap separately (they reveal writing cadence).
+     * `socialLinks` is a JSON string of `[{label,url}]`, https-only.
+     */
+    username: v.optional(v.string()),
+    bio: v.optional(v.string()),
+    socialLinks: v.optional(v.string()),
+    profilePublic: v.optional(v.boolean()),
+    profileShowStats: v.optional(v.boolean()),
+    /** Accent preset key (see src/features/profile/accents.ts). */
+    profileAccent: v.optional(v.string()),
+    /** "Follow"/RSS URL for the user's own feed (https-only). */
+    feedUrl: v.optional(v.string()),
+    /** A published post the user pins to the top of their profile. */
+    featuredDocumentId: v.optional(v.id("documents")),
+    /**
+     * Secret token for previewing the profile while it's still private
+     * (mirrors share_links). The token is the credential — anyone with the
+     * link sees the profile regardless of `profilePublic`.
+     */
+    profilePreviewToken: v.optional(v.string()),
+    /**
      * Account-wide default for client-side image compression before upload.
      * Per-project `compressionSettings` overrides this when set; absent =
      * client falls back to `DEFAULT_COMPRESSION_SETTINGS` in
@@ -57,7 +82,9 @@ export default defineSchema({
      */
     defaultCompressionSettings: v.optional(compressionSettingsValidator),
     createdAt: v.number(),
-  }).index("by_tokenIdentifier", ["tokenIdentifier"]),
+  })
+    .index("by_tokenIdentifier", ["tokenIdentifier"])
+    .index("by_username", ["username"]),
 
   /**
    * Projects table — each project corresponds to a writing workspace and optionally
@@ -287,6 +314,7 @@ export default defineSchema({
   })
     .index("by_projectId", ["projectId"])
     .index("by_userId", ["userId"])
+    .index("by_userId_and_status", ["userId", "status"])
     .index("by_projectId_and_status", ["projectId", "status"])
     .index("by_status_and_scheduledAt", ["status", "scheduledAt"])
     // Drives the dedup-by-githubPath lookup in `importFromGithub` /
