@@ -63,6 +63,7 @@ const projectFields = {
   aiModel: v.optional(v.string()),
   aiPromptTemplates: v.optional(v.string()),
   socialPostOnPublish: v.optional(v.boolean()),
+  syndicateOnPublish: v.optional(v.boolean()),
   readabilityLensEnabled: v.optional(v.boolean()),
   autoWatermarkRemoval: v.optional(v.boolean()),
   slashCommandsEnabled: v.optional(v.boolean()),
@@ -389,6 +390,8 @@ export const update = mutation({
      */
     trashRetentionDays: v.optional(v.number()),
     socialPostOnPublish: v.optional(v.boolean()),
+    /** Opt-in cross-posting to dev.to / Hashnode on publish (default off). */
+    syndicateOnPublish: v.optional(v.boolean()),
     /** Opt-in deployment verification — email when a publish doesn't deploy. */
     deployVerificationEnabled: v.optional(v.boolean()),
     /** Path segment between site URL and post slug ("" = site root). */

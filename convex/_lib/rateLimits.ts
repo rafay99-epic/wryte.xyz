@@ -609,6 +609,45 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
   },
 
   /* ------------------------------------------------------------------ */
+  /*  Syndication credentials (dev.to / Hashnode)                        */
+  /* ------------------------------------------------------------------ */
+
+  "syndicationCredentials:set": {
+    kind: "token bucket",
+    rate: 5,
+    period: MINUTE,
+    capacity: 2,
+  },
+  "syndicationCredentials:test": {
+    kind: "token bucket",
+    rate: 20,
+    period: MINUTE,
+    capacity: 5,
+  },
+  "syndicationCredentials:delete": {
+    kind: "fixed window",
+    rate: 5,
+    period: HOUR,
+  },
+  "syndicationCredentials:updateConfig": {
+    kind: "fixed window",
+    rate: 20,
+    period: MINUTE,
+  },
+  "syndicationPost:test": {
+    kind: "token bucket",
+    rate: 3,
+    period: MINUTE,
+    capacity: 2,
+  },
+  "syndicationPost:retry": {
+    kind: "token bucket",
+    rate: 5,
+    period: MINUTE,
+    capacity: 3,
+  },
+
+  /* ------------------------------------------------------------------ */
   /*  GitHub actions                                                     */
   /* ------------------------------------------------------------------ */
 

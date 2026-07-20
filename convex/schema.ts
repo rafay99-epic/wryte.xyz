@@ -154,6 +154,12 @@ export default defineSchema({
     /** Auto-post to connected social media when publishing */
     socialPostOnPublish: v.optional(v.boolean()),
     /**
+     * Cross-post to connected syndication targets (dev.to / Hashnode) when
+     * publishing. Absent = disabled — the publish flow schedules nothing,
+     * so the feature costs zero until a user opts in.
+     */
+    syndicateOnPublish: v.optional(v.boolean()),
+    /**
      * Verify deployments after publish and email on failure (see
      * convex/deployments/verify.ts). Opt-in: absent = disabled.
      */
@@ -712,6 +718,65 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index("by_documentId", ["documentId"])
+    .index("by_projectId", ["projectId"]),
+
+  /**
+   * Syndication credentials (dev.to / Hashnode tokens) — per-project,
+   * encrypted in WorkOS Vault. Mirrors `socialCredentials`. `publicConfig`
+   * JSON: { enabled, username?, publicationId?, publications? } — `enabled`
+   * defaults to false; connecting a token never activates cross-posting.
+   */
+  syndicationCredentials: defineTable({
+    projectId: v.id("projects"),
+    userId: v.id("users"),
+    provider: v.union(v.literal("devto"), v.literal("hashnode")),
+    vaultSecretId: v.string(),
+    vaultVersionId: v.optional(v.string()),
+    publicConfig: v.optional(v.string()),
+    status: v.union(
+      v.literal("active"),
+      v.literal("verifying"),
+      v.literal("invalid"),
+      v.literal("rotating"),
+    ),
+    lastVerifiedAt: v.optional(v.number()),
+    lastVerifyError: v.optional(v.string()),
+    rotatedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_projectId", ["projectId"])
+    .index("by_projectId_and_provider", ["projectId", "provider"])
+    .index("by_userId_and_provider", ["userId", "provider"]),
+
+  /**
+   * Cross-post outcomes — ONE row per (document, provider), upserted on
+   * every attempt so the table stays bounded. `remoteId` is the idempotency
+   * key: present → the next publish updates the remote article instead of
+   * creating a duplicate. Rows hold ids/urls/error strings only — never the
+   * post body (free-tier storage discipline).
+   */
+  syndication_posts: defineTable({
+    projectId: v.id("projects"),
+    documentId: v.id("documents"),
+    provider: v.union(v.literal("devto"), v.literal("hashnode")),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("posted"),
+      v.literal("failed"),
+    ),
+    remoteId: v.optional(v.string()),
+    remoteUrl: v.optional(v.string()),
+    /** SyndicationErrorCode (convex/syndication/errors.ts). */
+    errorCode: v.optional(v.string()),
+    /** Verbatim platform message — what dev.to/Hashnode actually rejected. */
+    errorMessage: v.optional(v.string()),
+    attempt: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_documentId", ["documentId"])
+    .index("by_documentId_and_provider", ["documentId", "provider"])
     .index("by_projectId", ["projectId"]),
 
   /**

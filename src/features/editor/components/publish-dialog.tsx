@@ -9,6 +9,7 @@ import {
   AnnouncementComposer,
   AnnouncementSetupHint,
 } from "@/components/forms/announcement-composer";
+import { SyndicationStatus } from "@/components/forms/syndication-status";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -449,6 +450,12 @@ export function PublishDialog({
                       postOnPublish={project.socialPostOnPublish === true}
                     />
                   )
+                )}
+
+                {documentId && (
+                  <SyndicationStatus
+                    documentId={documentId as Id<"documents">}
+                  />
                 )}
               </div>
 

@@ -787,6 +787,17 @@ export const publishToGithub = internalAction({
         announceArgs,
       );
     }
+
+    // Cross-posting (dev.to / Hashnode) — opt-in per project; off by
+    // default so this schedules nothing and costs nothing. The action
+    // re-loads the document itself and never blocks the publish.
+    if (project.syndicateOnPublish) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.syndication.post.syndicatePublish,
+        { projectId: project._id, documentId: document._id },
+      );
+    }
     return null;
   },
 });
@@ -1208,6 +1219,14 @@ export const bulkPublish = action({
             framework: project.framework,
           }),
         });
+      }
+
+      if (project.syndicateOnPublish) {
+        await ctx.scheduler.runAfter(
+          0,
+          internal.syndication.post.syndicatePublish,
+          { projectId: project._id, documentId: entry.doc.id },
+        );
       }
     }
 

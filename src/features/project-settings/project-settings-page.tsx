@@ -19,6 +19,7 @@ import { MediaSection } from "./components/media-section";
 import { PublishingSection } from "./components/publishing-section";
 import { Divider, SettingsSkeleton } from "./components/shared";
 import { SocialSection } from "./components/social-section";
+import { SyndicationSection } from "./components/syndication-section";
 import { ToolsSection } from "./components/tools-section";
 import type { SettingsTab } from "./types";
 import { TABS } from "./types";
@@ -98,6 +99,9 @@ export function ProjectSettingsPage() {
       )}
       {activeTab === "social" && (
         <SocialSection projectId={projectId} project={project} />
+      )}
+      {activeTab === "syndication" && (
+        <SyndicationSection projectId={projectId} project={project} />
       )}
       {activeTab === "tools" && (
         <ToolsSection projectId={projectId} project={project} />

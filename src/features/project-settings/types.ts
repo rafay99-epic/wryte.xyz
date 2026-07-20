@@ -5,6 +5,7 @@ import {
   ImageIcon,
   PenLine,
   Rocket,
+  Rss,
   Settings2,
   Share2,
   Sparkles,
@@ -59,6 +60,7 @@ export type ProjectData = {
   maxUploadBytes?: number;
   trashRetentionDays?: number;
   socialPostOnPublish?: boolean;
+  syndicateOnPublish?: boolean;
   deployVerificationEnabled?: boolean;
   readabilityLensEnabled?: boolean;
   slashCommandsEnabled?: boolean;
@@ -109,6 +111,7 @@ export type SettingsTab =
   | "ai"
   | "editor"
   | "social"
+  | "syndication"
   | "tools";
 
 export const TABS: {
@@ -207,6 +210,21 @@ export const TABS: {
     label: "Social",
     icon: Share2,
     keywords: ["buffer", "channels", "post", "announce", "url prefix"],
+  },
+  {
+    id: "syndication",
+    label: "Syndication",
+    icon: Rss,
+    keywords: [
+      "dev.to",
+      "devto",
+      "hashnode",
+      "cross-post",
+      "crosspost",
+      "canonical",
+      "syndicate",
+      "mirror",
+    ],
   },
   {
     id: "tools",
