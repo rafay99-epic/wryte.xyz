@@ -8,6 +8,8 @@ name: CI/CD
 on:
   push:
     branches: [main, master]
+  pull_request:
+    branches: [main, master]
   workflow_dispatch:
 
 permissions:
@@ -99,7 +101,7 @@ jobs:
   deploy-website:
     name: Website — deploy to Vercel
     needs: [detect, quality-website]
-    if: needs.detect.outputs.src_changed == 'true'
+    if: needs.detect.outputs.src_changed == 'true' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -142,7 +144,7 @@ jobs:
   prepare-release:
     name: Desktop — create draft release
     needs: [detect, quality-desktop]
-    if: needs.detect.outputs.electron_changed == 'true'
+    if: needs.detect.outputs.electron_changed == 'true' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
