@@ -1,0 +1,43 @@
+convex/_generated/api.d.ts
+  s_65260651453b98::t_2935a133ef336e 77,176
+convex/_lib/rateLimits.ts
+  s_65260651453b98::t_a9a60f511402cd 46-57
+convex/schema.ts
+  s_65260651453b98::t_70d615325e7edc 52-76,85-87,317
+src/app/(marketing)/[handle]/opengraph-image.tsx
+  s_65260651453b98::t_48fc204d0542f6 1-148
+src/features/account-settings/account-settings-page.tsx
+  s_a0e53c18b1e381::t_f9180472425443 12,61
+src/features/account-settings/components/profile-tab.tsx
+  s_65260651453b98::t_f035dbb048defa 1-502
+src/features/account-settings/types.ts
+  s_a0e53c18b1e381::t_6e2464891c07a9 5,18,31
+src/features/profile/accents.ts
+  s_65260651453b98::t_cbca820694c6ee 1-38
+src/features/profile/public-profile.tsx
+  s_65260651453b98::t_f7d92f8111e53d 1-403
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "236a95a25533edf7a4c8de59bf4d5cf557075e08",
+  "prompts": {},
+  "sessions": {
+    "s_65260651453b98": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9f7cebd6-0762-4a6a-9c33-3c2c1a1419f5",
+        "model": "unknown"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    },
+    "s_a0e53c18b1e381": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a141ed08bd113f6c5",
+        "model": "unknown"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
