@@ -1478,7 +1478,8 @@ A publish is only half the job — your post isn't live until your site rebuilds
 `,
   },
   {
-    title: "Write here, appear everywhere: cross-posting to dev.to and Hashnode",
+    title:
+      "Write here, appear everywhere: cross-posting to dev.to and Hashnode",
     slug: "syndication-devto-hashnode",
     description:
       "Publish once and mirror the article to dev.to and Hashnode with a canonical link back to your site — your repo stays the source of truth.",
