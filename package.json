@@ -5,11 +5,12 @@
   "license": "MIT",
   "main": "electron/main.cjs",
   "scripts": {
-    "dev": "concurrently -n NEXT,CONVEX -c blue,green \"next dev\" \"convex dev\"",
-    "dev:local": "concurrently -n NEXT,CONVEX -c blue,green \"next dev\" \"convex dev \"",
+    "dev": "concurrently -n NEXT,CONVEX,DESKTOP -c blue,green,yellow \"next dev\" \"convex dev\" \"WRYTE_FLAVOR=dev electron electron/main.cjs\"",
+    "dev:local": "concurrently -n NEXT,CONVEX,DESKTOP -c blue,green,yellow \"next dev\" \"convex dev \" \"WRYTE_FLAVOR=dev electron electron/main.cjs\"",
     "dev:next": "next dev",
     "dev:convex": "convex dev",
     "dev:convex:local": "convex dev --local",
+    "dev:desktop": "WRYTE_FLAVOR=dev electron electron/main.cjs",
     "build": "bunx convex deploy --cmd 'bun run stamp-version && next build'",
     "build:local": "next build",
     "stamp-version": "bun scripts/stamp-version.ts",
@@ -114,16 +115,17 @@
     "fast-uri": "^3.1.2",
     "effect": "^3.21.2",
     "ws": "^8.21.0",
-    "brace-expansion": "^5.0.6",
+    "brace-expansion": "^5.0.7",
     "js-cookie": "^3.0.7",
     "qs": "^6.15.2",
     "hono": "^4.12.25",
-    "protobufjs": "^7.6.4",
+    "protobufjs": "^7.6.5",
     "@babel/core": "^7.29.7",
     "js-yaml": "^3.15.0",
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
-    "tar": "^7.5.7"
+    "tar": "^7.5.7",
+    "shell-quote": "^1.10.0"
   },
   "patchedDependencies": {
     "@convex-dev/persistent-text-streaming@0.3.2": "patches/@convex-dev%2Fpersistent-text-streaming@0.3.2.patch"
