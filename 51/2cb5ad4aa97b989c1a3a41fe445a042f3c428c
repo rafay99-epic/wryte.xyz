@@ -1,0 +1,55 @@
+convex/_generated/api.d.ts
+  s_65260651453b98::t_f9d5a229c1c911 85-93,178-186
+convex/_lib/rateLimits.ts
+  s_65260651453b98::t_44f4361a4002aa 611-649
+convex/cms/projects.ts
+  s_65260651453b98::t_9dbad662f4e4f9 66,393-394
+convex/integrations/github.ts
+  s_65260651453b98::t_c7b69d9125bc73 790-800,1223-1230
+convex/syndication/_lib/providers.ts
+  s_65260651453b98::t_0c80db17078553 1-99
+convex/syndication/credentials.ts
+  s_65260651453b98::t_5bbb20659f1d16 1-365
+convex/syndication/credentialsDb.ts
+  s_65260651453b98::t_79a80c9ce8db8b 1-199
+convex/syndication/devto.ts
+  s_65260651453b98::t_f9d82e1bca77b5 1-149
+convex/syndication/errors.ts
+  s_65260651453b98::t_ea5ba265fa6a80 1-46
+convex/syndication/hashnode.ts
+  s_65260651453b98::t_9992b77b621c60 1-251
+convex/syndication/post.ts
+  s_65260651453b98::t_f23add34d169f8 1-497
+convex/syndication/postsDb.ts
+  s_65260651453b98::t_e50bfd72a38530 1-142
+convex/syndication/transform.ts
+  s_65260651453b98::t_f061247d8c1cf6 1-140
+src/components/forms/syndication-status.tsx
+  s_65260651453b98::t_2eda2f1f9f6936 1-108
+src/features/editor/components/publish-dialog.tsx
+  s_65260651453b98::t_a1e6be51dc5d07 12,454-459
+src/features/project-settings/components/syndication-section.tsx
+  s_65260651453b98::t_5fa51b9451b374 1-340
+src/features/project-settings/hooks/use-syndication-section.ts
+  s_65260651453b98::t_e623dfa78d0c88 1-242
+src/features/project-settings/project-settings-page.tsx
+  s_65260651453b98::t_cf60c74039a8b8 22,103-105
+src/features/project-settings/types.ts
+  s_65260651453b98::t_5ba7c0fdc0c818 8,63,114,214-228
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "512cb5ad4aa97b989c1a3a41fe445a042f3c428c",
+  "prompts": {},
+  "sessions": {
+    "s_65260651453b98": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9f7cebd6-0762-4a6a-9c33-3c2c1a1419f5",
+        "model": "unknown"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
