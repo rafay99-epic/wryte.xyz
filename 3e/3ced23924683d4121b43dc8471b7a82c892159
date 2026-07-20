@@ -1,0 +1,71 @@
+convex/_generated/api.d.ts
+  s_65260651453b98::t_bc537a72114e98 61-65,159-163
+convex/_lib/rateLimits.ts
+  s_65260651453b98::t_1b240d947d5cd5 650-666
+convex/insights/_lib/providers.ts
+  s_65260651453b98::t_a4b6a585496bea 1-60
+convex/insights/plausible.ts
+  s_014c0f5669431a::t_ca3cc218361978 1-128
+convex/insights/snapshots.ts
+  s_65260651453b98::t_c70c3e4a7e92ea 1-201
+convex/insights/targets.ts
+  s_65260651453b98::t_38036755b179f2 1-488
+convex/insights/umami.ts
+  s_65260651453b98::t_bd78ff44b9ccf8 1-130
+convex/schema.ts
+  s_65260651453b98::t_ae3f415e5dd981 782-841
+src/app/(app)/projects/[projectId]/analytics/page.tsx
+  s_65260651453b98::t_f4b3f40258af12 1-10
+src/components/layout/app-sidebar.tsx
+  s_65260651453b98::t_9177b84d750f65 8,55-60,330-336
+src/features/content-dashboard/components/content-dashboard.tsx
+  s_a637f28a3aa5c0::t_c12399c85ccf2c 164-165,201,792
+src/features/content-dashboard/components/content-table-row.tsx
+  s_a637f28a3aa5c0::t_048287b71b3a1c 64-67,82-83,176-182
+src/features/content-dashboard/components/table-view.tsx
+  s_a637f28a3aa5c0::t_7b8d183d8adadc 25-26,44,98-102,148-149
+src/features/project-analytics/analytics-page.tsx
+  s_65260651453b98::t_be26b8a5e85da3 1-282
+src/features/project-detail/project-detail-page.tsx
+  s_65260651453b98::t_74ff889920f6ad 8,41,49,215-277,694
+src/features/project-settings/components/analytics-section.tsx
+  s_65260651453b98::t_23aececc4ebb46 1-423
+src/features/project-settings/hooks/use-analytics-section.ts
+  s_65260651453b98::t_413e9e49026ecb 1-208
+src/features/project-settings/project-settings-page.tsx
+  s_65260651453b98::t_92c93b7063748e 11,107-109
+src/features/project-settings/types.ts
+  s_65260651453b98::t_6bb18be2befdbd 2,116,231-244
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "3e3ced23924683d4121b43dc8471b7a82c892159",
+  "prompts": {},
+  "sessions": {
+    "s_014c0f5669431a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a0a7a1434a005cd9e",
+        "model": "unknown"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    },
+    "s_65260651453b98": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9f7cebd6-0762-4a6a-9c33-3c2c1a1419f5",
+        "model": "unknown"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    },
+    "s_a637f28a3aa5c0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a8f5447ebd7dda7db",
+        "model": "unknown"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
