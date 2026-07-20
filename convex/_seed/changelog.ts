@@ -1477,6 +1477,31 @@ A publish is only half the job — your post isn't live until your site rebuilds
 - Every destructive action (removing keys or credentials, clearing schema defaults) now asks with the same styled confirmation dialog — two of them previously asked nothing at all.
 `,
   },
+  {
+    title: "Write here, appear everywhere: cross-posting to dev.to and Hashnode",
+    slug: "syndication-devto-hashnode",
+    description:
+      "Publish once and mirror the article to dev.to and Hashnode with a canonical link back to your site — your repo stays the source of truth.",
+    version: "0.27.0",
+    category: "website",
+    build: "512cb5a",
+    publishedAt: Date.parse("2026-07-18T02:30:00+05:00"),
+    content: `## What's new
+
+- **Cross-posting.** Publishing to GitHub can now also mirror the article to dev.to and Hashnode. Every cross-post carries a canonical link back to your site, so search engines always credit the original. Re-publishing updates the remote article instead of creating a duplicate.
+- **Your tokens, your accounts.** Connect with your own dev.to API key or Hashnode Personal Access Token in the new Settings → Syndication tab — stored encrypted in the same vault as your AI keys, never in plain text.
+- **Off until you say so.** Everything defaults to off: a project-level "Syndicate on publish" toggle, plus a per-platform Active switch that stays off even after connecting a token. Nothing posts by surprise.
+- **Test without publishing.** A "Send Test Post" button pushes a sample draft to dev.to through the full pipeline — no commit to your repo, invisible in dev.to feeds, delete it from your dashboard when done.
+- **Made-for-the-platform output.** Bodies are cleaned before they leave: site-relative images and links become absolute, stray frontmatter is stripped, dev.to Liquid syntax is neutralized, and tags are normalized to each platform's rules (dev.to: alphanumeric, max 4).
+- **Status where you publish.** The publish dialog shows a per-platform row — posted with a link to the live cross-post, or the platform's exact error message with a one-click Retry.
+
+## Good to know
+
+- **Hashnode is Beta.** Hashnode put its entire API behind the publication Pro plan in May 2026, so cross-posting there only works for Pro publications — the connect card explains everything, and errors distinguish "bad token" from "publication needs Pro".
+- Transient failures retry automatically with backoff (rate limits honor the platform's Retry-After); a rejected token flips the credential to invalid in Settings instead of failing silently on every publish.
+- Unpublishing in Wryte never deletes remote posts. Medium isn't supported — it discontinued its write API; use Medium's own import-by-URL tool if you need it.
+`,
+  },
 ];
 
 const seedResult = v.object({
