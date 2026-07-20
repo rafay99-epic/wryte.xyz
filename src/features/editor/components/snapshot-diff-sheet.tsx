@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/stores/editor-store";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
-import { type DiffLine, diffLines, diffStats } from "../lib/diff";
+import { diffLines, diffStats, foldUnchanged } from "../lib/diff";
 
 type SnapshotDiffSheetProps = {
   snapshotId: Id<"document_snapshots"> | null;
@@ -26,55 +26,6 @@ type SnapshotDiffSheetProps = {
   onRestore: (snapshotId: Id<"document_snapshots">) => void;
   restoring: boolean;
 };
-
-/** Collapse runs of unchanged lines longer than this in the diff view. */
-const CONTEXT_LINES = 3;
-
-type DiffRow =
-  | { kind: "line"; line: DiffLine; key: number }
-  | { kind: "fold"; count: number; key: number };
-
-function foldUnchanged(lines: DiffLine[]): DiffRow[] {
-  const rows: DiffRow[] = [];
-  let i = 0;
-  while (i < lines.length) {
-    const line = lines[i] as DiffLine;
-    if (line.type !== "same") {
-      rows.push({ kind: "line", line, key: i });
-      i++;
-      continue;
-    }
-    let runEnd = i;
-    while (
-      runEnd < lines.length &&
-      (lines[runEnd] as DiffLine).type === "same"
-    ) {
-      runEnd++;
-    }
-    const runLength = runEnd - i;
-    if (runLength <= CONTEXT_LINES * 2 + 1) {
-      for (let k = i; k < runEnd; k++) {
-        rows.push({ kind: "line", line: lines[k] as DiffLine, key: k });
-      }
-    } else {
-      const keepStart = i === 0 ? 0 : CONTEXT_LINES;
-      const keepEnd = runEnd === lines.length ? 0 : CONTEXT_LINES;
-      for (let k = i; k < i + keepStart; k++) {
-        rows.push({ kind: "line", line: lines[k] as DiffLine, key: k });
-      }
-      rows.push({
-        kind: "fold",
-        count: runLength - keepStart - keepEnd,
-        key: i + keepStart,
-      });
-      for (let k = runEnd - keepEnd; k < runEnd; k++) {
-        rows.push({ kind: "line", line: lines[k] as DiffLine, key: k });
-      }
-    }
-    i = runEnd;
-  }
-  return rows;
-}
 
 /**
  * Diff between the current editor content and a snapshot, framed as "what

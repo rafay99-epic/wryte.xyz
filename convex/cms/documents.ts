@@ -1634,6 +1634,75 @@ export const getPublishHistory = query({
   },
 });
 
+const PUBLISH_SNAPSHOT = v.object({
+  content: v.string(),
+  frontmatter: v.optional(v.string()),
+  titleSnapshot: v.string(),
+  commitSha: v.string(),
+  createdAt: v.number(),
+});
+
+/**
+ * Content snapshots for a publish-vs-previous-publish diff, read only when
+ * a diff sheet opens (never by the History list). `previous` is null for
+ * the first publish — the sheet renders that as "everything added". A
+ * missing content row (legacy pre-sidecar publishes) returns null overall.
+ */
+export const getPublishDiff = query({
+  args: { historyId: v.id("publish_history") },
+  returns: v.union(
+    v.null(),
+    v.object({
+      current: PUBLISH_SNAPSHOT,
+      previous: v.union(v.null(), PUBLISH_SNAPSHOT),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const user = await getAuthedUserOrNull(ctx);
+    if (!user) return null;
+
+    const entry = await ctx.db.get(args.historyId);
+    if (!entry || entry.userId !== user._id) return null;
+
+    const loadSnapshot = async (row: {
+      _id: Id<"publish_history">;
+      titleSnapshot: string;
+      commitSha: string;
+      createdAt: number;
+    }) => {
+      const contentRow = await ctx.db
+        .query("publish_history_content")
+        .withIndex("by_publishId", (q) => q.eq("publishId", row._id))
+        .unique();
+      if (!contentRow) return null;
+      return {
+        content: contentRow.content,
+        ...(contentRow.frontmatter !== undefined
+          ? { frontmatter: contentRow.frontmatter }
+          : {}),
+        titleSnapshot: row.titleSnapshot,
+        commitSha: row.commitSha,
+        createdAt: row.createdAt,
+      };
+    };
+
+    const current = await loadSnapshot(entry);
+    if (!current) return null;
+
+    // The publish immediately before this one (history is capped at 50, so
+    // one page covers everything retained).
+    const older = await ctx.db
+      .query("publish_history")
+      .withIndex("by_documentId", (q) => q.eq("documentId", entry.documentId))
+      .order("desc")
+      .take(60);
+    const previousRow = older.find((r) => r.createdAt < entry.createdAt);
+    const previous = previousRow ? await loadSnapshot(previousRow) : null;
+
+    return { current, previous };
+  },
+});
+
 /**
  * Rolls back a document to a previous published version.
  * Restores title, content, and frontmatter from the history snapshot.

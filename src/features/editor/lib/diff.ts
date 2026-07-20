@@ -103,3 +103,56 @@ export function diffStats(lines: DiffLine[]): DiffStats {
   }
   return { added, removed };
 }
+
+/** Collapse runs of unchanged lines longer than this in diff views. */
+export const DIFF_CONTEXT_LINES = 3;
+
+export type DiffRow =
+  | { kind: "line"; line: DiffLine; key: number }
+  | { kind: "fold"; count: number; key: number };
+
+/**
+ * Fold long unchanged runs down to DIFF_CONTEXT_LINES of context around
+ * each change — shared by the snapshot and publish diff sheets.
+ */
+export function foldUnchanged(lines: DiffLine[]): DiffRow[] {
+  const rows: DiffRow[] = [];
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i] as DiffLine;
+    if (line.type !== "same") {
+      rows.push({ kind: "line", line, key: i });
+      i++;
+      continue;
+    }
+    let runEnd = i;
+    while (
+      runEnd < lines.length &&
+      (lines[runEnd] as DiffLine).type === "same"
+    ) {
+      runEnd++;
+    }
+    const runLength = runEnd - i;
+    if (runLength <= DIFF_CONTEXT_LINES * 2 + 1) {
+      for (let k = i; k < runEnd; k++) {
+        rows.push({ kind: "line", line: lines[k] as DiffLine, key: k });
+      }
+    } else {
+      const keepStart = i === 0 ? 0 : DIFF_CONTEXT_LINES;
+      const keepEnd = runEnd === lines.length ? 0 : DIFF_CONTEXT_LINES;
+      for (let k = i; k < i + keepStart; k++) {
+        rows.push({ kind: "line", line: lines[k] as DiffLine, key: k });
+      }
+      rows.push({
+        kind: "fold",
+        count: runLength - keepStart - keepEnd,
+        key: i + keepStart,
+      });
+      for (let k = runEnd - keepEnd; k < runEnd; k++) {
+        rows.push({ kind: "line", line: lines[k] as DiffLine, key: k });
+      }
+    }
+    i = runEnd;
+  }
+  return rows;
+}

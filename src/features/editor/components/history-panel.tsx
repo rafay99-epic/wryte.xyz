@@ -6,6 +6,7 @@ import {
   Camera,
   Clock,
   ExternalLink,
+  FileDiff,
   GitCommit,
   History,
   Loader2,
@@ -23,6 +24,7 @@ import { relativeTime } from "@/lib/relative-time";
 import { useEditorStore } from "@/stores/editor-store";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
+import { PublishDiffSheet } from "./publish-diff-sheet";
 import { SnapshotDiffSheet } from "./snapshot-diff-sheet";
 
 type HistoryPanelProps = {
@@ -282,6 +284,8 @@ function PublishList({
   );
   const rollback = useMutation(api.cms.documents.rollbackToVersion);
   const [rollingBack, setRollingBack] = useState<string | null>(null);
+  const [diffHistoryId, setDiffHistoryId] =
+    useState<Id<"publish_history"> | null>(null);
 
   const handleRollback = useCallback(
     async (historyId: string) => {
@@ -292,6 +296,7 @@ function PublishList({
           historyId: historyId as Id<"publish_history">,
         });
         useEditorStore.getState().markSaved();
+        setDiffHistoryId(null);
         toast.success("Rolled back successfully", {
           description: `Restored to version from ${relativeTime(result.restoredFrom)}`,
         });
@@ -379,6 +384,15 @@ function PublishList({
           </div>
 
           <div className="mt-2 flex items-center gap-1.5 opacity-0 transition-opacity group-hover:opacity-100">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 gap-1 px-2 text-[11px]"
+              onClick={() => setDiffHistoryId(entry._id)}
+            >
+              <FileDiff className="size-3" />
+              Diff
+            </Button>
             {index > 0 && (
               <Button
                 variant="ghost"
@@ -413,6 +427,16 @@ function PublishList({
           </p>
         </motion.div>
       ))}
+
+      <PublishDiffSheet
+        historyId={diffHistoryId}
+        isLatest={diffHistoryId !== null && history[0]?._id === diffHistoryId}
+        onOpenChange={(open) => {
+          if (!open) setDiffHistoryId(null);
+        }}
+        onRollback={(id) => void handleRollback(id)}
+        rollingBack={rollingBack !== null}
+      />
     </div>
   );
 }
