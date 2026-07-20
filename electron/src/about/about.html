@@ -48,7 +48,7 @@
   </head>
   <body>
     <img class="logo" src="../../../public/wryte-icon.png" alt="Wryte" />
-    <h1>Wryte</h1>
+    <h1 id="app-name">Wryte</h1>
     <div class="version" id="version">Version —</div>
     <div class="tagline">Git-native content workspace — a markdown editor that publishes straight to GitHub as clean commits.</div>
 
@@ -85,9 +85,12 @@
       const params = new URLSearchParams(location.search);
       const v = params.get("v");
       const y = params.get("y");
+      const name = params.get("name") || "Wryte";
+      document.title = `About ${name}`;
+      document.getElementById("app-name").textContent = name;
       if (v) document.getElementById("version").textContent = `Version ${v}`;
       document.getElementById("copyright").textContent =
-        `© ${y || ""} Syntax Lab Technology · Abdul Rafay`;
+        `\u00A9 ${y || ""} Syntax Lab Technology \u00B7 Abdul Rafay`;
       // Route external links through the OS browser (handled in main via setWindowOpenHandler).
       for (const a of document.querySelectorAll("a[data-ext]")) {
         a.setAttribute("target", "_blank");

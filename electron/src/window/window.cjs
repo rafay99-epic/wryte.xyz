@@ -5,6 +5,7 @@ const http = require("node:http");
 const https = require("node:https");
 const path = require("node:path");
 const config = require("../config.cjs");
+const logger = require("../logger.cjs");
 const state = require("./state.cjs");
 
 const isMac = process.platform === "darwin";
@@ -21,6 +22,10 @@ let trayEnabled = false;
 let isQuitting = false;
 /** @type {string | undefined} */
 let pendingAppUrl;
+/** @type {{ value: boolean }} */
+const loaded = { value: false };
+/** @type {{ known: boolean, value: boolean }} */
+const connStatus = { known: false, value: false };
 
 /** @returns {Electron.BrowserWindow | undefined} */
 function getMainWindow() {
@@ -55,11 +60,20 @@ function probe(port) {
 /** Dev → first live local port; packaged → production. `WRYTE_DESKTOP_URL` overrides. */
 async function resolveAppUrl() {
   if (process.env.WRYTE_DESKTOP_URL) return process.env.WRYTE_DESKTOP_URL;
-  if (!app.isPackaged) {
+
+  // Dev flavor or unpackaged: probe local dev servers.
+  if (config.isDevFlavor || !app.isPackaged) {
     for (const port of config.DEV_PORTS) {
       if (await probe(port)) return `http://localhost:${port}`;
     }
   }
+
+  // Dev flavor with no server running: return the first dev port anyway.
+  // The did-fail-load handler will retry, then show the offline page.
+  if (config.isDevFlavor) {
+    return `http://localhost:${config.DEV_PORTS[0]}`;
+  }
+
   return config.PROD_URL;
 }
 
@@ -104,6 +118,9 @@ function focusMainWindow() {
 function createWindow(appUrl) {
   const s = state.get();
   const usePos = state.positionVisible();
+  logger.info(
+    `creating window — url=${appUrl} max=${s.isMaximized} sz=${s.width}x${s.height}`,
+  );
   mainWindow = new BrowserWindow({
     width: s.width,
     height: s.height,
@@ -111,7 +128,7 @@ function createWindow(appUrl) {
     y: usePos ? s.y : undefined,
     minWidth: 960,
     minHeight: 640,
-    title: "Wryte",
+    title: config.APP_NAME,
     backgroundColor: "#0a0a0a",
     icon: path.join(__dirname, "..", "..", "..", "public", "wryte-icon.png"),
     // Frameless with inset traffic-lights on mac. The wrapped site reacts to
@@ -126,8 +143,6 @@ function createWindow(appUrl) {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
-      // Keep autosave / AI streaming running at full speed when backgrounded.
-      backgroundThrottling: false,
     },
   });
   if (s.isMaximized) mainWindow.maximize();
@@ -162,11 +177,6 @@ function createWindow(appUrl) {
 
   const contents = mainWindow.webContents;
 
-  // Native spell check (all platforms, language list is a hint — the OS
-  // decides which dictionaries are actually available).
-  contents.session.setSpellCheckerEnabled(true);
-  contents.session.setSpellCheckerLanguages(["en-US"]);
-
   // window.open (Clerk OAuth popups): keep http(s) in-app, deny the rest.
   contents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith("https://") || url.startsWith("http://")) {
@@ -184,17 +194,51 @@ function createWindow(appUrl) {
     }
   });
 
-  // Re-apply zoom + scroll CSS on each load; retry transient load failures.
+  // ── Startup tracking ────────────────────────────────────────────────
   let retries = 0;
   let cssKey = "";
-  contents.on("did-finish-load", async () => {
+  let spellcheckEnabled = false;
+  loaded.value = false;
+  connStatus.known = false;
+  connStatus.value = false;
+
+  // Apply zoom + inject CSS once on each page load. Spellcheck is deferred
+  // to the first real page load so dictionary init doesn't compete with
+  // first paint and compositing.
+  contents.on("did-finish-load", () => {
+    const url = contents.getURL();
+    // The local loading page doesn't count as "loaded" — only the real app.
+    if (url.includes("loading.html")) return;
     retries = 0;
+    loaded.value = true;
+    logger.info(`page loaded — url=${contents.getURL()}`);
     applyZoom();
-    if (cssKey) contents.removeInsertedCSS(cssKey).catch(() => undefined);
-    cssKey = await contents.insertCSS(config.SCROLL_CSS).catch(() => "");
+    if (!cssKey) {
+      contents
+        .insertCSS(config.SCROLL_CSS)
+        .then((key) => {
+          cssKey = key;
+        })
+        .catch(() => undefined);
+    }
+    if (!spellcheckEnabled) {
+      contents.session.setSpellCheckerEnabled(true);
+      contents.session.setSpellCheckerLanguages(["en-US"]);
+      spellcheckEnabled = true;
+    }
   });
-  contents.on("did-fail-load", (_e, code, _d, url, isMainFrame) => {
-    if (!isMainFrame || code === -3) return; // -3 = ERR_ABORTED
+
+  // When connectivity is already known to be offline, skip retries and
+  // show the offline page immediately — no need to retry a dead link.
+  contents.on("did-fail-load", (_e, code, desc, url, isMainFrame) => {
+    if (!isMainFrame || code === -3) return;
+    logger.error(
+      `page failed to load — code=${code} desc=${desc} url=${url} retry=${retries}`,
+    );
+    if (connStatus.known && !connStatus.value) {
+      mainWindow?.loadFile(path.join(__dirname, "offline.html"));
+      return;
+    }
     if (retries >= config.MAX_LOAD_RETRIES) return;
     retries += 1;
     setTimeout(() => {
@@ -202,8 +246,8 @@ function createWindow(appUrl) {
     }, 1500);
   });
 
-  // Paint a local loading screen instantly, then check connectivity. If online,
-  // load the app URL; if offline, show the offline page and wait for a reconnect.
+  // Paint a local loading screen instantly, show the window when ready,
+  // then start loading the app URL immediately (no blocking).
   let started = false;
   const start = () => {
     if (started || !mainWindow) return;
@@ -212,10 +256,10 @@ function createWindow(appUrl) {
     loadAppOrOffline(appUrl);
   };
   mainWindow.once("ready-to-show", start);
-  setTimeout(start, 3000);
   mainWindow.loadFile(path.join(__dirname, "loading.html"));
 
   mainWindow.on("closed", () => {
+    logger.info("window closed");
     mainWindow = undefined;
   });
 }
@@ -245,17 +289,30 @@ function checkConnectivity() {
 }
 
 /**
- * Try to load the app URL. If the connectivity check fails, show the
- * offline page so the user can retry. The connectivity worker keeps
- * polling in the background and will trigger a reload when online.
+ * Load the app URL immediately without waiting for a connectivity check.
+ * The connectivity check runs in parallel — if it returns offline AND the
+ * page hasn't loaded yet, we show the offline page. This eliminates the
+ * 0–5 s blocking delay on every launch.
  */
 function loadAppOrOffline(appUrl) {
   pendingAppUrl = appUrl;
+
+  // Load the app URL NOW — no blocking.
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.loadURL(appUrl);
+  }
+
+  // Check connectivity in parallel (non-blocking).
   checkConnectivity().then((online) => {
     if (!mainWindow || mainWindow.isDestroyed()) return;
-    if (online) {
-      mainWindow.loadURL(appUrl);
-    } else {
+    connStatus.known = true;
+    connStatus.value = online;
+    logger.info(
+      `parallel connectivity check — online=${online} loaded=${loaded.value}`,
+    );
+    if (!online && !loaded.value) {
+      // Page hasn't loaded and we're offline — switch to offline page.
+      logger.info("offline detected — showing offline page");
       mainWindow.loadFile(path.join(__dirname, "offline.html"));
     }
   });
@@ -276,9 +333,11 @@ function onConnectivityChange(online) {
 
 // ── IPC: offline page retry ─────────────────────────────────────────────────
 ipcMain.on("offline-retry", () => {
+  logger.info("offline-retry triggered by user");
   if (!mainWindow || mainWindow.isDestroyed() || !pendingAppUrl) return;
   checkConnectivity().then((online) => {
     if (!mainWindow || mainWindow.isDestroyed()) return;
+    logger.info(`offline retry — online=${online}`);
     if (online) {
       mainWindow.loadURL(pendingAppUrl);
     }

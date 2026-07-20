@@ -2,6 +2,7 @@
 
 const { app, BrowserWindow } = require("electron");
 const path = require("node:path");
+const config = require("../config.cjs");
 const { openExternal } = require("../window/window.cjs");
 
 /** @type {Electron.BrowserWindow | undefined} */
@@ -20,7 +21,7 @@ function openAboutWindow() {
     minimizable: false,
     maximizable: false,
     fullscreenable: false,
-    title: "About Wryte",
+    title: `About ${config.APP_NAME}`,
     backgroundColor: "#0a0a0a",
     webPreferences: {
       contextIsolation: true,
@@ -34,7 +35,11 @@ function openAboutWindow() {
     return { action: "deny" };
   });
   aboutWindow.loadFile(path.join(__dirname, "about.html"), {
-    query: { v: app.getVersion(), y: String(new Date().getFullYear()) },
+    query: {
+      v: app.getVersion(),
+      y: String(new Date().getFullYear()),
+      name: config.APP_NAME,
+    },
   });
   aboutWindow.on("closed", () => {
     aboutWindow = undefined;

@@ -1551,6 +1551,28 @@ A publish is only half the job — your post isn't live until your site rebuilds
 - Nothing is public until you set a username and turn the profile on.
 `,
   },
+  {
+    title: "Desktop dev/prod separation, local logs, and silky-smooth performance",
+    slug: "electron-dev-prod-isolation-logs-performance",
+    description:
+      "The Electron desktop app now runs independently for dev and production builds, writes structured logs to ~/.wryte, and eliminates scroll jank with a rewritten startup pipeline.",
+    version: "0.30.0",
+    category: "desktop",
+    build: "fc472cc",
+    publishedAt: Date.parse("2026-07-21T04:30:00+05:00"),
+    content: `## What's new
+
+- **Dev and prod now live apart.** \`Wryte Dev\` (dev flavor) and \`Wryte\` (production) have separate macOS app identities, separate user data directories, and independent build configs. Run \`bun desktop:dev\` for the dev flavor alongside your installed production app — they never share state, auto-updates, or window positions. Nuke the dev version anytime; production is untouched.
+- **Local logs at ~/.wryte (or ~/.wryteDev).** The Electron shell now writes structured logs to your home directory — three rotating files (app.log, error.log, crash.log) that capture startup, worker events, page loads, connectivity changes, renderer crashes, unhandled exceptions, and renderer log forwarding via \`wryteDesktop.log()\`. Each file trims itself at 1 MB.
+- **No more scroll jank.** The initial page load no longer blocks on a connectivity check (loads immediately, checks in parallel), spellcheck initialisation no longer competes with first paint, a deprecated \`-webkit-overflow-scrolling: touch\` CSS rule that forced compositing layers on every element was removed, background throttling is returned to its default so the compositor pipeline can rest, and the \`enable-zero-copy\` GPU flag (known to cause macOS stalls) was removed.
+
+## Good to know
+
+- The dev flavor (\`Wryte Dev\`) never falls back to \`https://wryte.xyz\` — it sticks to localhost even when no dev server is running.
+- The production app ships as before; the dev build config lives in \`electron-builder.config.js\` and is gated on \`WRYTE_FLAVOR=dev\`.
+- Log files are human-readable timestamps with a \`[level]\` prefix — they do not rotate by date, only by size.
+`,
+  },
 ];
 
 const seedResult = v.object({

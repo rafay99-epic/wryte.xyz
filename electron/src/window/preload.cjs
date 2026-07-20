@@ -59,6 +59,15 @@ const desktopAPI = {
   retryConnectivity: () => {
     ipcRenderer.send("offline-retry");
   },
+  /**
+   * Forward a log entry to the main-process file logger.
+   * The web app can call this for desktop-specific diagnostics.
+   * @param {"info" | "warn" | "error"} level
+   * @param {string} message
+   */
+  log: (level, message) => {
+    ipcRenderer.send("log", { level, message });
+  },
 };
 
 contextBridge.exposeInMainWorld("wryteDesktop", desktopAPI);

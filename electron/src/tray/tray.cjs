@@ -2,6 +2,7 @@
 
 const { Tray, Menu, nativeImage, app } = require("electron");
 const path = require("node:path");
+const config = require("../config.cjs");
 
 const isMac = process.platform === "darwin";
 
@@ -36,7 +37,7 @@ function createTray(mainWindow) {
   }
 
   tray = new Tray(trayIcon);
-  tray.setToolTip("Wryte");
+  tray.setToolTip(config.APP_NAME);
   rebuildMenu(mainWindow);
 
   // Single-click shows/focuses the window on all platforms.
@@ -55,7 +56,7 @@ function rebuildMenu(mainWindow) {
   tray.setContextMenu(
     Menu.buildFromTemplate([
       {
-        label: "Show Wryte",
+        label: `Show ${config.APP_NAME}`,
         click: () => {
           if (!mainWindow || mainWindow.isDestroyed()) return;
           if (mainWindow.isMinimized()) mainWindow.restore();

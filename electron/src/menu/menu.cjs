@@ -12,7 +12,7 @@ const isMac = process.platform === "darwin";
 function build() {
   const help = [
     {
-      label: "Wryte on GitHub",
+      label: `${config.APP_NAME} on GitHub`,
       click: () => win.openExternal(config.REPO_URL),
     },
     {
@@ -21,14 +21,18 @@ function build() {
     },
   ];
 
+  const checkForUpdates = config.isDevFlavor
+    ? []
+    : [{ label: "Check for Updates\u2026", click: updater.checkManually }];
+
   const template = [
     ...(isMac
       ? [
           {
-            label: "Wryte",
+            label: config.APP_NAME,
             submenu: [
-              { label: "About Wryte", click: openAboutWindow },
-              { label: "Check for Updates…", click: updater.checkManually },
+              { label: `About ${config.APP_NAME}`, click: openAboutWindow },
+              ...checkForUpdates,
               { type: "separator" },
               { role: "services" },
               { type: "separator" },
@@ -93,8 +97,8 @@ function build() {
       submenu: isMac
         ? help
         : [
-            { label: "About Wryte", click: openAboutWindow },
-            { label: "Check for Updates…", click: updater.checkManually },
+            { label: `About ${config.APP_NAME}`, click: openAboutWindow },
+            ...checkForUpdates,
             { type: "separator" },
             ...help,
           ],

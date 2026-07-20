@@ -1,10 +1,24 @@
 "use strict";
 
-// Entry point: app lifecycle + wiring. Feature logic lives in the sibling
-// modules (config / state / window / menu / updater / about).
-const { app, BrowserWindow, ipcMain, session, webContents, powerMonitor } =
-  require("electron");
+// Logger must be initialised first — before any other module — so crash
+// handlers are in place from the very first tick.
 const path = require("node:path");
+const os = require("node:os");
+const config = require("./src/config.cjs");
+const logger = require("./src/logger.cjs");
+logger.init(path.join(os.homedir(), config.LOG_DIR));
+
+// Entry point: app lifecycle + wiring. Feature logic lives in the sibling
+// modules (config / logger / state / window / menu / updater / about).
+const {
+  app,
+  BrowserWindow,
+  ipcMain,
+  session,
+  webContents,
+  powerMonitor,
+  nativeImage,
+} = require("electron");
 const { fork } = require("node:child_process");
 const state = require("./src/window/state.cjs");
 const win = require("./src/window/window.cjs");
@@ -14,6 +28,10 @@ const tray = require("./src/tray/tray.cjs");
 
 const isMac = process.platform === "darwin";
 
+logger.info(
+  `starting ${config.APP_NAME} v${app.getVersion()} on ${process.platform} ${process.arch}`,
+);
+
 // ── Performance: V8 code caching ──────────────────────────────────────────
 // Pre-compile cached JS data so subsequent starts skip parse/compile.
 app.commandLine.appendSwitch("v8-cache-options", "code");
@@ -22,7 +40,6 @@ app.commandLine.appendSwitch("v8-cache-options", "code");
 // Force GPU rasterization + zero-copy for smoother rendering.
 app.commandLine.appendSwitch("disable-software-rasterizer");
 app.commandLine.appendSwitch("enable-gpu-rasterization");
-app.commandLine.appendSwitch("enable-zero-copy");
 
 // ── Worker processes ────────────────────────────────────────────────────────
 /** @type {import("node:child_process").ChildProcess | undefined} */
@@ -36,12 +53,12 @@ function spawnWorkers() {
 
   function spawn(name, file) {
     const child = fork(file, [], { stdio: ["pipe", "pipe", "pipe", "ipc"] });
-    console.info(`[workers] ${name} spawned pid=${child.pid}`);
+    logger.info(`worker ${name} spawned pid=${child.pid}`);
     child.on("error", (err) => {
-      console.error(`[workers] ${name} error: ${err.message}`);
+      logger.error(`worker ${name} error: ${err.message}`);
     });
     child.on("exit", (code, signal) => {
-      console.info(`[workers] ${name} exited code=${code} signal=${signal}`);
+      logger.info(`worker ${name} exited code=${code} signal=${signal}`);
     });
     child.stderr?.on("data", (d) => {
       process.stderr.write(`[${name}-worker] ${d}`);
@@ -89,17 +106,19 @@ function killWorkers() {
   connectivityWorker?.kill();
   taskWorker?.kill();
   if (s.connectivity || s.task) {
-    console.info(
-      `[workers] killed connectivity=${s.connectivity} task=${s.task}`,
-    );
+    logger.info(`killed workers connectivity=${s.connectivity} task=${s.task}`);
   }
 }
 
 // Single instance: a second launch focuses the existing window.
 if (!app.requestSingleInstanceLock()) {
+  logger.info("single-instance lock denied — second instance, quitting");
   app.quit();
 } else {
-  app.on("second-instance", win.focusMainWindow);
+  app.on("second-instance", () => {
+    logger.info("second-instance event — focusing existing window");
+    win.focusMainWindow();
+  });
 
   // Security: never allow embedded <webview> tags.
   app.on("web-contents-created", (_e, contents) => {
@@ -109,6 +128,7 @@ if (!app.requestSingleInstanceLock()) {
   // ── Performance: memory pressure handler ──────────────────────────────
   // When the OS signals low memory, clear session caches and hint GC.
   app.on("memory-pressure", (_e, level) => {
+    logger.info(`memory-pressure: ${level}`);
     if (level === "critical" || level === "moderate") {
       session.defaultSession.clearCache().catch(() => undefined);
       for (const wc of webContents.getAllWebContents()) {
@@ -130,7 +150,18 @@ if (!app.requestSingleInstanceLock()) {
   // ── IPC: renderer queries worker status (PIDs) ────────────────────────
   ipcMain.handle("worker-status", () => workerStatus());
 
+  // ── IPC: renderer forwards logs to the main-process logger ────────────
+  ipcMain.on("log", (_event, { level, message }) => {
+    if (level === "error" || level === "warn") {
+      logger.error(`[renderer] ${message}`);
+    } else {
+      logger.info(`[renderer] ${message}`);
+    }
+  });
+
   app.whenReady().then(async () => {
+    logger.info("app ready");
+
     const ALLOWED = new Set([
       "clipboard-read",
       "clipboard-sanitized-write",
@@ -141,12 +172,28 @@ if (!app.requestSingleInstanceLock()) {
       cb(ALLOWED.has(permission)),
     );
 
+    if (config.isDevFlavor) {
+      app.setPath("userData", `${app.getPath("userData")}-dev`);
+      logger.info(`dev userData: ${app.getPath("userData")}`);
+      // Set the dock icon — unpackaged Electron uses its own icon by default.
+      try {
+        app.dock?.setIcon(
+          nativeImage.createFromPath(
+            path.join(__dirname, "..", "public", "wryte-icon.png"),
+          ),
+        );
+      } catch {
+        // Non-mac or icon read failure — non-fatal.
+      }
+    }
     state.load();
     menu.build();
     spawnWorkers();
 
     // Native system tray (shown after window is created).
-    win.createWindow(await win.resolveAppUrl());
+    const appUrl = await win.resolveAppUrl();
+    logger.info(`resolved app URL: ${appUrl}`);
+    win.createWindow(appUrl);
     const mainWin = win.getMainWindow();
     if (mainWin) {
       try {
@@ -160,14 +207,16 @@ if (!app.requestSingleInstanceLock()) {
 
     // Re-check connectivity when the system wakes from sleep.
     powerMonitor.on("resume", () => {
+      logger.info("system resumed from sleep — re-checking connectivity");
       if (!connectivityWorker || connectivityWorker.killed) return;
       connectivityWorker.send({ type: "check-now" });
     });
 
-    if (app.isPackaged) updater.init();
+    if (app.isPackaged && !config.isDevFlavor) updater.init();
 
     app.on("activate", async () => {
       if (BrowserWindow.getAllWindows().length === 0) {
+        logger.info("activate — no windows, creating one");
         win.createWindow(await win.resolveAppUrl());
       } else {
         win.focusMainWindow();
@@ -176,17 +225,35 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   app.on("window-all-closed", () => {
+    logger.info("all windows closed");
     if (!isMac) app.quit();
   });
 
   // Flag every quit path (tray Quit, Cmd+Q, updater restart) so the
   // hide-to-tray close handler doesn't preventDefault the real quit.
   app.on("before-quit", () => {
+    logger.info("before-quit");
     win.setQuitting(true);
   });
 
   app.on("will-quit", () => {
+    logger.info("will-quit — cleaning up");
     killWorkers();
     tray.destroyTray();
+  });
+
+  // Renderer process crash / hang detection.
+  app.on("renderer-process-crashed", (_event, wc, killed) => {
+    logger.crash(`renderer crashed wcId=${wc?.id} killed=${killed}`);
+  });
+  app.on("render-process-gone", (_event, wc, details) => {
+    logger.crash(
+      `renderer gone wcId=${wc?.id} reason=${details.reason} exitCode=${details.exitCode}`,
+    );
+  });
+  app.on("child-process-gone", (_event, details) => {
+    logger.crash(
+      `child process gone type=${details.type} reason=${details.reason} exit=${details.exitCode}`,
+    );
   });
 }
