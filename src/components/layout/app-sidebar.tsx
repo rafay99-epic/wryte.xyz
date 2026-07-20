@@ -15,6 +15,7 @@ import {
   Layers,
   LayoutDashboard,
   Lightbulb,
+  Mail,
   Newspaper,
   Plus,
   Settings,
@@ -326,6 +327,11 @@ export function AppSidebar() {
                   href={`/projects/${activeProjectId}/calendar`}
                   icon={CalendarDays}
                   label="Calendar"
+                />
+                <NavLink
+                  href={`/projects/${activeProjectId}/newsletters`}
+                  icon={Mail}
+                  label="Newsletters"
                 />
                 {analyticsEnabled && (
                   <NavLink

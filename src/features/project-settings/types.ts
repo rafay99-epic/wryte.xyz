@@ -4,6 +4,7 @@ import {
   FolderTree,
   GitBranch,
   ImageIcon,
+  Mail,
   PenLine,
   Rocket,
   Rss,
@@ -113,6 +114,7 @@ export type SettingsTab =
   | "editor"
   | "social"
   | "syndication"
+  | "newsletter"
   | "analytics"
   | "tools";
 
@@ -226,6 +228,19 @@ export const TABS: {
       "canonical",
       "syndicate",
       "mirror",
+    ],
+  },
+  {
+    id: "newsletter",
+    label: "Newsletter",
+    icon: Mail,
+    keywords: [
+      "email",
+      "brevo",
+      "mailchimp",
+      "subscribers",
+      "broadcast",
+      "campaign",
     ],
   },
   {

@@ -17,6 +17,7 @@ import { FrontmatterSection } from "./components/frontmatter-section";
 import { GeneralSection } from "./components/general-section";
 import { GitHubSection } from "./components/github-section";
 import { MediaSection } from "./components/media-section";
+import { NewsletterSection } from "./components/newsletter-section";
 import { PublishingSection } from "./components/publishing-section";
 import { Divider, SettingsSkeleton } from "./components/shared";
 import { SocialSection } from "./components/social-section";
@@ -103,6 +104,9 @@ export function ProjectSettingsPage() {
       )}
       {activeTab === "syndication" && (
         <SyndicationSection projectId={projectId} project={project} />
+      )}
+      {activeTab === "newsletter" && (
+        <NewsletterSection projectId={projectId} project={project} />
       )}
       {activeTab === "analytics" && (
         <AnalyticsSection projectId={projectId} project={project} />

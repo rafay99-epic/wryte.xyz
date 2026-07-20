@@ -868,6 +868,83 @@ export default defineSchema({
   }).index("by_projectId", ["projectId"]),
 
   /**
+   * Newsletter provider connection (Brevo / Mailchimp) — one per project.
+   * Wryte never sends email itself: it composes here and triggers a broadcast
+   * in the user's own provider account. The token/OAuth secret lives in the
+   * vault; the row keeps only the vault id plus non-secret hints (datacenter,
+   * verified sender, cached lists).
+   */
+  newsletterConnections: defineTable({
+    projectId: v.id("projects"),
+    userId: v.id("users"),
+    provider: v.union(v.literal("brevo"), v.literal("mailchimp")),
+    mode: v.union(v.literal("apikey"), v.literal("oauth")),
+    vaultSecretId: v.string(),
+    /** Mailchimp datacenter prefix (e.g. "us6"), resolved at connect. */
+    dc: v.optional(v.string()),
+    /** Verified sender chosen for campaigns. */
+    senderEmail: v.optional(v.string()),
+    senderName: v.optional(v.string()),
+    /** JSON [{ id, name }] — cached contact lists for the compose picker. */
+    lists: v.optional(v.string()),
+    status: v.union(v.literal("active"), v.literal("invalid")),
+    lastError: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_projectId", ["projectId"])
+    .index("by_projectId_and_provider", ["projectId", "provider"]),
+
+  /**
+   * A newsletter — composed in Wryte, sent through the connected provider.
+   * `remoteCampaignId` is the send-once guard: once a campaign exists in the
+   * provider, this newsletter never creates another (email can't be unsent).
+   * `sourceDocumentId` is set when the newsletter was seeded from a blog post
+   * via the "also send as newsletter" opt-in.
+   */
+  newsletters: defineTable({
+    projectId: v.id("projects"),
+    userId: v.id("users"),
+    /**
+     * URL-safe identifier used in the composer route
+     * (/projects/{id}/newsletters/{slug}) — stable, never the Convex id.
+     * Unique per project. Optional only so pre-slug rows validate; every new
+     * row sets it and legacy rows are backfilled by `_backfillSlugs`.
+     */
+    slug: v.optional(v.string()),
+    subject: v.string(),
+    bodyMarkdown: v.string(),
+    /** Inbox preview / preheader snippet (optional). */
+    previewText: v.optional(v.string()),
+    /** From-name override; absent = the connection's verified sender name. */
+    fromName: v.optional(v.string()),
+    /** Staff-only note for finding this later; never sent. */
+    internalNote: v.optional(v.string()),
+    status: v.union(
+      v.literal("draft"),
+      v.literal("scheduled"),
+      v.literal("sent"),
+      v.literal("failed"),
+    ),
+    provider: v.optional(v.union(v.literal("brevo"), v.literal("mailchimp"))),
+    listId: v.optional(v.string()),
+    scheduledAt: v.optional(v.number()),
+    remoteCampaignId: v.optional(v.string()),
+    remoteUrl: v.optional(v.string()),
+    recipientCount: v.optional(v.number()),
+    sourceDocumentId: v.optional(v.id("documents")),
+    errorCode: v.optional(v.string()),
+    errorMessage: v.optional(v.string()),
+    sentAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_projectId", ["projectId"])
+    .index("by_projectId_and_status", ["projectId", "status"])
+    .index("by_projectId_and_slug", ["projectId", "slug"])
+    .index("by_sourceDocumentId", ["sourceDocumentId"]),
+
+  /**
    * Media usage counters — denormalized so quota checks don't scan the media table
    * on every upload. Incremented in the same mutation that writes the media row,
    * decremented on delete. `uploadsThisMonth` resets when `monthBucket` rolls over.

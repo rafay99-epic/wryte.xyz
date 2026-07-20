@@ -677,6 +677,35 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
   },
 
   /* ------------------------------------------------------------------ */
+  /*  Newsletter (Brevo / Mailchimp)                                     */
+  /* ------------------------------------------------------------------ */
+
+  "newsletter:connect": {
+    kind: "token bucket",
+    rate: 10,
+    period: MINUTE,
+    capacity: 4,
+  },
+  "newsletter:edit": {
+    kind: "token bucket",
+    rate: 60,
+    period: MINUTE,
+    capacity: 20,
+  },
+  "newsletter:send": {
+    kind: "token bucket",
+    rate: 5,
+    period: MINUTE,
+    capacity: 2,
+  },
+  "newsletter:test": {
+    kind: "token bucket",
+    rate: 5,
+    period: MINUTE,
+    capacity: 3,
+  },
+
+  /* ------------------------------------------------------------------ */
   /*  GitHub actions                                                     */
   /* ------------------------------------------------------------------ */
 
