@@ -1,0 +1,23 @@
+convex/ai/enhance.ts
+  s_014c0f5669431a::t_a9cacd05a4d447 285-308,314,333-334,349-352
+convex/ai/enhanceActions.ts
+  s_014c0f5669431a::t_fa7e508db7ce4e 74-76,628-631,633-636,649,658-662,694-695,714,729-738
+src/features/editor/components/frontmatter-ai-drawer.tsx
+  s_014c0f5669431a::t_f8746754115176 162-170,176-179,217-223,230,232-234,236,243-245,249-291,335-339,344,348,352-355,370-398,482,491,493,610,612,618,620,638-673,676,681-735
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "c482c3ec4cadd3f4108bf42a807a7fa68b24c1a0",
+  "prompts": {},
+  "sessions": {
+    "s_014c0f5669431a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a0a7a1434a005cd9e",
+        "model": "unknown"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
