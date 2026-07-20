@@ -1526,6 +1526,31 @@ A publish is only half the job — your post isn't live until your site rebuilds
 - Views match posts by their published URL path; posts with no recorded traffic show a dash, not a zero.
 `,
   },
+  {
+    title: "Your public writing profile — wryte.xyz/@you",
+    slug: "public-writing-profile",
+    description:
+      "One shareable page that shows who you are and everything you've published, built automatically from your Wryte data — with a private preview before you go live.",
+    version: "0.29.0",
+    category: "website",
+    build: "236a95a",
+    publishedAt: Date.parse("2026-07-20T23:55:00+05:00"),
+    content: `## What's new
+
+- **A profile at wryte.xyz/@you.** A clean public page with your photo, name, and short bio, plus a list of everything you've published — each post linking to its real URL on your own site. It updates itself as you publish; there's nothing to maintain.
+- **Your handle is your Clerk username.** Change it in your account and your profile URL follows. Set your bio, social links, and a "Follow" link (your RSS or newsletter) in Settings → Profile.
+- **Show your work.** Opt in to display your writing streak and heatmap, a topics cloud pulled from your tags, a post + word count, and a **featured post** you pin to the top (searchable picker, built for hundreds of posts).
+- **Make it yours.** Pick one of six accent presets or open the color wheel for any custom color — it recolors the whole page. Light and dark mode both supported, with a theme toggle right on the page.
+- **Preview before you publish.** Your profile is private by default. Preview it yourself — or copy a secret preview link to show someone — while it stays hidden from everyone else. Flip "Make public" when you're ready.
+- **Looks good when shared.** Every profile link generates a live share card (name, handle, post count, streak) for Reddit, X, and the rest — rendered on the fly, always current.
+
+## Good to know
+
+- Private profiles are invisible to the public and to search engines; only people with your preview link can see them.
+- Only published posts appear, and only ones whose project has a Site URL set (so every link actually works).
+- Nothing is public until you set a username and turn the profile on.
+`,
+  },
 ];
 
 const seedResult = v.object({
