@@ -8,6 +8,7 @@ import { useEditorStore } from "@/stores/editor-store";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { AiSection } from "./components/ai-section";
+import { AnalyticsSection } from "./components/analytics-section";
 import { ContentSection } from "./components/content-section";
 import { DangerZoneSection } from "./components/danger-zone-section";
 import { DeploymentSection } from "./components/deployment-section";
@@ -102,6 +103,9 @@ export function ProjectSettingsPage() {
       )}
       {activeTab === "syndication" && (
         <SyndicationSection projectId={projectId} project={project} />
+      )}
+      {activeTab === "analytics" && (
+        <AnalyticsSection projectId={projectId} project={project} />
       )}
       {activeTab === "tools" && (
         <ToolsSection projectId={projectId} project={project} />

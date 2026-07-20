@@ -22,6 +22,8 @@ type TableViewProps = {
   onOpenItem: (item: ContentItem) => void;
   onDeleteLocal: (item: ContentItem) => void;
   onDeleteRemote: (item: ContentItem) => void;
+  /** 30d pageviews per item id/path, from the analytics snapshot. Column is hidden when undefined. */
+  views?: Map<string, number> | undefined;
 };
 
 export function TableView({
@@ -39,6 +41,7 @@ export function TableView({
   onOpenItem,
   onDeleteLocal,
   onDeleteRemote,
+  views,
 }: TableViewProps) {
   const remoteItems = items.filter((i) => i.kind === "remote");
   const localItems = items.filter((i) => i.kind === "local" && i.id);
@@ -92,6 +95,11 @@ export function TableView({
             <th className="hidden px-4 py-2.5 font-medium md:table-cell">
               Updated
             </th>
+            {views && (
+              <th className="hidden px-4 py-2.5 text-right font-medium lg:table-cell">
+                Views
+              </th>
+            )}
             <th className="w-10 px-4 py-2.5" />
           </tr>
         </thead>
@@ -137,6 +145,8 @@ export function TableView({
                 onDeleteRemote={
                   isRemote && item.sha ? () => onDeleteRemote(item) : undefined
                 }
+                showViewsCell={views !== undefined}
+                views={item.id ? views?.get(item.id) : undefined}
               />
             );
           })}

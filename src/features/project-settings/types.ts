@@ -1,4 +1,5 @@
 import {
+  BarChart3,
   Code2,
   FolderTree,
   GitBranch,
@@ -112,6 +113,7 @@ export type SettingsTab =
   | "editor"
   | "social"
   | "syndication"
+  | "analytics"
   | "tools";
 
 export const TABS: {
@@ -224,6 +226,20 @@ export const TABS: {
       "canonical",
       "syndicate",
       "mirror",
+    ],
+  },
+  {
+    id: "analytics",
+    label: "Analytics",
+    icon: BarChart3,
+    keywords: [
+      "plausible",
+      "umami",
+      "views",
+      "pageviews",
+      "visitors",
+      "stats",
+      "traffic",
     ],
   },
   {

@@ -61,6 +61,10 @@ type ContentTableRowProps = {
   onOpen: () => void;
   onDelete?: (() => void) | undefined;
   onDeleteRemote?: (() => void) | undefined;
+  /** 30d pageviews for this item, when analytics is connected. */
+  views?: number | undefined;
+  /** Whether to render the Views column at all (keeps columns aligned). */
+  showViewsCell?: boolean | undefined;
 };
 
 export function ContentTableRow({
@@ -75,6 +79,8 @@ export function ContentTableRow({
   onOpen,
   onDelete,
   onDeleteRemote,
+  views,
+  showViewsCell,
 }: ContentTableRowProps) {
   const { duplicate, moveToColumn } = useDocumentActions({
     documentId: item.id,
@@ -166,6 +172,13 @@ export function ContentTableRow({
             ? "On GitHub"
             : "—"}
       </td>
+
+      {/* Views (30d) */}
+      {showViewsCell && (
+        <td className="hidden px-4 py-3 text-right text-xs text-muted-foreground tabular-nums lg:table-cell">
+          {views !== undefined ? views.toLocaleString() : "—"}
+        </td>
+      )}
 
       {/* Actions */}
       <td className="px-4 py-3">

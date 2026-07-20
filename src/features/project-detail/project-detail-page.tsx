@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { Cloud, Plus, Settings, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { SyncConflictsBanner } from "@/components/editor/sync-conflicts-banner";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -38,6 +38,7 @@ import {
   parseFrontmatterJson,
 } from "@/lib/parse-frontmatter";
 import { buildSearchIndex, searchItems } from "@/lib/search";
+import { buildPublishedUrl } from "@/lib/social-template";
 import { cn } from "@/lib/utils";
 import { useBoardStore } from "@/stores/board-store";
 import { useEditorStore } from "@/stores/editor-store";
@@ -45,6 +46,7 @@ import { useSearchStore } from "@/stores/search-store";
 import { type BoardColumnDef, DEFAULT_BOARD_COLUMNS } from "@/types/board";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
+import type { PageStat } from "../../../convex/insights/_lib/providers";
 
 /** A file entry returned from the GitHub Contents API. */
 type RemoteFile = ContentFile;
@@ -209,6 +211,69 @@ export function ProjectDetailPage() {
     }
     return map;
   }, [documents, tagFieldName]);
+
+  // --- Analytics: 30d snapshot → per-document views map ---
+  const snapshot = useQuery(api.insights.snapshots.getSnapshot, {
+    projectId,
+  });
+  const refreshSnapshot = useAction(api.insights.snapshots.refresh);
+  const refreshFiredRef = useRef(false);
+
+  // Fire once per mount, only once a snapshot row is known to exist — the
+  // server TTL-gates the actual provider call, so this is safe to call
+  // optimistically without hammering anything.
+  useEffect(() => {
+    if (refreshFiredRef.current || !snapshot) return;
+    refreshFiredRef.current = true;
+    void refreshSnapshot({ projectId }).catch(() => {});
+  }, [snapshot, projectId, refreshSnapshot]);
+
+  const viewsByPath = useMemo(() => {
+    if (!snapshot) return undefined;
+    try {
+      const pages = JSON.parse(snapshot.pagesJson) as PageStat[];
+      const map = new Map<string, number>();
+      for (const page of pages) {
+        const normalized = page.path.replace(/\/+$/, "") || "/";
+        map.set(normalized, (map.get(normalized) ?? 0) + page.pageviews);
+      }
+      return map;
+    } catch {
+      return undefined;
+    }
+  }, [snapshot]);
+
+  const views = useMemo(() => {
+    if (!viewsByPath || !project?.siteUrl) return undefined;
+    const siteUrl = project.siteUrl;
+    const map = new Map<string, number>();
+    for (const doc of documents ?? []) {
+      // A malformed user siteUrl must degrade to "no views column", never
+      // crash the dashboard render.
+      try {
+        const pathname =
+          new URL(
+            buildPublishedUrl({
+              siteUrl,
+              slug: doc.slug,
+              postUrlPrefix: project.postUrlPrefix,
+              framework: project.framework,
+            }),
+          ).pathname.replace(/\/+$/, "") || "/";
+        const count = viewsByPath.get(pathname);
+        if (count !== undefined) map.set(doc._id, count);
+      } catch {
+        return undefined;
+      }
+    }
+    return map;
+  }, [
+    viewsByPath,
+    project?.siteUrl,
+    project?.postUrlPrefix,
+    project?.framework,
+    documents,
+  ]);
 
   // --- All unique tags (for filter UI) ---
   const allTags = useMemo(() => {
@@ -626,6 +691,7 @@ export function ProjectDetailPage() {
         onBulkDeleteDone={handleBulkDeleteDone}
         projectId={projectId}
         frontmatterMap={frontmatterMap}
+        views={views}
       />
 
       {/* Dialogs */}

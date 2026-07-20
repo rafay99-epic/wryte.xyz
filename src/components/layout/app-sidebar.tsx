@@ -5,6 +5,7 @@ import { useQuery } from "convex/react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowLeft,
+  BarChart3,
   CalendarDays,
   Database,
   FilePlus,
@@ -51,6 +52,12 @@ export function AppSidebar() {
     api.cms.documents.list,
     activeProjectId ? { projectId: activeProjectId as Id<"projects"> } : "skip",
   );
+  // Analytics nav item only exists while a connected provider is enabled.
+  const analyticsTarget = useQuery(
+    api.insights.targets.get,
+    activeProjectId ? { projectId: activeProjectId as Id<"projects"> } : "skip",
+  );
+  const analyticsEnabled = analyticsTarget?.enabled === true;
 
   function handleBack() {
     // From the editor, step back to the project's main page first — the
@@ -320,6 +327,13 @@ export function AppSidebar() {
                   icon={CalendarDays}
                   label="Calendar"
                 />
+                {analyticsEnabled && (
+                  <NavLink
+                    href={`/projects/${activeProjectId}/analytics`}
+                    icon={BarChart3}
+                    label="Analytics"
+                  />
+                )}
                 <NavLink
                   href={`/projects/${activeProjectId}/settings`}
                   icon={Settings}
