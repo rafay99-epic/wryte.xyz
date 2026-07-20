@@ -73,7 +73,7 @@ jobs:
 
           # Electron path includes the workflow itself (changes to CI/CD trigger rebuild).
           if git diff --name-only "$BASE" HEAD -- \
-              'electron/' 'build/' '.github/workflows/ci-cd.yml' | grep -q .; then
+              'electron/' 'build/' '.github/workflows/ci-cd.yml' 'electron-builder.config.js' | grep -q .; then
             echo "electron_changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "electron_changed=false" >> "$GITHUB_OUTPUT"
