@@ -1,0 +1,27 @@
+convex/cms/documents.ts
+  s_65260651453b98::t_d4b200dac5b6f1 1637-1705
+src/features/editor/components/history-panel.tsx
+  s_65260651453b98::t_c91d06d365973c 9,27,287-288,299,387-395,430-439
+src/features/editor/components/publish-diff-sheet.tsx
+  s_65260651453b98::t_5560fba57391d2 1-195
+src/features/editor/components/snapshot-diff-sheet.tsx
+  s_65260651453b98::t_0d56e8b3bbc513 21
+src/features/editor/lib/diff.ts
+  s_65260651453b98::t_498f1daa58a9fd 106-158
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "5c665ab65fa340fe7df36eb98242837e825dded7",
+  "prompts": {},
+  "sessions": {
+    "s_65260651453b98": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9f7cebd6-0762-4a6a-9c33-3c2c1a1419f5",
+        "model": "unknown"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
