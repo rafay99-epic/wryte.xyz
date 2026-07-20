@@ -8,6 +8,7 @@ name: CI/CD
 on:
   push:
     branches: [main, master]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -43,11 +44,23 @@ jobs:
         id: check
         shell: bash
         run: |
+          # Manual dispatch always builds everything.
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "src_changed=true" >> "$GITHUB_OUTPUT"
+            echo "electron_changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           BASE="HEAD~1"
           if ! git rev-parse "$BASE" 2>/dev/null; then
             echo "src_changed=true" >> "$GITHUB_OUTPUT"
             echo "electron_changed=true" >> "$GITHUB_OUTPUT"
             exit 0
+          fi
+
+          # Workflow changes trigger a fresh deploy (initial setup, config changes).
+          if git diff --name-only "$BASE" HEAD -- '.github/workflows/ci-cd.yml' | grep -q .; then
+            echo "src_changed=true" >> "$GITHUB_OUTPUT"
           fi
 
           if git diff --name-only "$BASE" HEAD -- 'src/' | grep -q .; then
