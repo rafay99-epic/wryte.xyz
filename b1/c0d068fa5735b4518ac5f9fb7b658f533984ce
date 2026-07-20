@@ -1,0 +1,65 @@
+bun.lock
+  s_65260651453b98::t_ae809aa83ae979 40,1547,2471-2472
+convex/_generated/api.d.ts
+  s_65260651453b98::t_92513f1a78c86f 77-82,182-187
+convex/_lib/rateLimits.ts
+  s_65260651453b98::t_7ce69bedb209c0 679-707
+convex/newsletter/_lib/providers.ts
+  s_65260651453b98::t_b4a6ea4e15e90d 1-76
+convex/newsletter/render.ts
+  s_65260651453b98::t_d5a4bc1f9276dc 1-53
+convex/newsletter/send.ts
+  s_65260651453b98::t_30584db4ac424f 1-288
+package.json
+  s_65260651453b98::t_1d8963015ae6c7 61
+src/app/(app)/projects/[projectId]/newsletters/[slug]/page.tsx
+  s_65260651453b98::t_771542aede7438 1-10
+src/app/(app)/projects/[projectId]/newsletters/page.tsx
+  s_65260651453b98::t_eec406ae7d9c7a 1-10
+src/components/layout/app-sidebar.tsx
+  s_65260651453b98::t_c88ae2043f6df5 18,331-335
+src/features/newsletter/components/newsletter-review-sheet.tsx
+  s_65260651453b98::t_f4f3bd99bc08fb 1-323
+src/features/newsletter/components/newsletter-settings-sheet.tsx
+  s_65260651453b98::t_598de99728716b 1-158
+src/features/newsletter/hooks/use-newsletter-composer.ts
+  s_65260651453b98::t_d674e20a1312f7 1-202
+src/features/newsletter/newsletter-composer.tsx
+  s_65260651453b98::t_b03f1846979832 1-196
+src/features/newsletter/newsletter-editor-surface.tsx
+  s_65260651453b98::t_96b95b518148ca 1-158
+src/features/newsletter/newsletter-list-page.tsx
+  s_65260651453b98::t_911841596993b1 1-496
+src/features/project-settings/components/newsletter-section.tsx
+  s_8ae54007dd3d81::t_ff9bfe2ff4a3ca 1-218
+src/features/project-settings/hooks/use-newsletter-section.ts
+  s_8ae54007dd3d81::t_2baa0e516283bc 1-111
+src/features/project-settings/project-settings-page.tsx
+  s_8ae54007dd3d81::t_c498ed44644e1f 20,108-110
+src/features/project-settings/types.ts
+  s_8ae54007dd3d81::t_eff4c1599bfaf2 7,117,233-245
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "b1c0d068fa5735b4518ac5f9fb7b658f533984ce",
+  "prompts": {},
+  "sessions": {
+    "s_65260651453b98": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9f7cebd6-0762-4a6a-9c33-3c2c1a1419f5",
+        "model": "unknown"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    },
+    "s_8ae54007dd3d81": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a283e15f65b311123",
+        "model": "unknown"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
