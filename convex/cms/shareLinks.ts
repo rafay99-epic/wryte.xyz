@@ -35,11 +35,49 @@ export const getByToken = query({
     const document = await ctx.db.get(link.documentId);
     if (!document || document.trashedAt !== undefined) return null;
 
+    const project = await ctx.db.get(document.projectId);
+
     return {
       title: document.title,
       content: await readContent(ctx, document),
       updatedAt: document.updatedAt,
+      /** Drives the preview renderer: MDX posts compile with components. */
+      contentFormat: project?.contentFormat ?? "md",
     };
+  },
+});
+
+/**
+ * PUBLIC — the animation sources for the shared document's project, keyed
+ * by the same preview token. Same trust rule as `getByToken`: whoever can
+ * read the post can render its animations; revoking the link kills both.
+ * Returns [] unless the project is MDX with the animations feature on.
+ */
+export const animationsByToken = query({
+  args: { token: v.string() },
+  handler: async (ctx, args): Promise<{ name: string; source: string }[]> => {
+    if (!TOKEN_RE.test(args.token)) return [];
+
+    const link = await ctx.db
+      .query("share_links")
+      .withIndex("by_token", (q) => q.eq("token", args.token))
+      .unique();
+    if (!link || link.revokedAt !== undefined) return [];
+
+    const document = await ctx.db.get(link.documentId);
+    if (!document || document.trashedAt !== undefined) return [];
+
+    const project = await ctx.db.get(document.projectId);
+    const animationsOn =
+      project?.contentFormat === "mdx" &&
+      (project.animationsEnabled ?? !!project.animationsPath);
+    if (!project || !animationsOn) return [];
+
+    const rows = await ctx.db
+      .query("animations")
+      .withIndex("by_project", (q) => q.eq("projectId", project._id))
+      .take(200);
+    return rows.map((d) => ({ name: d.name, source: d.source }));
   },
 });
 

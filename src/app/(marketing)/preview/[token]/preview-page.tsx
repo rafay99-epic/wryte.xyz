@@ -5,6 +5,7 @@ import { ArrowRight, Clock, Eye, FileQuestion } from "lucide-react";
 import Image from "next/image";
 import { useParams } from "next/navigation";
 import { ChangelogMarkdown } from "@/components/changelog/changelog-markdown";
+import { SharedMdxContent } from "@/components/markdown/shared-mdx-content";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BRAND, resolveBrandAsset } from "@/lib/branding";
 import { relativeTime } from "@/lib/relative-time";
@@ -66,6 +67,12 @@ export function PreviewPage() {
     api.cms.shareLinks.getByToken,
     token ? { token } : "skip",
   );
+  // Animation sources for MDX drafts — same token, same trust, [] for
+  // md-format projects or when the feature is off.
+  const animations = useQuery(
+    api.cms.shareLinks.animationsByToken,
+    token && document?.contentFormat === "mdx" ? { token } : "skip",
+  );
 
   if (document === undefined) {
     return (
@@ -118,7 +125,14 @@ export function PreviewPage() {
         </h1>
 
         <article className="prose prose-neutral dark:prose-invert max-w-none prose-headings:font-heading prose-headings:tracking-tight prose-headings:font-semibold prose-h1:text-xl prose-h2:text-lg prose-h3:text-base prose-p:leading-[1.8] prose-p:text-foreground/85 prose-li:leading-[1.8] prose-pre:bg-transparent prose-pre:p-0 prose-pre:border-0 prose-strong:text-foreground prose-strong:font-semibold prose-img:rounded-xl">
-          <ChangelogMarkdown content={document.content} />
+          {document.contentFormat === "mdx" ? (
+            <SharedMdxContent
+              content={document.content}
+              animations={animations ?? []}
+            />
+          ) : (
+            <ChangelogMarkdown content={document.content} />
+          )}
         </article>
 
         <footer className="mt-16 border-t border-border/40 pt-6">

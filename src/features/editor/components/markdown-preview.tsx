@@ -13,10 +13,10 @@ import {
   buildEmbedSanitizeSchema,
   embedComponents,
 } from "@/components/markdown/embed-overrides";
+import { VideoEmbed } from "@/components/markdown/video-embed";
 import { useEditorStore } from "@/stores/editor-store";
 import { usePreviewJump } from "../hooks/use-preview-jump";
 import { remarkSourceLines } from "../lib/source-lines";
-import { VideoEmbed } from "./video-embed";
 
 /**
  * Base sanitize schema extended with `<video>` (raw HTML parsed by
