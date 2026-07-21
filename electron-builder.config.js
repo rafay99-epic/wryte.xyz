@@ -18,6 +18,13 @@ const linuxArtifact = `Wryte.${_ext}`;
 const config = {
   appId: isDev ? "xyz.wryte.desktop.dev" : "xyz.wryte.desktop",
   productName: isDev ? "Wryte Dev" : "Wryte",
+  // CI injects the release version here so the build command needs no `-c.`
+  // flag. Passing `-c.<field>` makes electron-builder treat config as inline
+  // and skip auto-loading this file — which silently reverts every setting
+  // below (targets, artifact names) to defaults.
+  extraMetadata: process.env.WRYTE_VERSION
+    ? { version: process.env.WRYTE_VERSION }
+    : undefined,
   files: ["electron/**", "public/wryte-icon.png"],
   npmRebuild: false,
   afterPack: "electron/afterpack-sign.cjs",

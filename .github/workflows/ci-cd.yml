@@ -217,11 +217,8 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          TAG="${{ needs.prepare-release.outputs.tag }}"
-          VERSION="${{ needs.prepare-release.outputs.version }}"
-          bunx electron-builder --publish always \
-            -c.extraMetadata.version="$VERSION"
+          WRYTE_VERSION: ${{ needs.prepare-release.outputs.version }}
+        run: bunx electron-builder --publish always
 
   # ── PATH B: Publish release + bump Homebrew cask ─────────────────────
   finalize-desktop:
