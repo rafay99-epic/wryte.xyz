@@ -1,0 +1,75 @@
+bun.lock
+  s_c0b416a0d783ea::t_1ffb0c9980c001 53-54,58,61-62,745-746,1723-1724,1827-1828,2099-2100,2121-2124,2155-2156,2585-2586
+convex/_generated/api.d.ts
+  s_c0b416a0d783ea::t_b38cd94e69ced0 12,45,113,146
+convex/_lib/animationTransform.ts
+  s_c0b416a0d783ea::t_5cebd899d4e3a1 1-165
+convex/_lib/rateLimits.ts
+  s_c0b416a0d783ea::t_cb357cf2934ac0 394-414
+convex/cms/animations.ts
+  s_c0b416a0d783ea::t_0f9e06362b9a4f 1-298
+convex/cms/projects.ts
+  s_c0b416a0d783ea::t_ab53c251d36b27 39-40,208-209,260-261,301-304,351-354,462-466,1044-1055,1243-1246
+convex/integrations/github.ts
+  s_c0b416a0d783ea::t_b59a27ad44e319 25-28,36,298-356,614-656,659
+convex/schema.ts
+  s_c0b416a0d783ea::t_8cf142e3c7d069 110-123,1272-1289
+package.json
+  s_c0b416a0d783ea::t_c66aad30b207b4 3,77-78,82,85-86
+src/app/(app)/projects/[projectId]/animations/page.tsx
+  s_c0b416a0d783ea::t_f02a5d01f870b0 1-10
+src/components/animations/delete-animation-dialog.tsx
+  s_c0b416a0d783ea::t_b3333c1d45ed86 1-146
+src/components/layout/app-sidebar.tsx
+  s_c0b416a0d783ea::t_8f6fd96db9580c 10,63-70,72-76,81-85,340-346
+src/features/animation-gallery/animation-gallery-page.tsx
+  s_c0b416a0d783ea::t_050c3c67441ce6 1-567
+src/features/editor/components/animation-insert-dialog.tsx
+  s_c0b416a0d783ea::t_894a766b3ca2f5 1-409
+src/features/editor/components/editor-layout.tsx
+  s_c0b416a0d783ea::t_a4b48e687572c7 64-68,119,164,176-180,207,221-225
+src/features/editor/components/editor-media-dialogs.tsx
+  s_c0b416a0d783ea::t_38f13023c2e80a 4,30-33,56-61
+src/features/editor/components/editor-toolbar.tsx
+  s_c0b416a0d783ea::t_d1def7fbfbef11 8,63-64,87,103,119,275-280
+src/features/editor/components/markdown-editor.tsx
+  s_c0b416a0d783ea::t_bdfd5fd6a3dd2c 36,44,286
+src/features/editor/components/mdx-preview.tsx
+  s_c0b416a0d783ea::t_620972b2af4bb9 4,30-31,33-34,185,187-188,191,290-296,298,304-323,336,353
+src/features/editor/components/slash-menu.tsx
+  s_c0b416a0d783ea::t_a04eccf233423c 22,38-39,60,113-115,128,208-209,217
+src/features/editor/lib/animations/animation-boundary.tsx
+  s_c0b416a0d783ea::t_ccaf5007e1f717 1-59
+src/features/editor/lib/animations/compile-animation.ts
+  s_c0b416a0d783ea::t_fe0c8bb907155b 1-96
+src/features/editor/lib/slash/commands.ts
+  s_c0b416a0d783ea::t_2e582358c6eae2 3,42,62-75
+src/features/media-library/media-library-page.tsx
+  s_c0b416a0d783ea::t_8efb2e469e641b 213-214
+src/features/project-settings/components/content-section.tsx
+  s_c0b416a0d783ea::t_dc8e12326d478a 13,28-31,102-128
+src/features/project-settings/hooks/use-content-section.ts
+  s_c0b416a0d783ea::t_b2073149dcd715 30-38,48-56,63-65,75-77,85-93,115-118
+src/features/project-settings/types.ts
+  s_c0b416a0d783ea::t_6c6ae44679631e 39-40
+src/stores/editor-store.ts
+  s_c0b416a0d783ea::t_9cbeca98f8a449 63,101,144,244-245
+tests/animationTransform.test.ts
+  s_c0b416a0d783ea::t_115f9b325edd8d 1-125
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "f01dd31a2b67d2ba27758c82c555c3b15432223c",
+  "prompts": {},
+  "sessions": {
+    "s_c0b416a0d783ea": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "s_c0b416a0d783ea",
+        "model": "unknown"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
