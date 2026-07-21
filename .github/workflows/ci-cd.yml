@@ -61,19 +61,36 @@ jobs:
           fi
 
           # Workflow changes trigger a fresh deploy (initial setup, config changes).
-          if git diff --name-only "$BASE" HEAD -- '.github/workflows/ci-cd.yml' | grep -q .; then
-            echo "src_changed=true" >> "$GITHUB_OUTPUT"
-          fi
+          # This is handled in the broad checks below — no early exit needed.
 
-          if git diff --name-only "$BASE" HEAD -- 'src/' | grep -q .; then
+          # Website-affecting changes: src, public assets, deps, configs.
+          if git diff --name-only "$BASE" HEAD -- \
+              'src/' \
+              'public/' \
+              'package.json' \
+              'bun.lock' \
+              'patches/' \
+              'next.config.*' \
+              'tsconfig.json' \
+              'biome.json' \
+              'postcss.config.*' \
+              'tailwind.config.*' \
+              '*.config.*' \
+              '.github/workflows/ci-cd.yml' | grep -q .; then
             echo "src_changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "src_changed=false" >> "$GITHUB_OUTPUT"
           fi
 
-          # Electron path includes the workflow itself (changes to CI/CD trigger rebuild).
+          # Desktop-affecting changes: electron source, build resources, deps, builder config.
           if git diff --name-only "$BASE" HEAD -- \
-              'electron/' 'build/' '.github/workflows/ci-cd.yml' 'electron-builder.config.js' | grep -q .; then
+              'electron/' \
+              'build/' \
+              'package.json' \
+              'bun.lock' \
+              'patches/' \
+              'electron-builder.config.js' \
+              '.github/workflows/ci-cd.yml' | grep -q .; then
             echo "electron_changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "electron_changed=false" >> "$GITHUB_OUTPUT"
