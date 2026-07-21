@@ -44,10 +44,13 @@ const config = {
     allowToChangeInstallationDirectory: true,
   },
   linux: {
-    target: ["AppImage"],
+    target: ["AppImage", "snap"],
     category: "Office",
     executableName: "wryte",
     artifactName: linuxArtifact,
+    publish: publishConfig,
+  },
+  snap: {
     publish: publishConfig,
   },
 };
