@@ -1,0 +1,19 @@
+electron-builder.config.js
+  s_aad7178d8f7ab1::t_df47d141186c09 47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "d295d7b02342bf53bb3233333b8da056a669fa9f",
+  "prompts": {},
+  "sessions": {
+    "s_aad7178d8f7ab1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a90c49e1-e6f7-4e1c-9d2e-0ac32a1f17b8",
+        "model": "unknown"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
