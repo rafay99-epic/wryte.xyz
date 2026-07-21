@@ -1,0 +1,24 @@
+convex/integrations/github.ts
+  s_77d0eb29fc61fd::t_1c99ed4e46a315 794-800,810,813-821,825-829,831-857,859-880,883-889
+  s_77d0eb29fc61fd::t_7eb48d386649a9 299-300,307,317,329,335,337,341
+  s_77d0eb29fc61fd::t_01a71710ed57c3 699-704,706,726-728,736-741
+  s_77d0eb29fc61fd::t_062e59cd544e80 346-411,414-438
+  s_77d0eb29fc61fd::t_1069b23bc4aa35 345
+  s_77d0eb29fc61fd::t_6b595e449b500d 343
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "f5d46d69585f3666fa1488706199e0b8bccb557f",
+  "prompts": {},
+  "sessions": {
+    "s_77d0eb29fc61fd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c1cfad62-5062-4e8d-b7ef-3529ecec4031",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
