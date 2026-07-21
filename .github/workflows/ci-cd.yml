@@ -171,12 +171,17 @@ jobs:
         id: version
         shell: bash
         run: |
-          # Tag must be exactly v${VERSION}: electron-builder derives its
-          # GitHub release tag from the app version, and the Homebrew cask
-          # downloads from .../releases/download/v${version}/Wryte.dmg. A
-          # per-run suffix (+r.<sha>) would split assets across two releases
-          # and break the cask URL.
-          VERSION=$(jq -r '.version' package.json)
+          # Version = <major.minor from package.json>.<run number>. package.json
+          # holds only the MAJOR.MINOR intent (bump it for milestones); the
+          # patch is GITHUB_RUN_NUMBER, which only ever increases. This makes
+          # the version mathematically unable to regress, so electron-updater
+          # always fires and the Homebrew cask always moves forward.
+          #
+          # Tag must be exactly v${VERSION}: electron-builder derives its GitHub
+          # release tag from the app version, and the cask downloads from
+          # .../releases/download/v${version}/Wryte.dmg.
+          MM=$(jq -r '.version' package.json | cut -d. -f1,2)
+          VERSION="${MM}.${GITHUB_RUN_NUMBER}"
           TAG="v${VERSION}"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
