@@ -4,6 +4,7 @@ import {
   FolderTree,
   GitBranch,
   ImageIcon,
+  Link2,
   PenLine,
   Rocket,
   Rss,
@@ -116,6 +117,7 @@ export type SettingsTab =
   | "social"
   | "syndication"
   | "analytics"
+  | "sharing"
   | "tools";
 
 export const TABS: {
@@ -242,6 +244,20 @@ export const TABS: {
       "visitors",
       "stats",
       "traffic",
+    ],
+  },
+  {
+    id: "sharing",
+    label: "Share links",
+    icon: Link2,
+    keywords: [
+      "share",
+      "preview",
+      "public link",
+      "revoke",
+      "delete",
+      "token",
+      "visibility",
     ],
   },
   {

@@ -163,3 +163,87 @@ export const revoke = mutation({
     }
   },
 });
+
+/**
+ * OWNER — every share link in the project, newest first, joined with the
+ * linked document's title and its live/revoked status. Powers the project
+ * Share settings panel so links can be managed in one place instead of
+ * hunting through individual posts.
+ */
+export const listForProject = query({
+  args: { projectId: v.id("projects") },
+  handler: async (ctx, args) => {
+    const user = await getAuthedUserOrNull(ctx);
+    if (!user) return [];
+
+    const project = await ctx.db.get(args.projectId);
+    if (!project || project.userId !== user._id) return [];
+
+    const links = await ctx.db
+      .query("share_links")
+      .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
+      .take(200);
+
+    const rows = await Promise.all(
+      links
+        .filter((link) => link.userId === user._id)
+        .map(async (link) => {
+          const document = await ctx.db.get(link.documentId);
+          if (!document) return null;
+          return {
+            _id: link._id,
+            documentId: link.documentId,
+            token: link.token,
+            createdAt: link.createdAt,
+            revokedAt: link.revokedAt,
+            title: document.title,
+            trashed: document.trashedAt !== undefined,
+          };
+        }),
+    );
+
+    return rows
+      .filter((row): row is NonNullable<typeof row> => row !== null)
+      .sort((a, b) => b.createdAt - a.createdAt);
+  },
+});
+
+/**
+ * OWNER — revoke a single link by id. The row stays (audit trail); the
+ * `{app-url}/preview/{token}` URL stops resolving immediately.
+ */
+export const revokeById = mutation({
+  args: { linkId: v.id("share_links") },
+  handler: async (ctx, args) => {
+    const key = await getRateLimitKey(ctx);
+    await rateLimiter.limit(ctx, "shareLinks:revoke", { key, throws: true });
+
+    const user = await getCurrentUser(ctx);
+    const link = await ctx.db.get(args.linkId);
+    if (!link || link.userId !== user._id) {
+      throw new Error("Share link not found");
+    }
+    if (link.revokedAt === undefined) {
+      await ctx.db.patch(args.linkId, { revokedAt: Date.now() });
+    }
+  },
+});
+
+/**
+ * OWNER — permanently delete a link row. Clears revoked links from the
+ * panel; deleting an active one kills its URL as a side effect.
+ */
+export const remove = mutation({
+  args: { linkId: v.id("share_links") },
+  handler: async (ctx, args) => {
+    const key = await getRateLimitKey(ctx);
+    await rateLimiter.limit(ctx, "shareLinks:revoke", { key, throws: true });
+
+    const user = await getCurrentUser(ctx);
+    const link = await ctx.db.get(args.linkId);
+    if (!link || link.userId !== user._id) {
+      throw new Error("Share link not found");
+    }
+    await ctx.db.delete(args.linkId);
+  },
+});
