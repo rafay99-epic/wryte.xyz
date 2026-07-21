@@ -19,6 +19,7 @@ import { GitHubSection } from "./components/github-section";
 import { MediaSection } from "./components/media-section";
 import { PublishingSection } from "./components/publishing-section";
 import { Divider, SettingsSkeleton } from "./components/shared";
+import { SharingSection } from "./components/sharing-section";
 import { SocialSection } from "./components/social-section";
 import { SyndicationSection } from "./components/syndication-section";
 import { ToolsSection } from "./components/tools-section";
@@ -107,6 +108,7 @@ export function ProjectSettingsPage() {
       {activeTab === "analytics" && (
         <AnalyticsSection projectId={projectId} project={project} />
       )}
+      {activeTab === "sharing" && <SharingSection projectId={projectId} />}
       {activeTab === "tools" && (
         <ToolsSection projectId={projectId} project={project} />
       )}
