@@ -171,8 +171,13 @@ jobs:
         id: version
         shell: bash
         run: |
+          # Tag must be exactly v${VERSION}: electron-builder derives its
+          # GitHub release tag from the app version, and the Homebrew cask
+          # downloads from .../releases/download/v${version}/Wryte.dmg. A
+          # per-run suffix (+r.<sha>) would split assets across two releases
+          # and break the cask URL.
           VERSION=$(jq -r '.version' package.json)
-          TAG="v${VERSION}+r${GITHUB_RUN_NUMBER}.${GITHUB_SHA:0:7}"
+          TAG="v${VERSION}"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
