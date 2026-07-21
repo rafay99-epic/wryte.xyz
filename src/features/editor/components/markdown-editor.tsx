@@ -33,6 +33,7 @@ export function MarkdownEditor({
   slashEnabled = false,
   snippetsEnabled = false,
   hasSnippets = false,
+  animationsEnabled = false,
   selectionToolbarEnabled = true,
 }: {
   documentId: string;
@@ -40,6 +41,7 @@ export function MarkdownEditor({
   slashEnabled?: boolean;
   snippetsEnabled?: boolean;
   hasSnippets?: boolean;
+  animationsEnabled?: boolean;
   selectionToolbarEnabled?: boolean;
 }) {
   const { content, contentEpoch, setContent, isVersionSwitching } =
@@ -281,6 +283,7 @@ export function MarkdownEditor({
         blockCommandsEnabled={slashEnabled}
         snippetsEnabled={snippetsEnabled}
         hasSnippets={hasSnippets}
+        animationsEnabled={animationsEnabled}
         projectId={activeProjectId ? (activeProjectId as Id<"projects">) : null}
         aiReady={aiReady}
         onAiAction={handleSlashAi}

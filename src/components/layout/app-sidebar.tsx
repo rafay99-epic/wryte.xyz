@@ -7,6 +7,7 @@ import {
   ArrowLeft,
   BarChart3,
   CalendarDays,
+  Clapperboard,
   Database,
   FilePlus,
   FileText,
@@ -59,13 +60,27 @@ export function AppSidebar() {
   );
   const analyticsEnabled = analyticsTarget?.enabled === true;
 
+  // Animations nav item: MDX projects with the feature toggled on. Derived
+  // from the already-fetched projects list — no extra query. Absent toggle
+  // falls back to path presence (projects configured before it existed).
+  const activeProject = projects?.find((p) => p._id === activeProjectId);
+  const animationsNavEnabled =
+    activeProject?.contentFormat === "mdx" &&
+    (activeProject.animationsEnabled ?? !!activeProject.animationsPath);
+
   function handleBack() {
-    // From the editor, step back to the project's main page first — the
-    // user's mental model is "editor → project → dashboard", not "editor →
-    // dashboard". From any non-editor project sub-page, drop the active
-    // project and head to the dashboard.
+    // Hierarchical "up", one level at a time — the user's mental model is
+    // editor → project → dashboard, and equally sub-page (media/animations/
+    // calendar/…) → project → dashboard. Deterministic on purpose: browser
+    // history can point anywhere after cross-page hops, which made this
+    // button feel random.
     if (pathname.startsWith("/editor/") && activeProjectId) {
       router.push(`/projects/${activeProjectId}`);
+      return;
+    }
+    const subPage = /^\/projects\/([^/]+)\/.+/.exec(pathname);
+    if (subPage?.[1]) {
+      router.push(`/projects/${subPage[1]}`);
       return;
     }
     setActiveProjectId(null);
@@ -322,6 +337,13 @@ export function AppSidebar() {
                   icon={ImageIcon}
                   label="Media"
                 />
+                {animationsNavEnabled && (
+                  <NavLink
+                    href={`/projects/${activeProjectId}/animations`}
+                    icon={Clapperboard}
+                    label="Animations"
+                  />
+                )}
                 <NavLink
                   href={`/projects/${activeProjectId}/calendar`}
                   icon={CalendarDays}

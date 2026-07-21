@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   Bold,
   Braces,
+  Clapperboard,
   Code,
   Gauge,
   Heading1,
@@ -59,6 +60,8 @@ import { SprintControl } from "./sprint-control";
 type EditorToolbarProps = {
   projectId: string;
   readabilityEnabled?: boolean;
+  /** MDX project with an animationsPath configured — shows "Animation…" in Insert. */
+  animationsEnabled?: boolean;
 };
 
 type ViewMode = "edit" | "split" | "preview";
@@ -81,6 +84,7 @@ const VIEW_MODES: { value: ViewMode; label: string }[] = [
 export function EditorToolbar({
   projectId,
   readabilityEnabled = false,
+  animationsEnabled = false,
 }: EditorToolbarProps) {
   const {
     viewMode,
@@ -96,6 +100,7 @@ export function EditorToolbar({
     setImageDialogOpen,
     setVideoDialogOpen,
     setEmbedDialogOpen,
+    setAnimationDialogOpen,
   } = useEditorStore(
     useShallow((state) => ({
       viewMode: state.viewMode,
@@ -111,6 +116,7 @@ export function EditorToolbar({
       setImageDialogOpen: state.setImageDialogOpen,
       setVideoDialogOpen: state.setVideoDialogOpen,
       setEmbedDialogOpen: state.setEmbedDialogOpen,
+      setAnimationDialogOpen: state.setAnimationDialogOpen,
     })),
   );
   const { insertAtCursor, wrapSelection } = useEditorContext();
@@ -266,6 +272,12 @@ export function EditorToolbar({
                 <MessageCircle className="size-4 mr-2" />
                 <span>Post embed…</span>
               </DropdownMenuItem>
+              {animationsEnabled && (
+                <DropdownMenuItem onClick={() => setAnimationDialogOpen(true)}>
+                  <Clapperboard className="size-4 mr-2" />
+                  <span>Animation…</span>
+                </DropdownMenuItem>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => insertAtCursor("\n- ")}>
                 <List className="size-4 mr-2" />

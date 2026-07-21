@@ -1,6 +1,7 @@
 "use client";
 
 import { useEditorStore } from "@/stores/editor-store";
+import { AnimationInsertDialog } from "./animation-insert-dialog";
 import { useEditorContext } from "./editor-context";
 import { EmbedInsertDialog } from "./embed-insert-dialog";
 import { ImageInsertDialog } from "./image-insert-dialog";
@@ -26,6 +27,10 @@ export function EditorMediaDialogs({
   const setVideoDialogOpen = useEditorStore((s) => s.setVideoDialogOpen);
   const embedDialogOpen = useEditorStore((s) => s.embedDialogOpen);
   const setEmbedDialogOpen = useEditorStore((s) => s.setEmbedDialogOpen);
+  const animationDialogOpen = useEditorStore((s) => s.animationDialogOpen);
+  const setAnimationDialogOpen = useEditorStore(
+    (s) => s.setAnimationDialogOpen,
+  );
 
   return (
     <>
@@ -47,6 +52,12 @@ export function EditorMediaDialogs({
         open={embedDialogOpen}
         onOpenChange={setEmbedDialogOpen}
         onInsert={insertAtCursor}
+      />
+      <AnimationInsertDialog
+        open={animationDialogOpen}
+        onOpenChange={setAnimationDialogOpen}
+        onInsert={insertAtCursor}
+        projectId={projectId}
       />
     </>
   );

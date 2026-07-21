@@ -3,7 +3,6 @@
 import { useAction, useQuery } from "convex/react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  ArrowLeft,
   Cloud,
   Copy,
   ExternalLink,
@@ -211,16 +210,8 @@ export function MediaLibraryPage() {
 
   return (
     <div className="p-6">
-      <div className="mb-6">
-        <Link
-          href={`/projects/${projectId}`}
-          className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
-        >
-          <ArrowLeft className="size-4" />
-          Back to Project
-        </Link>
-      </div>
-
+      {/* Navigation lives in the sidebar's single Back button — no
+          per-page back links. */}
       {/* Header */}
       <div className="mb-6 flex items-center justify-between">
         <div>

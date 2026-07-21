@@ -61,6 +61,11 @@ export function EditorLayout({
   // Per-project editor feature toggles (default off). Read from the
   // already-fetched project doc — no extra query.
   const readabilityEnabled = project?.readabilityLensEnabled ?? false;
+  // Code animations need MDX (React components can't render in plain .md),
+  // a configured repo directory to publish the .tsx files into, and the
+  // feature toggle on (absent = derived from path presence).
+  const animationsEnabled =
+    isMdx && !!project?.animationsPath && (project.animationsEnabled ?? true);
   const slashEnabled = project?.slashCommandsEnabled ?? false;
   const snippetsEnabled = project?.snippetsEnabled ?? false;
   // The selection toolbar is on unless explicitly disabled — it costs
@@ -111,6 +116,7 @@ export function EditorLayout({
           <EditorToolbar
             projectId={projectId}
             readabilityEnabled={readabilityEnabled}
+            animationsEnabled={animationsEnabled}
           />
         )}
         {!focusMode && (
@@ -155,6 +161,7 @@ export function EditorLayout({
                     slashEnabled={slashEnabled}
                     snippetsEnabled={snippetsEnabled}
                     hasSnippets={hasSnippets}
+                    animationsEnabled={animationsEnabled}
                     selectionToolbarEnabled={selectionToolbarEnabled}
                   />
                 </div>
@@ -166,7 +173,11 @@ export function EditorLayout({
                   className="editor-pane-enter h-full w-full overflow-y-auto slim-scrollbar"
                 >
                   <div className="mx-auto max-w-[820px]">
-                    {isMdx ? <MdxPreview /> : <MarkdownPreview />}
+                    {isMdx ? (
+                      <MdxPreview animationsEnabled={animationsEnabled} />
+                    ) : (
+                      <MarkdownPreview />
+                    )}
                   </div>
                 </div>
               )}
@@ -193,6 +204,7 @@ export function EditorLayout({
                       slashEnabled={slashEnabled}
                       snippetsEnabled={snippetsEnabled}
                       hasSnippets={hasSnippets}
+                      animationsEnabled={animationsEnabled}
                       selectionToolbarEnabled={selectionToolbarEnabled}
                     />
                   </div>
@@ -206,7 +218,11 @@ export function EditorLayout({
                     onTouchStart={() => setOwner("preview")}
                   >
                     <div className="mx-auto max-w-[640px]">
-                      {isMdx ? <MdxPreview /> : <MarkdownPreview />}
+                      {isMdx ? (
+                        <MdxPreview animationsEnabled={animationsEnabled} />
+                      ) : (
+                        <MarkdownPreview />
+                      )}
                     </div>
                   </div>
                 </div>

@@ -107,6 +107,20 @@ export default defineSchema({
     githubBranch: v.optional(v.string()),
     contentPath: v.optional(v.string()),
     mediaPath: v.optional(v.string()),
+    /**
+     * Repo directory where user-authored animation components (.tsx) are
+     * committed on publish, e.g. "src/components/blog". Like `mediaPath`
+     * this is per-project — every repo lays out components differently.
+     * Absent = the code-animations feature is off for the project.
+     * MDX-only: the editor hides the feature unless contentFormat is "mdx".
+     */
+    animationsPath: v.optional(v.string()),
+    /**
+     * Explicit on/off for the code-animations feature. Absent = derived
+     * from `animationsPath` presence (backwards compat); `false` wins over
+     * a configured path so MDX users can opt out without losing the path.
+     */
+    animationsEnabled: v.optional(v.boolean()),
     mediaStorageMode: v.optional(
       v.union(
         v.literal("github"),
@@ -1254,6 +1268,24 @@ export default defineSchema({
       searchField: "name",
       filterFields: ["projectId"],
     }),
+
+  /**
+   * Per-project user-authored animation components (raw TSX source).
+   * Referenced from MDX bodies by PascalCase `name` (e.g. `<HarnessLoop />`);
+   * the editor preview compiles the source live, and publish commits it as a
+   * `.tsx` file under `projects.animationsPath` with the import injected into
+   * the post. One row per component — shared-mutable across every post that
+   * references it (edits propagate on the next publish of each post).
+   * `by_project_and_name` backs the uniqueness check and publish-time lookup.
+   */
+  animations: defineTable({
+    projectId: v.id("projects"),
+    name: v.string(),
+    source: v.string(),
+    updatedAt: v.number(),
+  })
+    .index("by_project", ["projectId"])
+    .index("by_project_and_name", ["projectId", "name"]),
 
   /**
    * Deployment verification targets — one row per host integration connected

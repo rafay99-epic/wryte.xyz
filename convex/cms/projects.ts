@@ -36,6 +36,8 @@ const projectFields = {
   githubBranch: v.optional(v.string()),
   contentPath: v.optional(v.string()),
   mediaPath: v.optional(v.string()),
+  animationsPath: v.optional(v.string()),
+  animationsEnabled: v.optional(v.boolean()),
   mediaStorageMode: v.optional(
     v.union(
       v.literal("github"),
@@ -203,6 +205,8 @@ export const create = mutation({
     githubBranch: v.optional(v.string()),
     contentPath: v.optional(v.string()),
     mediaPath: v.optional(v.string()),
+    animationsPath: v.optional(v.string()),
+    animationsEnabled: v.optional(v.boolean()),
     mediaStorageMode: v.optional(
       v.union(
         v.literal("github"),
@@ -253,6 +257,8 @@ export const create = mutation({
       githubBranch?: string;
       contentPath?: string;
       mediaPath?: string;
+      animationsPath?: string;
+      animationsEnabled?: boolean;
       mediaStorageMode?: "github" | "uploadthing" | "cloudinary";
       frontmatterSchema?: string;
       commitMessageTemplate?: string;
@@ -292,6 +298,10 @@ export const create = mutation({
     if (args.contentPath !== undefined)
       insertData.contentPath = args.contentPath;
     if (args.mediaPath !== undefined) insertData.mediaPath = args.mediaPath;
+    if (args.animationsPath !== undefined)
+      insertData.animationsPath = args.animationsPath;
+    if (args.animationsEnabled !== undefined)
+      insertData.animationsEnabled = args.animationsEnabled;
     if (args.mediaStorageMode !== undefined)
       insertData.mediaStorageMode = args.mediaStorageMode;
     if (args.frontmatterSchema !== undefined)
@@ -338,6 +348,10 @@ export const update = mutation({
     githubBranch: v.optional(v.string()),
     contentPath: v.optional(v.string()),
     mediaPath: v.optional(v.string()),
+    /** Repo dir for user-authored animation .tsx files ("" disables). */
+    animationsPath: v.optional(v.string()),
+    /** Explicit feature toggle — false wins over a configured path. */
+    animationsEnabled: v.optional(v.boolean()),
     mediaStorageMode: v.optional(
       v.union(
         v.literal("github"),
@@ -442,6 +456,11 @@ export const update = mutation({
       }
       // Empty custom attribution text clears the field (default phrase applies).
       if (k === "commitAttributionText" && typeof value === "string") {
+        fieldsToUpdate[k] = value.trim() || undefined;
+        continue;
+      }
+      // Empty animations path clears the field — feature off for the project.
+      if (k === "animationsPath" && typeof value === "string") {
         fieldsToUpdate[k] = value.trim() || undefined;
         continue;
       }
@@ -1022,6 +1041,18 @@ export const _wipeProjectChunk = internalMutation({
       }
     }
 
+    /* 12c. animations — user-authored .tsx components for this project. */
+    if (budget > 0) {
+      const rows = await ctx.db
+        .query("animations")
+        .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
+        .take(budget);
+      for (const row of rows) {
+        await ctx.db.delete(row._id);
+        budget--;
+      }
+    }
+
     /* 13. project_stats — subtract from writing_stats.totalWords before
      *     deleting so the user's lifetime total stays accurate. */
     if (budget > 0) {
@@ -1208,6 +1239,10 @@ async function countProjectRemaining(
     ctx.db
       .query("document_links")
       .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+      .take(1),
+    ctx.db
+      .query("animations")
+      .withIndex("by_project", (q) => q.eq("projectId", projectId))
       .take(1),
   ]);
   let count = 0;

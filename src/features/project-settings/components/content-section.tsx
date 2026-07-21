@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import type { Id } from "../../../../convex/_generated/dataModel";
 import { useContentSection } from "../hooks/use-content-section";
 import type { ProjectData } from "../types";
-import { FieldGroup, SectionHeader } from "./shared";
+import { FieldGroup, SectionHeader, ToggleRow } from "./shared";
 
 export function ContentSection({
   projectId,
@@ -25,6 +25,10 @@ export function ContentSection({
     contentFormat,
     filenamePattern,
     setFilenamePattern,
+    animationsPath,
+    setAnimationsPath,
+    animationsOn,
+    setAnimationsOn,
     defaultPattern,
     isSaving,
     hasChanges,
@@ -94,6 +98,33 @@ export function ContentSection({
             className="max-w-sm font-mono text-sm"
           />
         </FieldGroup>
+
+        {contentFormat === "mdx" && (
+          <>
+            <ToggleRow
+              title="Code animations"
+              line="Author live React components, publish them as .tsx files in your repo"
+              info="MDX-only. When enabled, the editor gains Insert → Animation and the /animation slash command, and an Animations gallery appears in the sidebar. Publishing commits each referenced component into the directory below and wires the import into your post automatically."
+              checked={animationsOn}
+              onCheckedChange={setAnimationsOn}
+            />
+            {animationsOn && (
+              <FieldGroup
+                label="Animations Directory"
+                htmlFor="s-animations-path"
+                hint="Repo folder where the .tsx components are committed on publish, e.g. src/components/blog. Your site must be set up to compile React components (e.g. @astrojs/react for Astro)."
+              >
+                <Input
+                  id="s-animations-path"
+                  value={animationsPath}
+                  onChange={(e) => setAnimationsPath(e.target.value)}
+                  placeholder="src/components/blog"
+                  className="font-mono text-sm"
+                />
+              </FieldGroup>
+            )}
+          </>
+        )}
 
         <SaveBar
           hasChanges={hasChanges}

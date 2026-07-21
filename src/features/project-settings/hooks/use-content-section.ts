@@ -27,6 +27,15 @@ export function useContentSection({
   const [filenamePattern, setFilenamePattern] = useState(
     project.filenamePattern ?? defaultPattern,
   );
+  // Code-animations directory — MDX-only feature; "" = disabled.
+  const [animationsPath, setAnimationsPath] = useState(
+    project.animationsPath ?? "",
+  );
+  // Explicit feature toggle. Absent = derived from path presence so
+  // projects configured before the toggle existed keep working.
+  const [animationsOn, setAnimationsOn] = useState(
+    project.animationsEnabled ?? !!project.animationsPath,
+  );
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -36,14 +45,24 @@ export function useContentSection({
     setFilenamePattern(
       project.filenamePattern ?? `{{slug}}${getFileExtension(fmt)}`,
     );
-  }, [project.contentPath, project.filenamePattern, project.contentFormat]);
+    setAnimationsPath(project.animationsPath ?? "");
+    setAnimationsOn(project.animationsEnabled ?? !!project.animationsPath);
+  }, [
+    project.contentPath,
+    project.filenamePattern,
+    project.contentFormat,
+    project.animationsPath,
+    project.animationsEnabled,
+  ]);
 
   const hasChanges =
     contentPath.trim() !== (project.contentPath ?? "content/blog") ||
     filenamePattern.trim() !==
       (project.filenamePattern ??
         `{{slug}}${getFileExtension(project.contentFormat)}`) ||
-    contentFormat !== ((project.contentFormat as ContentFormat) ?? "md");
+    contentFormat !== ((project.contentFormat as ContentFormat) ?? "md") ||
+    animationsPath.trim() !== (project.animationsPath ?? "") ||
+    animationsOn !== (project.animationsEnabled ?? !!project.animationsPath);
 
   const handleSave = useCallback(async () => {
     setIsSaving(true);
@@ -53,6 +72,9 @@ export function useContentSection({
         contentPath: contentPath.trim(),
         filenamePattern: filenamePattern.trim(),
         contentFormat,
+        // "" clears the field server-side (feature off).
+        animationsPath: animationsPath.trim(),
+        animationsEnabled: animationsOn,
       });
       toast.success("Content structure saved");
     } catch {
@@ -60,7 +82,15 @@ export function useContentSection({
     } finally {
       setIsSaving(false);
     }
-  }, [contentPath, filenamePattern, contentFormat, projectId, updateProject]);
+  }, [
+    contentPath,
+    filenamePattern,
+    contentFormat,
+    animationsPath,
+    animationsOn,
+    projectId,
+    updateProject,
+  ]);
 
   const handleFormatChange = useCallback(
     (value: string | null) => {
@@ -82,6 +112,10 @@ export function useContentSection({
     contentFormat,
     filenamePattern,
     setFilenamePattern,
+    animationsPath,
+    setAnimationsPath,
+    animationsOn,
+    setAnimationsOn,
     defaultPattern,
     isSaving,
     hasChanges,
