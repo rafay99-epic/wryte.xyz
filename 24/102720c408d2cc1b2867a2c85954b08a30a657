@@ -1,0 +1,21 @@
+.github/workflows/ci-cd.yml
+  s_aad7178d8f7ab1::t_7a4d691913ddc7 220-221
+electron-builder.config.js
+  s_aad7178d8f7ab1::t_ef1fe6d2d22074 21-27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "24102720c408d2cc1b2867a2c85954b08a30a657",
+  "prompts": {},
+  "sessions": {
+    "s_aad7178d8f7ab1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a90c49e1-e6f7-4e1c-9d2e-0ac32a1f17b8",
+        "model": "unknown"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
