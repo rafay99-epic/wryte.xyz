@@ -12,7 +12,6 @@ const publishConfig = isDev
 // biome-ignore lint/suspicious/noTemplateCurlyInString: electron-builder variable syntax
 const _ext = "${ext}";
 const winArtifact = `Wryte-Setup.${_ext}`;
-const linuxArtifact = `Wryte.${_ext}`;
 
 /** @type {import('electron-builder').Configuration} */
 const config = {
@@ -49,13 +48,6 @@ const config = {
   nsis: {
     oneClick: false,
     allowToChangeInstallationDirectory: true,
-  },
-  linux: {
-    target: ["AppImage"],
-    category: "Office",
-    executableName: "wryte",
-    artifactName: linuxArtifact,
-    publish: publishConfig,
   },
 };
 
