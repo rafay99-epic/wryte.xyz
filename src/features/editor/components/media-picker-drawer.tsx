@@ -348,7 +348,7 @@ function PickerGridSkeleton() {
           transition={{ duration: 0.2, delay: index * 0.04 }}
           className="w-full overflow-hidden rounded-lg border bg-card"
         >
-          <div className="relative aspect-[4/3] media-shimmer" />
+          <div className="relative aspect-4/3 media-shimmer" />
           <div className="mx-2 my-1.5 h-3 w-2/3 rounded media-shimmer" />
         </motion.div>
       ))}
@@ -390,7 +390,7 @@ function LibraryMediaItem({
       onClick={onSelect}
       className="group w-full overflow-hidden rounded-lg border bg-card text-left transition-all hover:border-primary/40 hover:ring-2 hover:ring-primary/10"
     >
-      <div className="relative flex aspect-[4/3] items-center justify-center bg-muted/50">
+      <div className="relative flex aspect-4/3 items-center justify-center bg-muted/50">
         {isImage ? (
           <MediaImage
             src={item.url}
@@ -429,7 +429,7 @@ function RecentMediaItem({
       onClick={onSelect}
       className="group w-full overflow-hidden rounded-lg border bg-card text-left transition-all hover:border-primary/40 hover:ring-2 hover:ring-primary/10"
     >
-      <div className="relative flex aspect-[4/3] items-center justify-center bg-muted/50">
+      <div className="relative flex aspect-4/3 items-center justify-center bg-muted/50">
         {isImage && url ? (
           <MediaImage
             src={url}
