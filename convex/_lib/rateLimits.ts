@@ -392,6 +392,27 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
   },
 
   /* ------------------------------------------------------------------ */
+  /*  Code animations (user-authored .tsx components)                    */
+  /* ------------------------------------------------------------------ */
+
+  "animations:create": {
+    kind: "fixed window",
+    rate: 30,
+    period: MINUTE,
+  },
+  /** Source edits save from the author sheet — slightly more generous. */
+  "animations:update": {
+    kind: "fixed window",
+    rate: 60,
+    period: MINUTE,
+  },
+  "animations:remove": {
+    kind: "fixed window",
+    rate: 30,
+    period: MINUTE,
+  },
+
+  /* ------------------------------------------------------------------ */
   /*  Media                                                              */
   /* ------------------------------------------------------------------ */
 

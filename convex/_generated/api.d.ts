@@ -9,6 +9,7 @@
  */
 
 import type * as _lib_admin from "../_lib/admin.js";
+import type * as _lib_animationTransform from "../_lib/animationTransform.js";
 import type * as _lib_auth from "../_lib/auth.js";
 import type * as _lib_commitAttribution from "../_lib/commitAttribution.js";
 import type * as _lib_compression from "../_lib/compression.js";
@@ -41,6 +42,7 @@ import type * as cms__lib_documentContent from "../cms/_lib/documentContent.js";
 import type * as cms__lib_documentLinks from "../cms/_lib/documentLinks.js";
 import type * as cms__lib_draftContent from "../cms/_lib/draftContent.js";
 import type * as cms__lib_purgeDocumentArtifacts from "../cms/_lib/purgeDocumentArtifacts.js";
+import type * as cms_animations from "../cms/animations.js";
 import type * as cms_appVersion from "../cms/appVersion.js";
 import type * as cms_boardColumns from "../cms/boardColumns.js";
 import type * as cms_changelog from "../cms/changelog.js";
@@ -108,6 +110,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   "_lib/admin": typeof _lib_admin;
+  "_lib/animationTransform": typeof _lib_animationTransform;
   "_lib/auth": typeof _lib_auth;
   "_lib/commitAttribution": typeof _lib_commitAttribution;
   "_lib/compression": typeof _lib_compression;
@@ -140,6 +143,7 @@ declare const fullApi: ApiFromModules<{
   "cms/_lib/documentLinks": typeof cms__lib_documentLinks;
   "cms/_lib/draftContent": typeof cms__lib_draftContent;
   "cms/_lib/purgeDocumentArtifacts": typeof cms__lib_purgeDocumentArtifacts;
+  "cms/animations": typeof cms_animations;
   "cms/appVersion": typeof cms_appVersion;
   "cms/boardColumns": typeof cms_boardColumns;
   "cms/changelog": typeof cms_changelog;

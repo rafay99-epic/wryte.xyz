@@ -60,6 +60,7 @@ type EditorState = {
   imageDialogOpen: boolean;
   videoDialogOpen: boolean;
   embedDialogOpen: boolean;
+  animationDialogOpen: boolean;
   /** Word count at document load — baseline for "words this session". */
   sessionStartWords: number;
   /** Timestamp of document load — denominator for session WPM. */
@@ -97,6 +98,7 @@ type EditorState = {
   setImageDialogOpen: (open: boolean) => void;
   setVideoDialogOpen: (open: boolean) => void;
   setEmbedDialogOpen: (open: boolean) => void;
+  setAnimationDialogOpen: (open: boolean) => void;
   startSprint: (targetWords: number, durationMs: number) => void;
   pauseSprint: () => void;
   resumeSprint: () => void;
@@ -139,6 +141,7 @@ const initialState = {
   imageDialogOpen: false,
   videoDialogOpen: false,
   embedDialogOpen: false,
+  animationDialogOpen: false,
   sessionStartWords: 0,
   sessionStartedAt: 0,
   ...sprintIdleState,
@@ -237,6 +240,8 @@ export const useEditorStore = create<EditorState>()((set) => ({
   setVideoDialogOpen: (open) => set({ videoDialogOpen: open }),
 
   setEmbedDialogOpen: (open) => set({ embedDialogOpen: open }),
+
+  setAnimationDialogOpen: (open) => set({ animationDialogOpen: open }),
 
   // Word baseline is captured from the CURRENT content so the live delta
   // starts at zero regardless of what was written before the sprint.

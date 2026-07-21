@@ -1,6 +1,7 @@
 "use client";
 
 import { compile } from "@mdx-js/mdx";
+import { useQuery } from "convex/react";
 import { motion } from "framer-motion";
 import React, {
   Component,
@@ -26,7 +27,11 @@ import remarkGfm from "remark-gfm";
 import { codeComponents } from "@/components/markdown/code-overrides";
 import { embedComponents } from "@/components/markdown/embed-overrides";
 import { useEditorStore } from "@/stores/editor-store";
+import { api } from "../../../../convex/_generated/api";
+import type { Id } from "../../../../convex/_generated/dataModel";
 import { usePreviewJump } from "../hooks/use-preview-jump";
+import { wrapAnimation } from "../lib/animations/animation-boundary";
+import { compileAnimation } from "../lib/animations/compile-animation";
 import { VideoEmbed } from "./video-embed";
 
 type MdxModule = { default: React.ComponentType };
@@ -177,9 +182,13 @@ const COMPONENT_TAG_RE = /<([A-Z]\w*)/g;
 
 function buildComponentMap(
   source: string,
+  userComponents: Record<string, React.ComponentType<MdxComponentProps>> = {},
 ): Record<string, React.ComponentType<MdxComponentProps>> {
+  // User-authored animations register ahead of the placeholder loop so a
+  // known `<Anim />` renders live instead of falling to the dashed stub.
   const map: Record<string, React.ComponentType<MdxComponentProps>> = {
     ...baseComponents,
+    ...userComponents,
   };
   for (const match of source.matchAll(COMPONENT_TAG_RE)) {
     const name = match[1] as string;
@@ -278,12 +287,39 @@ function CompileError({ message }: { message: string }) {
 /*  Preview component                                                  */
 /* ------------------------------------------------------------------ */
 
-export function MdxPreview() {
+export function MdxPreview({
+  animationsEnabled = false,
+}: {
+  /** Gate the animations subscription — projects without the feature
+   * configured must not pay the list's read cost on every session. */
+  animationsEnabled?: boolean;
+}) {
   const content = useEditorStore((state) => state.content);
+  const activeProjectId = useEditorStore((state) => state.activeProjectId);
   const handleDoubleClick = usePreviewJump();
   const [compiled, setCompiled] = useState<MdxModule | null>(null);
   const [error, setError] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout>>(null);
+
+  // Project animations, compiled once per source change (not per keystroke
+  // of the document — the memo only re-runs when the Convex rows change).
+  // A source that fails to compile falls back to the dashed placeholder.
+  const animations = useQuery(
+    api.cms.animations.list,
+    animationsEnabled && activeProjectId
+      ? { projectId: activeProjectId as Id<"projects"> }
+      : "skip",
+  );
+  const userComponents = useMemo(() => {
+    const map: Record<string, React.ComponentType<MdxComponentProps>> = {};
+    for (const anim of animations ?? []) {
+      const result = compileAnimation(anim.source);
+      if (result.ok) {
+        map[anim.name] = wrapAnimation(anim.name, result.component);
+      }
+    }
+    return map;
+  }, [animations]);
 
   useEffect(() => {
     if (!content) {
@@ -297,7 +333,7 @@ export function MdxPreview() {
 
     timerRef.current = setTimeout(async () => {
       try {
-        const components = buildComponentMap(content);
+        const components = buildComponentMap(content, userComponents);
         const mod = await compileMdx(content, components);
         if (!stale) {
           setCompiled(mod);
@@ -314,7 +350,7 @@ export function MdxPreview() {
       stale = true;
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [content]);
+  }, [content, userComponents]);
 
   if (!content) {
     return (

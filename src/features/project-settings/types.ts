@@ -36,6 +36,8 @@ export type ProjectData = {
   githubBranch?: string;
   contentPath?: string;
   mediaPath?: string;
+  animationsPath?: string;
+  animationsEnabled?: boolean;
   mediaStorageMode?: MediaStorageMode;
   frontmatterSchema?: string;
   commitMessageTemplate?: string;

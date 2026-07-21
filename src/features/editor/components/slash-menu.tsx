@@ -19,6 +19,7 @@ import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
 import { useSlashMenu } from "../hooks/use-slash-menu";
 import {
+  ANIMATION_COMMAND,
   filterCommands,
   SLASH_COMMANDS,
   type SlashCommand,
@@ -34,6 +35,8 @@ type SlashMenuProps = {
   snippetsEnabled: boolean;
   /** Whether the project has any snippets — gates the `Snippets ▸` entry with no query. */
   hasSnippets: boolean;
+  /** MDX project with an animations directory — gates the `Animation` entry. */
+  animationsEnabled: boolean;
   /** Project whose snippets to search; null skips the gated search query. */
   projectId: Id<"projects"> | null;
   /** Whether AI is configured — gates the AI command. */
@@ -54,6 +57,7 @@ export const SlashMenu = memo(function SlashMenu({
   blockCommandsEnabled,
   snippetsEnabled,
   hasSnippets,
+  animationsEnabled,
   projectId,
   aiReady,
   onAiAction,
@@ -106,6 +110,9 @@ export const SlashMenu = memo(function SlashMenu({
           ? SLASH_COMMANDS
           : SLASH_COMMANDS.filter((c) => c.kind !== "ai")),
       );
+      if (animationsEnabled) {
+        base.push(ANIMATION_COMMAND);
+      }
     }
     if (snippetsEnabled && hasSnippets) {
       base.push(SNIPPETS_SUBMENU);
@@ -118,6 +125,7 @@ export const SlashMenu = memo(function SlashMenu({
     aiReady,
     snippetsEnabled,
     hasSnippets,
+    animationsEnabled,
     menu.query,
   ]);
 
@@ -197,7 +205,8 @@ export const SlashMenu = memo(function SlashMenu({
       } else if (
         cmd.kind === "image" ||
         cmd.kind === "video" ||
-        cmd.kind === "embed"
+        cmd.kind === "embed" ||
+        cmd.kind === "animation"
       ) {
         // Remove the trigger text, then open the media dialog — it inserts
         // at the caret (which now sits where the `/` was) on confirm.
@@ -205,6 +214,7 @@ export const SlashMenu = memo(function SlashMenu({
         const store = useEditorStore.getState();
         if (cmd.kind === "image") store.setImageDialogOpen(true);
         else if (cmd.kind === "video") store.setVideoDialogOpen(true);
+        else if (cmd.kind === "animation") store.setAnimationDialogOpen(true);
         else store.setEmbedDialogOpen(true);
       } else if (cmd.kind === "block" || cmd.kind === "snippet") {
         // Block-level content: drop a leading newline when not at line start.

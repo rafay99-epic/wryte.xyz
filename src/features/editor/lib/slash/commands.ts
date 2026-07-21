@@ -1,5 +1,6 @@
 import {
   Braces,
+  Clapperboard,
   FileText,
   Heading1,
   Heading2,
@@ -38,6 +39,7 @@ export type SlashCommandKind =
   | "image"
   | "video"
   | "embed"
+  | "animation"
   | "snippet"
   | "submenu";
 
@@ -57,6 +59,20 @@ export type SlashCommand = {
  * drills into the project's snippets (see slash-menu.tsx). Only appended when
  * the project actually has snippets — the menu owns that gating.
  */
+/**
+ * The `Animation` entry — opens the code-animation author sheet. Appended by
+ * the menu only when the project is MDX with an animations directory
+ * configured (same gating as the toolbar's Insert item).
+ */
+export const ANIMATION_COMMAND: SlashCommand = {
+  id: "animation",
+  label: "Animation",
+  hint: "Live React component",
+  keywords: ["animation", "component", "react", "tsx", "interactive", "code"],
+  icon: Clapperboard,
+  kind: "animation",
+};
+
 export const SNIPPETS_SUBMENU: SlashCommand = {
   id: "snippets",
   label: "Snippets",
