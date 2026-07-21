@@ -17,10 +17,10 @@ const winArtifact = `Wryte-Setup.${_ext}`;
 const config = {
   appId: isDev ? "xyz.wryte.desktop.dev" : "xyz.wryte.desktop",
   productName: isDev ? "Wryte Dev" : "Wryte",
-  // CI injects the release version here so the build command needs no `-c.`
-  // flag. Passing `-c.<field>` makes electron-builder treat config as inline
-  // and skip auto-loading this file — which silently reverts every setting
-  // below (targets, artifact names) to defaults.
+  // CI injects the release version here via env. This file must be named
+  // exactly `electron-builder.js` — electron-builder auto-discovers the base
+  // name `electron-builder`, so an `electron-builder.config.js` is silently
+  // ignored and every setting below reverts to defaults.
   extraMetadata: process.env.WRYTE_VERSION
     ? { version: process.env.WRYTE_VERSION }
     : undefined,

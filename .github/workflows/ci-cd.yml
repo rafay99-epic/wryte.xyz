@@ -89,7 +89,7 @@ jobs:
               'package.json' \
               'bun.lock' \
               'patches/' \
-              'electron-builder.config.js' \
+              'electron-builder.js' \
               '.github/workflows/ci-cd.yml' | grep -q .; then
             echo "electron_changed=true" >> "$GITHUB_OUTPUT"
           else
