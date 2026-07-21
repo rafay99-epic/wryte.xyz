@@ -1,0 +1,21 @@
+.github/workflows/ci-cd.yml
+  s_aad7178d8f7ab1::t_adf798268713b8 174-184
+package.json
+  s_aad7178d8f7ab1::t_e6576c6da76e23 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "b02d1819740e70bf2a26dc60c6dde06d808040a7",
+  "prompts": {},
+  "sessions": {
+    "s_aad7178d8f7ab1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a90c49e1-e6f7-4e1c-9d2e-0ac32a1f17b8",
+        "model": "unknown"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
