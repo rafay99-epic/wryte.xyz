@@ -1,0 +1,31 @@
+src/features/project-settings/hooks/use-sharing-section.ts
+  s_2ecb3ce5c6f304::t_e4d5e9d95d3987 1-64
+convex/cms/shareLinks.ts
+  s_2ecb3ce5c6f304::t_990201716401f1 166-249
+src/features/project-settings/components/sharing-section.tsx
+  s_2ecb3ce5c6f304::t_1aae49d7f3bece 1-218
+src/features/project-settings/project-settings-page.tsx
+  s_2ecb3ce5c6f304::t_1ee9f187df0b77 111
+  s_2ecb3ce5c6f304::t_c0f572d121a0b8 22
+src/features/project-settings/types.ts
+  s_2ecb3ce5c6f304::t_4058a25414f1ce 120
+  s_2ecb3ce5c6f304::t_87acb90d9f6ca3 250-262
+  s_2ecb3ce5c6f304::t_9585bff1122ac7 7
+  s_2ecb3ce5c6f304::t_87e5ac2559adfa 249
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "fa992367d6982209ffbdd1796d6449daa2d4b893",
+  "prompts": {},
+  "sessions": {
+    "s_2ecb3ce5c6f304": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6384fdcb-aff3-4c43-bcab-1c94ff20b3f2",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
