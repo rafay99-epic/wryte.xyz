@@ -48,10 +48,9 @@ const COMPILE_DEBOUNCE_MS = 400;
 const NAME_RE = /^[A-Z][A-Za-z0-9]*$/;
 const RESERVED_NAMES = new Set(["Fragment", "React", "Component", "Suspense"]);
 
-type AnimationRow = {
+type CardRow = {
   _id: Id<"animations">;
   name: string;
-  source: string;
   updatedAt: number;
 };
 
@@ -66,22 +65,19 @@ function extractDefaultExportName(source: string): string | null {
 }
 
 /**
- * Project-level animation gallery — the Media-library equivalent for code
- * animations. Every card renders its component LIVE. From here an author
- * can copy the MDX tag, fork an animation into a variant, edit the source,
- * or delete — without opening a document.
+ * Project-level animation gallery. Cards load lightweight name+date rows
+ * from the server; source code is fetched lazily per-card via Intersection-
+ * Observer, so loading 200 cards costs ~20KB of reads instead of ~20MB.
  */
 export function AnimationGalleryPage() {
   const params = useParams<{ projectId: string }>();
   const projectId = params.projectId as Id<"projects">;
 
   const project = useQuery(api.cms.projects.get, { projectId });
-  const animations = useQuery(api.cms.animations.list, { projectId });
-  const createAnimation = useMutation(api.cms.animations.create);
+  const cards = useQuery(api.cms.animations.listNames, { projectId });
+  const duplicateAnimation = useMutation(api.cms.animations.duplicate);
 
-  // null = closed; "new" = create mode; otherwise the row being edited.
-  const [editing, setEditing] = useState<AnimationRow | "new" | null>(null);
-  // Row pending reference-checked deletion (card trash or sheet Delete).
+  const [editing, setEditing] = useState<CardRow | "new" | null>(null);
   const [deleting, setDeleting] = useState<DeletableAnimation | null>(null);
 
   const configured =
@@ -89,18 +85,17 @@ export function AnimationGalleryPage() {
     !!project?.animationsPath &&
     (project.animationsEnabled ?? true);
 
-  async function handleDuplicate(row: AnimationRow) {
-    // First free NameCopy / NameCopy2 / … slot.
-    const taken = new Set((animations ?? []).map((a) => a.name));
+  async function handleDuplicate(row: CardRow) {
+    const taken = new Set((cards ?? []).map((c) => c.name));
     let candidate = `${row.name}Copy`;
     for (let i = 2; taken.has(candidate); i++) {
       candidate = `${row.name}Copy${String(i)}`;
     }
     try {
-      await createAnimation({
+      await duplicateAnimation({
         projectId,
-        name: candidate,
-        source: row.source,
+        animationId: row._id,
+        newName: candidate,
       });
       toast.success(`Duplicated as ${candidate}`);
     } catch (err) {
@@ -117,8 +112,6 @@ export function AnimationGalleryPage() {
 
   return (
     <div className="p-6">
-      {/* Navigation lives in the sidebar's single Back button — no
-          per-page back links. */}
       <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="flex items-center gap-2.5 text-2xl font-semibold tracking-tight">
@@ -159,7 +152,7 @@ export function AnimationGalleryPage() {
         </div>
       )}
 
-      {configured && animations === undefined && (
+      {configured && cards === undefined && (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {[0, 1, 2].map((i) => (
             <Skeleton key={i} className="h-64 rounded-xl" />
@@ -167,7 +160,7 @@ export function AnimationGalleryPage() {
         </div>
       )}
 
-      {configured && animations && animations.length === 0 && (
+      {configured && cards && cards.length === 0 && (
         <div className="rounded-xl border border-dashed border-border/60 p-10 text-center">
           <Clapperboard className="mx-auto size-8 text-muted-foreground/40" />
           <p className="mt-3 text-sm font-medium">No animations yet</p>
@@ -181,21 +174,21 @@ export function AnimationGalleryPage() {
         </div>
       )}
 
-      {configured && animations && animations.length > 0 && (
+      {configured && cards && cards.length > 0 && (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {animations.map((anim, i) => (
+          {cards.map((card, i) => (
             <motion.div
-              key={anim._id}
+              key={card._id}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.25, delay: i * 0.04 }}
             >
               <AnimationCard
-                animation={anim}
-                onCopyTag={() => handleCopyTag(anim.name)}
-                onDuplicate={() => void handleDuplicate(anim)}
-                onEdit={() => setEditing(anim)}
-                onDelete={() => setDeleting(anim)}
+                card={card}
+                onCopyTag={() => handleCopyTag(card.name)}
+                onDuplicate={() => void handleDuplicate(card)}
+                onEdit={() => setEditing(card)}
+                onDelete={() => setDeleting(card)}
               />
             </motion.div>
           ))}
@@ -224,12 +217,6 @@ export function AnimationGalleryPage() {
 /*  Card                                                               */
 /* ------------------------------------------------------------------ */
 
-/**
- * Compile-and-mount only once the card scrolls into view. A project can
- * hold up to 200 animations; mounting 200 live components (each with its
- * own timers/effects) on page load would peg the CPU. Renders once
- * visible and stays mounted after.
- */
 function useCardInView() {
   const ref = useRef<HTMLDivElement | null>(null);
   const [inView, setInView] = useState(false);
@@ -257,29 +244,33 @@ function useCardInView() {
 }
 
 function AnimationCard({
-  animation,
+  card,
   onCopyTag,
   onDuplicate,
   onEdit,
   onDelete,
 }: {
-  animation: AnimationRow;
+  card: CardRow;
   onCopyTag: () => void;
   onDuplicate: () => void;
   onEdit: () => void;
   onDelete: () => void;
 }) {
   const { ref, inView } = useCardInView();
-  // Compile is deferred until visible — Sucrase per card is cheap, but the
-  // mounted component's timers/effects are not.
+  // Fetch the source lazily — only when the card is about to enter view.
+  // This keeps the gallery load to ~100 bytes per card instead of ~100KB.
+  const source = useQuery(
+    api.cms.animations.getSource,
+    inView ? { animationId: card._id } : "skip",
+  );
+
   const compiled = useMemo(
-    () => (inView ? compileAnimation(animation.source) : null),
-    [inView, animation.source],
+    () => (source ? compileAnimation(source) : null),
+    [source],
   );
   const Preview = useMemo(
-    () =>
-      compiled?.ok ? wrapAnimation(animation.name, compiled.component) : null,
-    [compiled, animation.name],
+    () => (compiled?.ok ? wrapAnimation(card.name, compiled.component) : null),
+    [compiled, card.name],
   );
 
   return (
@@ -287,10 +278,17 @@ function AnimationCard({
       ref={ref}
       className="group flex h-full flex-col overflow-hidden rounded-xl border border-border/60 bg-card transition-colors hover:border-primary/40"
     >
-      {/* Live render, clipped to a fixed stage so wild components can't
-          break the grid. */}
       <div className="relative h-44 overflow-hidden border-b border-border/40 bg-muted/20 p-4 [&>*]:max-w-full">
-        {!compiled ? (
+        {inView && source === undefined ? (
+          <div className="flex h-full items-center justify-center">
+            <div className="size-8 animate-pulse rounded-lg bg-muted-foreground/10" />
+          </div>
+        ) : inView && source === null ? (
+          <div className="flex h-full flex-col items-center justify-center gap-2 text-xs text-destructive">
+            <AlertCircle className="size-5" />
+            <span>Failed to load</span>
+          </div>
+        ) : !source ? (
           <div className="flex h-full items-center justify-center text-xs text-muted-foreground/40">
             <Clapperboard className="size-4" />
           </div>
@@ -306,11 +304,9 @@ function AnimationCard({
 
       <div className="flex flex-1 items-center justify-between gap-2 px-4 py-3">
         <div className="min-w-0">
-          <p className="truncate font-mono text-sm font-medium">
-            {animation.name}
-          </p>
+          <p className="truncate font-mono text-sm font-medium">{card.name}</p>
           <p className="text-[11px] text-muted-foreground">
-            Updated {new Date(animation.updatedAt).toLocaleDateString()}
+            Updated {new Date(card.updatedAt).toLocaleDateString()}
           </p>
         </div>
         <div className="flex shrink-0 gap-1 opacity-0 transition-opacity group-hover:opacity-100">
@@ -382,7 +378,7 @@ function AnimationEditSheet({
   onRequestDelete,
 }: {
   projectId: Id<"projects">;
-  editing: AnimationRow | "new" | null;
+  editing: CardRow | "new" | null;
   onClose: () => void;
   /** Hands off to the shared reference-checked delete dialog. */
   onRequestDelete: (row: DeletableAnimation) => void;
@@ -394,11 +390,22 @@ function AnimationEditSheet({
   const row = isNew || editing === null ? null : editing;
   const open = editing !== null;
 
+  // Fetch the full source on demand when editing an existing animation
+  const sourceRow = useQuery(
+    api.cms.animations.getSource,
+    row ? { animationId: row._id } : "skip",
+  );
+
   const [name, setName] = useState(row?.name ?? "");
-  const [source, setSource] = useState(row?.source ?? STARTER_SOURCE);
+  const [source, setSource] = useState(STARTER_SOURCE);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Populate source once it arrives
+  useEffect(() => {
+    if (sourceRow) setSource(sourceRow);
+  }, [sourceRow]);
 
   const handleFileImport = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {

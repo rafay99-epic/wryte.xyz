@@ -4,7 +4,6 @@ import { useAction } from "convex/react";
 import {
   BarChart3,
   CheckCircle2,
-  Clapperboard,
   Database,
   Lightbulb,
   Newspaper,
@@ -21,11 +20,7 @@ type SeedResult = {
   details: string[];
 };
 
-type SeedKey =
-  | "changelog"
-  | "featureRequests"
-  | "writingStats"
-  | "animationNames";
+type SeedKey = "changelog" | "featureRequests" | "writingStats";
 
 const SEEDS: {
   key: SeedKey;
@@ -60,21 +55,12 @@ const SEEDS: {
     accent: "text-emerald-500",
     hasEmailInput: true,
   },
-  {
-    key: "animationNames",
-    title: "Animation names table",
-    description:
-      "Backfills the lightweight `animation_names` table from existing `animations` rows. Needed once after the schema change — new animations sync automatically.",
-    icon: Clapperboard,
-    accent: "text-purple-500",
-  },
 ];
 
 export function SeedRunner() {
   const seedChangelog = useAction(api._seed.changelog.seed);
   const seedFeatureRequests = useAction(api._seed.featureRequests.seed);
   const seedWritingStats = useAction(api._seed.writingStats.seed);
-  const seedAnimationNames = useAction(api._seed.animationNames.seed);
 
   const [running, setRunning] = useState<SeedKey | null>(null);
   const [results, setResults] = useState<Partial<Record<SeedKey, SeedResult>>>(
@@ -102,8 +88,6 @@ export function SeedRunner() {
           result = await seedChangelog();
         } else if (key === "featureRequests") {
           result = await seedFeatureRequests();
-        } else if (key === "animationNames") {
-          result = await seedAnimationNames();
         } else {
           const email = emailRef.current?.value.trim() ?? "";
           result = await seedWritingStats({ email });
@@ -114,9 +98,7 @@ export function SeedRunner() {
             ? "Changelog"
             : key === "featureRequests"
               ? "Feature requests"
-              : key === "animationNames"
-                ? "Animation names"
-                : "Writing analytics";
+              : "Writing analytics";
         const parts = [`${String(result.inserted)} inserted`];
         if (result.updated) parts.push(`${String(result.updated)} updated`);
         if (result.skipped) parts.push(`${String(result.skipped)} skipped`);
@@ -129,13 +111,7 @@ export function SeedRunner() {
         setRunning(null);
       }
     },
-    [
-      running,
-      seedChangelog,
-      seedFeatureRequests,
-      seedWritingStats,
-      seedAnimationNames,
-    ],
+    [running, seedChangelog, seedFeatureRequests, seedWritingStats],
   );
 
   return (

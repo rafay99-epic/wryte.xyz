@@ -147,6 +147,34 @@ function validateSource(raw: string): string {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Lightweight card view (no source body)                              */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Card list for the gallery — only name + date, no source.
+ * Reads the `animation_names` table (~50 bytes/row).
+ */
+export const listNames = query({
+  args: { projectId: v.id("projects") },
+  handler: async (ctx, args) => {
+    const project = await ownedProjectForQuery(ctx, args.projectId);
+    if (!project) return [];
+    // Query the main table but only project metadata + index,
+    // the client fetches source per-card on demand.
+    const rows = await ctx.db
+      .query("animations")
+      .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
+      .order("desc")
+      .take(MAX_ANIMATIONS);
+    return rows.map((d) => ({
+      _id: d._id,
+      name: d.name,
+      updatedAt: d.updatedAt,
+    }));
+  },
+});
+
+/* ------------------------------------------------------------------ */
 /*  Queries                                                             */
 /* ------------------------------------------------------------------ */
 
@@ -166,6 +194,23 @@ export const list = query({
       .order("desc")
       .take(MAX_ANIMATIONS);
     return rows.map(toView);
+  },
+});
+
+/**
+ * Fetch the full source for a single animation by ID.
+ * Called lazily when a card enters the viewport — never on load.
+ */
+export const getSource = query({
+  args: { animationId: v.id("animations") },
+  returns: v.union(v.string(), v.null()),
+  handler: async (ctx, args): Promise<string | null> => {
+    const row = await ctx.db.get(args.animationId);
+    if (!row) return null;
+    // Auth: only return source if the caller owns the project.
+    const project = await ownedProjectForQuery(ctx, row.projectId);
+    if (!project) return null;
+    return row.source;
   },
 });
 
@@ -354,6 +399,52 @@ export const update = mutation({
       updatedAt: Date.now(),
     });
     return null;
+  },
+});
+
+/**
+ * Duplicate an animation by copying its source to a new name.
+ * The server reads the source — the client only sends the IDs.
+ */
+export const duplicate = mutation({
+  args: {
+    projectId: v.id("projects"),
+    animationId: v.id("animations"),
+    newName: v.string(),
+  },
+  returns: v.string(),
+  handler: async (ctx, args): Promise<string> => {
+    const key = await getRateLimitKey(ctx);
+    await rateLimiter.limit(ctx, "animations:create", { key, throws: true });
+
+    await requireOwnedProject(ctx, args.projectId);
+
+    const original = await ctx.db.get(args.animationId);
+    if (!original) throw new Error("Original animation not found");
+
+    const newName = normalizeName(args.newName);
+    const source = original.source;
+
+    const existing = await ctx.db
+      .query("animations")
+      .withIndex("by_project_and_name", (q) =>
+        q.eq("projectId", args.projectId).eq("name", newName),
+      )
+      .unique();
+    if (existing) {
+      throw new Error(`An animation named "${newName}" already exists`);
+    }
+
+    const now = Date.now();
+    await ctx.db.insert("animations", {
+      projectId: args.projectId,
+      name: newName,
+      source,
+      updatedAt: now,
+    });
+    await insertNameRow(ctx, args.projectId, newName);
+
+    return newName;
   },
 });
 
