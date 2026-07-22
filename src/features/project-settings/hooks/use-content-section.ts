@@ -36,6 +36,8 @@ export function useContentSection({
   const [animationsOn, setAnimationsOn] = useState(
     project.animationsEnabled ?? !!project.animationsPath,
   );
+  // Import feature toggle — off by default (cost-saving).
+  const [importOn, setImportOn] = useState(project.importEnabled ?? false);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -47,12 +49,14 @@ export function useContentSection({
     );
     setAnimationsPath(project.animationsPath ?? "");
     setAnimationsOn(project.animationsEnabled ?? !!project.animationsPath);
+    setImportOn(project.importEnabled ?? false);
   }, [
     project.contentPath,
     project.filenamePattern,
     project.contentFormat,
     project.animationsPath,
     project.animationsEnabled,
+    project.importEnabled,
   ]);
 
   const hasChanges =
@@ -62,7 +66,8 @@ export function useContentSection({
         `{{slug}}${getFileExtension(project.contentFormat)}`) ||
     contentFormat !== ((project.contentFormat as ContentFormat) ?? "md") ||
     animationsPath.trim() !== (project.animationsPath ?? "") ||
-    animationsOn !== (project.animationsEnabled ?? !!project.animationsPath);
+    animationsOn !== (project.animationsEnabled ?? !!project.animationsPath) ||
+    importOn !== (project.importEnabled ?? false);
 
   const handleSave = useCallback(async () => {
     setIsSaving(true);
@@ -75,6 +80,7 @@ export function useContentSection({
         // "" clears the field server-side (feature off).
         animationsPath: animationsPath.trim(),
         animationsEnabled: animationsOn,
+        importEnabled: importOn,
       });
       toast.success("Content structure saved");
     } catch {
@@ -88,6 +94,7 @@ export function useContentSection({
     contentFormat,
     animationsPath,
     animationsOn,
+    importOn,
     projectId,
     updateProject,
   ]);
@@ -116,6 +123,8 @@ export function useContentSection({
     setAnimationsPath,
     animationsOn,
     setAnimationsOn,
+    importOn,
+    setImportOn,
     defaultPattern,
     isSaving,
     hasChanges,

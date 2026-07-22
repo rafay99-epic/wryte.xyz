@@ -568,6 +568,8 @@ export const create = mutation({
     status: v.optional(v.string()),
     tags: v.optional(v.array(v.string())),
     frontmatter: v.optional(v.string()),
+    /** Optional body content for imported .md/.mdx files. */
+    content: v.optional(v.string()),
   },
   returns: v.id("documents"),
   handler: async (ctx, args) => {
@@ -590,14 +592,15 @@ export const create = mutation({
     const status = args.status ?? "draft";
     // The body starts empty and lives in `document_content`; we don't
     // create a content row until the first save (an absent row reads as
-    // "" via the documentContent helper).
+    // "" via the documentContent helper) — unless content was provided
+    // via file import.
     const documentId = await ctx.db.insert("documents", {
       projectId: args.projectId,
       userId: user._id,
       title: args.title,
       slug: args.slug,
-      excerpt: "",
-      wordCount: 0,
+      excerpt: args.content ? buildExcerpt(args.content) : "",
+      wordCount: args.content ? countWords(args.content) : 0,
       status,
       createdAt: now,
       updatedAt: now,
@@ -606,6 +609,19 @@ export const create = mutation({
         ? { frontmatter: args.frontmatter }
         : {}),
     });
+
+    // If content was provided (file import), create the content row immediately.
+    if (args.content) {
+      const contentId = await ctx.db.insert("document_content", {
+        documentId,
+        projectId: args.projectId,
+        userId: user._id,
+        content: args.content,
+        updatedAt: now,
+      });
+      await ctx.db.patch(documentId, { contentId });
+    }
+
     await adjustDocumentCount(ctx, args.projectId, 1);
     await scheduleStatusChange(ctx, {
       projectId: args.projectId,

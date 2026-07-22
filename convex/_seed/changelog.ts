@@ -1574,6 +1574,31 @@ A publish is only half the job — your post isn't live until your site rebuilds
 - Log files are human-readable timestamps with a \`[level]\` prefix — they do not rotate by date, only by size.
 `,
   },
+  {
+    title: "File import — bulk content and animation importer",
+    slug: "file-import-bulk-content-animation-importer",
+    description:
+      "Drag-and-drop .md, .mdx, and .tsx files into a project sidebar. Content files parse frontmatter and create documents; animation files become components — all in one go.",
+    build: "324787d",
+    publishedAt: Date.parse("2026-07-22T21:00:00+05:00"),
+    content: `## Import panel (sidebar sheet)
+
+You no longer need to create documents one at a time. Open the Import panel from any project page and drag in a mix of files:
+
+- **\`.md\` / \`.mdx\` content files** — frontmatter (YAML tags, keywords, author, dates) is parsed automatically and merged with the project schema. The body is written to Convex without the frontmatter block.
+- **\`.tsx\` animation files** — the default export name is extracted and each file becomes a project animation. Name conflicts are surfaced inline with three options: Rename, Replace, or Skip.
+
+All files show live status (pending → imported or error) and animation files have an inline preview toggle so you can verify the component renders before importing.
+
+## Cost-optimised name index
+
+Checking animation name collisions used to pull every animation record (including the full \`~100KB\` source body). A new \`animation_names\` table stores only \`{projectId, name}\` pairs (~50 bytes each). A one-click migration in the admin panel (\`/admin/seed\` → "Animation names table") backfills existing data.
+
+## Settings toggle
+
+File import is off by default. Turn it on per-project in Settings → Content → File import.
+`,
+  },
 ];
 
 const seedResult = v.object({

@@ -8,6 +8,7 @@ import {
   Clapperboard,
   Copy,
   CopyPlus,
+  FileUp,
   Loader2,
   Pencil,
   Plus,
@@ -15,7 +16,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   type DeletableAnimation,
@@ -53,6 +54,16 @@ type AnimationRow = {
   source: string;
   updatedAt: number;
 };
+
+/** Extract the default-exported function/component name from TSX source. */
+function extractDefaultExportName(source: string): string | null {
+  const match = source.match(
+    /export\s+default\s+(?:function\s+(\w+)|const\s+(\w+)\s*[:=])/,
+  );
+  if (match) return match[1] ?? match[2] ?? null;
+  const nameMatch = source.match(/(?:function|const)\s+([A-Z][A-Za-z0-9]*)/);
+  return nameMatch?.[1] ?? null;
+}
 
 /**
  * Project-level animation gallery — the Media-library equivalent for code
@@ -387,6 +398,29 @@ function AnimationEditSheet({
   const [source, setSource] = useState(row?.source ?? STARTER_SOURCE);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileImport = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      if (!file.name.endsWith(".tsx") && !file.name.endsWith(".ts")) {
+        toast.error("Please select a .tsx file");
+        e.target.value = "";
+        return;
+      }
+      file.text().then((text) => {
+        setSource(text);
+        const extractedName = extractDefaultExportName(text);
+        if (extractedName && isNew) {
+          setName(extractedName);
+        }
+        toast.success(`Loaded ${file.name}`);
+      });
+      e.target.value = "";
+    },
+    [isNew],
+  );
 
   const [debouncedSource, setDebouncedSource] = useState(source);
   useEffect(() => {
@@ -485,15 +519,32 @@ function AnimationEditSheet({
                 <Label htmlFor="gallery-anim-source">
                   Component source (TSX)
                 </Label>
-                {compiled.ok ? (
-                  <span className="flex items-center gap-1 text-[11px] font-medium text-green-500">
-                    <Check className="size-3" /> compiles
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-1 text-[11px] font-medium text-destructive">
-                    <AlertCircle className="size-3" /> won't compile
-                  </span>
-                )}
+                <div className="flex items-center gap-2">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".tsx,.ts"
+                    className="hidden"
+                    onChange={handleFileImport}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <FileUp className="size-3" />
+                    Import .tsx
+                  </button>
+                  {compiled.ok ? (
+                    <span className="flex items-center gap-1 text-[11px] font-medium text-green-500">
+                      <Check className="size-3" /> compiles
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1 text-[11px] font-medium text-destructive">
+                      <AlertCircle className="size-3" /> won&apos;t compile
+                    </span>
+                  )}
+                </div>
               </div>
               {!compiled.ok && (
                 <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3">

@@ -80,6 +80,37 @@ async function requireOwnedProject(
 }
 
 /* ------------------------------------------------------------------ */
+/*  animation_names sync helpers                                        */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Insert a lightweight name row alongside the main animation doc.
+ * Name and projectId are both immutable, so this only runs on create.
+ */
+async function insertNameRow(
+  ctx: MutationCtx,
+  projectId: Id<"projects">,
+  name: string,
+): Promise<void> {
+  await ctx.db.insert("animation_names", { projectId, name });
+}
+
+/** Remove the name row — called on animation delete. */
+async function deleteNameRow(
+  ctx: MutationCtx,
+  projectId: Id<"projects">,
+  name: string,
+): Promise<void> {
+  const existing = await ctx.db
+    .query("animation_names")
+    .withIndex("by_project_and_name", (q) =>
+      q.eq("projectId", projectId).eq("name", name),
+    )
+    .unique();
+  if (existing) await ctx.db.delete(existing._id);
+}
+
+/* ------------------------------------------------------------------ */
 /*  Validation                                                          */
 /* ------------------------------------------------------------------ */
 
@@ -189,6 +220,48 @@ export const usage = query({
 });
 
 /**
+ * Lightweight name-existence check. Scans only the `animation_names` table
+ * (tiny docs, no source body) so scanning 50k names costs ~50KB of reads
+ * instead of ~5GB. Returns a Set-like record of existing names.
+ *
+ * Powers the import sheet's conflict detection and any other surface that
+ * needs to check name collisions without pulling the full animation list.
+ */
+export const checkNames = query({
+  args: { projectId: v.id("projects") },
+  handler: async (ctx, args): Promise<string[]> => {
+    const project = await ownedProjectForQuery(ctx, args.projectId);
+    if (!project) return [];
+    const rows = await ctx.db
+      .query("animation_names")
+      .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
+      .collect();
+    return rows.map((r) => r.name);
+  },
+});
+
+/**
+ * Resolve an animation name to its `_id` — light single-index-lookup query
+ * (no source body fetched). Powers the "Replace" conflict-resolution option
+ * in the import sheet.
+ */
+export const getIdByName = query({
+  args: { projectId: v.id("projects"), name: v.string() },
+  returns: v.union(v.id("animations"), v.null()),
+  handler: async (ctx, args): Promise<Id<"animations"> | null> => {
+    const project = await ownedProjectForQuery(ctx, args.projectId);
+    if (!project) return null;
+    const row = await ctx.db
+      .query("animations")
+      .withIndex("by_project_and_name", (q) =>
+        q.eq("projectId", args.projectId).eq("name", args.name),
+      )
+      .unique();
+    return row?._id ?? null;
+  },
+});
+
+/**
  * Server-side lookup for the publish pipeline (github.ts) — ownership is
  * already verified by the caller before the publish action runs.
  */
@@ -254,6 +327,8 @@ export const create = mutation({
       updatedAt: now,
     });
 
+    await insertNameRow(ctx, args.projectId, name);
+
     return { _id: animationId, name, source, updatedAt: now };
   },
 });
@@ -282,6 +357,41 @@ export const update = mutation({
   },
 });
 
+/**
+ * Replace an animation's source by project + name — avoids the client needing
+ * the `_id`. Used by the import sheet's "Replace" conflict-resolution option.
+ * The name row is unaffected (name and projectId didn't change).
+ */
+export const replaceByName = mutation({
+  args: {
+    projectId: v.id("projects"),
+    name: v.string(),
+    source: v.string(),
+  },
+  handler: async (ctx, args): Promise<null> => {
+    const key = await getRateLimitKey(ctx);
+    await rateLimiter.limit(ctx, "animations:update", { key, throws: true });
+
+    await requireOwnedProject(ctx, args.projectId);
+
+    const row = await ctx.db
+      .query("animations")
+      .withIndex("by_project_and_name", (q) =>
+        q.eq("projectId", args.projectId).eq("name", normalizeName(args.name)),
+      )
+      .unique();
+    if (!row) {
+      throw new Error(`Animation "${args.name}" not found in this project`);
+    }
+
+    await ctx.db.patch(row._id, {
+      source: validateSource(args.source),
+      updatedAt: Date.now(),
+    });
+    return null;
+  },
+});
+
 export const remove = mutation({
   args: { animationId: v.id("animations") },
   handler: async (ctx, args): Promise<null> => {
@@ -292,6 +402,7 @@ export const remove = mutation({
     if (!animation) return null; // idempotent
     await requireOwnedProject(ctx, animation.projectId);
 
+    await deleteNameRow(ctx, animation.projectId, animation.name);
     await ctx.db.delete(args.animationId);
     return null;
   },

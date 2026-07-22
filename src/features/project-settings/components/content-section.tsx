@@ -29,6 +29,8 @@ export function ContentSection({
     setAnimationsPath,
     animationsOn,
     setAnimationsOn,
+    importOn,
+    setImportOn,
     defaultPattern,
     isSaving,
     hasChanges,
@@ -125,6 +127,14 @@ export function ContentSection({
             )}
           </>
         )}
+
+        <ToggleRow
+          title="File import"
+          line="Drag-and-drop or upload .md and .mdx files from your computer"
+          info="When enabled, an 'Import' button appears in the content dashboard toolbar. You can drag .md/.mdx files onto the dashboard or pick them from a file dialog. Frontmatter is parsed and validated against the project schema. Off by default to keep Convex reads/writes minimal — only turn it on while actively importing."
+          checked={importOn}
+          onCheckedChange={setImportOn}
+        />
 
         <SaveBar
           hasChanges={hasChanges}

@@ -121,6 +121,12 @@ export default defineSchema({
      * a configured path so MDX users can opt out without losing the path.
      */
     animationsEnabled: v.optional(v.boolean()),
+    /**
+     * Opt-in toggle for importing .md/.mdx files from the local filesystem
+     * (drag-and-drop or file picker). Default off — costs zero until turned
+     * on in project settings.
+     */
+    importEnabled: v.optional(v.boolean()),
     mediaStorageMode: v.optional(
       v.union(
         v.literal("github"),
@@ -1283,6 +1289,20 @@ export default defineSchema({
     name: v.string(),
     source: v.string(),
     updatedAt: v.number(),
+  })
+    .index("by_project", ["projectId"])
+    .index("by_project_and_name", ["projectId", "name"]),
+
+  /**
+   * Lightweight name-only index for animation existence checks.
+   * Each row is tiny (~50 bytes vs ~100KB with source) so checking 50k
+   * names costs pennies instead of gigabytes. Kept in sync by create/
+   * update/remove mutations via the helpers in animations.ts.
+   * Migration: convex/_seed/animationNames.ts (admin panel)
+   */
+  animation_names: defineTable({
+    projectId: v.id("projects"),
+    name: v.string(),
   })
     .index("by_project", ["projectId"])
     .index("by_project_and_name", ["projectId", "name"]),

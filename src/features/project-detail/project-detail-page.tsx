@@ -2,7 +2,7 @@
 
 import { useAction, useMutation, useQuery } from "convex/react";
 import { motion } from "framer-motion";
-import { Cloud, Plus, Settings, Trash2 } from "lucide-react";
+import { Cloud, Plus, Settings, Trash2, Upload } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -22,6 +22,7 @@ import {
   DeleteRemoteFileDialog,
   type RemoteDeleteTarget,
 } from "@/features/content-dashboard/components/delete-remote-file-dialog";
+import { FileImportSheet } from "@/features/content-dashboard/components/file-import-sheet";
 import { useBulkDelete } from "@/features/content-dashboard/hooks/use-bulk-delete";
 import { useBulkImport } from "@/features/content-dashboard/hooks/use-bulk-import";
 import { ScheduleDialog } from "@/features/editor/components/schedule-dialog";
@@ -103,6 +104,7 @@ export function ProjectDetailPage() {
 
   const [viewFilter, setViewFilter] = useState<ViewFilter>("all");
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [createInitialStatus, setCreateInitialStatus] = useState<
     string | undefined
   >(undefined);
@@ -644,6 +646,16 @@ export function ProjectDetailPage() {
             <Settings className="size-4" />
             Settings
           </Link>
+          {project?.importEnabled && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setImportDialogOpen(true)}
+            >
+              <Upload className="size-4" />
+              Import
+            </Button>
+          )}
           <Button size="sm" onClick={() => setCreateDialogOpen(true)}>
             <Plus className="size-4" />
             New Document
@@ -703,6 +715,12 @@ export function ProjectDetailPage() {
           if (!open) setCreateInitialStatus(undefined);
         }}
         initialStatus={createInitialStatus}
+      />
+
+      <FileImportSheet
+        projectId={projectId}
+        open={importDialogOpen}
+        onOpenChange={setImportDialogOpen}
       />
 
       {deleteTarget && (

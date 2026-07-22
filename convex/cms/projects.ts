@@ -38,6 +38,7 @@ const projectFields = {
   mediaPath: v.optional(v.string()),
   animationsPath: v.optional(v.string()),
   animationsEnabled: v.optional(v.boolean()),
+  importEnabled: v.optional(v.boolean()),
   mediaStorageMode: v.optional(
     v.union(
       v.literal("github"),
@@ -207,6 +208,7 @@ export const create = mutation({
     mediaPath: v.optional(v.string()),
     animationsPath: v.optional(v.string()),
     animationsEnabled: v.optional(v.boolean()),
+    importEnabled: v.optional(v.boolean()),
     mediaStorageMode: v.optional(
       v.union(
         v.literal("github"),
@@ -259,6 +261,7 @@ export const create = mutation({
       mediaPath?: string;
       animationsPath?: string;
       animationsEnabled?: boolean;
+      importEnabled?: boolean;
       mediaStorageMode?: "github" | "uploadthing" | "cloudinary";
       frontmatterSchema?: string;
       commitMessageTemplate?: string;
@@ -352,6 +355,7 @@ export const update = mutation({
     animationsPath: v.optional(v.string()),
     /** Explicit feature toggle — false wins over a configured path. */
     animationsEnabled: v.optional(v.boolean()),
+    importEnabled: v.optional(v.boolean()),
     mediaStorageMode: v.optional(
       v.union(
         v.literal("github"),

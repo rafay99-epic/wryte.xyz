@@ -39,6 +39,7 @@ export type ProjectData = {
   mediaPath?: string;
   animationsPath?: string;
   animationsEnabled?: boolean;
+  importEnabled?: boolean;
   mediaStorageMode?: MediaStorageMode;
   frontmatterSchema?: string;
   commitMessageTemplate?: string;

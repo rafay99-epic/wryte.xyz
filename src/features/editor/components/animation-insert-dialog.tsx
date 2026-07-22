@@ -1,8 +1,16 @@
 "use client";
 
 import { useMutation, useQuery } from "convex/react";
-import { AlertCircle, Check, Loader2, Sparkles, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  AlertCircle,
+  Check,
+  FileUp,
+  Loader2,
+  Sparkles,
+  Trash2,
+} from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import {
   type DeletableAnimation,
   DeleteAnimationDialog,
@@ -79,6 +87,16 @@ export default function MyAnimation() {
 }
 `;
 
+/** Extract the default-exported function/component name from TSX source. */
+function extractDefaultExportName(source: string): string | null {
+  const match = source.match(
+    /export\s+default\s+(?:function\s+(\w+)|const\s+(\w+)\s*[:=])/,
+  );
+  if (match) return match[1] ?? match[2] ?? null;
+  const nameMatch = source.match(/(?:function|const)\s+([A-Z][A-Za-z0-9]*)/);
+  return nameMatch?.[1] ?? null;
+}
+
 /**
  * Author sheet for code animations: name a component, paste/edit its TSX,
  * watch it render live, then save it to the project and insert
@@ -133,6 +151,33 @@ export function AnimationInsertDialog({
 
   const editing = selectedId !== null;
   const nameError = editing ? null : nameProblem(name);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  /**
+   * Handle importing a .tsx file from disk: read the file, try to extract
+   * the component name, and pre-fill the source textarea.
+   */
+  const handleFileImport = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      if (!file.name.endsWith(".tsx") && !file.name.endsWith(".ts")) {
+        toast.error("Please select a .tsx file");
+        e.target.value = "";
+        return;
+      }
+      file.text().then((text) => {
+        setSource(text);
+        const extractedName = extractDefaultExportName(text);
+        if (extractedName && !editing) {
+          setName(extractedName);
+        }
+        toast.success(`Loaded ${file.name}`);
+      });
+      e.target.value = "";
+    },
+    [editing],
+  );
 
   const resetForm = useCallback(() => {
     setSelectedId(null);
@@ -301,15 +346,32 @@ export function AnimationInsertDialog({
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <Label htmlFor="animation-source">Component source (TSX)</Label>
-                {compiled.ok ? (
-                  <span className="flex items-center gap-1 text-[11px] font-medium text-green-500">
-                    <Check className="size-3" /> compiles
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-1 text-[11px] font-medium text-destructive">
-                    <AlertCircle className="size-3" /> won't compile
-                  </span>
-                )}
+                <div className="flex items-center gap-2">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".tsx,.ts"
+                    className="hidden"
+                    onChange={handleFileImport}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <FileUp className="size-3" />
+                    Import .tsx
+                  </button>
+                  {compiled.ok ? (
+                    <span className="flex items-center gap-1 text-[11px] font-medium text-green-500">
+                      <Check className="size-3" /> compiles
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1 text-[11px] font-medium text-destructive">
+                      <AlertCircle className="size-3" /> won&apos;t compile
+                    </span>
+                  )}
+                </div>
               </div>
               {/* Error sits ABOVE the code, always in view — no scrolling to
                   the preview panel to find out what broke. */}
