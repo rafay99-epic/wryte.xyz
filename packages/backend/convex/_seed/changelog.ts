@@ -1599,6 +1599,64 @@ Checking animation name collisions used to pull every animation record (includin
 File import is off by default. Turn it on per-project in Settings → Content → File import.
 `,
   },
+  {
+    title: "MCP server \u2014 connect a coding agent to Wryte",
+    slug: "mcp-server-connect-a-coding-agent-to-wryte",
+    description:
+      "Claude Code, Cursor, or anything that speaks MCP can now read your posts, research a topic, draft, schedule and publish \u2014 working as you, over OAuth, with no API token anywhere.",
+    version: "1.4.0",
+    build: "c468aaf",
+    publishedAt: Date.parse("2026-07-25T20:00:00+05:00"),
+    content: `## What's new
+
+Wryte now ships a **Model Context Protocol server**, so a coding agent can work inside your projects on your behalf. The loop it was built for:
+
+> Look at my existing posts, research this topic, file what you find, then write me a first draft.
+
+Add it to your agent in one command \u2014 the exact URL is in **Settings \u2192 MCP Server**, with a copy button:
+
+\`\`\`bash
+claude mcp add --transport http wryte https://<your-deployment>.convex.site/mcp
+\`\`\`
+
+Then run \`/mcp\`, choose **Authenticate**, and approve in the browser. That's it.
+
+## No API tokens
+
+Authentication is **OAuth 2.1 with PKCE**, brokered by Clerk. Your agent registers itself, opens a browser once, and holds a short-lived token it refreshes on its own. Nothing is written to \`.mcp.json\`, so there is no secret to accidentally commit.
+
+If a machine is ever compromised you revoke **that one client** from the Clerk dashboard \u2014 your laptop keeps working.
+
+## You choose what agents can do
+
+Five capabilities, managed in **Settings \u2192 MCP Server**:
+
+- **Read** and **Write** are on by default \u2014 read-your-posts-then-draft is one intent, and an agent that stops mid-task for a second approval is worse than one scoped correctly up front.
+- **Publish**, **Media** and **Trash** stay off until you turn them on, because they have effects outside Wryte: commits land in your GitHub repo, uploads spend your storage provider's quota, and deletion is deletion.
+
+Changes apply immediately \u2014 no reconnect needed. An agent never even *sees* a tool it can't call, so it won't try one and fail.
+
+## Nothing irreversible is reachable
+
+At no capability can an agent permanently delete a document, delete a project, delete your account, or touch stored credentials \u2014 GitHub tokens, AI keys, storage secrets. The worst it can do is move something to the trash, which you can restore.
+
+## 21 tools
+
+Projects, documents (list, search, get, create, update, history, backlinks), research notes, the editorial calendar, scheduling, GitHub publishing, media upload, and writing stats.
+
+Agents also get read-only **resources**, including your project's frontmatter contract and its valid board statuses \u2014 so drafts come back valid the first time instead of guess, reject, retry.
+
+## Docs
+
+Full documentation is at [/docs](/docs): the OAuth flow, every capability, a generated reference for all 21 tools, the rate limits, and every error message with what it means.
+
+## Good to know
+
+- Rate limits are per account, not per machine \u2014 connecting a second agent doesn't buy extra quota.
+- Every tool call is recorded in an audit log for 7 days. Document bodies are redacted from it.
+- Agents obey exactly the same ownership checks, quotas and rate limits as the web app, because they call the same code.
+`,
+  },
 ];
 
 const seedResult = v.object({

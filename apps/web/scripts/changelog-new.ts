@@ -25,9 +25,31 @@ import { join } from "node:path";
 import { stdin as input, stdout as output } from "node:process";
 import { createInterface } from "node:readline/promises";
 
-const REPO_ROOT = process.cwd();
-const SEED_FILE = join(REPO_ROOT, "convex", "_seed", "changelog.ts");
-const ARRAY_TERMINATOR = "];\n\nexport const seed";
+// This script runs from `apps/web` (via `bun run --filter @wryte/web`), but the
+// changelog seed lives in the backend workspace — the monorepo split moved it and
+// left the old single-package path behind.
+const SEED_FILE = join(
+  process.cwd(),
+  "..",
+  "..",
+  "packages",
+  "backend",
+  "convex",
+  "_seed",
+  "changelog.ts",
+);
+
+/**
+ * Anchors the insertion point on the ENTRIES array's own closing bracket rather
+ * than on whatever declaration happens to follow it. The previous anchor was the
+ * literal text after the array, so inserting an unrelated const between the two
+ * silently broke this script.
+ */
+const ARRAY_DECLARATION = "const ENTRIES: SeedEntry[] = [";
+
+/** The array's closing bracket at column 0. Anchored separately from whatever
+ *  declaration follows it, so adding a const after ENTRIES can't break this. */
+const ARRAY_TERMINATOR = "\n];\n";
 
 const TEMPLATE = `## What's new
 
@@ -93,7 +115,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const build = execSync("git rev-parse --short HEAD", { cwd: REPO_ROOT })
+  const build = execSync("git rev-parse --short HEAD", { cwd: process.cwd() })
     .toString()
     .trim();
   const slug = slugify(title);
@@ -104,11 +126,18 @@ async function main(): Promise<void> {
     console.error(`An entry with slug "${slug}" already exists.`);
     process.exit(1);
   }
-  const insertAt = seedSource.lastIndexOf(ARRAY_TERMINATOR);
+  const declAt = seedSource.indexOf(ARRAY_DECLARATION);
+  if (declAt === -1) {
+    console.error(`Could not locate "${ARRAY_DECLARATION}" in ${SEED_FILE}.`);
+    process.exit(1);
+  }
+  // The array's closing bracket on its own line, searched from the declaration.
+  // Bracket-counting would be wrong here: entry bodies are template literals
+  // containing markdown links, so the depth never balances. A column-0 `];` is
+  // unambiguous — entry content is always indented or inside a literal.
+  const insertAt = seedSource.indexOf(ARRAY_TERMINATOR, declAt);
   if (insertAt === -1) {
-    console.error(
-      `Could not locate the ENTRIES array terminator (${ARRAY_TERMINATOR.split("\n")[0]}) in ${SEED_FILE}.`,
-    );
+    console.error(`ENTRIES array in ${SEED_FILE} is not closed.`);
     process.exit(1);
   }
 
@@ -123,7 +152,7 @@ async function main(): Promise<void> {
   },
 `;
 
-  const updatedSeed = `${seedSource.slice(0, insertAt)}${entryLiteral}${seedSource.slice(insertAt)}`;
+  const updatedSeed = `${seedSource.slice(0, insertAt + 1)}${entryLiteral}${seedSource.slice(insertAt + 1)}`;
   writeFileSync(SEED_FILE, updatedSeed);
   console.info(`Appended entry "${slug}" to ${SEED_FILE}.`);
 
