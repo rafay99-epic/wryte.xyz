@@ -181,7 +181,7 @@ export function MediaLibraryPage() {
   /* ---------- Render guards ---------- */
   if (project === undefined) {
     return (
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <Skeleton className="mb-6 h-7 w-24" />
         <Skeleton className="mb-2 h-8 w-32" />
         <Skeleton className="h-64 w-full rounded-xl" />
@@ -210,14 +210,16 @@ export function MediaLibraryPage() {
         false);
 
   return (
-    <div className="p-6">
+    <div className="p-4 sm:p-6">
       {/* Navigation lives in the sidebar's single Back button — no
           per-page back links. */}
       {/* Header */}
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Media</h1>
-          <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3 sm:mb-6">
+        <div className="min-w-0">
+          <h1 className="text-xl font-bold tracking-tight sm:text-2xl">
+            Media
+          </h1>
+          <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-muted-foreground">
             <ScopeBadge filter={filter} />
             <span>·</span>
             <span>
@@ -225,23 +227,28 @@ export function MediaLibraryPage() {
             </span>
             {location ? (
               <>
-                <span>·</span>
-                <span className="font-mono text-xs">{location}</span>
+                <span className="hidden sm:inline">·</span>
+                <span className="hidden truncate font-mono text-xs sm:inline">
+                  {location}
+                </span>
               </>
             ) : null}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           <Button
             variant="outline"
             size="sm"
             onClick={() => void refresh()}
             disabled={isLoading}
+            aria-label="Refresh"
           >
             <RefreshCw
               className={cn("size-3.5", isLoading && "animate-spin")}
             />
-            Refresh
+            {/* The icon carries it on narrow screens; the label would push the
+                Upload button off the row. */}
+            <span className="hidden sm:inline">Refresh</span>
           </Button>
           <Button size="sm" onClick={() => setUploadDialogOpen(true)}>
             <Upload className="size-4" />
@@ -251,9 +258,8 @@ export function MediaLibraryPage() {
       </div>
 
       {/*
-        One tab per connected provider. Selecting one re-lists from that bucket
-        and points uploads and deletes at it, so several storage backends stay
-        browsable side by side. Hidden when only one is connected.
+        Tabs filter what's already loaded — "All" merges every connected
+        provider. Hidden when only one is connected.
       */}
       <MediaProviderTabs
         tabs={configuredTabs}
@@ -314,7 +320,7 @@ export function MediaLibraryPage() {
 
       {/* Grid */}
       {filteredItems.length > 0 ? (
-        <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
           <AnimatePresence mode="popLayout" initial={false}>
             {filteredItems.map((item) => (
               <MediaCard
@@ -440,7 +446,29 @@ function ScopeBadge({ filter }: { filter: MediaFilter }) {
   return <ProviderChip provider={filter} />;
 }
 
-/** Small provider marker — also stamped on each card in the merged view. */
+/**
+ * Corner marker on a card in the merged view: which bucket this file is in.
+ *
+ * Icon only. A full "CLOUDFLARE R2" label reads as a headline over a thumbnail
+ * grid — the source is a hint you glance at, not something to announce, so the
+ * name lives in the tooltip and the accessible label instead.
+ */
+function ProviderMark({ provider }: { provider: ActiveProvider }) {
+  const Icon = PROVIDER_ICON[provider];
+  const label = PROVIDER_LABEL[provider];
+  return (
+    <span
+      title={label}
+      aria-label={label}
+      role="img"
+      className="absolute left-1.5 top-1.5 rounded-md bg-background/75 p-1 text-muted-foreground backdrop-blur-sm"
+    >
+      <Icon className="size-3" />
+    </span>
+  );
+}
+
+/** Provider marker with its name — for the header, where there's room. */
 function ProviderChip({ provider }: { provider: ActiveProvider }) {
   const Icon = PROVIDER_ICON[provider];
   return (
@@ -561,22 +589,25 @@ function MediaCard({
       }}
       className="group overflow-hidden rounded-lg border bg-card transition-colors hover:bg-muted/30"
     >
-      <div className="relative flex h-36 items-center justify-center bg-muted/50">
+      <div className="relative flex h-28 items-center justify-center bg-muted/50 sm:h-36">
         {isImage ? (
           <MediaImage
             src={item.url}
             alt={item.name}
-            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
           />
         ) : (
           <ImageIcon className="size-10 text-muted-foreground/30" />
         )}
-        {showProvider && (
-          <span className="absolute left-1.5 top-1.5">
-            <ProviderChip provider={item.provider} />
-          </span>
-        )}
-        <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
+        {showProvider && <ProviderMark provider={item.provider} />}
+        <div
+          className={cn(
+            "absolute inset-0 flex flex-wrap items-center justify-center gap-1.5 bg-black/50 p-2 transition-opacity",
+            // Touch devices have no hover, so a hover-only overlay hides copy,
+            // open and delete behind a gesture that doesn't exist there.
+            "opacity-100 md:opacity-0 md:group-hover:opacity-100",
+          )}
+        >
           <Button size="xs" variant="secondary" onClick={handleCopyUrl}>
             <Copy className="size-3" />
             URL

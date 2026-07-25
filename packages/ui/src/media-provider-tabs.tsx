@@ -43,7 +43,12 @@ export function MediaProviderTabs({
     <div
       role="tablist"
       aria-label="Storage provider"
-      className={cn("flex flex-wrap items-center gap-1", className)}
+      className={cn(
+        // Scrolls rather than wraps on narrow screens: four providers plus
+        // "All" would otherwise push the grid down a whole row on a phone.
+        "-mx-1 flex items-center gap-1 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:flex-wrap sm:px-0 sm:pb-0",
+        className,
+      )}
     >
       <button
         type="button"
@@ -51,7 +56,7 @@ export function MediaProviderTabs({
         aria-selected={selected === "all"}
         onClick={() => onSelect("all")}
         className={cn(
-          "rounded-md border px-2.5 py-1 text-xs font-medium transition-colors",
+          "shrink-0 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors",
           selected === "all"
             ? "border-border bg-muted text-foreground"
             : "border-transparent text-muted-foreground hover:bg-muted/50 hover:text-foreground",
@@ -69,7 +74,7 @@ export function MediaProviderTabs({
             aria-selected={isSelected}
             onClick={() => onSelect(tab.provider)}
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors",
+              "inline-flex shrink-0 items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors",
               isSelected
                 ? "border-border bg-muted text-foreground"
                 : "border-transparent text-muted-foreground hover:bg-muted/50 hover:text-foreground",
