@@ -1657,6 +1657,58 @@ Full documentation is at [/docs](/docs): the OAuth flow, every capability, a gen
 - Agents obey exactly the same ownership checks, quotas and rate limits as the web app, because they call the same code.
 `,
   },
+  {
+    title:
+      "Bring your own storage \u2014 Cloudflare R2, and all of them at once",
+    slug: "cloudflare-r2-and-multiple-storage-providers",
+    description:
+      "Add Cloudflare R2 alongside GitHub, UploadThing and Cloudinary \u2014 connect as many as you like, pick which one receives uploads, and browse them all in one grid.",
+    version: "1.5.0",
+    build: "dd24348",
+    publishedAt: Date.parse("2026-07-26T02:00:00+05:00"),
+    content: `## Cloudflare R2
+
+**Cloudflare R2** joins GitHub, UploadThing and Cloudinary as a place your media can live. It is the cheapest of the four at scale \u2014 10 GB free, then $0.015/GB-month, and **no egress charges at all**, so serving images costs nothing however much traffic a post gets.
+
+Connect it in **Settings \u2192 Media** with an R2 API token (Object Read & Write), your bucket name, and the bucket's public URL.
+
+That last field matters: R2 buckets are private by default, and the S3 endpoint Cloudflare shows next to your API tokens only answers *signed* requests. An image stored against it uploads fine and then fails to load for every reader. Wryte rejects that URL when you paste it and points you at the two that work \u2014 a custom domain, or the bucket's r2.dev subdomain.
+
+## Several providers at once
+
+A project is no longer limited to one storage backend. Connect all four if you want to: **one is the default that receives uploads, and every connected provider stays browsable and deletable.**
+
+Settings is now one row per provider. The radio button *is* the default \u2014 setting it is one click on the same row that connects the provider. Providers you have not connected can't be made the default, and the current default can't be disconnected out from under your uploads.
+
+## One library, four buckets
+
+The media library opens on **All**, merging every connected provider into a single grid with a small icon in each corner showing where that file lives.
+
+The provider tabs are **filters over what is already loaded**, not fetches \u2014 switching between them costs nothing. Listings load one provider at a time, a page at a time, rather than firing off a request per bucket the moment the page opens.
+
+If one provider fails \u2014 an expired key, an outage \u2014 it now says so in place and **the rest of your media still loads**. Previously a single bad credential emptied the whole page.
+
+## Switch destination while writing
+
+The editor's image picker, video picker and media drawer all get the same provider switcher. Your default is preselected, and you can send a single upload somewhere else without leaving the editor or changing any setting. Only connected providers appear, so there is no way to pick one that would fail.
+
+## Credentials
+
+Editing one field no longer means retyping the rest. Bucket names, account IDs and cloud names are filled in for you; secrets stay blank and mean "unchanged", and the server merges your edit into what is already stored.
+
+Stored secrets are **never sent to the browser**, not even behind a reveal toggle. Two fields that were previously treated as public metadata \u2014 Cloudinary's API key and R2's access key ID \u2014 are now handled as the credentials they are. Non-secret settings that used to be mirrored into the database in plain text have moved into the vault as well, so a credential now exists in exactly one place.
+
+## Fixes
+
+- **Cloudinary uploads had unreadable names** like \`quzsyj0cloja0zzh3ggq\` and showed no thumbnail. Uploads now keep your filename, and existing files display correctly too.
+- **Media cards were unusable on touch.** Copy URL, open and delete lived behind a hover state, so on a phone those actions did not exist. The library is properly laid out for small screens now.
+- **Provider errors are recorded properly.** Failures were being logged as Wryte's own wrapper rather than what the provider actually said, which made "why did this 403?" unanswerable after the fact.
+
+## For the curious
+
+Adding a storage backend is now a two-file change internally \u2014 a registry entry and one adapter. The settings form, the setup wizard, the provider tabs, the icons and the empty states all read from that entry, so the fifth provider will not need any of them touched.
+`,
+  },
 ];
 
 const seedResult = v.object({

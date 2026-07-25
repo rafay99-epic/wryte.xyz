@@ -74,7 +74,6 @@ import type * as integrations_scheduling from "../integrations/scheduling.js";
 import type * as integrations_secretStore from "../integrations/secretStore.js";
 import type * as mcp_admin from "../mcp/admin.js";
 import type * as mcp_authorize from "../mcp/authorize.js";
-import type * as mcp_backfill from "../mcp/backfill.js";
 import type * as mcp_gate from "../mcp/gate.js";
 import type * as mcp_grants from "../mcp/grants.js";
 import type * as mcp_handlers_content from "../mcp/handlers/content.js";
@@ -192,7 +191,6 @@ declare const fullApi: ApiFromModules<{
   "integrations/secretStore": typeof integrations_secretStore;
   "mcp/admin": typeof mcp_admin;
   "mcp/authorize": typeof mcp_authorize;
-  "mcp/backfill": typeof mcp_backfill;
   "mcp/gate": typeof mcp_gate;
   "mcp/grants": typeof mcp_grants;
   "mcp/handlers/content": typeof mcp_handlers_content;
