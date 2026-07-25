@@ -49,9 +49,12 @@ export function CredentialFieldsForm({
         const id = `${idPrefix}-${field.key}`;
         const label =
           field.secret && hasExisting ? `Replace ${field.label}` : field.label;
+        // Secret fields arrive blank because stored secrets never leave the
+        // server. Blank means "keep what's saved", so the placeholder has to
+        // say that rather than look like an empty required field.
         const placeholder =
           field.secret && hasExisting
-            ? "Type to replace…"
+            ? "Unchanged — type to replace"
             : (field.placeholder ?? "");
 
         return (

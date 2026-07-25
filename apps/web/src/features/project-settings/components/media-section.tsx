@@ -8,11 +8,9 @@ import {
   DEFAULT_COMPRESSION_SETTINGS,
 } from "@wryte/logic/lib/image-compression/index";
 import {
-  buildCredentialPublicConfig,
   buildCredentialSecret,
   type CredentialValues,
   missingCredentialFields,
-  readCredentialPublicConfig,
 } from "@wryte/logic/lib/media-credentials";
 import {
   smoothTransition,
@@ -495,7 +493,6 @@ function ProjectWatermarkSection({
 /** Credential row state, narrowed from `listForProject`. */
 type CredentialRow = {
   provider: CredentialProvider;
-  publicConfig: string | undefined;
   status: MediaCredentialStatus;
   lastVerifyError: string | undefined;
 };
@@ -653,7 +650,10 @@ function CredentialPanel({
   const rotate = useAction(api.media.credentials.rotate);
   const deleteCredentials = useAction(api.media.credentials.deleteCredentials);
 
+  const getEditableConfig = useAction(api.media.credentials.getEditableConfig);
+
   const [values, setValues] = useState<CredentialValues>({});
+  const [isLoadingValues, setIsLoadingValues] = useState(false);
   const [busy, setBusy] = useState<"save" | "test" | "delete" | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -664,21 +664,34 @@ function CredentialPanel({
     setValues((prev) => ({ ...prev, [key]: value }));
   }, []);
 
-  /** Non-secret values from the stored row — "Bucket: my-blog-media". */
-  const savedHints = useMemo(() => {
-    const read = readCredentialPublicConfig(credential?.publicConfig);
-    return entry.fields
-      .filter((field) => field.showAfterSave && !field.secret)
-      .map((field) => ({ label: field.label, value: read(field.key) }))
-      .filter((hint): hint is { label: string; value: string } =>
-        Boolean(hint.value),
-      );
-  }, [credential?.publicConfig, entry.fields]);
+  // Pre-fill what's already stored so changing one field doesn't mean retyping
+  // the rest. Only non-secret fields come back — the vault read happens on the
+  // server and secrets never cross the wire.
+  useEffect(() => {
+    if (!hasExisting) return;
+    let cancelled = false;
+    setIsLoadingValues(true);
+    void getEditableConfig({ projectId, provider })
+      .then((config) => {
+        if (cancelled || !config) return;
+        // Anything typed before the round-trip landed wins.
+        setValues((prev) => ({ ...config, ...prev }));
+      })
+      .catch(() => {
+        // Pre-fill is a convenience; a failure just leaves the fields blank.
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingValues(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [getEditableConfig, hasExisting, projectId, provider]);
 
   const handleSave = useCallback(async () => {
-    const secret = buildCredentialSecret(entry, values);
+    const secret = buildCredentialSecret(entry, values, { hasExisting });
     if (!secret) {
-      const missing = missingCredentialFields(entry, values);
+      const missing = missingCredentialFields(entry, values, { hasExisting });
       toast.error(
         missing.length > 0
           ? `Required: ${missing.map((f) => f.label).join(", ")}.`
@@ -689,13 +702,7 @@ function CredentialPanel({
 
     setBusy("save");
     try {
-      const publicConfig = buildCredentialPublicConfig(entry, values);
-      const args = {
-        projectId,
-        provider,
-        secret,
-        ...(publicConfig !== undefined ? { publicConfig } : {}),
-      };
+      const args = { projectId, provider, secret };
 
       if (hasExisting) {
         await rotate(args);
@@ -765,30 +772,25 @@ function CredentialPanel({
 
   return (
     <div className="mt-3 space-y-3 rounded-lg border border-border/40 bg-muted/20 p-3">
-      {savedHints.length > 0 && (
-        <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
-          {savedHints.map((hint) => (
-            <span key={hint.label}>
-              {hint.label}:{" "}
-              <span className="font-mono text-foreground">{hint.value}</span>
-            </span>
-          ))}
-        </div>
-      )}
-
       {credential?.lastVerifyError && (
         <p className="rounded-md border border-destructive/30 bg-destructive/5 p-2 text-[11px] text-destructive">
           {credential.lastVerifyError}
         </p>
       )}
 
-      <CredentialFieldsForm
-        entry={entry}
-        values={values}
-        onChange={handleFieldChange}
-        hasExisting={hasExisting}
-        idPrefix={`cred-${entry.id}`}
-      />
+      {isLoadingValues ? (
+        <p className="text-[11px] text-muted-foreground">
+          Loading current values…
+        </p>
+      ) : (
+        <CredentialFieldsForm
+          entry={entry}
+          values={values}
+          onChange={handleFieldChange}
+          hasExisting={hasExisting}
+          idPrefix={`cred-${entry.id}`}
+        />
+      )}
 
       <div className="flex flex-wrap items-center gap-2">
         <Button

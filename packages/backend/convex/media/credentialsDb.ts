@@ -203,7 +203,8 @@ export const _replaceVaultId = internalMutation({
     credentialId: v.id("mediaCredentials"),
     newVaultSecretId: v.string(),
     newVersionId: v.optional(v.string()),
-    publicConfig: v.optional(v.string()),
+    /** Erase the legacy plaintext mirror of the non-secret fields. */
+    clearPublicConfig: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const patch: Record<string, unknown> = {
@@ -214,9 +215,7 @@ export const _replaceVaultId = internalMutation({
     if (args.newVersionId !== undefined) {
       patch["vaultVersionId"] = args.newVersionId;
     }
-    if (args.publicConfig !== undefined) {
-      patch["publicConfig"] = args.publicConfig;
-    }
+    if (args.clearPublicConfig) patch["publicConfig"] = undefined;
     await ctx.db.patch(args.credentialId, patch);
   },
 });
@@ -255,7 +254,6 @@ export const _markRotated = internalMutation({
     credentialId: v.id("mediaCredentials"),
     newVaultSecretId: v.string(),
     newVersionId: v.optional(v.string()),
-    publicConfig: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const now = Date.now();
@@ -270,9 +268,8 @@ export const _markRotated = internalMutation({
     if (args.newVersionId !== undefined) {
       patch["vaultVersionId"] = args.newVersionId;
     }
-    if (args.publicConfig !== undefined) {
-      patch["publicConfig"] = args.publicConfig;
-    }
+    // Rotation is also when the legacy plaintext mirror gets dropped.
+    patch["publicConfig"] = undefined;
     await ctx.db.patch(args.credentialId, patch);
   },
 });

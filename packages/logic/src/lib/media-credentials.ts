@@ -19,14 +19,24 @@ function trimmed(values: CredentialValues, key: string): string {
   return (values[key] ?? "").trim();
 }
 
-/** Fields the user still has to fill in before saving is possible. */
+/**
+ * Fields the user still has to fill in before saving is possible.
+ *
+ * When a credential already exists, blank *secret* fields are fine: the form
+ * never receives stored secrets, so leaving one empty means "keep it", and the
+ * server merges it back from the vault. Non-secret fields are pre-filled, so a
+ * blank one there is a genuine deletion the user has to resolve.
+ */
 export function missingCredentialFields(
   entry: MediaProviderEntry,
   values: CredentialValues,
+  opts: { hasExisting?: boolean } = {},
 ): CredentialField[] {
-  return entry.fields.filter(
-    (field) => !field.optional && trimmed(values, field.key) === "",
-  );
+  return entry.fields.filter((field) => {
+    if (field.optional) return false;
+    if (opts.hasExisting && field.secret) return false;
+    return trimmed(values, field.key) === "";
+  });
 }
 
 /**
@@ -40,16 +50,22 @@ export function missingCredentialFields(
 export function buildCredentialSecret(
   entry: MediaProviderEntry,
   values: CredentialValues,
+  opts: { hasExisting?: boolean } = {},
 ): string | null {
-  if (missingCredentialFields(entry, values).length > 0) return null;
+  if (missingCredentialFields(entry, values, opts).length > 0) return null;
 
   if (entry.secretFormat === "raw") {
     const first = entry.fields[0];
     if (!first) return null;
     const value = trimmed(values, first.key);
-    return value === "" ? null : value;
+    if (value !== "") return value;
+    // Blank with a credential stored = "leave the token alone"; the server
+    // resolves the empty string back to what's in the vault.
+    return opts.hasExisting ? "" : null;
   }
 
+  // Only the fields actually filled in are submitted. Omissions are not
+  // erasures — the server folds them into the stored credential.
   const secret: Record<string, string> = {};
   for (const field of entry.fields) {
     if (field.excludeFromSecret) continue;
@@ -57,57 +73,6 @@ export function buildCredentialSecret(
     if (value === "") continue;
     secret[field.key] = value;
   }
-  return Object.keys(secret).length === 0 ? null : JSON.stringify(secret);
-}
-
-/**
- * Non-secret hints mirrored back into the UI after saving (bucket name, cloud
- * name, …). Secret fields are never included, whatever the registry says.
- */
-export function buildCredentialPublicConfig(
-  entry: MediaProviderEntry,
-  values: CredentialValues,
-): string | undefined {
-  const out: Record<string, string> = {};
-  for (const field of entry.fields) {
-    if (!field.showAfterSave || field.secret) continue;
-    const value = trimmed(values, field.key);
-    if (value !== "") out[field.key] = value;
-  }
-  return Object.keys(out).length === 0 ? undefined : JSON.stringify(out);
-}
-
-function camelCase(snake: string): string {
-  return snake.replace(/_([a-z])/g, (_, ch: string) => ch.toUpperCase());
-}
-
-/**
- * Reads the stored `publicConfig` blob.
- *
- * Cloudinary rows written before the registry stored camelCased keys
- * (`cloudName`), so each field key is also looked up in that form — otherwise
- * existing projects would stop showing what they're connected to.
- */
-export function readCredentialPublicConfig(
-  raw: string | null | undefined,
-): (key: string) => string | null {
-  let parsed: Record<string, unknown> = {};
-  if (raw) {
-    try {
-      const candidate: unknown = JSON.parse(raw);
-      if (
-        candidate &&
-        typeof candidate === "object" &&
-        !Array.isArray(candidate)
-      ) {
-        parsed = candidate as Record<string, unknown>;
-      }
-    } catch {
-      // Malformed blob — treat as empty rather than breaking the form.
-    }
-  }
-  return (key: string): string | null => {
-    const value = parsed[key] ?? parsed[camelCase(key)];
-    return typeof value === "string" && value !== "" ? value : null;
-  };
+  if (Object.keys(secret).length === 0) return opts.hasExisting ? "{}" : null;
+  return JSON.stringify(secret);
 }

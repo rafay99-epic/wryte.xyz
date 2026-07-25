@@ -2,7 +2,6 @@
 
 import { api } from "@wryte/backend/_generated/api";
 import {
-  buildCredentialPublicConfig,
   buildCredentialSecret,
   type CredentialValues,
   missingCredentialFields,
@@ -278,15 +277,10 @@ export function NewProjectPage() {
       );
       if (secret !== null) {
         try {
-          const publicConfig = buildCredentialPublicConfig(
-            providerEntry,
-            state.mediaCredentials,
-          );
           const res = await setMediaCredentials({
             projectId,
             provider: state.mediaStorageMode as CredentialProvider,
             secret,
-            ...(publicConfig !== undefined ? { publicConfig } : {}),
           });
           if (!res.ok) {
             toast.warning(

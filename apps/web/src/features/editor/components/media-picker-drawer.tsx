@@ -67,7 +67,7 @@ export function MediaPickerDrawer({
   const {
     provider,
     setProvider,
-    providerTabs,
+    configuredTabs,
     showLibrary,
     items: libraryItems,
     isLoading: isLibraryLoading,
@@ -175,7 +175,7 @@ export function MediaPickerDrawer({
             {showLibrary && (
               <TabsContent value="library">
                 <MediaProviderTabs
-                  tabs={providerTabs}
+                  tabs={configuredTabs}
                   selected={provider}
                   onSelect={setProvider}
                   className="mb-3"

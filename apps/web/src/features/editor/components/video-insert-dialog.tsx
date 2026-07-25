@@ -68,7 +68,7 @@ export function VideoInsertDialog({
   const {
     provider,
     setProvider,
-    providerTabs,
+    configuredTabs,
     showLibrary,
     items: libraryItems,
     isLoading: isLibraryLoading,
@@ -225,7 +225,7 @@ export function VideoInsertDialog({
               <TabsContent value="library">
                 <div className="space-y-4">
                   <MediaProviderTabs
-                    tabs={providerTabs}
+                    tabs={configuredTabs}
                     selected={provider}
                     onSelect={setProvider}
                   />
