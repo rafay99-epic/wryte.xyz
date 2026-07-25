@@ -17,6 +17,10 @@ import { contentFormatValidator } from "../_lib/contentFormat";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
 import { type AiProvider, providerValidator } from "../ai/_lib/providers";
 import { publishWorkflowManager } from "../integrations/scheduling";
+import {
+  type MediaProvider,
+  mediaProviderValidator,
+} from "../media/_lib/providers";
 
 /** Hard cap on projects per user. The dashboard's project list query also
  *  uses `.take(100)`, so anything above this gets silently truncated in the
@@ -39,13 +43,7 @@ const projectFields = {
   animationsPath: v.optional(v.string()),
   animationsEnabled: v.optional(v.boolean()),
   importEnabled: v.optional(v.boolean()),
-  mediaStorageMode: v.optional(
-    v.union(
-      v.literal("github"),
-      v.literal("uploadthing"),
-      v.literal("cloudinary"),
-    ),
-  ),
+  mediaStorageMode: v.optional(mediaProviderValidator),
   frontmatterSchema: v.optional(v.string()),
   commitMessageTemplate: v.optional(v.string()),
   commitAttribution: v.optional(v.boolean()),
@@ -230,13 +228,7 @@ export const create = mutation({
     animationsPath: v.optional(v.string()),
     animationsEnabled: v.optional(v.boolean()),
     importEnabled: v.optional(v.boolean()),
-    mediaStorageMode: v.optional(
-      v.union(
-        v.literal("github"),
-        v.literal("uploadthing"),
-        v.literal("cloudinary"),
-      ),
-    ),
+    mediaStorageMode: v.optional(mediaProviderValidator),
     frontmatterSchema: v.optional(v.string()),
     commitMessageTemplate: v.optional(v.string()),
     filenamePattern: v.optional(v.string()),
@@ -283,7 +275,7 @@ export const create = mutation({
       animationsPath?: string;
       animationsEnabled?: boolean;
       importEnabled?: boolean;
-      mediaStorageMode?: "github" | "uploadthing" | "cloudinary";
+      mediaStorageMode?: MediaProvider;
       frontmatterSchema?: string;
       commitMessageTemplate?: string;
       filenamePattern?: string;
@@ -377,13 +369,7 @@ export const update = mutation({
     /** Explicit feature toggle — false wins over a configured path. */
     animationsEnabled: v.optional(v.boolean()),
     importEnabled: v.optional(v.boolean()),
-    mediaStorageMode: v.optional(
-      v.union(
-        v.literal("github"),
-        v.literal("uploadthing"),
-        v.literal("cloudinary"),
-      ),
-    ),
+    mediaStorageMode: v.optional(mediaProviderValidator),
     frontmatterSchema: v.optional(v.string()),
     commitMessageTemplate: v.optional(v.string()),
     /** Attribution line on publish commits — absent = ON, false = off. */

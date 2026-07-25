@@ -33,9 +33,19 @@ export interface MediaErrorData {
   [key: string]: string | undefined;
 }
 
-/** Convenience for throwing a typed Convex error from anywhere. */
-export function throwMediaError(data: MediaErrorData): never {
-  throw new ConvexError(data);
+/**
+ * Convenience for throwing a typed Convex error from anywhere.
+ *
+ * `cause` keeps the provider's original error attached. `ConvexError.data` can
+ * only hold JSON, so the raw payload can't ride along there — without the cause
+ * chain, {@link redactError} would log this wrapper instead of what the
+ * provider actually said, and a support question like "why did Cloudinary
+ * answer 403?" becomes unanswerable after the fact.
+ */
+export function throwMediaError(data: MediaErrorData, cause?: unknown): never {
+  const error = new ConvexError(data);
+  if (cause !== undefined) (error as Error).cause = cause;
+  throw error;
 }
 
 /**
@@ -87,6 +97,29 @@ export function mapCloudinaryError(err: unknown): MediaErrorCode {
   return "UNKNOWN";
 }
 
+/**
+ * R2 errors are plain HTTP responses, so the caller passes the status (and the
+ * `<Message>` body when it read one) rather than a thrown SDK object.
+ */
+export function mapR2Error(err: unknown): MediaErrorCode {
+  const e = err as { status?: number; message?: string };
+  const status = e?.status;
+  const message = (e?.message ?? "").toLowerCase();
+
+  if (message.includes("quota") || message.includes("exceeded"))
+    return "STORAGE_FULL";
+  if (status === 400 && message.includes("credential")) return "AUTH_INVALID";
+  if (status === 401) return "AUTH_INVALID";
+  // R2 answers 403 for a bad signature as well as for a token that lacks the
+  // object permissions, and 404 for a bucket the token can't see at all.
+  if (status === 403) return "AUTH_FORBIDDEN";
+  if (status === 404) return "AUTH_FORBIDDEN";
+  if (status === 429 || status === 503) return "RATE_LIMITED";
+  if (status !== undefined && status >= 500 && status < 600)
+    return "PROVIDER_DOWN";
+  return "UNKNOWN";
+}
+
 export function mapGithubError(err: unknown): MediaErrorCode {
   const e = err as { status?: number; message?: string };
   const status = e?.status;
@@ -130,15 +163,34 @@ export const DEFAULT_MESSAGES: Record<MediaErrorCode, string> = {
 /**
  * Best-effort redaction of a raw error before persisting it. Replaces
  * anything that looks like an API key with `[REDACTED]`.
+ *
+ * Follows the `cause` chain: our own `ConvexError` wrapper carries no detail
+ * beyond the normalised code, so logging it alone loses the provider's actual
+ * response — the part that says *why* a request was refused.
  */
 export function redactError(err: unknown): string {
+  const chain: unknown[] = [];
+  let current: unknown = err;
+  // Bounded so a self-referential cause can't spin forever.
+  for (
+    let depth = 0;
+    current !== undefined && current !== null && depth < 4;
+    depth++
+  ) {
+    chain.push(current);
+    current = (current as { cause?: unknown }).cause;
+  }
   try {
-    const raw = JSON.stringify(err, Object.getOwnPropertyNames(err ?? {}));
+    const raw = chain
+      .map((item) =>
+        JSON.stringify(item, Object.getOwnPropertyNames(item ?? {})),
+      )
+      .join(" <- caused by: ");
     return raw
       .replace(/sk-[A-Za-z0-9_-]{8,}/g, "[REDACTED]")
       .replace(/api_secret[^,}]+/gi, "api_secret:[REDACTED]")
       .replace(/Bearer\s+[A-Za-z0-9._-]+/gi, "Bearer [REDACTED]")
-      .slice(0, 2000);
+      .slice(0, 4000);
   } catch {
     return "[unredactable]";
   }

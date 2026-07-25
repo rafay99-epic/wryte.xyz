@@ -13,11 +13,9 @@ import { WorkflowManager } from "@convex-dev/workflow";
 import { v } from "convex/values";
 import { components, internal } from "../_generated/api";
 import { internalMutation } from "../_generated/server";
+import { credentialProviderValidator } from "../media/_lib/providers";
 
-const PROVIDER_VALIDATOR = v.union(
-  v.literal("uploadthing"),
-  v.literal("cloudinary"),
-);
+const PROVIDER_VALIDATOR = credentialProviderValidator;
 
 export const rotateWorkflowManager = new WorkflowManager(components.workflow, {
   workpoolOptions: {
@@ -46,7 +44,6 @@ export const rotateCredentialWorkflow = rotateWorkflowManager.define({
     // rotation of an `"invalid"` row was incorrectly promoting it to
     // `"active"`.
     priorStatus: v.union(v.literal("active"), v.literal("invalid")),
-    publicConfig: v.optional(v.string()),
   },
   handler: async (step, args) => {
     const verify = await step.runAction(
@@ -85,16 +82,12 @@ export const rotateCredentialWorkflow = rotateWorkflowManager.define({
       credentialId: typeof args.credentialId;
       newVaultSecretId: string;
       newVersionId?: string;
-      publicConfig?: string;
     } = {
       credentialId: args.credentialId,
       newVaultSecretId: created.id,
     };
     if (created.versionId !== undefined) {
       markArgs.newVersionId = created.versionId;
-    }
-    if (args.publicConfig !== undefined) {
-      markArgs.publicConfig = args.publicConfig;
     }
     await step.runMutation(internal.media.credentialsDb._markRotated, markArgs);
 
@@ -117,7 +110,6 @@ export const kickRotation = internalMutation({
     provider: PROVIDER_VALIDATOR,
     newSecret: v.string(),
     priorStatus: v.union(v.literal("active"), v.literal("invalid")),
-    publicConfig: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<string> => {
     const workflowArgs: {
@@ -125,16 +117,12 @@ export const kickRotation = internalMutation({
       provider: typeof args.provider;
       newSecret: string;
       priorStatus: "active" | "invalid";
-      publicConfig?: string;
     } = {
       credentialId: args.credentialId,
       provider: args.provider,
       newSecret: args.newSecret,
       priorStatus: args.priorStatus,
     };
-    if (args.publicConfig !== undefined) {
-      workflowArgs.publicConfig = args.publicConfig;
-    }
     const workflowId = await rotateWorkflowManager.start(
       ctx,
       internal.workflows.rotateCredential.rotateCredentialWorkflow,

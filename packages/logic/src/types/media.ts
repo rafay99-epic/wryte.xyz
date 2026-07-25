@@ -1,52 +1,34 @@
 /**
- * Shared media provider types.
+ * Media provider types — a thin re-export of the backend registry.
  *
- * Mirrors `convex/media/*` and `convex/providers/index.ts` validators
- * so the FE and BE agree on which providers exist.
+ * `packages/backend/convex/media/_lib/providers.ts` is the single source of
+ * truth and is browser-safe by design (it imports only `convex/values`). This
+ * module exists so front-end code keeps the short `@wryte/logic/types/media`
+ * import path without a hand-maintained mirror that can drift from the schema.
  */
 
-export type MediaProvider = "uploadthing" | "cloudinary" | "github";
-
-export const MEDIA_PROVIDERS: readonly MediaProvider[] = [
-  "uploadthing",
-  "cloudinary",
-  "github",
-] as const;
-
-/** Provider names that are configured per-project via the credentials UI. */
-export type ConfigurableMediaProvider = "uploadthing" | "cloudinary";
-
-export const CONFIGURABLE_MEDIA_PROVIDERS: readonly ConfigurableMediaProvider[] =
-  ["uploadthing", "cloudinary"] as const;
-
-/** Storage mode chosen per project — drives upload routing. */
-export type MediaStorageMode = "github" | "uploadthing" | "cloudinary";
-
-export const MEDIA_STORAGE_MODES: readonly MediaStorageMode[] = [
-  "github",
-  "uploadthing",
-  "cloudinary",
-] as const;
-
-export type MediaCredentialStatus =
-  | "active"
-  | "verifying"
-  | "invalid"
-  | "rotating";
-
-/** Display labels used in dropdowns, badges, and toasts. */
-export const MEDIA_PROVIDER_LABELS: Record<MediaProvider, string> = {
-  uploadthing: "UploadThing",
-  cloudinary: "Cloudinary",
-  github: "GitHub",
-};
-
-/** A normalised list item shape returned from any provider. */
-export type NormalizedMediaItem = {
-  externalId: string;
-  filename: string;
-  size: number;
-  url: string;
-  width?: number;
-  height?: number;
-};
+export type {
+  CredentialField,
+  CredentialProvider,
+  CredentialSource,
+  MediaCredentialStatus,
+  MediaProvider,
+  MediaProviderEntry,
+  MediaProviderIconName,
+  MediaProviderLocationKind,
+  NormalizedMediaItem,
+  SecretFormat,
+} from "@wryte/backend/media/_lib/providers";
+export {
+  ALL_CREDENTIAL_PROVIDERS,
+  ALL_MEDIA_PROVIDERS,
+  CREDENTIAL_PROVIDER_IDS,
+  describeMediaLocation,
+  getMediaProvider,
+  isCredentialProvider,
+  isMediaProvider,
+  MEDIA_PROVIDER_IDS,
+  MEDIA_PROVIDER_LABELS,
+  MEDIA_PROVIDERS,
+  resolveDefaultProvider,
+} from "@wryte/backend/media/_lib/providers";

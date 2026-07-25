@@ -16,16 +16,123 @@ import type { Id } from "../_generated/dataModel";
 import type { ActionCtx } from "../_generated/server";
 import { action } from "../_generated/server";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
-import { cldPing, utPing } from "../providers";
-import { mapCloudinaryError, mapUploadThingError } from "../providers/errors";
-import { parseCloudinarySecret } from "../providers/shared";
+import { getAdapter } from "../providers/registry";
+import {
+  type CredentialProvider,
+  credentialProviderValidator,
+  getMediaProvider,
+} from "./_lib/providers";
 
-const PROVIDER_VALIDATOR = v.union(
-  v.literal("uploadthing"),
-  v.literal("cloudinary"),
-);
+const PROVIDER_VALIDATOR = credentialProviderValidator;
 
-type ProviderName = "uploadthing" | "cloudinary";
+type ProviderName = CredentialProvider;
+
+/* ------------------------------------------------------------------ */
+/*  Partial updates                                                     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Merges a partial credential into the stored one.
+ *
+ * The settings form never receives secret values — they stay inside Convex —
+ * so editing a bucket name would otherwise mean retyping the API secret next
+ * to it. Instead the form submits only the fields it has, and the omitted ones
+ * are filled in here from the vault.
+ *
+ * `raw` providers hold a single opaque token, so "partial" can only mean
+ * "unchanged": an empty submission keeps what's stored.
+ */
+async function mergeWithStoredSecret(
+  ctx: ActionCtx,
+  provider: ProviderName,
+  incoming: string,
+  vaultSecretId: string,
+  rateKey: string,
+): Promise<string> {
+  await rateLimiter.limit(ctx, "vault:read", { key: rateKey, throws: true });
+  const stored: string = await ctx.runAction(
+    internal.integrations.secretStore._read,
+    { id: vaultSecretId },
+  );
+
+  if (getMediaProvider(provider).secretFormat === "raw") {
+    return incoming.trim() === "" ? stored : incoming;
+  }
+
+  let storedFields: Record<string, unknown> = {};
+  try {
+    const parsed: unknown = JSON.parse(stored);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      storedFields = parsed as Record<string, unknown>;
+    }
+  } catch {
+    // Unparseable stored blob — the incoming one replaces it wholesale.
+  }
+  let incomingFields: Record<string, unknown> = {};
+  try {
+    const parsed: unknown = JSON.parse(incoming);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      incomingFields = parsed as Record<string, unknown>;
+    }
+  } catch {
+    throw new ConvexError({
+      code: "UNKNOWN" as const,
+      message: `${getMediaProvider(provider).label} credentials must be a JSON object.`,
+    });
+  }
+  return JSON.stringify({ ...storedFields, ...incomingFields });
+}
+
+/**
+ * Non-secret credential fields, for pre-filling the settings form.
+ *
+ * Reads the vault so the database holds no second, plaintext copy of anything.
+ * Secret fields are filtered out by the registry's `secret` flag and never
+ * cross the wire — the form leaves those blank and
+ * {@link mergeWithStoredSecret} fills them back in on save.
+ */
+export const getEditableConfig = action({
+  args: {
+    projectId: v.id("projects"),
+    provider: PROVIDER_VALIDATOR,
+  },
+  handler: async (ctx, args): Promise<Record<string, string> | null> => {
+    const key = await getRateLimitKey(ctx);
+    const cred = await loadOwnedCredential(ctx, args.projectId, args.provider);
+
+    await rateLimiter.limit(ctx, "vault:read", { key, throws: true });
+    const raw: string = await ctx.runAction(
+      internal.integrations.secretStore._read,
+      { id: cred.vaultSecretId },
+    );
+
+    const entry = getMediaProvider(args.provider);
+    if (entry.secretFormat === "raw") return {};
+
+    let parsed: Record<string, unknown>;
+    try {
+      const candidate: unknown = JSON.parse(raw);
+      if (
+        !candidate ||
+        typeof candidate !== "object" ||
+        Array.isArray(candidate)
+      ) {
+        return {};
+      }
+      parsed = candidate as Record<string, unknown>;
+    } catch {
+      return {};
+    }
+
+    const out: Record<string, string> = {};
+    for (const field of entry.fields) {
+      if (field.secret) continue;
+      const value = parsed[field.key];
+      if (typeof value === "string" && value !== "") out[field.key] = value;
+    }
+    return out;
+  },
+});
 
 /* ------------------------------------------------------------------ */
 /*  Public actions                                                      */
@@ -40,7 +147,6 @@ export const setCredentials = action({
     projectId: v.id("projects"),
     provider: PROVIDER_VALIDATOR,
     secret: v.string(),
-    publicConfig: v.optional(v.string()),
   },
   handler: async (
     ctx,
@@ -68,28 +174,30 @@ export const setCredentials = action({
       throw new Error("Unauthorized");
     }
 
-    // Validate Cloudinary shape early so we never persist a malformed secret.
-    if (args.provider === "cloudinary") {
-      try {
-        parseCloudinarySecret(args.secret);
-      } catch (e) {
-        throw new ConvexError({
-          code: "UNKNOWN" as const,
-          message:
-            (e as Error)?.message ??
-            "Cloudinary credentials must be JSON with cloud_name, api_key, api_secret",
-        });
-      }
-    }
-
     const existing = await ctx.runQuery(
       internal.media.credentialsDb._findByProjectAndProvider,
       { projectId: args.projectId, provider: args.provider },
     );
 
+    // Editing one field submits only that field, so fold the submission into
+    // what's already stored before anything looks at it.
+    const secret = existing
+      ? await mergeWithStoredSecret(
+          ctx,
+          args.provider,
+          args.secret,
+          existing.vaultSecretId,
+          key,
+        )
+      : args.secret;
+
+    // Validate the credential shape early so we never persist a malformed
+    // secret — the adapter owns what "well-formed" means for its provider.
+    assertValidSecretShape(args.provider, secret);
+
     // Verify-first when replacing an existing credential — never destroy
     // the working vault entry on a bad new secret.
-    const verify = await runProviderPing(args.provider, args.secret);
+    const verify = await runProviderPing(args.provider, secret);
     if (existing && !verify.ok) {
       const failResult: {
         credentialId: Id<"mediaCredentials">;
@@ -105,7 +213,7 @@ export const setCredentials = action({
     const created = await ctx.runAction(
       internal.integrations.secretStore._create,
       {
-        value: args.secret,
+        value: secret,
         meta: {
           userId: user._id,
           projectId: args.projectId,
@@ -122,7 +230,7 @@ export const setCredentials = action({
         credentialId: Id<"mediaCredentials">;
         newVaultSecretId: string;
         newVersionId?: string;
-        publicConfig?: string;
+        clearPublicConfig?: boolean;
       } = {
         credentialId,
         newVaultSecretId: created.id,
@@ -130,9 +238,8 @@ export const setCredentials = action({
       if (created.versionId !== undefined) {
         replaceArgs.newVersionId = created.versionId;
       }
-      if (args.publicConfig !== undefined) {
-        replaceArgs.publicConfig = args.publicConfig;
-      }
+      // Drop the legacy plaintext mirror on the way past.
+      replaceArgs.clearPublicConfig = true;
       await ctx.runMutation(
         internal.media.credentialsDb._replaceVaultId,
         replaceArgs,
@@ -143,8 +250,14 @@ export const setCredentials = action({
         await ctx.runAction(internal.integrations.secretStore._delete, {
           id: existing.vaultSecretId,
         });
-      } catch {
-        // Ignore — orphan vault entries can be cleaned up out-of-band.
+      } catch (err) {
+        // The new secret is already in place, so the user is unaffected and
+        // failing here would be worse than leaking one orphan. Log it, though:
+        // silently swallowing meant nobody could tell an orphan had happened.
+        console.warn(
+          `[media] failed to delete superseded vault secret ${existing.vaultSecretId} for ${args.provider}:`,
+          (err as { message?: string })?.message ?? err,
+        );
       }
     } else {
       const insertArgs: {
@@ -153,7 +266,6 @@ export const setCredentials = action({
         provider: ProviderName;
         vaultSecretId: string;
         vaultVersionId?: string;
-        publicConfig?: string;
       } = {
         projectId: args.projectId,
         userId: user._id,
@@ -162,9 +274,6 @@ export const setCredentials = action({
       };
       if (created.versionId !== undefined) {
         insertArgs.vaultVersionId = created.versionId;
-      }
-      if (args.publicConfig !== undefined) {
-        insertArgs.publicConfig = args.publicConfig;
       }
       credentialId = await ctx.runMutation(
         internal.media.credentialsDb._insert,
@@ -256,7 +365,6 @@ export const rotate = action({
     projectId: v.id("projects"),
     provider: PROVIDER_VALIDATOR,
     secret: v.string(),
-    publicConfig: v.optional(v.string()),
   },
   handler: async (
     ctx,
@@ -271,18 +379,14 @@ export const rotate = action({
 
     const cred = await loadOwnedCredential(ctx, args.projectId, args.provider);
 
-    if (args.provider === "cloudinary") {
-      try {
-        parseCloudinarySecret(args.secret);
-      } catch (e) {
-        throw new ConvexError({
-          code: "UNKNOWN" as const,
-          message:
-            (e as Error)?.message ??
-            "Cloudinary credentials must be JSON with cloud_name, api_key, api_secret",
-        });
-      }
-    }
+    const secret = await mergeWithStoredSecret(
+      ctx,
+      args.provider,
+      args.secret,
+      cred.vaultSecretId,
+      key,
+    );
+    assertValidSecretShape(args.provider, secret);
 
     // Snapshot the prior status so the workflow can revert correctly on a
     // failed verify — promoting a previously-invalid row to "active" was
@@ -300,16 +404,12 @@ export const rotate = action({
       provider: ProviderName;
       newSecret: string;
       priorStatus: "active" | "invalid";
-      publicConfig?: string;
     } = {
       credentialId: cred._id,
       provider: args.provider,
-      newSecret: args.secret,
+      newSecret: secret,
       priorStatus,
     };
-    if (args.publicConfig !== undefined) {
-      kickArgs.publicConfig = args.publicConfig;
-    }
     const workflowId: string = await ctx.runMutation(
       internal.workflows.rotateCredential.kickRotation,
       kickArgs,
@@ -351,8 +451,13 @@ export const deleteCredentials = action({
       await ctx.runAction(internal.integrations.secretStore._delete, {
         id: cred.vaultSecretId,
       });
-    } catch {
-      // Vault entry may already be gone; row removal still proceeds.
+    } catch (err) {
+      // Already-deleted vault entries are the common case here, so this stays
+      // non-fatal — but a real failure has to be visible rather than assumed.
+      console.warn(
+        `[media] failed to delete vault secret ${cred.vaultSecretId} for ${args.provider}:`,
+        (err as { message?: string })?.message ?? err,
+      );
     }
     await ctx.runMutation(internal.media.credentialsDb._delete, {
       credentialId: cred._id,
@@ -402,24 +507,47 @@ async function loadOwnedCredential(
   };
 }
 
+/**
+ * Rejects a credential blob the adapter can't parse, before it reaches the
+ * vault. Surfaced as a `ConvexError` so the settings form shows the adapter's
+ * own "missing field X" message rather than a generic failure.
+ */
+function assertValidSecretShape(provider: ProviderName, secret: string): void {
+  try {
+    getAdapter(provider).validateSecret(secret);
+  } catch (e) {
+    throw new ConvexError({
+      code: "UNKNOWN" as const,
+      message:
+        (e as Error)?.message ??
+        `${getMediaProvider(provider).label} credentials are malformed.`,
+    });
+  }
+}
+
 async function runProviderPing(
   provider: ProviderName,
   secret: string,
 ): Promise<{ ok: true } | { ok: false; code: string; message: string }> {
+  const adapter = getAdapter(provider);
   try {
-    if (provider === "uploadthing") {
-      await utPing(secret);
-    } else {
-      await cldPing(secret);
-    }
+    await adapter.ping(secret);
     return { ok: true };
   } catch (err) {
-    const code =
-      provider === "uploadthing"
-        ? mapUploadThingError(err)
-        : mapCloudinaryError(err);
-    const message =
-      (err as { message?: string })?.message ?? "Provider ping failed";
-    return { ok: false, code, message };
+    // Adapters that already normalised the failure throw a `ConvexError`
+    // carrying the code and a provider-worded message; prefer both over
+    // re-deriving them from an error shape that has none.
+    const data =
+      err instanceof ConvexError
+        ? (err.data as { code?: string; message?: string })
+        : null;
+    return {
+      ok: false,
+      code: data?.code ?? adapter.mapError(err),
+      message:
+        data?.message ??
+        (err as { message?: string })?.message ??
+        "Provider ping failed",
+    };
   }
 }

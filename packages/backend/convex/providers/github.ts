@@ -116,12 +116,16 @@ export async function uploadOne(
       sha: newSha,
     };
   } catch (err) {
-    throwMediaError({
-      code: mapGithubError(err),
-      message: (err as { message?: string })?.message ?? "GitHub upload failed",
-      provider: "github",
-      operation: "upload",
-    });
+    throwMediaError(
+      {
+        code: mapGithubError(err),
+        message:
+          (err as { message?: string })?.message ?? "GitHub upload failed",
+        provider: "github",
+        operation: "upload",
+      },
+      err,
+    );
   }
 }
 
@@ -158,12 +162,15 @@ export async function listFiles(
       // Empty media directory — not an error.
       return [];
     }
-    throwMediaError({
-      code: mapGithubError(err),
-      message: (err as { message?: string })?.message ?? "GitHub list failed",
-      provider: "github",
-      operation: "list",
-    });
+    throwMediaError(
+      {
+        code: mapGithubError(err),
+        message: (err as { message?: string })?.message ?? "GitHub list failed",
+        provider: "github",
+        operation: "list",
+      },
+      err,
+    );
   }
 }
 
@@ -185,12 +192,16 @@ export async function deleteFile(
       branch,
     });
   } catch (err) {
-    throwMediaError({
-      code: mapGithubError(err),
-      message: (err as { message?: string })?.message ?? "GitHub delete failed",
-      provider: "github",
-      operation: "delete",
-    });
+    throwMediaError(
+      {
+        code: mapGithubError(err),
+        message:
+          (err as { message?: string })?.message ?? "GitHub delete failed",
+        provider: "github",
+        operation: "delete",
+      },
+      err,
+    );
   }
 }
 
@@ -203,12 +214,15 @@ export async function ping(
   try {
     await octokit.repos.get({ owner: spec.owner, repo: spec.repo });
   } catch (err) {
-    throwMediaError({
-      code: mapGithubError(err),
-      message: (err as { message?: string })?.message ?? "GitHub ping failed",
-      provider: "github",
-      operation: "ping",
-    });
+    throwMediaError(
+      {
+        code: mapGithubError(err),
+        message: (err as { message?: string })?.message ?? "GitHub ping failed",
+        provider: "github",
+        operation: "ping",
+      },
+      err,
+    );
   }
 }
 

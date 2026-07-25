@@ -1,11 +1,20 @@
 "use client";
 
 import { api } from "@wryte/backend/_generated/api";
+import {
+  buildCredentialSecret,
+  type CredentialValues,
+  missingCredentialFields,
+} from "@wryte/logic/lib/media-credentials";
 import { cn } from "@wryte/logic/lib/utils";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
 import type { FrontmatterField } from "@wryte/logic/types/frontmatter";
 import { DEFAULT_FRONTMATTER_FIELDS } from "@wryte/logic/types/frontmatter";
-import type { MediaStorageMode as FullMediaStorageMode } from "@wryte/logic/types/media";
+import {
+  type CredentialProvider,
+  getMediaProvider,
+  type MediaProvider,
+} from "@wryte/logic/types/media";
 import { Button } from "@wryte/ui/button";
 import { useAction, useMutation } from "convex/react";
 import { AnimatePresence, motion } from "framer-motion";
@@ -32,7 +41,6 @@ import { StepSelectRepo } from "@/features/new-project/wizard/step-select-repo";
  * All three steps share a single state object so values entered in earlier
  * steps are preserved when navigating back and forth.
  */
-export type MediaStorageMode = FullMediaStorageMode;
 
 export type WizardState = {
   step: 1 | 2 | 3;
@@ -51,15 +59,13 @@ export type WizardState = {
   // Step 2 — directory paths & media config
   contentPath: string;
   mediaPath: string;
-  mediaStorageMode: MediaStorageMode;
-  /** UploadThing — single base64 UPLOADTHING_TOKEN. */
-  uploadthingToken: string;
-  /** Cloudinary — split fields combined into the JSON secret on submit. */
-  cloudinaryCloudName: string;
-  cloudinaryApiKey: string;
-  cloudinaryApiSecret: string;
-  /** Cloudinary folder prefix; non-secret, also stored in publicConfig. */
-  cloudinaryFolder: string;
+  mediaStorageMode: MediaProvider;
+  /**
+   * Credential inputs for the chosen provider, keyed by the field names in the
+   * media provider registry. One map instead of a field per provider, so
+   * adding a storage backend needs no new wizard state.
+   */
+  mediaCredentials: CredentialValues;
   // Step 3 — frontmatter schema definition
   frontmatterFields: FrontmatterField[];
   /** If frontmatter fields were auto-detected from an existing file, its name is stored here. */
@@ -80,11 +86,7 @@ const INITIAL_STATE: WizardState = {
   contentPath: "content/blog",
   mediaPath: "public/images",
   mediaStorageMode: "github",
-  uploadthingToken: "",
-  cloudinaryCloudName: "",
-  cloudinaryApiKey: "",
-  cloudinaryApiSecret: "",
-  cloudinaryFolder: "",
+  mediaCredentials: {},
   frontmatterFields: DEFAULT_FRONTMATTER_FIELDS,
   detectedFromFile: null,
   detectedFramework: null,
@@ -153,23 +155,16 @@ export function NewProjectPage() {
             toast.error("Content directory is required");
             return false;
           }
-          if (state.mediaStorageMode === "uploadthing") {
-            if (!state.uploadthingToken.trim()) {
-              toast.error("UploadThing token is required");
-              return false;
-            }
-          }
-          if (state.mediaStorageMode === "cloudinary") {
-            if (
-              !state.cloudinaryCloudName.trim() ||
-              !state.cloudinaryApiKey.trim() ||
-              !state.cloudinaryApiSecret.trim()
-            ) {
-              toast.error(
-                "Cloud name, API key, and API secret are all required for Cloudinary",
-              );
-              return false;
-            }
+          const entry = getMediaProvider(state.mediaStorageMode);
+          const missing = missingCredentialFields(
+            entry,
+            state.mediaCredentials,
+          );
+          if (missing.length > 0) {
+            toast.error(
+              `${entry.label} needs: ${missing.map((f) => f.label).join(", ")}`,
+            );
+            return false;
           }
           return true;
         }
@@ -243,7 +238,7 @@ export function NewProjectPage() {
         githubBranch?: string;
         contentPath?: string;
         mediaPath?: string;
-        mediaStorageMode?: MediaStorageMode;
+        mediaStorageMode?: MediaProvider;
         frontmatterSchema?: string;
         framework?: string;
         frontmatterFormat?: "yaml" | "toml";
@@ -275,56 +270,29 @@ export function NewProjectPage() {
       // Persist provider credentials when applicable. We do this after the
       // project exists so a credential save failure leaves a valid project
       // (the user can rotate the key from settings later).
-      if (state.mediaStorageMode === "uploadthing") {
+      const providerEntry = getMediaProvider(state.mediaStorageMode);
+      const secret = buildCredentialSecret(
+        providerEntry,
+        state.mediaCredentials,
+      );
+      if (secret !== null) {
         try {
           const res = await setMediaCredentials({
             projectId,
-            provider: "uploadthing",
-            secret: state.uploadthingToken.trim(),
-          });
-          if (!res.ok) {
-            toast.warning(
-              res.message ??
-                "UploadThing credentials saved but failed verification. Open project settings to fix.",
-            );
-          }
-        } catch (err) {
-          const data = (err as { data?: { message?: string } })?.data;
-          toast.warning(
-            data?.message ??
-              "Project created but UploadThing credentials couldn't be saved. Add them in project settings.",
-          );
-        }
-      } else if (state.mediaStorageMode === "cloudinary") {
-        try {
-          const secret = JSON.stringify({
-            cloud_name: state.cloudinaryCloudName.trim(),
-            api_key: state.cloudinaryApiKey.trim(),
-            api_secret: state.cloudinaryApiSecret.trim(),
-          });
-          const publicConfig: Record<string, string> = {
-            cloudName: state.cloudinaryCloudName.trim(),
-          };
-          if (state.cloudinaryFolder.trim()) {
-            publicConfig["folder"] = state.cloudinaryFolder.trim();
-          }
-          const res = await setMediaCredentials({
-            projectId,
-            provider: "cloudinary",
+            provider: state.mediaStorageMode as CredentialProvider,
             secret,
-            publicConfig: JSON.stringify(publicConfig),
           });
           if (!res.ok) {
             toast.warning(
               res.message ??
-                "Cloudinary credentials saved but failed verification. Open project settings to fix.",
+                `${providerEntry.label} credentials saved but failed verification. Open project settings to fix.`,
             );
           }
         } catch (err) {
           const data = (err as { data?: { message?: string } })?.data;
           toast.warning(
             data?.message ??
-              "Project created but Cloudinary credentials couldn't be saved. Add them in project settings.",
+              `Project created but ${providerEntry.label} credentials couldn't be saved. Add them in project settings.`,
           );
         }
       }

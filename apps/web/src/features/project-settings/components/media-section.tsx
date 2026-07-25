@@ -8,6 +8,11 @@ import {
   DEFAULT_COMPRESSION_SETTINGS,
 } from "@wryte/logic/lib/image-compression/index";
 import {
+  buildCredentialSecret,
+  type CredentialValues,
+  missingCredentialFields,
+} from "@wryte/logic/lib/media-credentials";
+import {
   smoothTransition,
   staggerContainer,
   staggerItem,
@@ -19,15 +24,21 @@ import {
   resolveMaxUploadBytes,
 } from "@wryte/logic/lib/upload-limits";
 import { cn } from "@wryte/logic/lib/utils";
+import {
+  ALL_MEDIA_PROVIDERS,
+  type CredentialProvider,
+  MEDIA_PROVIDER_LABELS,
+  type MediaCredentialStatus,
+  type MediaProviderEntry,
+} from "@wryte/logic/types/media";
 import { Button } from "@wryte/ui/button";
 import { InfoHint } from "@wryte/ui/info-hint";
 import { Input } from "@wryte/ui/input";
 import { Switch } from "@wryte/ui/switch";
 import { useAction, useMutation, useQuery } from "convex/react";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import {
-  Eye,
-  EyeOff,
+  ChevronDown,
   ImageIcon,
   Loader2,
   RotateCcw,
@@ -36,16 +47,12 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { CompressionSettingsForm } from "@/components/forms/compression-settings-form";
+import { CredentialFieldsForm } from "@/components/forms/credential-fields-form";
 import { ConfirmActionDialog } from "@/components/settings/confirm-action-dialog";
 import { SaveBar } from "@/components/settings/save-bar";
 import { useMediaSection } from "../hooks/use-media-section";
 import type { ProjectData } from "../types";
-import {
-  FieldGroup,
-  MediaModeOption,
-  SectionHeader,
-  SettingsGroup,
-} from "./shared";
+import { FieldGroup, RowList, SectionHeader, SettingsGroup } from "./shared";
 
 export function MediaSection({
   projectId,
@@ -65,12 +72,18 @@ export function MediaSection({
     pathHint,
   } = useMediaSection({ projectId, project });
 
-  const storageLabel =
-    mediaStorageMode === "github"
-      ? "GitHub"
-      : mediaStorageMode === "uploadthing"
-        ? "UploadThing"
-        : "Cloudinary";
+  // One subscription for every provider's credential state, instead of a
+  // per-card `getPublicConfig`.
+  const credentials = useQuery(api.media.credentialsDb.listForProject, {
+    projectId,
+  });
+  const credentialByProvider = useMemo(
+    () => new Map((credentials ?? []).map((row) => [row.provider, row])),
+    [credentials],
+  );
+
+  const storageLabel = MEDIA_PROVIDER_LABELS[mediaStorageMode];
+  const githubReady = Boolean(project.githubRepo && project.mediaPath);
 
   return (
     <motion.div variants={staggerContainer} initial="initial" animate="animate">
@@ -89,7 +102,7 @@ export function MediaSection({
           <FieldGroup
             label="Media directory"
             htmlFor="s-media-path"
-            hint={pathHint}
+            info={pathHint}
           >
             <Input
               id="s-media-path"
@@ -100,39 +113,47 @@ export function MediaSection({
             />
           </FieldGroup>
 
-          <FieldGroup
-            label="Storage backend"
-            hint="Per project. Switching doesn't move existing media."
-          >
-            <div className="grid gap-3 sm:grid-cols-3">
-              <MediaModeOption
-                active={mediaStorageMode === "github"}
-                onClick={() => setMediaStorageMode("github")}
-                title="GitHub"
-                description="Commit into the repo"
-              />
-              <MediaModeOption
-                active={mediaStorageMode === "uploadthing"}
-                onClick={() => setMediaStorageMode("uploadthing")}
-                title="UploadThing"
-                description="Your own account"
-              />
-              <MediaModeOption
-                active={mediaStorageMode === "cloudinary"}
-                onClick={() => setMediaStorageMode("cloudinary")}
-                title="Cloudinary"
-                description="Your own account"
-              />
-            </div>
-          </FieldGroup>
-
-          {(mediaStorageMode === "uploadthing" ||
-            mediaStorageMode === "cloudinary") && (
-            <MediaCredentialsForm
-              projectId={projectId}
-              provider={mediaStorageMode}
-            />
-          )}
+          {/*
+            One row per provider — the radio *is* the default, and the same row
+            connects it. Splitting these into a destination picker plus a
+            separate stack of credential cards meant every provider appeared
+            twice and nothing said the two lists were the same four things.
+          */}
+          <div className="space-y-1.5">
+            <span className="flex items-center">
+              <span className="text-xs font-medium text-muted-foreground">
+                Providers
+              </span>
+              <InfoHint>
+                Connect as many as you like — they all stay browsable in the
+                media library and the editor's image picker. The one you select
+                receives uploads when you don't pick a destination. Switching it
+                never moves existing media, and published URLs keep working.
+              </InfoHint>
+              <span className="ml-auto text-[11px] text-muted-foreground/60">
+                Selected = upload default
+              </span>
+            </span>
+            <RowList>
+              {ALL_MEDIA_PROVIDERS.map((entry) => (
+                <ProviderRow
+                  key={entry.id}
+                  projectId={projectId}
+                  entry={entry}
+                  credential={
+                    entry.credentialSource === "vault"
+                      ? (credentialByProvider.get(
+                          entry.id as CredentialProvider,
+                        ) ?? null)
+                      : null
+                  }
+                  isDefault={mediaStorageMode === entry.id}
+                  onMakeDefault={() => setMediaStorageMode(entry.id)}
+                  githubReady={githubReady}
+                />
+              ))}
+            </RowList>
+          </div>
 
           <SaveBar
             hasChanges={hasChanges}
@@ -469,113 +490,219 @@ function ProjectWatermarkSection({
   );
 }
 
-function MediaCredentialsForm({
+/** Credential row state, narrowed from `listForProject`. */
+type CredentialRow = {
+  provider: CredentialProvider;
+  status: MediaCredentialStatus;
+  lastVerifyError: string | undefined;
+};
+
+/**
+ * One provider, one row: the radio sets it as the upload default, the chip
+ * says whether it is usable, and the expander holds its credentials.
+ *
+ * Keeping all three in a single row is the point — the previous layout put the
+ * destination picker and the credential cards in separate lists, so every
+ * provider was rendered twice with nothing tying the two together.
+ */
+function ProviderRow({
   projectId,
-  provider,
+  entry,
+  credential,
+  isDefault,
+  onMakeDefault,
+  githubReady,
 }: {
   projectId: Id<"projects">;
-  provider: "uploadthing" | "cloudinary";
+  entry: MediaProviderEntry;
+  credential: CredentialRow | null;
+  isDefault: boolean;
+  onMakeDefault: () => void;
+  /** GitHub is "connected" when the project has a repo and a media directory. */
+  githubReady: boolean;
 }) {
-  const config = useQuery(api.media.credentialsDb.getPublicConfig, {
-    projectId,
-    provider,
-  });
+  const [open, setOpen] = useState(false);
+  const usesVault = entry.credentialSource === "vault";
+  const connected = usesVault ? credential !== null : githubReady;
+
+  return (
+    <div className="py-2.5">
+      <div className="flex items-center gap-3">
+        <input
+          type="radio"
+          name="media-default-provider"
+          id={`media-default-${entry.id}`}
+          checked={isDefault}
+          onChange={onMakeDefault}
+          disabled={!connected}
+          className="size-3.5 shrink-0 accent-primary disabled:opacity-40"
+        />
+        <label
+          htmlFor={`media-default-${entry.id}`}
+          className={cn(
+            "min-w-0 flex-1 truncate text-sm",
+            connected
+              ? "cursor-pointer font-medium"
+              : "cursor-not-allowed text-muted-foreground",
+          )}
+          // Selecting an unconnected provider as the default would only make
+          // every upload fail, so the radio waits for credentials.
+          title={connected ? "Set as upload default" : "Connect it first"}
+        >
+          {entry.label}
+        </label>
+
+        <ProviderStatusChip
+          connected={connected}
+          status={credential?.status}
+          usesVault={usesVault}
+        />
+
+        {usesVault && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+            className="shrink-0 text-xs"
+          >
+            {connected ? "Manage" : "Connect"}
+            <ChevronDown
+              className={cn(
+                "size-3.5 transition-transform",
+                open && "rotate-180",
+              )}
+            />
+          </Button>
+        )}
+      </div>
+
+      <AnimatePresence initial={false}>
+        {open && usesVault && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
+            className="overflow-hidden"
+          >
+            <CredentialPanel
+              projectId={projectId}
+              entry={entry}
+              credential={credential}
+              isDefault={isDefault}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function ProviderStatusChip({
+  connected,
+  status,
+  usesVault,
+}: {
+  connected: boolean;
+  status: MediaCredentialStatus | undefined;
+  usesVault: boolean;
+}) {
+  if (!connected) {
+    return (
+      <span className="shrink-0 text-[11px] text-muted-foreground/60">
+        {usesVault ? "Not connected" : "No repo"}
+      </span>
+    );
+  }
+  if (!status) {
+    return (
+      <span className="shrink-0 text-[11px] text-muted-foreground/60">
+        Repo linked
+      </span>
+    );
+  }
+  return <StatusBadge status={status} />;
+}
+
+/**
+ * Connect / verify / rotate / disconnect one storage provider.
+ *
+ * Entirely driven by the provider's registry entry — the inputs, how they
+ * serialise into the vault secret, and which of them are echoed back after
+ * saving all come from `entry.fields`. Adding a provider needs no change here.
+ */
+function CredentialPanel({
+  projectId,
+  entry,
+  credential,
+  isDefault,
+}: {
+  projectId: Id<"projects">;
+  entry: MediaProviderEntry;
+  credential: CredentialRow | null;
+  isDefault: boolean;
+}) {
+  const provider = entry.id as CredentialProvider;
 
   const setCredentials = useAction(api.media.credentials.setCredentials);
   const testCredentials = useAction(api.media.credentials.testCredentials);
   const rotate = useAction(api.media.credentials.rotate);
   const deleteCredentials = useAction(api.media.credentials.deleteCredentials);
 
-  const [token, setToken] = useState("");
-  const [cloudName, setCloudName] = useState("");
-  const [apiKey, setApiKey] = useState("");
-  const [apiSecret, setApiSecret] = useState("");
-  const [folder, setFolder] = useState("");
-  const [showSecret, setShowSecret] = useState(false);
+  const getEditableConfig = useAction(api.media.credentials.getEditableConfig);
+
+  const [values, setValues] = useState<CredentialValues>({});
+  const [isLoadingValues, setIsLoadingValues] = useState(false);
   const [busy, setBusy] = useState<"save" | "test" | "delete" | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
-  const hasExisting = config !== null && config !== undefined;
-  const isRotating = config?.status === "rotating";
+  const hasExisting = credential !== null;
+  const isRotating = credential?.status === "rotating";
 
-  const publicCloudName = useMemo(() => {
-    if (provider !== "cloudinary" || !config?.publicConfig) return null;
-    try {
-      const parsed = JSON.parse(config.publicConfig) as {
-        cloudName?: string;
-        folder?: string;
-      };
-      return parsed.cloudName ?? null;
-    } catch {
-      return null;
-    }
-  }, [config?.publicConfig, provider]);
-
-  const publicFolder = useMemo(() => {
-    if (provider !== "cloudinary" || !config?.publicConfig) return null;
-    try {
-      const parsed = JSON.parse(config.publicConfig) as { folder?: string };
-      return parsed.folder ?? null;
-    } catch {
-      return null;
-    }
-  }, [config?.publicConfig, provider]);
-
-  useEffect(() => {
-    setToken("");
-    setCloudName("");
-    setApiKey("");
-    setApiSecret("");
-    setFolder("");
+  const handleFieldChange = useCallback((key: string, value: string) => {
+    setValues((prev) => ({ ...prev, [key]: value }));
   }, []);
 
-  const buildSecret = useCallback((): string | null => {
-    if (provider === "uploadthing") {
-      const trimmed = token.trim();
-      return trimmed.length > 0 ? trimmed : null;
-    }
-    if (
-      cloudName.trim() === "" ||
-      apiKey.trim() === "" ||
-      apiSecret.trim() === ""
-    ) {
-      return null;
-    }
-    return JSON.stringify({
-      cloud_name: cloudName.trim(),
-      api_key: apiKey.trim(),
-      api_secret: apiSecret.trim(),
-    });
-  }, [apiKey, apiSecret, cloudName, provider, token]);
-
-  const buildPublicConfig = useCallback((): string | undefined => {
-    if (provider !== "cloudinary") return undefined;
-    const out: Record<string, string> = {};
-    if (cloudName.trim() !== "") out["cloudName"] = cloudName.trim();
-    if (folder.trim() !== "") out["folder"] = folder.trim();
-    return Object.keys(out).length === 0 ? undefined : JSON.stringify(out);
-  }, [cloudName, folder, provider]);
+  // Pre-fill what's already stored so changing one field doesn't mean retyping
+  // the rest. Only non-secret fields come back — the vault read happens on the
+  // server and secrets never cross the wire.
+  useEffect(() => {
+    if (!hasExisting) return;
+    let cancelled = false;
+    setIsLoadingValues(true);
+    void getEditableConfig({ projectId, provider })
+      .then((config) => {
+        if (cancelled || !config) return;
+        // Anything typed before the round-trip landed wins.
+        setValues((prev) => ({ ...config, ...prev }));
+      })
+      .catch(() => {
+        // Pre-fill is a convenience; a failure just leaves the fields blank.
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingValues(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [getEditableConfig, hasExisting, projectId, provider]);
 
   const handleSave = useCallback(async () => {
-    const secret = buildSecret();
+    const secret = buildCredentialSecret(entry, values, { hasExisting });
     if (!secret) {
+      const missing = missingCredentialFields(entry, values, { hasExisting });
       toast.error(
-        provider === "uploadthing"
-          ? "Paste your UPLOADTHING_TOKEN before saving."
-          : "Cloud name, API key, and API secret are all required.",
+        missing.length > 0
+          ? `Required: ${missing.map((f) => f.label).join(", ")}.`
+          : `Fill in your ${entry.label} credentials before saving.`,
       );
       return;
     }
 
     setBusy("save");
     try {
-      const publicConfig = buildPublicConfig();
-      const args: {
-        projectId: Id<"projects">;
-        provider: "uploadthing" | "cloudinary";
-        secret: string;
-        publicConfig?: string;
-      } = { projectId, provider, secret };
-      if (publicConfig !== undefined) args.publicConfig = publicConfig;
+      const args = { projectId, provider, secret };
 
       if (hasExisting) {
         await rotate(args);
@@ -583,15 +710,20 @@ function MediaCredentialsForm({
       } else {
         const result = await setCredentials(args);
         if (result.ok) {
-          toast.success(
-            `${provider === "uploadthing" ? "UploadThing" : "Cloudinary"} connected.`,
-          );
+          toast.success(`${entry.label} connected.`);
         } else {
           toast.error(result.message ?? "Credentials failed verification.");
         }
       }
-      setToken("");
-      setApiSecret("");
+      // Clear secrets from component state once they've been handed over; the
+      // non-secret fields stay so the form still shows what was configured.
+      setValues((prev) => {
+        const next = { ...prev };
+        for (const field of entry.fields) {
+          if (field.secret) delete next[field.key];
+        }
+        return next;
+      });
     } catch (err) {
       const data = (err as { data?: { message?: string } })?.data;
       toast.error(
@@ -601,15 +733,7 @@ function MediaCredentialsForm({
     } finally {
       setBusy(null);
     }
-  }, [
-    buildPublicConfig,
-    buildSecret,
-    hasExisting,
-    projectId,
-    provider,
-    rotate,
-    setCredentials,
-  ]);
+  }, [entry, hasExisting, projectId, provider, rotate, setCredentials, values]);
 
   const handleTest = useCallback(async () => {
     setBusy("test");
@@ -630,8 +754,6 @@ function MediaCredentialsForm({
     }
   }, [projectId, provider, testCredentials]);
 
-  const [confirmDelete, setConfirmDelete] = useState(false);
-
   const handleDelete = useCallback(async () => {
     setBusy("delete");
     try {
@@ -649,158 +771,25 @@ function MediaCredentialsForm({
   }, [deleteCredentials, projectId, provider]);
 
   return (
-    <div className="mt-4 space-y-4 border-t border-border/40 pt-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-sm font-semibold">
-            {provider === "uploadthing"
-              ? "UploadThing credentials"
-              : "Cloudinary credentials"}
-          </h3>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Stored encrypted in WorkOS Vault. We never log or display the
-            secret.
-          </p>
-        </div>
-        {hasExisting && <StatusBadge status={config.status} />}
-      </div>
-
-      {hasExisting && config.lastVerifyError && (
-        <div className="rounded-md border border-destructive/30 bg-destructive/5 p-2 text-xs text-destructive">
-          <span className="font-medium">Last error:</span>{" "}
-          {config.lastVerifyError}
-        </div>
+    <div className="mt-3 space-y-3 rounded-lg border border-border/40 bg-muted/20 p-3">
+      {credential?.lastVerifyError && (
+        <p className="rounded-md border border-destructive/30 bg-destructive/5 p-2 text-[11px] text-destructive">
+          {credential.lastVerifyError}
+        </p>
       )}
 
-      {provider === "uploadthing" && (
-        <FieldGroup
-          label={hasExisting ? "Replace token" : "UPLOADTHING_TOKEN"}
-          htmlFor="ut-token"
-          hint="The single base64-encoded token from your UploadThing dashboard."
-        >
-          <div className="relative">
-            <Input
-              id="ut-token"
-              type={showSecret ? "text" : "password"}
-              value={token}
-              onChange={(e) => setToken(e.target.value)}
-              placeholder={
-                hasExisting ? "Paste a new token to rotate..." : "ut_..."
-              }
-              autoComplete="off"
-              spellCheck={false}
-              className="pr-9 font-mono text-xs"
-            />
-            <button
-              type="button"
-              onClick={() => setShowSecret((v) => !v)}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              aria-label={showSecret ? "Hide" : "Show"}
-            >
-              {showSecret ? (
-                <EyeOff className="size-3.5" />
-              ) : (
-                <Eye className="size-3.5" />
-              )}
-            </button>
-          </div>
-        </FieldGroup>
-      )}
-
-      {provider === "cloudinary" && (
-        <div className="space-y-3">
-          {hasExisting && publicCloudName && (
-            <div className="text-xs text-muted-foreground">
-              Connected to{" "}
-              <span className="font-mono text-foreground">
-                {publicCloudName}
-              </span>
-              {publicFolder ? (
-                <>
-                  {" · folder "}
-                  <span className="font-mono text-foreground">
-                    {publicFolder}
-                  </span>
-                </>
-              ) : null}
-            </div>
-          )}
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <FieldGroup
-              label="Cloud name"
-              htmlFor="cld-name"
-              hint="Visible in your Cloudinary URLs."
-            >
-              <Input
-                id="cld-name"
-                value={cloudName}
-                onChange={(e) => setCloudName(e.target.value)}
-                placeholder="my-cloud"
-                autoComplete="off"
-                spellCheck={false}
-                className="font-mono text-xs"
-              />
-            </FieldGroup>
-            <FieldGroup
-              label="Folder (optional)"
-              htmlFor="cld-folder"
-              hint="Prefix every upload, e.g. blog/wryte."
-            >
-              <Input
-                id="cld-folder"
-                value={folder}
-                onChange={(e) => setFolder(e.target.value)}
-                placeholder="wryte/blog"
-                autoComplete="off"
-                spellCheck={false}
-                className="font-mono text-xs"
-              />
-            </FieldGroup>
-            <FieldGroup label="API key" htmlFor="cld-key">
-              <Input
-                id="cld-key"
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                placeholder="123456789012345"
-                autoComplete="off"
-                spellCheck={false}
-                className="font-mono text-xs"
-              />
-            </FieldGroup>
-            <FieldGroup
-              label={hasExisting ? "Replace API secret" : "API secret"}
-              htmlFor="cld-secret"
-            >
-              <div className="relative">
-                <Input
-                  id="cld-secret"
-                  type={showSecret ? "text" : "password"}
-                  value={apiSecret}
-                  onChange={(e) => setApiSecret(e.target.value)}
-                  placeholder={
-                    hasExisting ? "Type to rotate..." : "your_api_secret"
-                  }
-                  autoComplete="off"
-                  spellCheck={false}
-                  className="pr-9 font-mono text-xs"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowSecret((v) => !v)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  aria-label={showSecret ? "Hide" : "Show"}
-                >
-                  {showSecret ? (
-                    <EyeOff className="size-3.5" />
-                  ) : (
-                    <Eye className="size-3.5" />
-                  )}
-                </button>
-              </div>
-            </FieldGroup>
-          </div>
-        </div>
+      {isLoadingValues ? (
+        <p className="text-[11px] text-muted-foreground">
+          Loading current values…
+        </p>
+      ) : (
+        <CredentialFieldsForm
+          entry={entry}
+          values={values}
+          onChange={handleFieldChange}
+          hasExisting={hasExisting}
+          idPrefix={`cred-${entry.id}`}
+        />
       )}
 
       <div className="flex flex-wrap items-center gap-2">
@@ -809,16 +798,8 @@ function MediaCredentialsForm({
           onClick={handleSave}
           disabled={busy !== null || isRotating}
         >
-          {busy === "save" ? (
-            <>
-              <Loader2 className="size-3.5 animate-spin" />
-              Saving...
-            </>
-          ) : hasExisting ? (
-            "Replace key"
-          ) : (
-            "Save"
-          )}
+          {busy === "save" && <Loader2 className="size-3.5 animate-spin" />}
+          {hasExisting ? "Replace key" : "Connect"}
         </Button>
         {hasExisting && (
           <Button
@@ -827,14 +808,8 @@ function MediaCredentialsForm({
             onClick={handleTest}
             disabled={busy !== null || isRotating}
           >
-            {busy === "test" ? (
-              <>
-                <Loader2 className="size-3.5 animate-spin" />
-                Testing...
-              </>
-            ) : (
-              "Test connection"
-            )}
+            {busy === "test" && <Loader2 className="size-3.5 animate-spin" />}
+            Test
           </Button>
         )}
         {hasExisting && (
@@ -842,7 +817,12 @@ function MediaCredentialsForm({
             size="sm"
             variant="ghost"
             onClick={() => setConfirmDelete(true)}
-            disabled={busy !== null || isRotating}
+            // The backend refuses to unlink the provider uploads route to;
+            // disabling here explains why before the request fails.
+            disabled={busy !== null || isRotating || isDefault}
+            title={
+              isDefault ? "Make another provider the default first" : "Remove"
+            }
             className="text-destructive hover:bg-destructive/10 hover:text-destructive"
           >
             {busy === "delete" ? (
@@ -853,22 +833,23 @@ function MediaCredentialsForm({
             Remove
           </Button>
         )}
+        {entry.dashboardUrl && (
+          <a
+            href={entry.dashboardUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="ml-auto text-[11px] text-muted-foreground underline decoration-dotted hover:text-foreground"
+          >
+            Get keys
+          </a>
+        )}
         <ConfirmActionDialog
           open={confirmDelete}
           onOpenChange={setConfirmDelete}
-          title="Remove these credentials?"
-          description="Existing media URLs keep working, but new uploads fail until you reconfigure."
+          title={`Disconnect ${entry.label}?`}
+          description="Existing media URLs keep working. New uploads to this provider fail until you reconnect."
           onConfirm={() => void handleDelete()}
         />
-        {hasExisting && config.lastVerifiedAt && (
-          <span className="ml-auto text-[11px] text-muted-foreground">
-            Last verified{" "}
-            {new Date(config.lastVerifiedAt).toLocaleString(undefined, {
-              dateStyle: "medium",
-              timeStyle: "short",
-            })}
-          </span>
-        )}
       </div>
     </div>
   );

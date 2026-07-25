@@ -9,12 +9,12 @@ import type { Id } from "../_generated/dataModel";
 import { internalMutation, internalQuery, query } from "../_generated/server";
 import { getAuthedUserOrNull } from "../_lib/auth";
 import { currentMonthBucket, QUOTAS } from "../_lib/quotas";
+import {
+  credentialProviderValidator,
+  mediaProviderValidator,
+} from "./_lib/providers";
 
-const PROVIDER_VALIDATOR = v.union(
-  v.literal("github"),
-  v.literal("uploadthing"),
-  v.literal("cloudinary"),
-);
+const PROVIDER_VALIDATOR = mediaProviderValidator;
 
 /* ------------------------------------------------------------------ */
 /*  Public queries                                                      */
@@ -104,11 +104,7 @@ export const _getById = internalQuery({
 export const _findByProviderAndExternalId = internalQuery({
   args: {
     projectId: v.id("projects"),
-    provider: v.union(
-      v.literal("github"),
-      v.literal("uploadthing"),
-      v.literal("cloudinary"),
-    ),
+    provider: PROVIDER_VALIDATOR,
     externalId: v.string(),
   },
   handler: async (ctx, args) => {
@@ -129,7 +125,7 @@ export const _findByProviderAndExternalId = internalQuery({
 export const _getCredential = internalQuery({
   args: {
     projectId: v.id("projects"),
-    provider: v.union(v.literal("uploadthing"), v.literal("cloudinary")),
+    provider: credentialProviderValidator,
   },
   handler: async (ctx, args) => {
     return await ctx.db

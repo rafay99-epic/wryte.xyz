@@ -15,9 +15,11 @@ import {
 } from "@wryte/logic/lib/image-compression/index";
 import { formatMb } from "@wryte/logic/lib/upload-limits";
 import { cn } from "@wryte/logic/lib/utils";
+import type { MediaProvider } from "@wryte/logic/types/media";
 import { Button } from "@wryte/ui/button";
 import { Input } from "@wryte/ui/input";
 import { Label } from "@wryte/ui/label";
+import { MediaProviderTabs } from "@wryte/ui/media-provider-tabs";
 import {
   Sheet,
   SheetBody,
@@ -63,11 +65,14 @@ export function MediaPickerDrawer({
   );
 
   const {
-    showLibrary,
+    filter,
+    setFilter,
+    uploadProvider,
+    configuredTabs,
     items: libraryItems,
     isLoading: isLibraryLoading,
     isLoadingMore,
-    error: libraryError,
+    errors: libraryErrors,
     hasMore,
     loadMore,
     refresh: refreshLibrary,
@@ -126,7 +131,7 @@ export function MediaPickerDrawer({
   }, [externalUrl, handleSelect]);
 
   const defaultTab =
-    showLibrary && libraryItems.length > 0
+    libraryItems.length > 0
       ? "library"
       : projectMedia.length > 0
         ? "recent"
@@ -159,19 +164,25 @@ export function MediaPickerDrawer({
 
           <Tabs defaultValue={defaultTab} key={defaultTab} className="min-h-0">
             <TabsList className="w-full">
-              {showLibrary && (
-                <TabsTrigger value="library">Library</TabsTrigger>
-              )}
+              {true && <TabsTrigger value="library">Library</TabsTrigger>}
               <TabsTrigger value="recent">Recent</TabsTrigger>
               <TabsTrigger value="upload">Upload</TabsTrigger>
               <TabsTrigger value="url">URL</TabsTrigger>
             </TabsList>
 
-            {showLibrary && (
+            {true && (
               <TabsContent value="library">
-                {libraryError && (
+                <MediaProviderTabs
+                  tabs={configuredTabs}
+                  selected={filter}
+                  onSelect={setFilter}
+                  className="mb-3"
+                />
+                {libraryErrors.length > 0 && (
                   <p className="mb-3 text-xs text-destructive">
-                    {libraryError}
+                    {libraryErrors
+                      .map((e) => `${e.label}: ${e.message}`)
+                      .join(" · ")}
                   </p>
                 )}
                 {isLibraryLoading ? (
@@ -181,7 +192,7 @@ export function MediaPickerDrawer({
                     message={
                       searchQuery
                         ? "No matches found"
-                        : libraryError
+                        : libraryErrors.length > 0
                           ? "Couldn't load media library"
                           : "No media files found"
                     }
@@ -256,6 +267,7 @@ export function MediaPickerDrawer({
             <TabsContent value="upload">
               <UploadTab
                 projectId={projectId}
+                provider={uploadProvider}
                 onUploaded={(url) => {
                   void refreshLibrary();
                   handleSelect(url);
@@ -453,9 +465,12 @@ function RecentMediaItem({
 
 function UploadTab({
   projectId,
+  provider,
   onUploaded,
 }: {
   projectId: string;
+  /** Destination for this upload — the provider selected in the Library tab. */
+  provider: MediaProvider;
   onUploaded: (url: string) => void;
 }) {
   const uploadMedia = useAction(api.media.uploads.upload);
@@ -506,6 +521,7 @@ function UploadTab({
         setProgressStep("upload");
         const result = await uploadMedia({
           projectId: projectId as Id<"projects">,
+          provider,
           bytes,
           mime: toUpload.type,
           filename: toUpload.name,
@@ -534,6 +550,7 @@ function UploadTab({
       uploadMedia,
       projectId,
       onUploaded,
+      provider,
     ],
   );
 

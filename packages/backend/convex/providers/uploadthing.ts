@@ -73,12 +73,15 @@ export async function uploadOne(
   const res = await client(token).uploadFiles([uploadable]);
   const first = Array.isArray(res) ? res[0] : res;
   if (!first || first.error) {
-    throwMediaError({
-      code: mapUploadThingError(first?.error),
-      message: first?.error?.message ?? "UploadThing upload failed",
-      provider: "uploadthing",
-      operation: "upload",
-    });
+    throwMediaError(
+      {
+        code: mapUploadThingError(first?.error),
+        message: first?.error?.message ?? "UploadThing upload failed",
+        provider: "uploadthing",
+        operation: "upload",
+      },
+      first?.error,
+    );
   }
   const data = first.data;
   return {

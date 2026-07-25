@@ -4,6 +4,7 @@ import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
 import { useImageCompression } from "@wryte/logic/hooks/use-image-compression";
 import {
+  type MediaFilter,
   type MediaLibraryItem,
   useProjectMediaLibrary,
 } from "@wryte/logic/hooks/use-project-media-library";
@@ -16,7 +17,11 @@ import {
 import { formatMb } from "@wryte/logic/lib/upload-limits";
 import { cn } from "@wryte/logic/lib/utils";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
-import type { MediaProvider } from "@wryte/logic/types/media";
+import {
+  describeMediaLocation,
+  MEDIA_PROVIDER_LABELS,
+  type MediaProvider,
+} from "@wryte/logic/types/media";
 import { Button, buttonVariants } from "@wryte/ui/button";
 import {
   Dialog,
@@ -27,17 +32,18 @@ import {
   DialogTitle,
 } from "@wryte/ui/dialog";
 import { Input } from "@wryte/ui/input";
+import { MediaProviderIcon } from "@wryte/ui/media-provider-icon";
+import { MediaProviderTabs } from "@wryte/ui/media-provider-tabs";
 import { Skeleton } from "@wryte/ui/skeleton";
 import { UploadProgress } from "@wryte/ui/upload-progress";
 import { useAction, useQuery } from "convex/react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  Cloud,
   Copy,
   ExternalLink,
   FileImage,
-  GitBranch,
   ImageIcon,
+  Layers,
   Loader2,
   RefreshCw,
   Search,
@@ -90,13 +96,15 @@ export function MediaLibraryPage() {
   } = usePendingDeletes();
 
   const {
-    provider,
-    isGithub,
-    hasGithubConfig,
+    filter,
+    setFilter,
+    uploadProvider,
+    providerTabs,
+    configuredTabs,
     items,
+    errors,
     isLoading,
     isLoadingMore,
-    error: errorMessage,
     hasMore: providerHasMore,
     loadMore,
     refresh,
@@ -109,7 +117,6 @@ export function MediaLibraryPage() {
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (isGithub) return;
     if (!providerHasMore || isLoading || isLoadingMore) return;
     const el = sentinelRef.current;
     if (!el) return;
@@ -124,7 +131,7 @@ export function MediaLibraryPage() {
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, [isGithub, providerHasMore, isLoading, isLoadingMore, loadMore]);
+  }, [providerHasMore, isLoading, isLoadingMore, loadMore]);
 
   const filteredItems = useMemo(() => {
     const base = pendingDeletes.size
@@ -148,7 +155,6 @@ export function MediaLibraryPage() {
   const lastSearchRef = useRef("");
 
   useEffect(() => {
-    if (isGithub) return;
     const q = searchQuery.trim();
     if (!q) return;
     if (q !== lastSearchRef.current) {
@@ -165,15 +171,14 @@ export function MediaLibraryPage() {
       autoFetchCountRef.current++;
       loadMore();
     }
-  }, [
-    isGithub,
-    searchQuery,
-    providerHasMore,
-    isLoading,
-    isLoadingMore,
-    items,
-    loadMore,
-  ]);
+  }, [searchQuery, providerHasMore, isLoading, isLoadingMore, items, loadMore]);
+
+  // Searching is scoped to the visible tab, so the query belongs to that tab
+  // too: carrying it across a switch silently hides files in the new one.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: clears the query when the tab changes.
+  useEffect(() => {
+    setSearchQuery("");
+  }, [filter]);
 
   const handleUploaded = useCallback(() => {
     void refresh();
@@ -182,7 +187,7 @@ export function MediaLibraryPage() {
   /* ---------- Render guards ---------- */
   if (project === undefined) {
     return (
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <Skeleton className="mb-6 h-7 w-24" />
         <Skeleton className="mb-2 h-8 w-32" />
         <Skeleton className="h-64 w-full rounded-xl" />
@@ -197,50 +202,60 @@ export function MediaLibraryPage() {
     );
   }
 
-  const providerLabel = PROVIDER_LABEL[provider];
-  const providerIcon = PROVIDER_ICON[provider];
-  const location = describeLocation(provider, project);
+  const scopeLabel =
+    filter === "all" ? "all providers" : PROVIDER_LABEL[filter];
+  const location =
+    filter === "all" ? null : describeMediaLocation(filter, project.mediaPath);
 
-  // Provider not yet configured (no credentials saved).
+  // Nothing connected at all, or the one provider being viewed was never set
+  // up. The server reports this directly, so it isn't inferred from "empty
+  // list plus an error".
   const needsConfig =
-    (provider === "uploadthing" || provider === "cloudinary") &&
-    items.length === 0 &&
-    !isLoading &&
-    errorMessage !== null;
+    configuredTabs.length === 0 ||
+    (filter !== "all" &&
+      providerTabs.find((tab) => tab.provider === filter)?.configured ===
+        false);
 
   return (
-    <div className="p-6">
+    <div className="p-4 sm:p-6">
       {/* Navigation lives in the sidebar's single Back button — no
           per-page back links. */}
       {/* Header */}
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Media</h1>
-          <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
-            <ProviderBadge provider={provider} />
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3 sm:mb-6">
+        <div className="min-w-0">
+          <h1 className="text-xl font-bold tracking-tight sm:text-2xl">
+            Media
+          </h1>
+          <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-muted-foreground">
+            <ScopeBadge filter={filter} />
             <span>·</span>
             <span>
               {items.length} file{items.length === 1 ? "" : "s"}
             </span>
             {location ? (
               <>
-                <span>·</span>
-                <span className="font-mono text-xs">{location}</span>
+                <span className="hidden sm:inline">·</span>
+                <span className="hidden truncate font-mono text-xs sm:inline">
+                  {location}
+                </span>
               </>
             ) : null}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           <Button
             variant="outline"
             size="sm"
             onClick={() => void refresh()}
             disabled={isLoading}
+            aria-label="Refresh"
           >
             <RefreshCw
               className={cn("size-3.5", isLoading && "animate-spin")}
             />
-            Refresh
+            {/* The icon carries it on narrow screens; the label would push the
+                Upload button off the row. */}
+            <span className="hidden sm:inline">Refresh</span>
           </Button>
           <Button size="sm" onClick={() => setUploadDialogOpen(true)}>
             <Upload className="size-4" />
@@ -249,12 +264,27 @@ export function MediaLibraryPage() {
         </div>
       </div>
 
+      {/*
+        Tabs filter what's already loaded — "All" merges every connected
+        provider. Hidden when only one is connected.
+      */}
+      <MediaProviderTabs
+        tabs={configuredTabs}
+        selected={filter}
+        onSelect={setFilter}
+        className="mb-4"
+      />
+
       {/* Search */}
       {items.length > 0 && (
         <div className="relative mb-4">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Search media files..."
+            placeholder={
+              filter === "all"
+                ? "Search all providers…"
+                : `Search ${PROVIDER_LABEL[filter]}…`
+            }
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-9"
@@ -266,36 +296,48 @@ export function MediaLibraryPage() {
       {isLoading && items.length === 0 && (
         <div className="mb-4 flex items-center gap-2 text-xs text-muted-foreground">
           <Loader2 className="size-3 animate-spin" />
-          Loading from {providerLabel}…
+          Loading from {scopeLabel}…
         </div>
       )}
 
       {/* Error state for provider listing (e.g. missing credentials) */}
-      {errorMessage && (
-        <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-          <p className="font-medium">Couldn't load from {providerLabel}.</p>
-          <p className="mt-1 text-xs">{errorMessage}</p>
-          <Link
-            href={`/projects/${projectId}/settings`}
-            className={cn(
-              buttonVariants({ size: "sm", variant: "outline" }),
-              "mt-2",
-            )}
-          >
-            Open Media settings
-          </Link>
+      {errors.length > 0 && (
+        <div className="mb-4 space-y-2">
+          {errors.map((failure) => (
+            <div
+              key={failure.provider}
+              className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
+            >
+              <p className="font-medium">Couldn't load from {failure.label}.</p>
+              <p className="mt-1 text-xs">{failure.message}</p>
+              <Link
+                href={`/projects/${projectId}/settings`}
+                className={cn(
+                  buttonVariants({ size: "sm", variant: "outline" }),
+                  "mt-2",
+                )}
+              >
+                Fix in settings
+              </Link>
+            </div>
+          ))}
+          {errors.length < configuredTabs.length && (
+            <p className="text-xs text-muted-foreground">
+              Other providers loaded normally — their files are below.
+            </p>
+          )}
         </div>
       )}
 
       {/* Grid */}
       {filteredItems.length > 0 ? (
-        <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
           <AnimatePresence mode="popLayout" initial={false}>
             {filteredItems.map((item) => (
               <MediaCard
-                key={`${provider}:${item.externalId}`}
+                key={`${item.provider}:${item.externalId}`}
                 item={item}
-                provider={provider}
+                showProvider={filter === "all"}
                 onDelete={() => setDeleteTarget(item)}
               />
             ))}
@@ -303,11 +345,9 @@ export function MediaLibraryPage() {
         </div>
       ) : !isLoading && items.length === 0 ? (
         <EmptyState
-          provider={provider}
-          hasGithubConfig={hasGithubConfig}
+          scopeLabel={scopeLabel}
           needsConfig={needsConfig}
           onUpload={() => setUploadDialogOpen(true)}
-          providerIcon={providerIcon}
           location={location}
           projectId={projectId}
         />
@@ -317,7 +357,7 @@ export function MediaLibraryPage() {
           <p className="text-sm text-muted-foreground">
             {providerHasMore || isLoadingMore
               ? `Searching… loaded ${items.length} so far`
-              : `No results for "${searchQuery}"`}
+              : `No results for "${searchQuery}" in ${scopeLabel}`}
           </p>
           {(providerHasMore || isLoadingMore) && (
             <Loader2 className="mt-2 size-4 animate-spin text-muted-foreground" />
@@ -326,7 +366,7 @@ export function MediaLibraryPage() {
       ) : null}
 
       {/* Infinite-scroll sentinel + loading indicator */}
-      {!isGithub && (providerHasMore || isLoadingMore) && (
+      {(providerHasMore || isLoadingMore) && (
         <div
           ref={sentinelRef}
           className="mt-6 flex items-center justify-center"
@@ -334,7 +374,7 @@ export function MediaLibraryPage() {
           {isLoadingMore ? (
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <Loader2 className="size-3 animate-spin" />
-              Loading more from {providerLabel}…
+              Loading more…
             </div>
           ) : (
             <Button variant="outline" size="sm" onClick={loadMore}>
@@ -345,7 +385,7 @@ export function MediaLibraryPage() {
       )}
 
       {/* End-of-list marker */}
-      {!isGithub && !providerHasMore && !isLoadingMore && items.length > 0 && (
+      {!providerHasMore && !isLoadingMore && items.length > 0 && (
         <p className="mt-6 text-center text-[11px] text-muted-foreground">
           {items.length} file{items.length === 1 ? "" : "s"} loaded · end of
           list
@@ -354,7 +394,7 @@ export function MediaLibraryPage() {
 
       <UploadMediaDialog
         projectId={projectId}
-        provider={provider}
+        provider={uploadProvider}
         open={uploadDialogOpen}
         onOpenChange={setUploadDialogOpen}
         onUploaded={handleUploaded}
@@ -363,7 +403,6 @@ export function MediaLibraryPage() {
       <DeleteMediaDialog
         item={deleteTarget}
         projectId={projectId}
-        provider={provider}
         open={deleteTarget !== null}
         onOpenChange={(open) => {
           if (!open) setDeleteTarget(null);
@@ -380,36 +419,47 @@ export function MediaLibraryPage() {
 /*  Provider helpers                                                   */
 /* ------------------------------------------------------------------ */
 
-const PROVIDER_LABEL: Record<ActiveProvider, string> = {
-  github: "GitHub",
-  uploadthing: "UploadThing",
-  cloudinary: "Cloudinary",
-};
+const PROVIDER_LABEL = MEDIA_PROVIDER_LABELS;
 
-const PROVIDER_ICON: Record<ActiveProvider, typeof GitBranch> = {
-  github: GitBranch,
-  uploadthing: UploadCloud,
-  cloudinary: Cloud,
-};
-
-function describeLocation(
-  provider: ActiveProvider,
-  project: { mediaPath?: string; githubRepo?: string },
-): string | null {
-  if (provider === "github") {
-    return project.mediaPath ? `/${project.mediaPath}` : null;
+/** What the grid is currently showing: one provider, or the merged view. */
+function ScopeBadge({ filter }: { filter: MediaFilter }) {
+  if (filter === "all") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full border bg-muted/50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+        <Layers className="size-3" />
+        All providers
+      </span>
+    );
   }
-  if (provider === "cloudinary") {
-    return project.mediaPath ? project.mediaPath : null;
-  }
-  return null;
+  return <ProviderChip provider={filter} />;
 }
 
-function ProviderBadge({ provider }: { provider: ActiveProvider }) {
-  const Icon = PROVIDER_ICON[provider];
+/**
+ * Corner marker on a card in the merged view: which bucket this file is in.
+ *
+ * Icon only. A full "CLOUDFLARE R2" label reads as a headline over a thumbnail
+ * grid — the source is a hint you glance at, not something to announce, so the
+ * name lives in the tooltip and the accessible label instead.
+ */
+function ProviderMark({ provider }: { provider: ActiveProvider }) {
+  const label = PROVIDER_LABEL[provider];
+  return (
+    <span
+      title={label}
+      aria-label={label}
+      role="img"
+      className="absolute left-1.5 top-1.5 rounded-md bg-background/75 p-1 text-muted-foreground backdrop-blur-sm"
+    >
+      <MediaProviderIcon provider={provider} className="size-3" />
+    </span>
+  );
+}
+
+/** Provider marker with its name — for the header, where there's room. */
+function ProviderChip({ provider }: { provider: ActiveProvider }) {
   return (
     <span className="inline-flex items-center gap-1 rounded-full border bg-muted/50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-      <Icon className="size-3" />
+      <MediaProviderIcon provider={provider} className="size-3" />
       {PROVIDER_LABEL[provider]}
     </span>
   );
@@ -420,32 +470,26 @@ function ProviderBadge({ provider }: { provider: ActiveProvider }) {
 /* ------------------------------------------------------------------ */
 
 function EmptyState({
-  provider,
-  hasGithubConfig,
+  scopeLabel,
   needsConfig,
   onUpload,
-  providerIcon: ProviderIcon,
   location,
   projectId,
 }: {
-  provider: ActiveProvider;
-  hasGithubConfig: boolean;
+  scopeLabel: string;
   needsConfig: boolean;
   onUpload: () => void;
-  providerIcon: typeof GitBranch;
   location: string | null;
   projectId: Id<"projects">;
 }) {
   if (needsConfig) {
     return (
       <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-16">
-        <ProviderIcon className="mb-4 size-12 text-muted-foreground/50" />
-        <h2 className="mb-2 text-lg font-semibold">
-          Connect {PROVIDER_LABEL[provider]}
-        </h2>
+        <UploadCloud className="mb-4 size-12 text-muted-foreground/30" />
+        <h2 className="mb-2 text-lg font-semibold">No storage connected</h2>
         <p className="mb-6 max-w-sm text-center text-sm text-muted-foreground">
-          Add your {PROVIDER_LABEL[provider]} credentials in project settings to
-          load media from your account.
+          Connect a provider — GitHub, UploadThing, Cloudinary or Cloudflare R2
+          — and your uploads will show up here.
         </p>
         <Link
           href={`/projects/${projectId}/settings`}
@@ -459,14 +503,13 @@ function EmptyState({
 
   return (
     <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-16">
-      <ImageIcon className="mb-4 size-12 text-muted-foreground/50" />
-      <h2 className="mb-2 text-lg font-semibold">No media files found</h2>
+      <ImageIcon className="mb-4 size-12 text-muted-foreground/30" />
+      <h2 className="mb-2 text-lg font-semibold">Nothing here yet</h2>
       <p className="mb-6 max-w-sm text-center text-sm text-muted-foreground">
-        {provider === "github"
-          ? hasGithubConfig
-            ? `Nothing in ${location ?? "your repo"} yet. Upload to get started.`
-            : "Configure GitHub settings to scan your repo for media, or upload new files."
-          : `No media in your ${PROVIDER_LABEL[provider]} account yet. Upload to get started.`}
+        {location
+          ? `No media in ${location} yet.`
+          : `No media in ${scopeLabel} yet.`}{" "}
+        Upload an image to get started.
       </p>
       <Button size="sm" onClick={onUpload}>
         <Upload className="size-4" />
@@ -480,19 +523,31 @@ function EmptyState({
 /*  Media Card                                                         */
 /* ------------------------------------------------------------------ */
 
+const IMAGE_EXTENSIONS = /\.(png|jpe?g|gif|webp|svg|avif|bmp|ico)(?:$|[?#])/i;
+
+/** True when a filename or URL path ends in a renderable image extension. */
+function hasImageExtension(value: string): boolean {
+  return IMAGE_EXTENSIONS.test(value);
+}
+
 function MediaCard({
   item,
-  provider,
+  showProvider,
   onDelete,
 }: {
   item: UnifiedMediaItem;
-  provider: ActiveProvider;
+  /** Stamp the source bucket on the card — only useful in the merged view. */
+  showProvider: boolean;
   onDelete: () => void;
 }) {
   const isImage =
-    /\.(png|jpe?g|gif|webp|svg|avif|bmp|ico)$/i.test(item.name) &&
     typeof item.url === "string" &&
-    item.url.length > 0;
+    item.url.length > 0 &&
+    // Checked against the URL as well as the name: object stores don't all
+    // keep an extension in the display name (a Cloudinary public_id has none),
+    // and a missing extension shouldn't downgrade a real image to a
+    // placeholder icon.
+    (hasImageExtension(item.name) || hasImageExtension(item.url));
   const sizeKB = (item.size / 1024).toFixed(1);
 
   const handleCopyUrl = useCallback(() => {
@@ -504,7 +559,7 @@ function MediaCard({
 
   // For GitHub, the path-style URL (e.g. "/images/foo.png") is what users want
   // in markdown. For UT/Cloudinary, only the full URL is meaningful.
-  const showPathCopy = provider === "github";
+  const showPathCopy = item.provider === "github";
 
   return (
     <motion.div
@@ -520,17 +575,25 @@ function MediaCard({
       }}
       className="group overflow-hidden rounded-lg border bg-card transition-colors hover:bg-muted/30"
     >
-      <div className="relative flex h-36 items-center justify-center bg-muted/50">
+      <div className="relative flex h-28 items-center justify-center bg-muted/50 sm:h-36">
         {isImage ? (
           <MediaImage
             src={item.url}
             alt={item.name}
-            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
           />
         ) : (
           <ImageIcon className="size-10 text-muted-foreground/30" />
         )}
-        <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
+        {showProvider && <ProviderMark provider={item.provider} />}
+        <div
+          className={cn(
+            "absolute inset-0 flex flex-wrap items-center justify-center gap-1.5 bg-black/50 p-2 transition-opacity",
+            // Touch devices have no hover, so a hover-only overlay hides copy,
+            // open and delete behind a gesture that doesn't exist there.
+            "opacity-100 md:opacity-0 md:group-hover:opacity-100",
+          )}
+        >
           <Button size="xs" variant="secondary" onClick={handleCopyUrl}>
             <Copy className="size-3" />
             URL
@@ -663,8 +726,11 @@ function UploadMediaDialog({
       // Step 3: Upload
       setProgressStep("upload");
       const bytes = await toUpload.arrayBuffer();
+      // Explicit destination: the upload lands in whichever provider the
+      // library is showing, not silently in the project default.
       await uploadMedia({
         projectId,
+        provider,
         bytes,
         mime: toUpload.type,
         filename: toUpload.name,
@@ -693,6 +759,7 @@ function UploadMediaDialog({
     onUploaded,
     override,
     projectId,
+    provider,
     selectedFile,
     uploadMedia,
   ]);
@@ -949,7 +1016,6 @@ function DropZone({
 function DeleteMediaDialog({
   item,
   projectId,
-  provider,
   open,
   onOpenChange,
   onOptimisticDelete,
@@ -958,7 +1024,6 @@ function DeleteMediaDialog({
 }: {
   item: UnifiedMediaItem | null;
   projectId: Id<"projects">;
-  provider: ActiveProvider;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** Called the moment the user confirms — hides the card before the API call. */
@@ -973,10 +1038,10 @@ function DeleteMediaDialog({
     if (!item) return;
     const args: Parameters<typeof deleteByRef>[0] = {
       projectId,
-      provider,
+      provider: item.provider,
       externalId: item.externalId,
     };
-    if (provider === "github" && item.sha) {
+    if (item.provider === "github" && item.sha) {
       args.sha = item.sha;
     }
 
@@ -1010,7 +1075,6 @@ function DeleteMediaDialog({
     onOptimisticDelete,
     onRestore,
     projectId,
-    provider,
   ]);
 
   return (
@@ -1021,8 +1085,8 @@ function DeleteMediaDialog({
           <DialogDescription>
             Delete{" "}
             <span className="font-medium text-foreground">{item?.name}</span>{" "}
-            from {PROVIDER_LABEL[provider]}? Existing documents that reference
-            this URL will get a broken image.
+            from {item ? PROVIDER_LABEL[item.provider] : "storage"}? Existing
+            documents that reference this URL will get a broken image.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>

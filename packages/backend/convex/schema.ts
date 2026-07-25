@@ -15,6 +15,10 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import { compressionSettingsValidator } from "./_lib/compression";
 import { providerValidator } from "./ai/_lib/providers";
+import {
+  credentialProviderValidator,
+  mediaProviderValidator,
+} from "./media/_lib/providers";
 
 export default defineSchema({
   /**
@@ -116,13 +120,14 @@ export default defineSchema({
    * maps to a GitHub repository for publishing. Users can configure content/media paths,
    * the target branch, and a frontmatter schema for consistent metadata across documents.
    *
-   * `mediaStorageMode` picks the per-project upload destination:
-   *  - "github": commit binaries directly into the project's repo at `mediaPath`
-   *  - "uploadthing": user-provided UploadThing token (stored in vault)
-   *  - "cloudinary": user-provided Cloudinary cloud_name + api_key + api_secret (secrets in vault)
+   * `mediaStorageMode` is the project's **default** upload destination — see
+   * `media/_lib/providers.ts` for the full provider list. Several providers can
+   * be connected at once (one `mediaCredentials` row each); this field only
+   * decides where an upload lands when the caller doesn't name a destination.
    *
    * `mediaPath` carries the framework-specific destination — e.g. `public/images`
-   * for Astro, `static/images` for SvelteKit, a Cloudinary folder, etc.
+   * for Astro, `static/images` for SvelteKit, a Cloudinary folder, an R2 key
+   * prefix, etc.
    */
   projects: defineTable({
     userId: v.id("users"),
@@ -152,13 +157,7 @@ export default defineSchema({
      * on in project settings.
      */
     importEnabled: v.optional(v.boolean()),
-    mediaStorageMode: v.optional(
-      v.union(
-        v.literal("github"),
-        v.literal("uploadthing"),
-        v.literal("cloudinary"),
-      ),
-    ),
+    mediaStorageMode: v.optional(mediaProviderValidator),
     frontmatterSchema: v.optional(v.string()),
     /** Custom commit message template, e.g. "docs: update {{filename}}" */
     commitMessageTemplate: v.optional(v.string()),
@@ -641,21 +640,19 @@ export default defineSchema({
   /**
    * Media table — records of images uploaded to a project's chosen storage provider.
    *
-   * `provider` indicates where the binary lives:
-   *  - "github": file lives at `externalId` (repo path) in the project's repo
-   *  - "uploadthing": `externalId` is the UploadThing file key
-   *  - "cloudinary": `externalId` is the Cloudinary public_id
+   * `provider` indicates where the binary lives, and what `externalId` means:
+   *  - "github": repo path in the project's repo
+   *  - "uploadthing": the UploadThing file key
+   *  - "cloudinary": the Cloudinary public_id
+   *  - "r2": the object key inside the bucket
+   *
+   * Rows from different providers coexist in one project — the provider is
+   * recorded per upload, not per project.
    */
   media: defineTable({
     projectId: v.id("projects"),
     userId: v.optional(v.id("users")),
-    provider: v.optional(
-      v.union(
-        v.literal("github"),
-        v.literal("uploadthing"),
-        v.literal("cloudinary"),
-      ),
-    ),
+    provider: v.optional(mediaProviderValidator),
     externalId: v.optional(v.string()),
     url: v.optional(v.string()),
     filename: v.optional(v.string()),
@@ -673,9 +670,14 @@ export default defineSchema({
     .index("by_provider_and_externalId", ["provider", "externalId"]),
 
   /**
-   * Media credentials — per-project encrypted credentials for the active provider.
-   * Only one row per (projectId, provider). Secret values live in WorkOS Vault;
-   * we store an opaque pointer plus non-secret hints (e.g. Cloudinary `cloud_name`).
+   * Media credentials — per-project encrypted credentials, one row per
+   * connected provider. Secret values live in WorkOS Vault; we store an opaque
+   * pointer plus non-secret hints (e.g. Cloudinary `cloud_name`, an R2 bucket).
+   *
+   * These rows *are* the set of providers a project can use: connecting a
+   * provider inserts one, and `projects.mediaStorageMode` picks which of them
+   * is the default upload destination. GitHub has no row — it rides the user's
+   * OAuth token.
    *
    * `status` is an explicit state machine so the UI can render
    * "verifying…" / "rotating…" / "invalid — please update" reactively.
@@ -683,10 +685,10 @@ export default defineSchema({
   mediaCredentials: defineTable({
     projectId: v.id("projects"),
     userId: v.id("users"),
-    provider: v.union(v.literal("uploadthing"), v.literal("cloudinary")),
+    provider: credentialProviderValidator,
     vaultSecretId: v.string(),
     vaultVersionId: v.optional(v.string()),
-    /** JSON-serialized non-secret hints, e.g. { cloudName, folder } for Cloudinary. */
+    /** JSON-serialized non-secret hints, keyed by credential field name. */
     publicConfig: v.optional(v.string()),
     status: v.union(
       v.literal("active"),

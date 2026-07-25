@@ -9,11 +9,16 @@
 import { v } from "convex/values";
 import { internalMutation, internalQuery, query } from "../_generated/server";
 import { getAuthedUserOrNull } from "../_lib/auth";
+import {
+  CREDENTIAL_PROVIDER_IDS,
+  credentialProviderValidator,
+  MEDIA_PROVIDER_IDS,
+  type MediaCredentialStatus,
+  type MediaProvider,
+  resolveDefaultProvider,
+} from "./_lib/providers";
 
-const PROVIDER_VALIDATOR = v.union(
-  v.literal("uploadthing"),
-  v.literal("cloudinary"),
-);
+const PROVIDER_VALIDATOR = credentialProviderValidator;
 
 /**
  * Public read for the settings UI. Never returns the secret — only the
@@ -54,8 +59,8 @@ export const getPublicConfig = query({
 });
 
 /**
- * Lists all configured credentials for a project (uploadthing, cloudinary).
- * Returns at most one entry per provider. Never includes secrets.
+ * Lists all configured credentials for a project. Returns at most one entry
+ * per provider. Never includes secrets.
  */
 export const listForProject = query({
   args: { projectId: v.id("projects") },
@@ -68,7 +73,7 @@ export const listForProject = query({
     const rows = await ctx.db
       .query("mediaCredentials")
       .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
-      .take(10);
+      .take(CREDENTIAL_PROVIDER_IDS.length);
     return rows.map((r) => ({
       _id: r._id,
       provider: r.provider,
@@ -78,6 +83,65 @@ export const listForProject = query({
       lastVerifyError: r.lastVerifyError,
       rotatedAt: r.rotatedAt,
     }));
+  },
+});
+
+export type EnabledProvider = {
+  provider: MediaProvider;
+  /** The project's default upload destination. Exactly one entry has this. */
+  isDefault: boolean;
+  /** Usable right now — credentials saved, or a repo configured for GitHub. */
+  configured: boolean;
+  /** Verification state; absent for GitHub, which has no stored credential. */
+  status?: MediaCredentialStatus;
+};
+
+/**
+ * Which providers this project can read and write, in registry order.
+ *
+ * The single source of truth for the media library's provider tabs and for the
+ * upload-destination picker. "Enabled" is derived, never stored: a provider is
+ * enabled by connecting it (a `mediaCredentials` row) or, for GitHub, by
+ * configuring a repo and media directory.
+ *
+ * The default provider is always included even when it isn't configured yet, so
+ * the UI can render its "connect this provider" state instead of silently
+ * dropping the destination that uploads are routing to.
+ */
+export const listEnabledProviders = query({
+  args: { projectId: v.id("projects") },
+  handler: async (ctx, args): Promise<EnabledProvider[]> => {
+    const user = await getAuthedUserOrNull(ctx);
+    if (!user) return [];
+    const project = await ctx.db.get(args.projectId);
+    if (!project || project.userId !== user._id) return [];
+
+    const rows = await ctx.db
+      .query("mediaCredentials")
+      .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
+      .take(CREDENTIAL_PROVIDER_IDS.length);
+    const byProvider = new Map<MediaProvider, (typeof rows)[number]>(
+      rows.map((r) => [r.provider, r]),
+    );
+
+    const defaultProvider = resolveDefaultProvider(project.mediaStorageMode);
+    const githubReady = Boolean(project.githubRepo && project.mediaPath);
+
+    const enabled: EnabledProvider[] = [];
+    for (const provider of MEDIA_PROVIDER_IDS) {
+      const isDefault = provider === defaultProvider;
+      const cred = byProvider.get(provider);
+      const configured =
+        provider === "github" ? githubReady : cred !== undefined;
+      if (!configured && !isDefault) continue;
+      enabled.push({
+        provider,
+        isDefault,
+        configured,
+        ...(cred ? { status: cred.status } : {}),
+      });
+    }
+    return enabled;
   },
 });
 
@@ -139,7 +203,8 @@ export const _replaceVaultId = internalMutation({
     credentialId: v.id("mediaCredentials"),
     newVaultSecretId: v.string(),
     newVersionId: v.optional(v.string()),
-    publicConfig: v.optional(v.string()),
+    /** Erase the legacy plaintext mirror of the non-secret fields. */
+    clearPublicConfig: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const patch: Record<string, unknown> = {
@@ -150,9 +215,7 @@ export const _replaceVaultId = internalMutation({
     if (args.newVersionId !== undefined) {
       patch["vaultVersionId"] = args.newVersionId;
     }
-    if (args.publicConfig !== undefined) {
-      patch["publicConfig"] = args.publicConfig;
-    }
+    if (args.clearPublicConfig) patch["publicConfig"] = undefined;
     await ctx.db.patch(args.credentialId, patch);
   },
 });
@@ -191,7 +254,6 @@ export const _markRotated = internalMutation({
     credentialId: v.id("mediaCredentials"),
     newVaultSecretId: v.string(),
     newVersionId: v.optional(v.string()),
-    publicConfig: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const now = Date.now();
@@ -206,9 +268,8 @@ export const _markRotated = internalMutation({
     if (args.newVersionId !== undefined) {
       patch["vaultVersionId"] = args.newVersionId;
     }
-    if (args.publicConfig !== undefined) {
-      patch["publicConfig"] = args.publicConfig;
-    }
+    // Rotation is also when the legacy plaintext mirror gets dropped.
+    patch["publicConfig"] = undefined;
     await ctx.db.patch(args.credentialId, patch);
   },
 });
