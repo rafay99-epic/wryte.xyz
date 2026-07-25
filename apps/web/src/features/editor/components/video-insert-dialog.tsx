@@ -66,14 +66,14 @@ export function VideoInsertDialog({
   const { maxBytes: maxUploadBytes, formatted: maxUploadLabel } =
     useUploadLimit(projectId as Id<"projects">);
   const {
-    provider,
-    setProvider,
+    filter,
+    setFilter,
+    uploadProvider,
     configuredTabs,
-    showLibrary,
     items: libraryItems,
     isLoading: isLibraryLoading,
     isLoadingMore,
-    error: libraryError,
+    errors: libraryErrors,
     hasMore,
     loadMore,
     refresh: refreshLibrary,
@@ -96,7 +96,7 @@ export function VideoInsertDialog({
   }, [libraryItems, searchQuery]);
 
   const canUpload = Boolean(project);
-  const defaultTab = showLibrary ? "library" : "url";
+  const defaultTab = "library";
 
   const resetForm = useCallback(() => {
     setVideoUrl("");
@@ -147,7 +147,7 @@ export function VideoInsertDialog({
         const bytes = await file.arrayBuffer();
         const result = await uploadMedia({
           projectId: projectId as Id<"projects">,
-          provider,
+          provider: uploadProvider,
           bytes,
           mime: file.type,
           filename: file.name,
@@ -181,7 +181,7 @@ export function VideoInsertDialog({
       resetForm,
       title,
       uploadMedia,
-      provider,
+      uploadProvider,
     ],
   );
 
@@ -214,20 +214,18 @@ export function VideoInsertDialog({
         <SheetBody>
           <Tabs defaultValue={defaultTab} key={defaultTab}>
             <TabsList className="w-full">
-              {showLibrary && (
-                <TabsTrigger value="library">Library</TabsTrigger>
-              )}
+              {true && <TabsTrigger value="library">Library</TabsTrigger>}
               <TabsTrigger value="url">URL</TabsTrigger>
               <TabsTrigger value="upload">Upload</TabsTrigger>
             </TabsList>
 
-            {showLibrary && (
+            {true && (
               <TabsContent value="library">
                 <div className="space-y-4">
                   <MediaProviderTabs
                     tabs={configuredTabs}
-                    selected={provider}
-                    onSelect={setProvider}
+                    selected={filter}
+                    onSelect={setFilter}
                   />
                   <div className="space-y-1.5">
                     <Label htmlFor="video-library-title">Title</Label>
@@ -249,8 +247,12 @@ export function VideoInsertDialog({
                     />
                   </div>
 
-                  {libraryError && (
-                    <p className="text-sm text-destructive">{libraryError}</p>
+                  {libraryErrors.length > 0 && (
+                    <p className="text-sm text-destructive">
+                      {libraryErrors
+                        .map((e) => `${e.label}: ${e.message}`)
+                        .join(" · ")}
+                    </p>
                   )}
 
                   {isLibraryLoading ? (
@@ -262,7 +264,7 @@ export function VideoInsertDialog({
                       message={
                         searchQuery
                           ? "No matches found"
-                          : libraryError
+                          : libraryErrors.length > 0
                             ? "Couldn't load media library"
                             : "No video files found"
                       }

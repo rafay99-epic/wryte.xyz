@@ -4,6 +4,9 @@ import { cn } from "@wryte/logic/lib/utils";
 import type { MediaProvider } from "@wryte/logic/types/media";
 import { MEDIA_PROVIDER_LABELS } from "@wryte/logic/types/media";
 
+/** `"all"` is the merged view; the provider ids filter it. */
+export type MediaProviderFilter = MediaProvider | "all";
+
 export type MediaProviderTab = {
   provider: MediaProvider;
   /** The project's default upload destination. */
@@ -14,10 +17,14 @@ export type MediaProviderTab = {
 };
 
 /**
- * Row of connected storage providers. Presentational only — the caller owns
- * which providers exist, which one is selected, and what selecting does.
+ * Row of connected storage providers, led by an "All" entry.
  *
- * Renders nothing for a single provider: a one-tab tab bar is noise.
+ * These are filters over listings that are already in memory, not fetch
+ * triggers — selecting one costs nothing. Presentational only: the caller owns
+ * which providers exist and what selecting does.
+ *
+ * Renders nothing for a single provider: filtering one bucket by itself is
+ * noise.
  */
 export function MediaProviderTabs({
   tabs,
@@ -26,8 +33,8 @@ export function MediaProviderTabs({
   className,
 }: {
   tabs: MediaProviderTab[];
-  selected: MediaProvider;
-  onSelect: (provider: MediaProvider) => void;
+  selected: MediaProviderFilter;
+  onSelect: (filter: MediaProviderFilter) => void;
   className?: string;
 }) {
   if (tabs.length < 2) return null;
@@ -38,6 +45,20 @@ export function MediaProviderTabs({
       aria-label="Storage provider"
       className={cn("flex flex-wrap items-center gap-1", className)}
     >
+      <button
+        type="button"
+        role="tab"
+        aria-selected={selected === "all"}
+        onClick={() => onSelect("all")}
+        className={cn(
+          "rounded-md border px-2.5 py-1 text-xs font-medium transition-colors",
+          selected === "all"
+            ? "border-border bg-muted text-foreground"
+            : "border-transparent text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+        )}
+      >
+        All
+      </button>
       {tabs.map((tab) => {
         const isSelected = tab.provider === selected;
         return (

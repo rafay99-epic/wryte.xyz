@@ -65,14 +65,14 @@ export function MediaPickerDrawer({
   );
 
   const {
-    provider,
-    setProvider,
+    filter,
+    setFilter,
+    uploadProvider,
     configuredTabs,
-    showLibrary,
     items: libraryItems,
     isLoading: isLibraryLoading,
     isLoadingMore,
-    error: libraryError,
+    errors: libraryErrors,
     hasMore,
     loadMore,
     refresh: refreshLibrary,
@@ -131,7 +131,7 @@ export function MediaPickerDrawer({
   }, [externalUrl, handleSelect]);
 
   const defaultTab =
-    showLibrary && libraryItems.length > 0
+    libraryItems.length > 0
       ? "library"
       : projectMedia.length > 0
         ? "recent"
@@ -164,25 +164,25 @@ export function MediaPickerDrawer({
 
           <Tabs defaultValue={defaultTab} key={defaultTab} className="min-h-0">
             <TabsList className="w-full">
-              {showLibrary && (
-                <TabsTrigger value="library">Library</TabsTrigger>
-              )}
+              {true && <TabsTrigger value="library">Library</TabsTrigger>}
               <TabsTrigger value="recent">Recent</TabsTrigger>
               <TabsTrigger value="upload">Upload</TabsTrigger>
               <TabsTrigger value="url">URL</TabsTrigger>
             </TabsList>
 
-            {showLibrary && (
+            {true && (
               <TabsContent value="library">
                 <MediaProviderTabs
                   tabs={configuredTabs}
-                  selected={provider}
-                  onSelect={setProvider}
+                  selected={filter}
+                  onSelect={setFilter}
                   className="mb-3"
                 />
-                {libraryError && (
+                {libraryErrors.length > 0 && (
                   <p className="mb-3 text-xs text-destructive">
-                    {libraryError}
+                    {libraryErrors
+                      .map((e) => `${e.label}: ${e.message}`)
+                      .join(" · ")}
                   </p>
                 )}
                 {isLibraryLoading ? (
@@ -192,7 +192,7 @@ export function MediaPickerDrawer({
                     message={
                       searchQuery
                         ? "No matches found"
-                        : libraryError
+                        : libraryErrors.length > 0
                           ? "Couldn't load media library"
                           : "No media files found"
                     }
@@ -267,7 +267,7 @@ export function MediaPickerDrawer({
             <TabsContent value="upload">
               <UploadTab
                 projectId={projectId}
-                provider={provider}
+                provider={uploadProvider}
                 onUploaded={(url) => {
                   void refreshLibrary();
                   handleSelect(url);

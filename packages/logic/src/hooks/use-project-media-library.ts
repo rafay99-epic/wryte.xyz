@@ -2,12 +2,9 @@
 
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
+import { useGithubInvalidation } from "@wryte/logic/hooks/use-github";
 import {
-  useGithubInvalidation,
-  useGithubMedia,
-} from "@wryte/logic/hooks/use-github";
-import { canShowMediaLibrary } from "@wryte/logic/lib/media-provider";
-import {
+  MEDIA_PROVIDER_LABELS,
   type MediaProvider,
   resolveDefaultProvider,
 } from "@wryte/logic/types/media";
@@ -20,11 +17,16 @@ export type MediaLibraryItem = {
   name: string;
   url: string;
   size: number;
+  /** Which bucket this came from — listings are merged, so rows carry it. */
+  provider: MediaProvider;
   /** GitHub blob SHA — required for deletion. */
   sha?: string;
   /** GitHub repo-relative path (no leading slash) for frontmatter selection. */
   path?: string;
 };
+
+/** The provider tabs double as filters, plus a merged "everything" view. */
+export type MediaFilter = MediaProvider | "all";
 
 export type ProjectMediaContext = {
   mediaStorageMode?: MediaProvider;
@@ -33,19 +35,40 @@ export type ProjectMediaContext = {
   mediaPath?: string;
 } | null;
 
-type UseProjectMediaLibraryArgs = {
-  projectId: Id<"projects">;
-  project: ProjectMediaContext | undefined;
-  /** When false, skips provider API fetches (GitHub query also disabled). */
-  enabled?: boolean;
-};
-
 /** A connected provider, as returned by `media.credentialsDb.listEnabledProviders`. */
 export type MediaProviderOption = {
   provider: MediaProvider;
   isDefault: boolean;
   configured: boolean;
   status?: "active" | "verifying" | "invalid" | "rotating";
+};
+
+/** One provider that couldn't be listed. The rest of the page carries on. */
+export type MediaProviderError = {
+  provider: MediaProvider;
+  label: string;
+  message: string;
+};
+
+type ProviderState = {
+  items: MediaLibraryItem[];
+  cursor: string | null;
+  status: "idle" | "loading" | "loaded" | "error";
+  error: string | null;
+};
+
+const EMPTY_STATE: ProviderState = {
+  items: [],
+  cursor: null,
+  status: "idle",
+  error: null,
+};
+
+type UseProjectMediaLibraryArgs = {
+  projectId: Id<"projects">;
+  project: ProjectMediaContext | undefined;
+  /** When false, no provider is contacted at all. */
+  enabled?: boolean;
 };
 
 function githubPublicPath(repoPath: string, mediaPath?: string): string {
@@ -62,15 +85,37 @@ function githubPublicPath(repoPath: string, mediaPath?: string): string {
   return `/${publicRoot ? `${publicRoot}/` : ""}${relativePath}`;
 }
 
+/** How many rows one page asks a provider for. */
+const PAGE_SIZE = 40;
+
+/**
+ * The media library's data layer, shared by the library page and the three
+ * editor pickers.
+ *
+ * Every provider is listed through the same Convex action — including GitHub,
+ * which used to take a separate client-side path and forced an `isGithub`
+ * branch through most of this file.
+ *
+ * Three properties the UI depends on:
+ *
+ *  - **One fetch per provider.** Results are held per provider for the life of
+ *    the hook, so switching tabs filters what's already in memory rather than
+ *    re-listing a bucket. Provider APIs bill per call.
+ *  - **Loaded in sequence.** Connected providers are listed one after another,
+ *    a page at a time, so opening the library never fans out N concurrent
+ *    actions.
+ *  - **Failures stay local.** A provider that errors records its own message
+ *    and the others still render — one expired key can't blank the page.
+ */
 export function useProjectMediaLibrary({
   projectId,
   project,
   enabled = true,
 }: UseProjectMediaLibraryArgs) {
-  // Which connected provider is being browsed. `null` means "follow the
-  // project's default", so a settings change is picked up without extra
-  // wiring — and switching tabs is one setState for every consumer.
-  const [selected, setSelected] = useState<MediaProvider | null>(null);
+  const [filter, setFilter] = useState<MediaFilter>("all");
+  const [byProvider, setByProvider] = useState<
+    Partial<Record<MediaProvider, ProviderState>>
+  >({});
 
   const providerTabs: MediaProviderOption[] =
     useQuery(
@@ -84,209 +129,228 @@ export function useProjectMediaLibrary({
     [providerTabs],
   );
 
-  const provider = useMemo(() => {
-    if (selected) return selected;
+  /**
+   * Where an upload goes. A filtered view uploads to what you're looking at;
+   * the merged view falls back to the project default, or to any connected
+   * provider when that default was never set up.
+   */
+  const uploadProvider = useMemo<MediaProvider>(() => {
+    if (filter !== "all") return filter;
     const projectDefault = resolveDefaultProvider(project?.mediaStorageMode);
-    // The default can point at a provider that was never connected (or was
-    // disconnected since). Uploading there fails, so fall through to something
-    // that actually works rather than routing into a guaranteed error.
     if (providerTabs.length === 0) return projectDefault;
     const defaultTab = providerTabs.find((t) => t.provider === projectDefault);
     if (defaultTab?.configured) return projectDefault;
     return configuredTabs[0]?.provider ?? projectDefault;
-  }, [selected, project?.mediaStorageMode, providerTabs, configuredTabs]);
-
-  const isGithub = provider === "github";
-  const hasGithubConfig = Boolean(project?.githubRepo && project?.mediaPath);
-  const showLibrary = canShowMediaLibrary(provider, project);
-
-  const githubEnabled = enabled && isGithub && hasGithubConfig;
-
-  const {
-    data: githubData,
-    isLoading: isGithubLoading,
-    refetch: refetchGithub,
-  } = useGithubMedia({
-    repo: githubEnabled ? (project?.githubRepo ?? null) : null,
-    branch: project?.githubBranch ?? "main",
-    path: githubEnabled ? (project?.mediaPath ?? null) : null,
-  });
+  }, [filter, project?.mediaStorageMode, providerTabs, configuredTabs]);
 
   const { invalidateMedia } = useGithubInvalidation();
   const listMedia = useAction(api.media.uploads.list);
 
-  const [providerItems, setProviderItems] = useState<MediaLibraryItem[]>([]);
-  const [isProviderLoading, setIsProviderLoading] = useState(false);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [hasMore, setHasMore] = useState(false);
+  const mediaPath = project?.mediaPath;
 
-  // Per-provider listing cache. Provider APIs are billed per call and every
-  // one is a server round-trip, so flipping between tabs must not re-list a
-  // bucket that was already fetched. Entries only clear on an explicit
-  // `refresh()` or after an upload.
-  const cacheRef = useRef<
-    Map<MediaProvider, { items: MediaLibraryItem[]; cursor: string | null }>
-  >(new Map());
-  const providerCursorRef = useRef<string | null>(null);
-  // Monotonic token. Each fetch bumps it; in-flight fetches whose token is
-  // no longer the latest drop their result instead of stomping on the state
-  // for the newer (e.g. for a different project, or a different provider)
-  // fetch. The previous boolean lock dropped the NEW fetch when an old one
-  // was still running.
-  const fetchSeqRef = useRef(0);
+  // Providers already asked for, so a re-render can't re-queue them.
+  const requestedRef = useRef<Set<MediaProvider>>(new Set());
+  const queueRef = useRef<MediaProvider[]>([]);
+  const pumpingRef = useRef(false);
+  // Bumped whenever the whole view resets; in-flight pages from before the
+  // reset drop their results instead of repopulating stale state.
+  const generationRef = useRef(0);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: clears cached listings when the project changes.
+  // `loadPage` reads the current cursor without taking `byProvider` as a
+  // dependency, which would rebuild it on every page and restart the queue.
+  const byProviderRef = useRef(byProvider);
   useEffect(() => {
-    cacheRef.current.clear();
-  }, [projectId]);
+    byProviderRef.current = byProvider;
+  }, [byProvider]);
 
-  const fetchProvider = useCallback(
-    async (opts?: { append?: boolean }) => {
-      if (isGithub || !enabled) return;
-      const seq = ++fetchSeqRef.current;
-      const append = opts?.append ?? false;
-      if (append) {
-        setIsLoadingMore(true);
-      } else {
-        setIsProviderLoading(true);
-        setError(null);
-      }
+  const loadPage = useCallback(
+    async (provider: MediaProvider, append: boolean) => {
+      const generation = generationRef.current;
+      const cursor = append
+        ? (byProviderRef.current[provider]?.cursor ?? null)
+        : null;
+
+      setByProvider((prev) => ({
+        ...prev,
+        [provider]: {
+          ...(prev[provider] ?? EMPTY_STATE),
+          status: "loading",
+          error: null,
+        },
+      }));
+
       try {
-        const cursor = append ? providerCursorRef.current : null;
         const res = await listMedia({
           projectId,
           provider,
-          limit: 100,
+          limit: PAGE_SIZE,
           ...(cursor ? { cursor } : {}),
         });
-        // A newer fetch superseded this one (e.g. projectId or provider
-        // changed) — drop the result rather than overwriting the newer state.
-        if (seq !== fetchSeqRef.current) return;
-        const newItems: MediaLibraryItem[] = res.items.map((it) => ({
+        if (generation !== generationRef.current) return;
+
+        const rows: MediaLibraryItem[] = res.items.map((it) => ({
           externalId: it.externalId,
           name: it.filename,
           url: it.url,
           size: it.size,
+          provider,
+          ...(it.sha !== undefined ? { sha: it.sha } : {}),
+          // GitHub's externalId *is* the repo path, which frontmatter needs to
+          // turn into a site-relative URL.
+          ...(provider === "github" ? { path: it.externalId } : {}),
         }));
-        setProviderItems((prev) => {
-          const merged = append ? [...prev, ...newItems] : newItems;
-          cacheRef.current.set(provider, {
-            items: merged,
-            cursor: res.nextCursor,
-          });
-          return merged;
+
+        setByProvider((prev) => {
+          const previous = prev[provider] ?? EMPTY_STATE;
+          return {
+            ...prev,
+            [provider]: {
+              items: append ? [...previous.items, ...rows] : rows,
+              cursor: res.nextCursor,
+              status: "loaded",
+              error: null,
+            },
+          };
         });
-        providerCursorRef.current = res.nextCursor;
-        setHasMore(res.nextCursor !== null);
       } catch (err) {
-        if (seq !== fetchSeqRef.current) return;
+        if (generation !== generationRef.current) return;
         const data = (err as { data?: { message?: string } })?.data;
         const message =
           data?.message ??
           (err instanceof Error ? err.message : "Failed to load media");
-        setError(message);
-        if (!append) setProviderItems([]);
-        setHasMore(false);
-      } finally {
-        if (seq === fetchSeqRef.current) {
-          if (append) setIsLoadingMore(false);
-          else setIsProviderLoading(false);
-        }
+        setByProvider((prev) => ({
+          ...prev,
+          [provider]: {
+            ...(prev[provider] ?? EMPTY_STATE),
+            status: "error",
+            error: message,
+          },
+        }));
       }
     },
-    [enabled, isGithub, listMedia, projectId, provider],
+    [listMedia, projectId],
   );
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: fetchProvider is stable per (projectId, provider); reset when either, the provider mode, or enabled changes.
+  /** Drains the queue one provider at a time — never a concurrent fan-out. */
+  const pump = useCallback(async () => {
+    if (pumpingRef.current) return;
+    pumpingRef.current = true;
+    try {
+      for (;;) {
+        const next = queueRef.current.shift();
+        if (!next) break;
+        await loadPage(next, false);
+      }
+    } finally {
+      pumpingRef.current = false;
+    }
+  }, [loadPage]);
+
+  // Queue any newly-connected provider that hasn't been listed yet.
   useEffect(() => {
-    if (isGithub || !enabled) return;
-    setError(null);
-
-    // Already listed this provider in this session — restore it instead of
-    // spending another provider API call to learn the same thing.
-    const cached = cacheRef.current.get(provider);
-    if (cached) {
-      setProviderItems(cached.items);
-      providerCursorRef.current = cached.cursor;
-      setHasMore(cached.cursor !== null);
-      return;
+    if (!enabled) return;
+    let queued = false;
+    for (const tab of configuredTabs) {
+      if (requestedRef.current.has(tab.provider)) continue;
+      requestedRef.current.add(tab.provider);
+      queueRef.current.push(tab.provider);
+      queued = true;
     }
+    if (queued) void pump();
+  }, [configuredTabs, enabled, pump]);
 
-    setProviderItems([]);
-    setHasMore(false);
-    providerCursorRef.current = null;
-    void fetchProvider({ append: false });
-  }, [enabled, isGithub, projectId, provider, fetchProvider]);
+  const resetAll = useCallback(() => {
+    generationRef.current += 1;
+    requestedRef.current.clear();
+    queueRef.current = [];
+    setByProvider({});
+  }, []);
 
-  const items: MediaLibraryItem[] = useMemo(() => {
-    if (isGithub) {
-      return (githubData?.files ?? [])
-        .filter(
-          (f) => typeof f.downloadUrl === "string" && f.downloadUrl.length > 0,
-        )
-        .map((f) => ({
-          externalId: f.path,
-          name: f.name,
-          url: f.downloadUrl,
-          size: f.size,
-          sha: f.sha,
-          path: f.path,
-        }));
-    }
-    return providerItems.filter(
-      (i) => typeof i.url === "string" && i.url.length > 0,
-    );
-  }, [isGithub, githubData?.files, providerItems]);
+  // A different project shares nothing with this one.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reset when the project changes.
+  useEffect(() => {
+    resetAll();
+  }, [projectId, resetAll]);
 
-  const isLoading = isGithub ? isGithubLoading : isProviderLoading;
+  /* ---------- Derived view ---------- */
 
+  const visibleProviders = useMemo<MediaProvider[]>(
+    () =>
+      filter === "all" ? configuredTabs.map((tab) => tab.provider) : [filter],
+    [filter, configuredTabs],
+  );
+
+  const items = useMemo<MediaLibraryItem[]>(
+    () =>
+      visibleProviders.flatMap((provider) => byProvider[provider]?.items ?? []),
+    [visibleProviders, byProvider],
+  );
+
+  const errors = useMemo<MediaProviderError[]>(
+    () =>
+      visibleProviders
+        .map((provider) => ({ provider, state: byProvider[provider] }))
+        .filter((entry) => entry.state?.status === "error")
+        .map((entry) => ({
+          provider: entry.provider,
+          label: MEDIA_PROVIDER_LABELS[entry.provider],
+          message: entry.state?.error ?? "Failed to load media",
+        })),
+    [visibleProviders, byProvider],
+  );
+
+  const isLoading = visibleProviders.some(
+    (provider) => (byProvider[provider]?.status ?? "idle") === "idle",
+  );
+  const isLoadingMore = visibleProviders.some(
+    (provider) => byProvider[provider]?.status === "loading",
+  );
+  const hasMore = visibleProviders.some(
+    (provider) => (byProvider[provider]?.cursor ?? null) !== null,
+  );
+
+  /** Pulls one more page, from one provider, so "load more" is never a fan-out. */
   const loadMore = useCallback(() => {
-    void fetchProvider({ append: true });
-  }, [fetchProvider]);
+    const next = visibleProviders.find(
+      (provider) =>
+        (byProviderRef.current[provider]?.cursor ?? null) !== null &&
+        byProviderRef.current[provider]?.status !== "loading",
+    );
+    if (next) void loadPage(next, true);
+  }, [visibleProviders, loadPage]);
 
   const refresh = useCallback(async () => {
-    if (isGithub) {
-      await invalidateMedia();
-      void refetchGithub();
-    } else {
-      cacheRef.current.delete(provider);
-      providerCursorRef.current = null;
-      setHasMore(false);
-      await fetchProvider({ append: false });
-    }
-  }, [fetchProvider, invalidateMedia, isGithub, refetchGithub, provider]);
+    // GitHub listings are also cached by the repo-contents query.
+    await invalidateMedia();
+    resetAll();
+  }, [invalidateMedia, resetAll]);
 
   /** Value to store in frontmatter/settings when an item is selected. */
   const getSelectionValue = useCallback(
     (item: MediaLibraryItem): string => {
-      if (provider === "github" && item.path) {
-        return githubPublicPath(item.path, project?.mediaPath);
+      if (item.provider === "github" && item.path) {
+        return githubPublicPath(item.path, mediaPath);
       }
       return item.url;
     },
-    [project?.mediaPath, provider],
+    [mediaPath],
   );
 
   return {
-    /** The provider currently being browsed — selected tab, else the default. */
-    provider,
-    /** Switch which connected provider the library reads and writes. */
-    setProvider: setSelected,
+    /** Active tab: a provider, or "all" for the merged view. */
+    filter,
+    setFilter,
+    /** Destination for uploads made from the current view. */
+    uploadProvider,
     /** Every provider the project knows about, including an unconnected default. */
     providerTabs,
-    /**
-     * Only providers that can actually be used. Pickers that upload should
-     * offer these — an unconnected provider in the list is a dead end.
-     */
+    /** Only providers that can actually be used — what pickers should offer. */
     configuredTabs,
-    isGithub,
-    hasGithubConfig,
-    showLibrary,
     items,
+    /** Per-provider listing failures in the current view. Never throws. */
+    errors,
     isLoading,
     isLoadingMore,
-    error,
     hasMore,
     loadMore,
     refresh,
