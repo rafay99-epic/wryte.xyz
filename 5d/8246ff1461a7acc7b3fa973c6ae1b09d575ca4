@@ -1,0 +1,38 @@
+packages/backend/convex/providers/cloudinary.ts
+  s_7d98ae3d9972f4::t_737fb5fb6bc25f 67-76,120-129,148-157,165-174
+packages/backend/convex/providers/errors.ts
+  s_7d98ae3d9972f4::t_737fb5fb6bc25f 175-179,185-187
+  s_7d98ae3d9972f4::t_aecc2fe5c356ba 36-45
+  s_7d98ae3d9972f4::t_1efccd34cb06b4 46-48
+  s_7d98ae3d9972f4::t_1aab50fe71369c 166-169,172-174,180-182,184,188,193
+packages/backend/convex/providers/github.ts
+  s_7d98ae3d9972f4::t_737fb5fb6bc25f 119-128,165-173,195-204,217-225
+packages/backend/tests/r2.test.ts
+  s_7d98ae3d9972f4::t_a11b3132f95fd1 166-177,179-180
+  s_7d98ae3d9972f4::t_737fb5fb6bc25f 178
+packages/backend/convex/providers/uploadthing.ts
+  s_7d98ae3d9972f4::t_737fb5fb6bc25f 76-84
+packages/backend/convex/providers/shared.ts
+  s_7d98ae3d9972f4::t_7564e061a1d400 76-85
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "5d8246ff1461a7acc7b3fa973c6ae1b09d575ca4",
+  "prompts": {},
+  "humans": {
+    "h_1e0ba4a9f2a4b4": {
+      "author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  },
+  "sessions": {
+    "s_7d98ae3d9972f4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e575c576-ca70-48f6-ab70-c36e1b4efaa2",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
