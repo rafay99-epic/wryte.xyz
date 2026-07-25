@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' file: data:;"
+    />
+    <title>No Connection — Wryte</title>
+    <style>
+      :root { color-scheme: dark; }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body {
+        background: #0a0a0a;
+        color: #e5e5e5;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 20px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        -webkit-user-select: none;
+        user-select: none;
+        -webkit-app-region: drag;
+        padding: 24px;
+        text-align: center;
+      }
+      .icon {
+        width: 52px;
+        height: 52px;
+        border-radius: 13px;
+        opacity: 0.4;
+      }
+      h1 {
+        font-size: 18px;
+        font-weight: 600;
+        color: #a3a3a3;
+      }
+      p {
+        font-size: 13px;
+        color: #525252;
+        max-width: 320px;
+        line-height: 1.5;
+      }
+      .retry-btn {
+        margin-top: 8px;
+        padding: 8px 22px;
+        border-radius: 8px;
+        border: 1px solid #262626;
+        background: transparent;
+        color: #a3a3a3;
+        font-size: 13px;
+        font-weight: 500;
+        cursor: pointer;
+        -webkit-app-region: no-drag;
+        transition: background 0.15s, border-color 0.15s;
+      }
+      .retry-btn:hover {
+        background: #141414;
+        border-color: #404040;
+        color: #d4d4d4;
+      }
+      .retry-btn:active {
+        background: #1a1a1a;
+      }
+    </style>
+  </head>
+  <body>
+    <img class="icon" src="../../assets/wryte-icon.png" alt="Wryte" />
+    <h1>No internet connection</h1>
+    <p>
+      Wryte needs a network connection to work.<br />
+      Check your connection and try again.
+    </p>
+    <button class="retry-btn" id="retry" type="button">Retry</button>
+    <script>
+      document.getElementById("retry").addEventListener("click", () => {
+        if (window.wryteDesktop?.retryConnectivity) {
+          window.wryteDesktop.retryConnectivity();
+        } else {
+          window.location.reload();
+        }
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,290 @@
+"use client";
+
+import { useDroppable } from "@dnd-kit/core";
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { getColorClasses } from "@wryte/logic/lib/board-colors";
+import { staggerContainer } from "@wryte/logic/lib/motion";
+import type { ParsedFrontmatter } from "@wryte/logic/lib/parse-frontmatter";
+import { cn } from "@wryte/logic/lib/utils";
+import { useBoardStore } from "@wryte/logic/stores/board-store";
+import type { BoardColumnDef } from "@wryte/logic/types/board";
+import { Badge } from "@wryte/ui/badge";
+import { Button } from "@wryte/ui/button";
+import { motion } from "framer-motion";
+import {
+  ChevronDown,
+  ChevronRight,
+  ChevronUp,
+  Clock,
+  Plus,
+  Upload,
+} from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { BoardCard } from "./board-card";
+import type { ContentItem } from "./content-table-row";
+
+/** Number of cards shown per page in a single column. */
+const COLUMN_PAGE_SIZE = 8;
+
+type BoardColumnProps = {
+  column: BoardColumnDef;
+  items: ContentItem[];
+  columns: BoardColumnDef[];
+  frontmatterMap: Map<string, ParsedFrontmatter>;
+  allProjectTags: string[];
+  selectedPaths?: Set<string> | undefined;
+  onToggleSelect?: ((path: string, checked: boolean) => void) | undefined;
+  selectedDocIds?: Set<string> | undefined;
+  onToggleDocSelect?: ((docId: string, checked: boolean) => void) | undefined;
+  /** True when any card across the board is selected (selection mode). */
+  selectionActive?: boolean | undefined;
+  onOpenItem: (item: ContentItem) => void;
+  onDeleteLocal: (item: ContentItem) => void;
+  onDeleteRemote: (item: ContentItem) => void;
+  onCreateClick: (initialStatus: string) => void;
+  /** When true, this column is read-only (e.g. remote column). */
+  readOnly?: boolean | undefined;
+};
+
+export function BoardColumn({
+  column,
+  items,
+  columns,
+  frontmatterMap,
+  allProjectTags,
+  selectedPaths,
+  onToggleSelect,
+  selectedDocIds,
+  onToggleDocSelect,
+  selectionActive,
+  onOpenItem,
+  onDeleteLocal,
+  onDeleteRemote,
+  onCreateClick,
+  readOnly,
+}: BoardColumnProps) {
+  const colors = getColorClasses(column.color);
+  const overColumnId = useBoardStore((s) => s.overColumnId);
+  const isOver = overColumnId === column.id;
+  const isCollapsed = useBoardStore((s) => s.collapsedColumns.has(column.id));
+  const toggleCollapsed = useBoardStore((s) => s.toggleColumnCollapsed);
+
+  // Per-column pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const totalItems = items.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / COLUMN_PAGE_SIZE));
+
+  // Clamp page when items shrink
+  useEffect(() => {
+    setCurrentPage((p) => Math.min(p, totalPages));
+  }, [totalPages]);
+
+  const effectivePage = Math.min(currentPage, totalPages);
+
+  const paginatedItems = useMemo(() => {
+    const start = (effectivePage - 1) * COLUMN_PAGE_SIZE;
+    return items.slice(start, start + COLUMN_PAGE_SIZE);
+  }, [items, effectivePage]);
+
+  const { setNodeRef } = useDroppable({
+    id: `column-${column.id}`,
+    data: { columnId: column.id },
+  });
+
+  const itemIds = useMemo(
+    () =>
+      paginatedItems
+        .map((i) => i.id)
+        .filter((id): id is NonNullable<typeof id> => id != null),
+    [paginatedItems],
+  );
+
+  const showingStart = (effectivePage - 1) * COLUMN_PAGE_SIZE + 1;
+  const showingEnd = Math.min(effectivePage * COLUMN_PAGE_SIZE, totalItems);
+
+  if (isCollapsed) {
+    return (
+      <div
+        ref={setNodeRef}
+        className={cn(
+          "flex w-10 flex-col items-center rounded-xl border border-t-[3px] bg-muted/20 py-2 transition-colors",
+          colors.accent,
+          isOver && "border-primary/40 bg-primary/5",
+        )}
+      >
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          onClick={() => toggleCollapsed(column.id)}
+          aria-label={`Expand ${column.label}`}
+          className="mb-1"
+        >
+          <ChevronRight className="size-3.5" />
+        </Button>
+        <span className="[writing-mode:vertical-lr] text-xs font-semibold tracking-wide">
+          {column.label}
+        </span>
+        <Badge
+          variant="secondary"
+          className={cn(
+            "mt-2 px-1 py-0 text-[10px] font-semibold",
+            colors.badge,
+          )}
+        >
+          {totalItems}
+        </Badge>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        "flex min-w-[280px] max-w-[340px] flex-1 flex-col rounded-xl border border-t-[3px] bg-muted/20 transition-colors",
+        colors.accent,
+        isOver && "border-primary/40 bg-primary/5",
+      )}
+    >
+      {/* Column header */}
+      <div className="flex items-center justify-between px-3 py-2.5">
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            onClick={() => toggleCollapsed(column.id)}
+            aria-label={`Collapse ${column.label}`}
+            className="-ml-1"
+          >
+            <ChevronDown className="size-3" />
+          </Button>
+          <span className="text-sm font-semibold">{column.label}</span>
+          {column.behavior === "schedule" && (
+            <Clock className="size-3 text-muted-foreground/60" />
+          )}
+          {column.behavior === "publish" && (
+            <Upload className="size-3 text-muted-foreground/60" />
+          )}
+          <Badge
+            variant="secondary"
+            className={cn(
+              "px-1.5 py-0 text-[10px] font-semibold",
+              colors.badge,
+            )}
+          >
+            {totalItems}
+          </Badge>
+        </div>
+      </div>
+
+      {/* Cards */}
+      <div className="flex-1 overflow-y-auto px-2 pb-2 slim-scrollbar">
+        <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
+          <motion.div
+            variants={staggerContainer}
+            initial="initial"
+            animate="animate"
+            className="flex flex-col gap-2.5"
+          >
+            {paginatedItems.length === 0 ? (
+              <p className="py-6 text-center text-xs text-muted-foreground/50">
+                No articles
+              </p>
+            ) : (
+              paginatedItems.map((item) => {
+                const fm = item.id ? frontmatterMap.get(item.id) : undefined;
+                return (
+                  <BoardCard
+                    key={item.kind === "local" ? item.id : item.path}
+                    item={item}
+                    tags={fm?.tags ?? item.tags ?? []}
+                    columnId={column.id}
+                    columns={columns}
+                    allProjectTags={allProjectTags}
+                    selected={
+                      item.kind === "remote" && selectedPaths
+                        ? selectedPaths.has(item.path)
+                        : item.kind === "local" && item.id && selectedDocIds
+                          ? selectedDocIds.has(item.id)
+                          : undefined
+                    }
+                    onSelect={
+                      item.kind === "remote" && onToggleSelect
+                        ? (checked) => onToggleSelect(item.path, checked)
+                        : item.kind === "local" && item.id && onToggleDocSelect
+                          ? (checked) =>
+                              onToggleDocSelect(item.id as string, checked)
+                          : undefined
+                    }
+                    selectionActive={selectionActive}
+                    onOpen={() => onOpenItem(item)}
+                    onDelete={
+                      item.kind === "local" && item.id
+                        ? () => onDeleteLocal(item)
+                        : undefined
+                    }
+                    onDeleteRemote={
+                      item.kind === "remote" && item.sha
+                        ? () => onDeleteRemote(item)
+                        : undefined
+                    }
+                  />
+                );
+              })
+            )}
+          </motion.div>
+        </SortableContext>
+      </div>
+
+      {/* Pagination controls — only shown when column has more than one page */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between border-t px-3 py-1.5">
+          <p className="text-[10px] text-muted-foreground">
+            {showingStart}–{showingEnd} of {totalItems}
+          </p>
+          <div className="flex items-center gap-0.5">
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              disabled={effectivePage <= 1}
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              aria-label="Previous page"
+            >
+              <ChevronUp className="size-3.5" />
+            </Button>
+            <span className="min-w-8 text-center text-[10px] tabular-nums text-muted-foreground">
+              {effectivePage}/{totalPages}
+            </span>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              disabled={effectivePage >= totalPages}
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              aria-label="Next page"
+            >
+              <ChevronDown className="size-3.5" />
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Footer — new article */}
+      {!readOnly && (
+        <div className="border-t px-2 py-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onCreateClick(column.id)}
+            className="w-full justify-start gap-1.5 text-muted-foreground"
+          >
+            <Plus className="size-3.5" />
+            New article
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}

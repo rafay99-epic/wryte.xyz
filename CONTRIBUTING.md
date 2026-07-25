@@ -104,14 +104,15 @@ docs: update env variable table
 
 ### Frontend
 
-- **Components** go in `src/components/` — use `ui/` for primitives, `layout/` for shell pieces, feature folders for domain UI.
-- **Hooks** go in `src/hooks/` — reusable stateful logic, subscriptions, and side effects.
+- **Components**: app-specific UI in `apps/web/src/components/` (`layout/` for shell pieces, feature folders for domain UI); reusable primitives in `packages/ui/src/`, imported as `@wryte/ui/<name>`.
+- **Hooks**: colocate feature hooks next to the feature. Only hooks shared by unrelated features go in `packages/logic/src/hooks/` (`@wryte/logic/hooks/<name>`).
 - **Pages** stay thin — compose from components and hooks, don't dump large trees into `page.tsx`.
 - **Animations** use Framer Motion consistently. No ad-hoc CSS animation globals.
 
 ### Backend (Convex)
 
-- Read `convex/_generated/ai/guidelines.md` before writing Convex code — it has rules that override training data.
+- All Convex code lives in `packages/backend/convex/`. Run Convex CLI commands from `packages/backend`.
+- Read `packages/backend/convex/_generated/ai/guidelines.md` before writing Convex code — it has rules that override training data.
 - Domain folders: `cms/`, `media/`, `ai/`, `integrations/`, `account/`, `support/`
 - Shared utilities live in `convex/_lib/`
 - Always bound query results with `.take(n)` — never return unbounded lists.

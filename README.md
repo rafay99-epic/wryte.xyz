@@ -113,7 +113,8 @@ cp .env.local.example .env.local
 bun run dev
 ```
 
-This runs Next.js and `convex dev` in parallel. The app is at [http://localhost:3000](http://localhost:3000).
+Turborepo runs every workspace's `dev` task in parallel — Next.js, `convex dev`,
+and the Electron shell. The app is at [http://localhost:3000](http://localhost:3000).
 
 ---
 
@@ -121,44 +122,69 @@ This runs Next.js and `convex dev` in parallel. The app is at [http://localhost:
 
 | Command | Description |
 |---------|------------|
-| `bun run dev` | Next.js + Convex dev server (parallel) |
-| `bun run dev:next` | Next.js only |
-| `bun run dev:convex` | Convex dev only |
-| `bun run build` | Production Next.js build |
-| `bun run start` | Start production server |
-| `bun run lint` | Biome check (lint + format consistency) |
+| `bun run dev` | All workspaces in parallel (web + Convex + desktop) |
+| `bun run dev:web` | Next.js only |
+| `bun run dev:convex` | Convex only |
+| `bun run dev:desktop` | Electron shell only |
+| `bun run build` | `turbo run build` across workspaces |
+| `bun run build:deploy` | Convex deploy + Next.js build (used by Vercel) |
+| `bun run start` | Start the production Next.js server |
+| `bun run lint` | Biome check (lint + format consistency), whole repo |
 | `bun run format` | Biome format with write |
-| `bun run type` | TypeScript check (`tsc --noEmit`) |
+| `bun run type` | `turbo run type` — typecheck every workspace |
+| `bun run test` | `turbo run test` — unit tests per workspace |
+| `bun run test:e2e` | Playwright end-to-end suite |
+| `bun run desktop:dist` | Build the Electron installers |
+
+Workspace-scoped commands work too: `bun run --filter @wryte/web <script>`.
+Convex CLI commands must be run from `packages/backend`.
 
 ---
 
 ## Project Structure
 
 ```
-wryte.xyz/
-├── convex/                 # Convex backend
-│   ├── cms/                #   Content management (projects, documents)
-│   ├── media/              #   Media uploads and management
-│   ├── ai/                 #   AI provider integrations
-│   ├── integrations/       #   GitHub, Clerk, secret store
-│   ├── support/            #   Support ticket system
-│   ├── account/            #   User settings and preferences
-│   ├── _lib/               #   Shared utilities (auth, validation)
-│   └── schema.ts           #   Database schema
-├── src/
-│   ├── app/                # Next.js App Router
-│   │   ├── (marketing)/    #   Public pages (landing, how-it-works, contact)
-│   │   └── (app)/          #   Authenticated app (dashboard, editor, projects)
-│   ├── components/         # UI components
-│   │   ├── ui/             #   Primitives (buttons, inputs, dialogs)
-│   │   ├── layout/         #   Shell (sidebar, header, navigation)
-│   │   └── providers/      #   Context providers (theme, Convex, toasts)
-│   ├── features/           # Feature modules
-│   ├── hooks/              # Reusable React hooks
-│   ├── lib/                # Utilities (branding, SEO, colors)
-│   └── stores/             # Zustand state stores
-└── public/                 # Static assets
+wryte.xyz/                        # Bun workspaces + Turborepo
+├── apps/
+│   ├── web/                      # @wryte/web — Next.js App Router
+│   │   ├── src/app/              #   Routes: (marketing) public, (app) authenticated
+│   │   ├── src/components/       #   App-specific UI (layout, providers, dialogs)
+│   │   ├── src/features/         #   Feature modules (editor, dashboard, calendar…)
+│   │   ├── e2e/                  #   Playwright specs
+│   │   └── public/               #   Static assets
+│   └── desktop/                  # @wryte/desktop — Electron shell
+│       ├── main.cjs              #   Entry point (app lifecycle, IPC wiring)
+│       ├── src/                  #   window / menu / tray / updater / workers
+│       └── electron-builder.js   #   Packaging config
+├── packages/
+│   ├── ui/                       # @wryte/ui — presentational primitives
+│   │   └── src/                  #   button, dialog, select… (one per file)
+│   ├── logic/                    # @wryte/logic — shared non-UI logic
+│   │   └── src/{lib,hooks,stores,types}/
+│   └── backend/                  # @wryte/backend — Convex
+│       └── convex/
+│           ├── cms/              #   Content management (projects, documents)
+│           ├── media/            #   Media uploads and management
+│           ├── ai/               #   AI provider integrations
+│           ├── integrations/     #   GitHub, Clerk, secret store
+│           ├── support/          #   Support ticket system
+│           ├── account/          #   User settings and preferences
+│           ├── _lib/             #   Shared utilities (auth, validation)
+│           └── schema.ts         #   Database schema
+├── turbo.json                    # Task graph
+└── tsconfig.base.json            # Shared TypeScript options
 ```
+
+### Import rules
+
+| From | Use |
+|------|-----|
+| Inside `apps/web` | `@/…` for app-local files |
+| Shared primitives | `@wryte/ui/button` |
+| Shared logic | `@wryte/logic/lib/utils`, `@wryte/logic/stores/editor-store` |
+| Convex API/types | `@wryte/backend/_generated/api`, `@wryte/backend/_generated/dataModel` |
+
+Dependencies flow one way: `apps/web` → `@wryte/ui` → `@wryte/logic` → `@wryte/backend`.
 
 ---
 
