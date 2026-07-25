@@ -1,0 +1,63 @@
+apps/web/next.config.ts
+  s_72477441c6c3c3::t_e1a3b7c7afea6a 32-37
+apps/desktop/src/window/preload.cjs
+  s_72477441c6c3c3::t_cdc06369a5c127 86-87
+  s_72477441c6c3c3::t_66749a240c15c0 71-85,88-99
+apps/web/src/app/globals.css
+  s_72477441c6c3c3::t_2ddd1afc7155e5 10
+apps/desktop/src/harness/manager.cjs
+  s_72477441c6c3c3::t_d5926a9fb79df4 1-84
+packages/agent-panel/src/desktop-agents.tsx
+  s_72477441c6c3c3::t_f0a5a59384e47f 41-62,65
+  s_72477441c6c3c3::t_8e88479f1f55c9 1-40,63-64,66-84
+apps/web/src/features/editor/components/editor-layout.tsx
+  s_72477441c6c3c3::t_4a5b572c3e3d15 257
+  s_72477441c6c3c3::t_0292c2411404f1 256
+  s_72477441c6c3c3::t_da95af90193f5e 37-43
+apps/desktop/src/harness/claude.cjs
+  s_72477441c6c3c3::t_bd1be80c8e32b6 1-56,62-130,132-199
+  s_72477441c6c3c3::t_cdc06369a5c127 57-61,131
+apps/desktop/tests/harness.test.cjs
+  s_72477441c6c3c3::t_e1ad94a914707e 1-102
+packages/agent-panel/tsconfig.json
+  s_72477441c6c3c3::t_8e0595357af41b 1-5
+apps/desktop/src/harness/line-buffer.cjs
+  s_72477441c6c3c3::t_375a8f13fcc289 1-37
+packages/agent-panel/src/agent-panel.tsx
+  s_72477441c6c3c3::t_04982a1d450199 1-3,5-40,46-103,106-191,196-204,208-302
+  s_72477441c6c3c3::t_cdc06369a5c127 4,41-45,192-195,205-207
+  s_72477441c6c3c3::t_e1fa6dc5433087 104-105
+apps/web/package.json
+  s_72477441c6c3c3::t_2ddd1afc7155e5 29
+packages/agent-panel/package.json
+  s_72477441c6c3c3::t_d4d93b4206e3b9 1-22
+apps/desktop/src/harness/detect.cjs
+  s_72477441c6c3c3::t_cdc06369a5c127 80-87
+  s_72477441c6c3c3::t_6e19925e5aa634 1-33,35-79,88-91
+  s_72477441c6c3c3::t_2b5ba1029ff982 34
+apps/desktop/main.cjs
+  s_72477441c6c3c3::t_6f60eb3260bdf4 28
+  s_72477441c6c3c3::t_33838d662b1897 154-156
+apps/web/src/components/layout/desktop-chrome.tsx
+  s_72477441c6c3c3::t_e1a3b7c7afea6a 6-8
+apps/desktop/package.json
+  s_72477441c6c3c3::t_1f125826bb2059 11-12
+bun.lock
+  s_72477441c6c3c3::t_10fb34cf02e2cb 39,82-95,807-808
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "ba2848cc32594bba351311566a6d5e2f9e6cfebe",
+  "prompts": {},
+  "sessions": {
+    "s_72477441c6c3c3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c79af440-04d8-4f34-bc49-93740f9d1b93",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
