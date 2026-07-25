@@ -100,6 +100,15 @@ for (const entry of ALL_MEDIA_PROVIDERS) {
       `${at}: key must be snake_case`,
     );
     assert.ok(field.label.trim() !== "", `${at}: needs a label`);
+    // A credential-shaped field that isn't marked secret gets pre-filled into
+    // the settings form as plain text — which is how Cloudinary's `api_key`
+    // ended up on screen. Cheap guard, since the naming is conventional.
+    if (/(key|secret|token|password)/.test(field.key)) {
+      assert.ok(
+        field.secret,
+        `${at}: looks like a credential but isn't marked secret`,
+      );
+    }
     // Mirroring a secret for display would defeat the whole vault.
     assert.ok(
       !(field.secret && field.showAfterSave),

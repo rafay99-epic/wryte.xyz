@@ -194,6 +194,10 @@ export const MEDIA_PROVIDERS: Record<MediaProvider, MediaProviderEntry> = {
         key: "api_key",
         label: "API key",
         placeholder: "123456789012345",
+        // Half of Cloudinary's credential pair. On its own it identifies the
+        // account; next to the secret it's full access — so it gets the same
+        // treatment as the secret and never leaves the vault.
+        secret: true,
       },
       {
         key: "api_secret",
@@ -239,6 +243,9 @@ export const MEDIA_PROVIDERS: Record<MediaProvider, MediaProviderEntry> = {
         key: "access_key_id",
         label: "Access key ID",
         placeholder: "from an R2 API token",
+        // Same reasoning as Cloudinary's API key: it's one half of the token
+        // pair, not public metadata.
+        secret: true,
       },
       {
         key: "secret_access_key",
