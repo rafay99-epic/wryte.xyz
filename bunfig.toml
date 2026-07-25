@@ -1,12 +1,7 @@
 # Project-local bun config — overrides ~/.bunfig.toml for this repo only.
 
 [install]
-# The global default is 7 days (604800s) to guard against freshly-published
-# supply-chain attacks. We loosen it here because at least one upstream
-# security patch (qs@6.15.2 for GHSA-q8mj-m7cp-5q26) ships before the
-# global gate would let us install it, and waiting would leave the repo
-# advertising a known DoS vulnerability in `bun audit`.
-#
-# 5 days (432000s) still gives most supply-chain incidents time to surface
-# without blocking targeted security bumps.
-minimumReleaseAge = 432000
+# No `minimumReleaseAge` gate. It was blocking the very thing it was added to
+# allow: upstream security patches ship faster than any release-age window,
+# and holding them back leaves `bun audit` advertising known-vulnerable
+# versions. Security bumps land as soon as they publish.

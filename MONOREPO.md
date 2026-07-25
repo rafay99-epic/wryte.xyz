@@ -33,19 +33,29 @@ bun run link-env
 
 Symlinks are gitignored, so run this once after a fresh clone.
 
-### 2. Vercel project settings
+### 2. Vercel
 
-The build now has to deploy Convex from `packages/backend` and build Next from
-`apps/web`, so the old root-level build command no longer applies:
+Nothing to click. `vercel.json` at the repo root carries the whole build
+contract, so Root Directory stays at its default (the repo root):
 
-- **Root Directory**: `apps/web` (leave "Include files outside the root directory" enabled)
-- **Build Command**: `cd ../.. && bun run build:deploy`
-- **Install Command**: `cd ../.. && bun install`
-- **Output Directory**: leave as the Next.js default
+```json
+{
+  "framework": "nextjs",
+  "installCommand": "bun install",
+  "buildCommand": "bun run build:deploy",
+  "outputDirectory": "apps/web/.next"
+}
+```
 
-`build:deploy` runs `convex deploy` inside `packages/backend` with
-`--cmd-url-env-var-name NEXT_PUBLIC_CONVEX_URL`, and that command builds the web
-app. Nothing else needs to change.
+`bun install` at the root resolves every workspace. `build:deploy` runs
+`convex deploy` inside `packages/backend` with
+`--cmd-url-env-var-name NEXT_PUBLIC_CONVEX_URL`, and that deploy command builds
+the web app — so Convex ships before Next is compiled against its URL, same
+ordering as before the split.
+
+If someone previously set a Root Directory override in the Vercel dashboard,
+clear it — a non-root setting makes Vercel look for a different `vercel.json`
+and these commands never run.
 
 ### 3. Local Convex deployment state
 
@@ -68,6 +78,10 @@ moved with it — no reconfiguration needed.
 - **Adding a shadcn component**: `components.json` still points at
   `apps/web/src/components/ui`. Generated primitives land there; move them to
   `packages/ui/src` if they are genuinely shared.
+- **Dependency audit**: the `minimumReleaseAge` gate in `bunfig.toml` is gone —
+  it was holding back the security patches it existed to let through. CI runs a
+  bare `bun audit` with no ignore list; keep it that way, and fix advisories by
+  bumping rather than by adding exceptions.
 - **New dependency**: add it to the workspace that imports it, not the root.
   The root `package.json` only holds tooling (Biome, TypeScript, Turbo) plus
   Bun-only fields that must stay at the root (`overrides`,

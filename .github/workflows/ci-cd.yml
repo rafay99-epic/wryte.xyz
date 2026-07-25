@@ -146,7 +146,7 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run lint
       - run: bun run type
-      - run: bun audit --ignore GHSA-gv7w-rqvm-qjhr
+      - run: bun audit
 
   # ── PATH B: Create draft release ─────────────────────────────────────
   # Version is auto-derived: package.json version + run number.
