@@ -1,0 +1,26 @@
+packages/backend/convex/media/_lib/providers.ts
+  s_7d98ae3d9972f4::t_dfa1d933df4aee 197-200,246-248
+packages/backend/tests/media-providers.test.ts
+  s_7d98ae3d9972f4::t_1fe99b8af386b3 103-111
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "dd243481486f05c8d2d644bd03d58c8092272c00",
+  "prompts": {},
+  "humans": {
+    "h_1e0ba4a9f2a4b4": {
+      "author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  },
+  "sessions": {
+    "s_7d98ae3d9972f4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e575c576-ca70-48f6-ab70-c36e1b4efaa2",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
