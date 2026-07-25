@@ -1,0 +1,33 @@
+apps/web/package.json
+  s_7d98ae3d9972f4::t_21285e3cd11f34 3
+packages/backend/convex/_seed/changelog.ts
+  s_7d98ae3d9972f4::t_a9ca5cf7c92252 1661-1662
+  s_7d98ae3d9972f4::t_aeec3a57ac4751 1660,1663-1709
+  s_7d98ae3d9972f4::t_2ce8f88ff76fcc 1658-1659
+packages/backend/package.json
+  s_7d98ae3d9972f4::t_21285e3cd11f34 3
+package.json
+  s_7d98ae3d9972f4::t_21285e3cd11f34 3
+packages/ui/package.json
+  s_7d98ae3d9972f4::t_21285e3cd11f34 3
+packages/logic/package.json
+  s_7d98ae3d9972f4::t_21285e3cd11f34 3
+apps/desktop/package.json
+  s_7d98ae3d9972f4::t_21285e3cd11f34 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "00443e8fcf883cbe8b0612413025aac701f2cc70",
+  "prompts": {},
+  "sessions": {
+    "s_7d98ae3d9972f4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e575c576-ca70-48f6-ab70-c36e1b4efaa2",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
