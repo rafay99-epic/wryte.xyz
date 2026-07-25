@@ -27,7 +27,7 @@ const twoObjects = `<?xml version="1.0" encoding="UTF-8"?>
   <Contents>
     <Key>blog/hero-a1b2c3.png</Key>
     <LastModified>2026-07-01T10:00:00.000Z</LastModified>
-    <ETag>&quot;d41d8cd98f00b204e9800998ecf8427e&quot;</ETag>
+    <ETag>&quot;fake-etag-0001&quot;</ETag>
     <Size>20480</Size>
   </Contents>
   <Contents>
@@ -42,7 +42,7 @@ assert.equal(listed.items.length, 2);
 assert.deepEqual(listed.items[0], {
   key: "blog/hero-a1b2c3.png",
   size: 20480,
-  etag: "d41d8cd98f00b204e9800998ecf8427e",
+  etag: "fake-etag-0001",
 });
 assert.equal(listed.items[1]?.key, "blog/diagram-9f8e7d.svg");
 assert.equal(listed.items[1]?.size, 1024);
@@ -52,14 +52,11 @@ assert.equal(listed.nextContinuationToken, undefined);
 // Truncated page → the continuation token is surfaced verbatim.
 const truncated = parseListObjectsV2Xml(`<ListBucketResult>
   <IsTruncated>true</IsTruncated>
-  <NextContinuationToken>1ueGcxLPRx1Tr/XYExHnhbYLgveDs2J/wm36Hy4vbOwM=</NextContinuationToken>
+  <NextContinuationToken>fake-page-2-token/x=</NextContinuationToken>
   <Contents><Key>a.png</Key><Size>1</Size></Contents>
 </ListBucketResult>`);
 assert.equal(truncated.items.length, 1);
-assert.equal(
-  truncated.nextContinuationToken,
-  "1ueGcxLPRx1Tr/XYExHnhbYLgveDs2J/wm36Hy4vbOwM=",
-);
+assert.equal(truncated.nextContinuationToken, "fake-page-2-token/x=");
 
 // A token present on a non-truncated response must be ignored — paging on it
 // would loop forever.
