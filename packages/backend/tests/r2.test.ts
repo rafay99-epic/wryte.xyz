@@ -163,6 +163,21 @@ assert.equal(
 assert.throws(() => normalizePublicBaseUrl("cdn.example.com"), /absolute URL/);
 assert.throws(() => normalizePublicBaseUrl(""), /absolute URL/);
 assert.throws(() => normalizePublicBaseUrl("ftp://cdn.example.com"), /https?/);
+// The S3 API endpoint is the wrong-but-obvious answer: it sits next to the API
+// tokens in the Cloudflare dashboard, and every object URL built from it fails
+// in a browser with `InvalidArgument: Authorization`.
+assert.throws(
+  () =>
+    normalizePublicBaseUrl(
+      "https://a24ec82fb5d7d28e654e44fd638e0c04.r2.cloudflarestorage.com",
+    ),
+  /S3 API endpoint/,
+);
+assert.throws(
+  () =>
+    normalizePublicBaseUrl("https://acc.r2.cloudflarestorage.com/my-bucket"),
+  /S3 API endpoint/,
+);
 
 /* ---- parseR2Secret ---- */
 

@@ -73,6 +73,16 @@ export function normalizePublicBaseUrl(raw: string): string {
   if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
     throw new Error("Public base URL must use http:// or https://");
   }
+  // The S3 endpoint is the single most tempting wrong answer here — it's the
+  // URL Cloudflare shows next to the API tokens. Accepting it stores object
+  // URLs that every browser gets `InvalidArgument: Authorization` from, because
+  // that host only answers SigV4-signed requests. Nothing downstream can detect
+  // this, so it has to be refused at the point of entry.
+  if (parsed.hostname.endsWith(".r2.cloudflarestorage.com")) {
+    throw new Error(
+      "That's the S3 API endpoint, which only answers signed requests — images stored against it won't load in a browser. Use the bucket's public URL instead: enable the r2.dev subdomain under R2 → your bucket → Settings → Public access, or connect a custom domain.",
+    );
+  }
   return `${parsed.origin}${parsed.pathname.replace(/\/+$/, "")}`;
 }
 

@@ -64,13 +64,16 @@ export async function uploadOne(
     if (typeof res.height === "number") result.height = res.height;
     return result;
   } catch (err) {
-    throwMediaError({
-      code: mapCloudinaryError(err),
-      message:
-        (err as { message?: string })?.message ?? "Cloudinary upload failed",
-      provider: "cloudinary",
-      operation: "upload",
-    });
+    throwMediaError(
+      {
+        code: mapCloudinaryError(err),
+        message:
+          (err as { message?: string })?.message ?? "Cloudinary upload failed",
+        provider: "cloudinary",
+        operation: "upload",
+      },
+      err,
+    );
   }
 }
 
@@ -114,13 +117,16 @@ export async function listResources(
     if (next) out.nextCursor = next;
     return out;
   } catch (err) {
-    throwMediaError({
-      code: mapCloudinaryError(err),
-      message:
-        (err as { message?: string })?.message ?? "Cloudinary list failed",
-      provider: "cloudinary",
-      operation: "list",
-    });
+    throwMediaError(
+      {
+        code: mapCloudinaryError(err),
+        message:
+          (err as { message?: string })?.message ?? "Cloudinary list failed",
+        provider: "cloudinary",
+        operation: "list",
+      },
+      err,
+    );
   }
 }
 
@@ -139,13 +145,16 @@ export async function destroy(
       creds as unknown as { resource_type?: "image" | "raw" | "video" },
     );
   } catch (err) {
-    throwMediaError({
-      code: mapCloudinaryError(err),
-      message:
-        (err as { message?: string })?.message ?? "Cloudinary delete failed",
-      provider: "cloudinary",
-      operation: "delete",
-    });
+    throwMediaError(
+      {
+        code: mapCloudinaryError(err),
+        message:
+          (err as { message?: string })?.message ?? "Cloudinary delete failed",
+        provider: "cloudinary",
+        operation: "delete",
+      },
+      err,
+    );
   }
 }
 
@@ -153,12 +162,15 @@ export async function ping(creds: CloudinaryCreds): Promise<void> {
   try {
     await cloudinary.api.ping(creds);
   } catch (err) {
-    throwMediaError({
-      code: mapCloudinaryError(err),
-      message:
-        (err as { message?: string })?.message ?? "Cloudinary ping failed",
-      provider: "cloudinary",
-      operation: "ping",
-    });
+    throwMediaError(
+      {
+        code: mapCloudinaryError(err),
+        message:
+          (err as { message?: string })?.message ?? "Cloudinary ping failed",
+        provider: "cloudinary",
+        operation: "ping",
+      },
+      err,
+    );
   }
 }
