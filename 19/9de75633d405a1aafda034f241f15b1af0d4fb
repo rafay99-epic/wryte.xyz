@@ -1,0 +1,33 @@
+apps/web/src/features/project-settings/components/media-section.tsx
+  s_7d98ae3d9972f4::t_9a47210630c532 77-86,88
+  s_7d98ae3d9972f4::t_24af9c342eec97 135-137
+  s_7d98ae3d9972f4::t_30e9f1ae21f502 42-48,57,147-149,574-577
+  s_7d98ae3d9972f4::t_a7ff31feaab629 145-146,150-151,498,500,611
+  s_7d98ae3d9972f4::t_efde7fad1ee8e8 107,118-134,138-139,141,143-144,152-154,157-158
+  s_7d98ae3d9972f4::t_03b6047bce2bd3 495-497,499,501-573,578-610,612-630,638,641,646,658,660-661,667,669,676,767,769,779-784,799-800,809-810,818-823,834-843,847-848
+  s_7d98ae3d9972f4::t_b0b95d63a4c0f7 33,41
+apps/web/src/components/forms/credential-fields-form.tsx
+  s_7d98ae3d9972f4::t_80d64662797cd7 59-74
+  s_7d98ae3d9972f4::t_c9b2bc160f4648 5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "199de75633d405a1aafda034f241f15b1af0d4fb",
+  "prompts": {},
+  "humans": {
+    "h_1e0ba4a9f2a4b4": {
+      "author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  },
+  "sessions": {
+    "s_7d98ae3d9972f4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e575c576-ca70-48f6-ab70-c36e1b4efaa2",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
