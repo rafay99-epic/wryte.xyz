@@ -1,0 +1,40 @@
+apps/web/src/features/media-library/media-library-page.tsx
+  s_7d98ae3d9972f4::t_c95dac81825653 21,35,207-208,453,462
+  s_7d98ae3d9972f4::t_875b51002dc4b6 176-182,283-287,360
+packages/backend/tests/media-providers.test.ts
+  s_7d98ae3d9972f4::t_656b987fe6a8d9 1-69,74-96,102-117,126-144
+  s_7d98ae3d9972f4::t_f8131b6376d142 70-73,97-101,118-125
+packages/ui/src/media-provider-icon.tsx
+  s_7d98ae3d9972f4::t_86bbc8706838e2 1-43
+apps/web/src/features/new-project/wizard/step-configure-paths.tsx
+  s_7d98ae3d9972f4::t_f8131b6376d142 14-15
+  s_7d98ae3d9972f4::t_e764982ca36df9 179,268,274
+  s_7d98ae3d9972f4::t_7d5dc2f625bb2c 288-289
+packages/backend/convex/media/_lib/providers.ts
+  s_7d98ae3d9972f4::t_02ee9e9f69ffdf 74-90,105-106,146-147,166-167,207-208,251-252,321-337
+  s_7d98ae3d9972f4::t_f8131b6376d142 19-33
+  s_7d98ae3d9972f4::t_241110dceb42c0 338-339
+packages/logic/src/types/media.ts
+  s_7d98ae3d9972f4::t_c95dac81825653 17-18,26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "b5544132115a3b7596022d33f4dde733ce33be4f",
+  "prompts": {},
+  "humans": {
+    "h_1e0ba4a9f2a4b4": {
+      "author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  },
+  "sessions": {
+    "s_7d98ae3d9972f4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e575c576-ca70-48f6-ab70-c36e1b4efaa2",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
