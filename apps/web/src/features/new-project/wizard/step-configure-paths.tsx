@@ -11,16 +11,8 @@ import {
 import { Button } from "@wryte/ui/button";
 import { Input } from "@wryte/ui/input";
 import { Label } from "@wryte/ui/label";
-import {
-  Cloud,
-  GitBranch,
-  HardDrive,
-  Loader2,
-  Lock,
-  ScanSearch,
-  Sparkles,
-  UploadCloud,
-} from "lucide-react";
+import { MediaProviderIcon } from "@wryte/ui/media-provider-icon";
+import { GitBranch, Loader2, Lock, ScanSearch, Sparkles } from "lucide-react";
 import { useCallback } from "react";
 import { toast } from "sonner";
 import { CredentialFieldsForm } from "@/components/forms/credential-fields-form";
@@ -56,18 +48,6 @@ function normalizeFieldType(type: string): FrontmatterField["type"] {
   }
   return "string";
 }
-
-/**
- * Icon per provider id. The label, description, credential fields and path
- * hint all come from the media provider registry — only the glyph is a UI
- * choice, so this is the whole per-provider surface in the wizard.
- */
-const PROVIDER_ICONS: Record<MediaProvider, typeof GitBranch> = {
-  github: GitBranch,
-  uploadthing: UploadCloud,
-  cloudinary: Cloud,
-  r2: HardDrive,
-};
 
 export function StepConfigurePaths({
   state,
@@ -196,7 +176,7 @@ export function StepConfigurePaths({
                 }
                 title={entry.label}
                 description={entry.description}
-                Icon={PROVIDER_ICONS[entry.id]}
+                provider={entry.id}
               />
             ))}
           </div>
@@ -285,13 +265,13 @@ function ProviderOption({
   onClick,
   title,
   description,
-  Icon,
+  provider,
 }: {
   active: boolean;
   onClick: () => void;
   title: string;
   description: string;
-  Icon: typeof GitBranch;
+  provider: MediaProvider;
 }) {
   return (
     <button
@@ -305,7 +285,8 @@ function ProviderOption({
       )}
     >
       <div className="flex items-center gap-2">
-        <Icon
+        <MediaProviderIcon
+          provider={provider}
           className={cn(
             "size-4 shrink-0",
             active ? "text-primary" : "text-muted-foreground",

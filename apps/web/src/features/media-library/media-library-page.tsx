@@ -18,6 +18,7 @@ import { formatMb } from "@wryte/logic/lib/upload-limits";
 import { cn } from "@wryte/logic/lib/utils";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
 import {
+  describeMediaLocation,
   MEDIA_PROVIDER_LABELS,
   type MediaProvider,
 } from "@wryte/logic/types/media";
@@ -31,18 +32,16 @@ import {
   DialogTitle,
 } from "@wryte/ui/dialog";
 import { Input } from "@wryte/ui/input";
+import { MediaProviderIcon } from "@wryte/ui/media-provider-icon";
 import { MediaProviderTabs } from "@wryte/ui/media-provider-tabs";
 import { Skeleton } from "@wryte/ui/skeleton";
 import { UploadProgress } from "@wryte/ui/upload-progress";
 import { useAction, useQuery } from "convex/react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  Cloud,
   Copy,
   ExternalLink,
   FileImage,
-  GitBranch,
-  HardDrive,
   ImageIcon,
   Layers,
   Loader2,
@@ -174,6 +173,13 @@ export function MediaLibraryPage() {
     }
   }, [searchQuery, providerHasMore, isLoading, isLoadingMore, items, loadMore]);
 
+  // Searching is scoped to the visible tab, so the query belongs to that tab
+  // too: carrying it across a switch silently hides files in the new one.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: clears the query when the tab changes.
+  useEffect(() => {
+    setSearchQuery("");
+  }, [filter]);
+
   const handleUploaded = useCallback(() => {
     void refresh();
   }, [refresh]);
@@ -198,7 +204,8 @@ export function MediaLibraryPage() {
 
   const scopeLabel =
     filter === "all" ? "all providers" : PROVIDER_LABEL[filter];
-  const location = filter === "all" ? null : describeLocation(filter, project);
+  const location =
+    filter === "all" ? null : describeMediaLocation(filter, project.mediaPath);
 
   // Nothing connected at all, or the one provider being viewed was never set
   // up. The server reports this directly, so it isn't inferred from "empty
@@ -273,7 +280,11 @@ export function MediaLibraryPage() {
         <div className="relative mb-4">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Search media files..."
+            placeholder={
+              filter === "all"
+                ? "Search all providers…"
+                : `Search ${PROVIDER_LABEL[filter]}…`
+            }
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-9"
@@ -346,7 +357,7 @@ export function MediaLibraryPage() {
           <p className="text-sm text-muted-foreground">
             {providerHasMore || isLoadingMore
               ? `Searching… loaded ${items.length} so far`
-              : `No results for "${searchQuery}"`}
+              : `No results for "${searchQuery}" in ${scopeLabel}`}
           </p>
           {(providerHasMore || isLoadingMore) && (
             <Loader2 className="mt-2 size-4 animate-spin text-muted-foreground" />
@@ -410,29 +421,6 @@ export function MediaLibraryPage() {
 
 const PROVIDER_LABEL = MEDIA_PROVIDER_LABELS;
 
-/** Only the glyph is a UI choice — everything else lives in the registry. */
-const PROVIDER_ICON: Record<ActiveProvider, typeof GitBranch> = {
-  github: GitBranch,
-  uploadthing: UploadCloud,
-  cloudinary: Cloud,
-  r2: HardDrive,
-};
-
-function describeLocation(
-  provider: ActiveProvider,
-  project: { mediaPath?: string; githubRepo?: string },
-): string | null {
-  if (provider === "github") {
-    return project.mediaPath ? `/${project.mediaPath}` : null;
-  }
-  // Cloudinary folders and R2 key prefixes are both `mediaPath`; UploadThing
-  // has a flat namespace and nothing to show.
-  if (provider === "cloudinary" || provider === "r2") {
-    return project.mediaPath ?? null;
-  }
-  return null;
-}
-
 /** What the grid is currently showing: one provider, or the merged view. */
 function ScopeBadge({ filter }: { filter: MediaFilter }) {
   if (filter === "all") {
@@ -454,7 +442,6 @@ function ScopeBadge({ filter }: { filter: MediaFilter }) {
  * name lives in the tooltip and the accessible label instead.
  */
 function ProviderMark({ provider }: { provider: ActiveProvider }) {
-  const Icon = PROVIDER_ICON[provider];
   const label = PROVIDER_LABEL[provider];
   return (
     <span
@@ -463,17 +450,16 @@ function ProviderMark({ provider }: { provider: ActiveProvider }) {
       role="img"
       className="absolute left-1.5 top-1.5 rounded-md bg-background/75 p-1 text-muted-foreground backdrop-blur-sm"
     >
-      <Icon className="size-3" />
+      <MediaProviderIcon provider={provider} className="size-3" />
     </span>
   );
 }
 
 /** Provider marker with its name — for the header, where there's room. */
 function ProviderChip({ provider }: { provider: ActiveProvider }) {
-  const Icon = PROVIDER_ICON[provider];
   return (
     <span className="inline-flex items-center gap-1 rounded-full border bg-muted/50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-      <Icon className="size-3" />
+      <MediaProviderIcon provider={provider} className="size-3" />
       {PROVIDER_LABEL[provider]}
     </span>
   );

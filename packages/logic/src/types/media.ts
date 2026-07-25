@@ -14,6 +14,8 @@ export type {
   MediaCredentialStatus,
   MediaProvider,
   MediaProviderEntry,
+  MediaProviderIconName,
+  MediaProviderLocationKind,
   NormalizedMediaItem,
   SecretFormat,
 } from "@wryte/backend/media/_lib/providers";
@@ -21,6 +23,7 @@ export {
   ALL_CREDENTIAL_PROVIDERS,
   ALL_MEDIA_PROVIDERS,
   CREDENTIAL_PROVIDER_IDS,
+  describeMediaLocation,
   getMediaProvider,
   isCredentialProvider,
   isMediaProvider,

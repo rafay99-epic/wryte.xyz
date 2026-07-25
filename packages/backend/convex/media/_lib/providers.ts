@@ -16,11 +16,21 @@
  * (isomorphic) — never `uploadthing`, `cloudinary`, `aws4fetch`, or any
  * `"use node"` module. Those live behind the adapters.
  *
- * **Adding a provider is a two-file change:** add an id to
- * {@link MEDIA_PROVIDER_IDS}, an entry to {@link MEDIA_PROVIDERS}, a matching
- * `v.literal(...)` to the validators below, then one adapter in
- * `convex/providers/registry.ts`. The compile-time assertions fail the type
- * check if the ids and the validators drift apart.
+ * **Adding a provider is a two-file change:**
+ *   1. here — an id in {@link MEDIA_PROVIDER_IDS}, an entry in
+ *      {@link MEDIA_PROVIDERS}, and a matching `v.literal(...)` in the
+ *      validators below
+ *   2. one adapter in `convex/providers/registry.ts`
+ *
+ * Nothing else. The settings form, the wizard, the provider tabs, the icon and
+ * the location string all read the entry — `icon` names a glyph rather than
+ * importing one, so a provider reusing an existing glyph needs no UI change.
+ *
+ * Three layers keep that promise honest: the compile-time assertions below fail
+ * if ids and validators drift, `ADAPTERS` is typed exhaustively so a new id has
+ * nowhere to hide, and `tests/media-providers.test.ts` checks the things types
+ * can't — duplicate field keys, a secret marked for display, a `raw` provider
+ * with more than one input.
  */
 
 import { v } from "convex/values";
@@ -61,6 +71,23 @@ export type CredentialField = {
   showAfterSave?: boolean;
 };
 
+/**
+ * Which glyph represents a provider. A name rather than a component so this
+ * module stays browser-safe and free of any UI dependency; `@wryte/ui`'s
+ * `MediaProviderIcon` maps these to icons in one exhaustive place, so a new
+ * provider that reuses an existing name needs no UI change at all.
+ */
+export type MediaProviderIconName = "repo" | "upload" | "cloud" | "bucket";
+
+/**
+ * What `project.mediaPath` means for a provider, and therefore how a location
+ * is written for a human.
+ * - `repo-path`: a directory in a git repo, shown with a leading slash
+ * - `prefix`: a folder / key prefix inside a bucket
+ * - `flat`: no namespacing — nothing meaningful to show
+ */
+export type MediaProviderLocationKind = "repo-path" | "prefix" | "flat";
+
 export type MediaProviderEntry = {
   id: MediaProvider;
   /** Display name used in dropdowns, badges, toasts and error prefixes. */
@@ -75,6 +102,8 @@ export type MediaProviderEntry = {
   dashboardUrl?: string;
   /** Explains what `project.mediaPath` means for this provider. */
   pathHint: string;
+  icon: MediaProviderIconName;
+  locationKind: MediaProviderLocationKind;
 };
 
 /**
@@ -114,6 +143,8 @@ export const MEDIA_PROVIDERS: Record<MediaProvider, MediaProviderEntry> = {
     fields: [],
     pathHint:
       "Repo directory for images, e.g. public/images (Astro/Next.js) or static/images (Hugo/SvelteKit).",
+    icon: "repo",
+    locationKind: "repo-path",
   },
   uploadthing: {
     id: "uploadthing",
@@ -132,6 +163,8 @@ export const MEDIA_PROVIDERS: Record<MediaProvider, MediaProviderEntry> = {
       },
     ],
     pathHint: "Informational for UploadThing — files live in a flat namespace.",
+    icon: "upload",
+    locationKind: "flat",
   },
   cloudinary: {
     id: "cloudinary",
@@ -171,6 +204,8 @@ export const MEDIA_PROVIDERS: Record<MediaProvider, MediaProviderEntry> = {
     ],
     pathHint:
       "Folder prefix every upload lands under in your Cloudinary account.",
+    icon: "cloud",
+    locationKind: "prefix",
   },
   r2: {
     id: "r2",
@@ -213,6 +248,8 @@ export const MEDIA_PROVIDERS: Record<MediaProvider, MediaProviderEntry> = {
       },
     ],
     pathHint: "Key prefix every upload lands under, e.g. blog/images.",
+    icon: "bucket",
+    locationKind: "prefix",
   },
 };
 
@@ -279,6 +316,25 @@ export function isCredentialProvider(
   value: string,
 ): value is CredentialProvider {
   return (CREDENTIAL_PROVIDER_IDS as readonly string[]).includes(value);
+}
+
+/**
+ * Human-readable destination for a provider, or null when it has none.
+ * Keeps "where do my files go?" out of per-provider branches in the UI.
+ */
+export function describeMediaLocation(
+  provider: MediaProvider,
+  mediaPath: string | null | undefined,
+): string | null {
+  if (!mediaPath) return null;
+  switch (MEDIA_PROVIDERS[provider].locationKind) {
+    case "repo-path":
+      return `/${mediaPath.replace(/^\/+/, "")}`;
+    case "prefix":
+      return mediaPath;
+    case "flat":
+      return null;
+  }
 }
 
 /**
