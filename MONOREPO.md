@@ -35,27 +35,35 @@ Symlinks are gitignored, so run this once after a fresh clone.
 
 ### 2. Vercel
 
-Nothing to click. `vercel.json` at the repo root carries the whole build
-contract, so Root Directory stays at its default (the repo root):
+**Root Directory must be `apps/web`** (Settings → Build & Deployment), with
+"Include files outside the Root Directory in the Build Step" left enabled.
+This is the one setting `vercel.json` cannot express — Vercel resolves the
+Next.js version from the package.json at the Root Directory, and the root
+manifest holds only tooling. Pointing it at the repo root fails with:
+
+```
+Error: No Next.js version detected. Make sure your package.json has "next" in
+either "dependencies" or "devDependencies".
+```
+
+Everything else lives in `apps/web/vercel.json` — Vercel reads `vercel.json`
+from the Root Directory, which is why the file sits there and not at the repo
+root:
 
 ```json
 {
   "framework": "nextjs",
-  "installCommand": "bun install",
-  "buildCommand": "bun run build:deploy",
-  "outputDirectory": "apps/web/.next"
+  "installCommand": "cd ../.. && bun install",
+  "buildCommand": "cd ../.. && bun run build:deploy"
 }
 ```
 
-`bun install` at the root resolves every workspace. `build:deploy` runs
-`convex deploy` inside `packages/backend` with
-`--cmd-url-env-var-name NEXT_PUBLIC_CONVEX_URL`, and that deploy command builds
-the web app — so Convex ships before Next is compiled against its URL, same
-ordering as before the split.
-
-If someone previously set a Root Directory override in the Vercel dashboard,
-clear it — a non-root setting makes Vercel look for a different `vercel.json`
-and these commands never run.
+Both commands step back to the workspace root: `bun install` there resolves
+every workspace, and `build:deploy` runs `convex deploy` inside
+`packages/backend` with `--cmd-url-env-var-name NEXT_PUBLIC_CONVEX_URL`, whose
+`--cmd` builds the web app. Convex ships before Next is compiled against its
+URL, same ordering as before the split. `outputDirectory` is omitted on
+purpose: the default `.next` is already relative to the Root Directory.
 
 ### 3. Local Convex deployment state
 
