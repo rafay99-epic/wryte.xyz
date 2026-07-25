@@ -2,6 +2,7 @@
 
 import type { CredentialValues } from "@wryte/logic/lib/media-credentials";
 import type { MediaProviderEntry } from "@wryte/logic/types/media";
+import { InfoHint } from "@wryte/ui/info-hint";
 import { Input } from "@wryte/ui/input";
 import { Label } from "@wryte/ui/label";
 import { Eye, EyeOff } from "lucide-react";
@@ -55,17 +56,22 @@ export function CredentialFieldsForm({
 
         return (
           <div key={field.key} className="space-y-1.5">
-            <Label
-              htmlFor={id}
-              className="text-xs font-medium text-muted-foreground"
-            >
-              {label}
-              {field.optional && (
-                <span className="ml-1 text-muted-foreground/60">
-                  (optional)
-                </span>
-              )}
-            </Label>
+            <span className="flex items-center">
+              <Label
+                htmlFor={id}
+                className="text-xs font-medium text-muted-foreground"
+              >
+                {label}
+                {field.optional && (
+                  <span className="ml-1 text-muted-foreground/60">
+                    (optional)
+                  </span>
+                )}
+              </Label>
+              {/* Behind the ⓘ, not under the input: a five-field form with a
+                  paragraph per field is unreadable. */}
+              {field.hint && <InfoHint>{field.hint}</InfoHint>}
+            </span>
             <div className="relative">
               <Input
                 id={id}
@@ -94,11 +100,6 @@ export function CredentialFieldsForm({
                 </button>
               )}
             </div>
-            {field.hint && (
-              <p className="text-[11px] text-muted-foreground/60">
-                {field.hint}
-              </p>
-            )}
           </div>
         );
       })}

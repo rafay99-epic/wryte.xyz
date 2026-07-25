@@ -27,10 +27,10 @@ import {
 } from "@wryte/logic/lib/upload-limits";
 import { cn } from "@wryte/logic/lib/utils";
 import {
-  ALL_CREDENTIAL_PROVIDERS,
   ALL_MEDIA_PROVIDERS,
   type CredentialProvider,
   MEDIA_PROVIDER_LABELS,
+  type MediaCredentialStatus,
   type MediaProviderEntry,
 } from "@wryte/logic/types/media";
 import { Button } from "@wryte/ui/button";
@@ -38,8 +38,14 @@ import { InfoHint } from "@wryte/ui/info-hint";
 import { Input } from "@wryte/ui/input";
 import { Switch } from "@wryte/ui/switch";
 import { useAction, useMutation, useQuery } from "convex/react";
-import { motion } from "framer-motion";
-import { ImageIcon, Loader2, RotateCcw, Trash2 } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import {
+  ChevronDown,
+  ImageIcon,
+  Loader2,
+  RotateCcw,
+  Trash2,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { CompressionSettingsForm } from "@/components/forms/compression-settings-form";
@@ -48,12 +54,7 @@ import { ConfirmActionDialog } from "@/components/settings/confirm-action-dialog
 import { SaveBar } from "@/components/settings/save-bar";
 import { useMediaSection } from "../hooks/use-media-section";
 import type { ProjectData } from "../types";
-import {
-  FieldGroup,
-  MediaModeOption,
-  SectionHeader,
-  SettingsGroup,
-} from "./shared";
+import { FieldGroup, RowList, SectionHeader, SettingsGroup } from "./shared";
 
 export function MediaSection({
   projectId,
@@ -73,7 +74,18 @@ export function MediaSection({
     pathHint,
   } = useMediaSection({ projectId, project });
 
+  // One subscription for every provider's credential state, instead of a
+  // per-card `getPublicConfig`.
+  const credentials = useQuery(api.media.credentialsDb.listForProject, {
+    projectId,
+  });
+  const credentialByProvider = useMemo(
+    () => new Map((credentials ?? []).map((row) => [row.provider, row])),
+    [credentials],
+  );
+
   const storageLabel = MEDIA_PROVIDER_LABELS[mediaStorageMode];
+  const githubReady = Boolean(project.githubRepo && project.mediaPath);
 
   return (
     <motion.div variants={staggerContainer} initial="initial" animate="animate">
@@ -92,7 +104,7 @@ export function MediaSection({
           <FieldGroup
             label="Media directory"
             htmlFor="s-media-path"
-            hint={pathHint}
+            info={pathHint}
           >
             <Input
               id="s-media-path"
@@ -103,44 +115,53 @@ export function MediaSection({
             />
           </FieldGroup>
 
-          <FieldGroup
-            label="Default upload destination"
-            hint="Where uploads land unless you pick another connected provider. Switching doesn't move existing media."
-          >
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {/*
+            One row per provider — the radio *is* the default, and the same row
+            connects it. Splitting these into a destination picker plus a
+            separate stack of credential cards meant every provider appeared
+            twice and nothing said the two lists were the same four things.
+          */}
+          <div className="space-y-1.5">
+            <span className="flex items-center">
+              <span className="text-xs font-medium text-muted-foreground">
+                Providers
+              </span>
+              <InfoHint>
+                Connect as many as you like — they all stay browsable in the
+                media library and the editor's image picker. The one you select
+                receives uploads when you don't pick a destination. Switching it
+                never moves existing media, and published URLs keep working.
+              </InfoHint>
+              <span className="ml-auto text-[11px] text-muted-foreground/60">
+                Selected = upload default
+              </span>
+            </span>
+            <RowList>
               {ALL_MEDIA_PROVIDERS.map((entry) => (
-                <MediaModeOption
+                <ProviderRow
                   key={entry.id}
-                  active={mediaStorageMode === entry.id}
-                  onClick={() => setMediaStorageMode(entry.id)}
-                  title={entry.label}
-                  description={entry.description}
+                  projectId={projectId}
+                  entry={entry}
+                  credential={
+                    entry.credentialSource === "vault"
+                      ? (credentialByProvider.get(
+                          entry.id as CredentialProvider,
+                        ) ?? null)
+                      : null
+                  }
+                  isDefault={mediaStorageMode === entry.id}
+                  onMakeDefault={() => setMediaStorageMode(entry.id)}
+                  githubReady={githubReady}
                 />
               ))}
-            </div>
-          </FieldGroup>
+            </RowList>
+          </div>
 
           <SaveBar
             hasChanges={hasChanges}
             isSaving={isSaving}
             onSave={handleSave}
           />
-
-          {/*
-            Every credential-backed provider gets its own card, not just the
-            default one: a project can keep several buckets connected and
-            browse all of them from the media library.
-          */}
-          <div className="space-y-4">
-            {ALL_CREDENTIAL_PROVIDERS.map((entry) => (
-              <MediaCredentialsForm
-                key={entry.id}
-                projectId={projectId}
-                entry={entry}
-                isDefault={mediaStorageMode === entry.id}
-              />
-            ))}
-          </div>
         </SettingsGroup>
 
         <SettingsGroup
@@ -471,6 +492,142 @@ function ProjectWatermarkSection({
   );
 }
 
+/** Credential row state, narrowed from `listForProject`. */
+type CredentialRow = {
+  provider: CredentialProvider;
+  publicConfig: string | undefined;
+  status: MediaCredentialStatus;
+  lastVerifyError: string | undefined;
+};
+
+/**
+ * One provider, one row: the radio sets it as the upload default, the chip
+ * says whether it is usable, and the expander holds its credentials.
+ *
+ * Keeping all three in a single row is the point — the previous layout put the
+ * destination picker and the credential cards in separate lists, so every
+ * provider was rendered twice with nothing tying the two together.
+ */
+function ProviderRow({
+  projectId,
+  entry,
+  credential,
+  isDefault,
+  onMakeDefault,
+  githubReady,
+}: {
+  projectId: Id<"projects">;
+  entry: MediaProviderEntry;
+  credential: CredentialRow | null;
+  isDefault: boolean;
+  onMakeDefault: () => void;
+  /** GitHub is "connected" when the project has a repo and a media directory. */
+  githubReady: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const usesVault = entry.credentialSource === "vault";
+  const connected = usesVault ? credential !== null : githubReady;
+
+  return (
+    <div className="py-2.5">
+      <div className="flex items-center gap-3">
+        <input
+          type="radio"
+          name="media-default-provider"
+          id={`media-default-${entry.id}`}
+          checked={isDefault}
+          onChange={onMakeDefault}
+          disabled={!connected}
+          className="size-3.5 shrink-0 accent-primary disabled:opacity-40"
+        />
+        <label
+          htmlFor={`media-default-${entry.id}`}
+          className={cn(
+            "min-w-0 flex-1 truncate text-sm",
+            connected
+              ? "cursor-pointer font-medium"
+              : "cursor-not-allowed text-muted-foreground",
+          )}
+          // Selecting an unconnected provider as the default would only make
+          // every upload fail, so the radio waits for credentials.
+          title={connected ? "Set as upload default" : "Connect it first"}
+        >
+          {entry.label}
+        </label>
+
+        <ProviderStatusChip
+          connected={connected}
+          status={credential?.status}
+          usesVault={usesVault}
+        />
+
+        {usesVault && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+            className="shrink-0 text-xs"
+          >
+            {connected ? "Manage" : "Connect"}
+            <ChevronDown
+              className={cn(
+                "size-3.5 transition-transform",
+                open && "rotate-180",
+              )}
+            />
+          </Button>
+        )}
+      </div>
+
+      <AnimatePresence initial={false}>
+        {open && usesVault && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
+            className="overflow-hidden"
+          >
+            <CredentialPanel
+              projectId={projectId}
+              entry={entry}
+              credential={credential}
+              isDefault={isDefault}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function ProviderStatusChip({
+  connected,
+  status,
+  usesVault,
+}: {
+  connected: boolean;
+  status: MediaCredentialStatus | undefined;
+  usesVault: boolean;
+}) {
+  if (!connected) {
+    return (
+      <span className="shrink-0 text-[11px] text-muted-foreground/60">
+        {usesVault ? "Not connected" : "No repo"}
+      </span>
+    );
+  }
+  if (!status) {
+    return (
+      <span className="shrink-0 text-[11px] text-muted-foreground/60">
+        Repo linked
+      </span>
+    );
+  }
+  return <StatusBadge status={status} />;
+}
+
 /**
  * Connect / verify / rotate / disconnect one storage provider.
  *
@@ -478,20 +635,18 @@ function ProjectWatermarkSection({
  * serialise into the vault secret, and which of them are echoed back after
  * saving all come from `entry.fields`. Adding a provider needs no change here.
  */
-function MediaCredentialsForm({
+function CredentialPanel({
   projectId,
   entry,
+  credential,
   isDefault,
 }: {
   projectId: Id<"projects">;
   entry: MediaProviderEntry;
+  credential: CredentialRow | null;
   isDefault: boolean;
 }) {
   const provider = entry.id as CredentialProvider;
-  const config = useQuery(api.media.credentialsDb.getPublicConfig, {
-    projectId,
-    provider,
-  });
 
   const setCredentials = useAction(api.media.credentials.setCredentials);
   const testCredentials = useAction(api.media.credentials.testCredentials);
@@ -500,24 +655,25 @@ function MediaCredentialsForm({
 
   const [values, setValues] = useState<CredentialValues>({});
   const [busy, setBusy] = useState<"save" | "test" | "delete" | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
-  const hasExisting = config !== null && config !== undefined;
-  const isRotating = config?.status === "rotating";
+  const hasExisting = credential !== null;
+  const isRotating = credential?.status === "rotating";
 
   const handleFieldChange = useCallback((key: string, value: string) => {
     setValues((prev) => ({ ...prev, [key]: value }));
   }, []);
 
-  /** Non-secret values from the stored row — "connected to <bucket>". */
+  /** Non-secret values from the stored row — "Bucket: my-blog-media". */
   const savedHints = useMemo(() => {
-    const read = readCredentialPublicConfig(config?.publicConfig);
+    const read = readCredentialPublicConfig(credential?.publicConfig);
     return entry.fields
       .filter((field) => field.showAfterSave && !field.secret)
       .map((field) => ({ label: field.label, value: read(field.key) }))
       .filter((hint): hint is { label: string; value: string } =>
         Boolean(hint.value),
       );
-  }, [config?.publicConfig, entry.fields]);
+  }, [credential?.publicConfig, entry.fields]);
 
   const handleSave = useCallback(async () => {
     const secret = buildCredentialSecret(entry, values);
@@ -591,8 +747,6 @@ function MediaCredentialsForm({
     }
   }, [projectId, provider, testCredentials]);
 
-  const [confirmDelete, setConfirmDelete] = useState(false);
-
   const handleDelete = useCallback(async () => {
     setBusy("delete");
     try {
@@ -610,47 +764,9 @@ function MediaCredentialsForm({
   }, [deleteCredentials, projectId, provider]);
 
   return (
-    <div className="space-y-4 rounded-xl border border-border/40 bg-card/40 p-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <h3 className="flex items-center gap-2 text-sm font-semibold">
-            {entry.label}
-            {isDefault && (
-              <span className="rounded-sm bg-primary/10 px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide text-primary">
-                Default
-              </span>
-            )}
-          </h3>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Stored encrypted in WorkOS Vault. We never log or display the
-            secret.
-            {entry.dashboardUrl && (
-              <>
-                {" "}
-                <a
-                  href={entry.dashboardUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="underline decoration-dotted hover:text-foreground"
-                >
-                  Get your keys
-                </a>
-              </>
-            )}
-          </p>
-        </div>
-        {hasExisting && <StatusBadge status={config.status} />}
-      </div>
-
-      {hasExisting && config.lastVerifyError && (
-        <div className="rounded-md border border-destructive/30 bg-destructive/5 p-2 text-xs text-destructive">
-          <span className="font-medium">Last error:</span>{" "}
-          {config.lastVerifyError}
-        </div>
-      )}
-
+    <div className="mt-3 space-y-3 rounded-lg border border-border/40 bg-muted/20 p-3">
       {savedHints.length > 0 && (
-        <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+        <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
           {savedHints.map((hint) => (
             <span key={hint.label}>
               {hint.label}:{" "}
@@ -658,6 +774,12 @@ function MediaCredentialsForm({
             </span>
           ))}
         </div>
+      )}
+
+      {credential?.lastVerifyError && (
+        <p className="rounded-md border border-destructive/30 bg-destructive/5 p-2 text-[11px] text-destructive">
+          {credential.lastVerifyError}
+        </p>
       )}
 
       <CredentialFieldsForm
@@ -674,16 +796,8 @@ function MediaCredentialsForm({
           onClick={handleSave}
           disabled={busy !== null || isRotating}
         >
-          {busy === "save" ? (
-            <>
-              <Loader2 className="size-3.5 animate-spin" />
-              Saving...
-            </>
-          ) : hasExisting ? (
-            "Replace key"
-          ) : (
-            "Save"
-          )}
+          {busy === "save" && <Loader2 className="size-3.5 animate-spin" />}
+          {hasExisting ? "Replace key" : "Connect"}
         </Button>
         {hasExisting && (
           <Button
@@ -692,14 +806,8 @@ function MediaCredentialsForm({
             onClick={handleTest}
             disabled={busy !== null || isRotating}
           >
-            {busy === "test" ? (
-              <>
-                <Loader2 className="size-3.5 animate-spin" />
-                Testing...
-              </>
-            ) : (
-              "Test connection"
-            )}
+            {busy === "test" && <Loader2 className="size-3.5 animate-spin" />}
+            Test
           </Button>
         )}
         {hasExisting && (
@@ -707,7 +815,12 @@ function MediaCredentialsForm({
             size="sm"
             variant="ghost"
             onClick={() => setConfirmDelete(true)}
-            disabled={busy !== null || isRotating}
+            // The backend refuses to unlink the provider uploads route to;
+            // disabling here explains why before the request fails.
+            disabled={busy !== null || isRotating || isDefault}
+            title={
+              isDefault ? "Make another provider the default first" : "Remove"
+            }
             className="text-destructive hover:bg-destructive/10 hover:text-destructive"
           >
             {busy === "delete" ? (
@@ -718,22 +831,23 @@ function MediaCredentialsForm({
             Remove
           </Button>
         )}
+        {entry.dashboardUrl && (
+          <a
+            href={entry.dashboardUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="ml-auto text-[11px] text-muted-foreground underline decoration-dotted hover:text-foreground"
+          >
+            Get keys
+          </a>
+        )}
         <ConfirmActionDialog
           open={confirmDelete}
           onOpenChange={setConfirmDelete}
-          title="Remove these credentials?"
-          description="Existing media URLs keep working, but new uploads fail until you reconfigure."
+          title={`Disconnect ${entry.label}?`}
+          description="Existing media URLs keep working. New uploads to this provider fail until you reconnect."
           onConfirm={() => void handleDelete()}
         />
-        {hasExisting && config.lastVerifiedAt && (
-          <span className="ml-auto text-[11px] text-muted-foreground">
-            Last verified{" "}
-            {new Date(config.lastVerifiedAt).toLocaleString(undefined, {
-              dateStyle: "medium",
-              timeStyle: "short",
-            })}
-          </span>
-        )}
       </div>
     </div>
   );
