@@ -15,7 +15,8 @@
       "!**/dist",
       "!**/dist-dev",
       "!apps/desktop/build",
-      "!packages/backend/convex/_generated"
+      "!packages/backend/convex/_generated",
+      "!**/.convex"
     ]
   },
   "css": {
