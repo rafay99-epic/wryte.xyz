@@ -1,0 +1,46 @@
+apps/web/src/components/forms/credential-fields-form.tsx
+  s_7d98ae3d9972f4::t_e45247493a1067 52-54,57
+apps/web/src/features/project-settings/components/media-section.tsx
+  s_7d98ae3d9972f4::t_e45247493a1067 782-784
+  s_7d98ae3d9972f4::t_06d44f617b8554 653-654,656,667-689,692,694,705,781,785-793
+packages/backend/convex/media/credentials.ts
+  s_7d98ae3d9972f4::t_e45247493a1067 115-119,253-260,454-460
+  s_7d98ae3d9972f4::t_f6c90a850a61d2 182-197,200,216,382-389,410
+  s_7d98ae3d9972f4::t_7bc5a73cf1dd67 30-114,120-136
+  s_7d98ae3d9972f4::t_f005fbe53ccda2 233,241-242
+apps/web/src/features/editor/components/image-insert-dialog.tsx
+  s_7d98ae3d9972f4::t_f230047c7a0b45 90,272
+packages/logic/src/lib/media-credentials.ts
+  s_7d98ae3d9972f4::t_11018e2ee8002c 22-29,33,35-39,53,55,61-64,67-68,76-77
+apps/web/src/features/editor/components/media-picker-drawer.tsx
+  s_7d98ae3d9972f4::t_f230047c7a0b45 70,178
+apps/web/src/features/editor/components/video-insert-dialog.tsx
+  s_7d98ae3d9972f4::t_f230047c7a0b45 71,228
+packages/logic/src/hooks/use-project-media-library.ts
+  s_7d98ae3d9972f4::t_d97971468ddde6 139-143,172-179,205-216,253,258
+  s_7d98ae3d9972f4::t_9634e2e273cb10 124-130
+  s_7d98ae3d9972f4::t_f230047c7a0b45 81-84,87-98,276,278-282
+packages/backend/convex/media/credentialsDb.ts
+  s_7d98ae3d9972f4::t_8ae9d2f347a1a0 206-207,218,271-272
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "711de14ea5c2c42ca28a534d21b34ecb723b244c",
+  "prompts": {},
+  "humans": {
+    "h_1e0ba4a9f2a4b4": {
+      "author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  },
+  "sessions": {
+    "s_7d98ae3d9972f4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e575c576-ca70-48f6-ab70-c36e1b4efaa2",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
