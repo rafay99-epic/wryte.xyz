@@ -1,0 +1,37 @@
+packages/backend/convex/_seed/changelog.ts
+  s_3b4895d4b0e730::t_8299ee48d201ce 1602-1657
+  s_3b4895d4b0e730::t_09592c7c48a4ad 1600-1601
+apps/desktop/package.json
+  s_3b4895d4b0e730::t_fc4705d3a2250d 3
+packages/backend/package.json
+  s_3b4895d4b0e730::t_fc4705d3a2250d 3
+packages/logic/package.json
+  s_3b4895d4b0e730::t_fc4705d3a2250d 3
+apps/web/scripts/changelog-new.ts
+  s_3b4895d4b0e730::t_4eee3bf7899031 50-52,134-138,155
+  s_3b4895d4b0e730::t_df452a3c5b97a6 28-48,129-130,132-133,140
+  s_3b4895d4b0e730::t_aabf3e4a852900 118,131
+  s_3b4895d4b0e730::t_3248e5a2b5b6a8 49
+apps/web/package.json
+  s_3b4895d4b0e730::t_fc4705d3a2250d 3
+package.json
+  s_3b4895d4b0e730::t_fc4705d3a2250d 3
+packages/ui/package.json
+  s_3b4895d4b0e730::t_fc4705d3a2250d 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "df72883cbfeea3d9b51189f3a0635eeb67facb83",
+  "prompts": {},
+  "sessions": {
+    "s_3b4895d4b0e730": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1208c909-c5a3-4237-9990-16f8cd3cf099",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
