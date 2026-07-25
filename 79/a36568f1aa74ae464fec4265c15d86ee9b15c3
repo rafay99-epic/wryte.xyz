@@ -1,0 +1,21 @@
+MONOREPO.md
+  s_72477441c6c3c3::t_fcb74d4cc9848c 38-51,56-57,61-66
+apps/web/vercel.json
+  s_72477441c6c3c3::t_42715a42ea1085 7-8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "79a36568f1aa74ae464fec4265c15d86ee9b15c3",
+  "prompts": {},
+  "sessions": {
+    "s_72477441c6c3c3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c79af440-04d8-4f34-bc49-93740f9d1b93",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
