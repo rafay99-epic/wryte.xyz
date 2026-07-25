@@ -15,6 +15,9 @@ Thanks for your interest in contributing to Wryte! This guide will help you get 
 - [Reporting Bugs](#reporting-bugs)
 - [Requesting Features](#requesting-features)
 
+For anything beyond the workflow itself — setup, commands, repo layout,
+architecture, deployment — see the [documentation index](README.md#documentation).
+
 ---
 
 ## Code of Conduct
@@ -35,11 +38,18 @@ Be respectful, constructive, and inclusive. We're building something useful toge
    ```bash
    bun install
    ```
-4. **Set up environment variables** — see the [README](README.md#3-configure-environment-variables) for details
+4. **Set up environment variables:**
+   ```bash
+   cp .env.local.example .env.local   # fill in your values
+   bun run link-env                   # symlink it into the workspaces
+   ```
+   Full variable reference: [docs/setup.md](docs/setup.md).
 5. **Start the dev server:**
    ```bash
    bun run dev
    ```
+   Turborepo runs the Next.js app, Convex, and the Electron shell in parallel.
+   Convex CLI commands run from `packages/backend`.
 
 ---
 
@@ -58,16 +68,20 @@ Be respectful, constructive, and inclusive. We're building something useful toge
 Before submitting a PR, make sure all checks pass:
 
 ```bash
-bun run lint      # Biome lint check
+bun run lint      # Biome check, whole repo
 bun run format    # Biome format (auto-fix)
-bun run type      # TypeScript type check (tsc --noEmit)
+bun run type      # turbo run type — every workspace
+bun audit         # dependency advisories, no ignore list
 ```
 
-All three must pass cleanly. CI will reject PRs with lint, format, or type errors.
+All must pass cleanly. CI will reject PRs with lint, format, type, or audit
+errors. Full command reference: [docs/commands.md](docs/commands.md).
 
 ### Tooling
 
 - **Package manager:** Bun only. Do not use npm, yarn, or pnpm.
+- **Monorepo:** Bun workspaces + Turborepo. Know which workspace your change
+  belongs in before you write it — see [docs/structure.md](docs/structure.md).
 - **Lint / format:** [Biome](https://biomejs.dev) — configured in `biome.json`
 - **TypeScript:** Strict mode with `exactOptionalPropertyTypes` enabled
 
