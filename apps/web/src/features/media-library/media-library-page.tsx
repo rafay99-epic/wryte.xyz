@@ -16,7 +16,10 @@ import {
 import { formatMb } from "@wryte/logic/lib/upload-limits";
 import { cn } from "@wryte/logic/lib/utils";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
-import type { MediaProvider } from "@wryte/logic/types/media";
+import {
+  MEDIA_PROVIDER_LABELS,
+  type MediaProvider,
+} from "@wryte/logic/types/media";
 import { Button, buttonVariants } from "@wryte/ui/button";
 import {
   Dialog,
@@ -27,6 +30,7 @@ import {
   DialogTitle,
 } from "@wryte/ui/dialog";
 import { Input } from "@wryte/ui/input";
+import { MediaProviderTabs } from "@wryte/ui/media-provider-tabs";
 import { Skeleton } from "@wryte/ui/skeleton";
 import { UploadProgress } from "@wryte/ui/upload-progress";
 import { useAction, useQuery } from "convex/react";
@@ -37,6 +41,7 @@ import {
   ExternalLink,
   FileImage,
   GitBranch,
+  HardDrive,
   ImageIcon,
   Loader2,
   RefreshCw,
@@ -91,6 +96,8 @@ export function MediaLibraryPage() {
 
   const {
     provider,
+    setProvider,
+    providerTabs,
     isGithub,
     hasGithubConfig,
     items,
@@ -201,12 +208,10 @@ export function MediaLibraryPage() {
   const providerIcon = PROVIDER_ICON[provider];
   const location = describeLocation(provider, project);
 
-  // Provider not yet configured (no credentials saved).
+  // Provider selected but never connected — the server reports this directly,
+  // so it no longer has to be inferred from "empty list plus an error".
   const needsConfig =
-    (provider === "uploadthing" || provider === "cloudinary") &&
-    items.length === 0 &&
-    !isLoading &&
-    errorMessage !== null;
+    providerTabs.find((tab) => tab.provider === provider)?.configured === false;
 
   return (
     <div className="p-6">
@@ -248,6 +253,18 @@ export function MediaLibraryPage() {
           </Button>
         </div>
       </div>
+
+      {/*
+        One tab per connected provider. Selecting one re-lists from that bucket
+        and points uploads and deletes at it, so several storage backends stay
+        browsable side by side. Hidden when only one is connected.
+      */}
+      <MediaProviderTabs
+        tabs={providerTabs}
+        selected={provider}
+        onSelect={setProvider}
+        className="mb-4"
+      />
 
       {/* Search */}
       {items.length > 0 && (
@@ -380,16 +397,14 @@ export function MediaLibraryPage() {
 /*  Provider helpers                                                   */
 /* ------------------------------------------------------------------ */
 
-const PROVIDER_LABEL: Record<ActiveProvider, string> = {
-  github: "GitHub",
-  uploadthing: "UploadThing",
-  cloudinary: "Cloudinary",
-};
+const PROVIDER_LABEL = MEDIA_PROVIDER_LABELS;
 
+/** Only the glyph is a UI choice — everything else lives in the registry. */
 const PROVIDER_ICON: Record<ActiveProvider, typeof GitBranch> = {
   github: GitBranch,
   uploadthing: UploadCloud,
   cloudinary: Cloud,
+  r2: HardDrive,
 };
 
 function describeLocation(
@@ -399,8 +414,10 @@ function describeLocation(
   if (provider === "github") {
     return project.mediaPath ? `/${project.mediaPath}` : null;
   }
-  if (provider === "cloudinary") {
-    return project.mediaPath ? project.mediaPath : null;
+  // Cloudinary folders and R2 key prefixes are both `mediaPath`; UploadThing
+  // has a flat namespace and nothing to show.
+  if (provider === "cloudinary" || provider === "r2") {
+    return project.mediaPath ?? null;
   }
   return null;
 }
@@ -663,8 +680,11 @@ function UploadMediaDialog({
       // Step 3: Upload
       setProgressStep("upload");
       const bytes = await toUpload.arrayBuffer();
+      // Explicit destination: the upload lands in whichever provider the
+      // library is showing, not silently in the project default.
       await uploadMedia({
         projectId,
+        provider,
         bytes,
         mime: toUpload.type,
         filename: toUpload.name,
@@ -693,6 +713,7 @@ function UploadMediaDialog({
     onUploaded,
     override,
     projectId,
+    provider,
     selectedFile,
     uploadMedia,
   ]);

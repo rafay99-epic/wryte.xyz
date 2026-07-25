@@ -11,6 +11,7 @@ import { formatMb } from "@wryte/logic/lib/upload-limits";
 import { Button } from "@wryte/ui/button";
 import { Input } from "@wryte/ui/input";
 import { Label } from "@wryte/ui/label";
+import { MediaProviderTabs } from "@wryte/ui/media-provider-tabs";
 import {
   Sheet,
   SheetBody,
@@ -65,6 +66,9 @@ export function VideoInsertDialog({
   const { maxBytes: maxUploadBytes, formatted: maxUploadLabel } =
     useUploadLimit(projectId as Id<"projects">);
   const {
+    provider,
+    setProvider,
+    providerTabs,
     showLibrary,
     items: libraryItems,
     isLoading: isLibraryLoading,
@@ -143,6 +147,7 @@ export function VideoInsertDialog({
         const bytes = await file.arrayBuffer();
         const result = await uploadMedia({
           projectId: projectId as Id<"projects">,
+          provider,
           bytes,
           mime: file.type,
           filename: file.name,
@@ -176,6 +181,7 @@ export function VideoInsertDialog({
       resetForm,
       title,
       uploadMedia,
+      provider,
     ],
   );
 
@@ -218,6 +224,11 @@ export function VideoInsertDialog({
             {showLibrary && (
               <TabsContent value="library">
                 <div className="space-y-4">
+                  <MediaProviderTabs
+                    tabs={providerTabs}
+                    selected={provider}
+                    onSelect={setProvider}
+                  />
                   <div className="space-y-1.5">
                     <Label htmlFor="video-library-title">Title</Label>
                     <Input

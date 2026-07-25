@@ -1,14 +1,22 @@
 /**
- * Public media actions: upload, list, delete, getUsage.
+ * Public media actions: upload, list, delete.
  *
- * All uploads go directly to the project's configured provider — no Convex
- * file storage staging, no publish-time migration. The action is the only
- * server-side entry point; the browser never talks to UploadThing or
- * Cloudinary directly so credentials never leave Convex.
+ * All uploads go directly to a project's storage provider — no Convex file
+ * storage staging, no publish-time migration. These actions are the only
+ * server-side entry point; the browser never talks to UploadThing, Cloudinary
+ * or R2 directly, so credentials never leave Convex.
  *
- * Errors are normalized to `MediaErrorCode`s and propagated via
- * `ConvexError` so the client renders one of the friendly toasts in
- * `src/lib/media-errors.ts`.
+ * Every provider-specific detail lives in `convex/providers/registry.ts`, and
+ * *which* provider handles a request lives in `./providerResolution.ts`. What
+ * remains here is the part that is identical for all of them: auth, quotas,
+ * rate limits, filename hardening, bookkeeping and error normalisation.
+ *
+ * A project can have several providers connected at once. Requests take an
+ * optional `provider`; without one they route to the project's default
+ * (`mediaStorageMode`).
+ *
+ * Errors are normalised to `MediaErrorCode`s and propagated via `ConvexError`
+ * so the client renders one of the friendly toasts in `src/lib/media-errors.ts`.
  */
 "use node";
 
@@ -18,26 +26,22 @@ import type { Doc, Id } from "../_generated/dataModel";
 import type { ActionCtx } from "../_generated/server";
 import { action } from "../_generated/server";
 import { isAllowedMime, QUOTAS } from "../_lib/quotas";
-import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
-import {
-  cldList,
-  cldUpload,
-  ghDelete,
-  ghList,
-  ghUpload,
-  type NormalizedListItem,
-  parseRepoString,
-  utDelete,
-  utList,
-  utUpload,
-} from "../providers";
+import { rateLimiter } from "../_lib/rateLimits";
 import {
   DEFAULT_MESSAGES,
   type MediaErrorCode,
   redactError,
 } from "../providers/errors";
-
-type ActiveProvider = "github" | "uploadthing" | "cloudinary";
+import {
+  type MediaProvider,
+  mediaProviderValidator,
+  type NormalizedMediaItem,
+} from "./_lib/providers";
+import {
+  resolveProvider,
+  resolveProviderName,
+  tryResolveProvider,
+} from "./providerResolution";
 
 /**
  * Resolves the acting user from `ctx.auth` inside an action.
@@ -58,19 +62,25 @@ async function requireUserFromAuth(ctx: ActionCtx): Promise<Doc<"users">> {
   return user;
 }
 
-function resolveActiveProvider(mode: string | undefined): ActiveProvider {
-  if (mode === "uploadthing" || mode === "cloudinary" || mode === "github") {
-    return mode;
-  }
-  // Absent mode → default to github so writes still resolve.
-  return "github";
+/** Loads the project, asserting the caller owns it. */
+async function requireOwnedProject(
+  ctx: ActionCtx,
+  user: Doc<"users">,
+  projectId: Id<"projects">,
+): Promise<{ project: Doc<"projects">; userId: Id<"users"> }> {
+  const owned = await ctx.runQuery(internal.media.uploadsDb._findOwnedProject, {
+    tokenIdentifier: user.tokenIdentifier,
+    projectId,
+  });
+  if (!owned) throw new Error("Unauthorized");
+  return owned;
 }
 
 /**
  * Reduces an untrusted filename to a single safe path segment. The result is
- * concatenated into provider URLs and GitHub repo paths (`${mediaPath}/${filename}`),
- * so any directory-traversal sequence would let a caller escape the configured
- * media directory.
+ * concatenated into provider URLs, object keys and GitHub repo paths
+ * (`${mediaPath}/${filename}`), so any directory-traversal sequence would let
+ * a caller escape the configured media directory.
  *
  * Rules:
  *  - Take only the last segment after splitting on both `/` and `\`
@@ -106,11 +116,6 @@ function sanitizeFilename(input: string): string {
 /*  Upload                                                              */
 /* ------------------------------------------------------------------ */
 
-/**
- * Direct provider upload. Validates everything we can check cheaply
- * (auth, file size, MIME, quotas, rate limits) before any provider call,
- * then dispatches based on the project's `mediaStorageMode`.
- */
 export const upload = action({
   args: {
     projectId: v.id("projects"),
@@ -118,6 +123,8 @@ export const upload = action({
     mime: v.string(),
     filename: v.string(),
     documentId: v.optional(v.id("documents")),
+    /** Destination override. Omit to use the project's default provider. */
+    provider: v.optional(mediaProviderValidator),
   },
   handler: async (ctx, args) =>
     await uploadForUser(ctx, await requireUserFromAuth(ctx), args),
@@ -125,7 +132,7 @@ export const upload = action({
 
 /** `upload`'s body with the actor passed in explicitly. Shared with the MCP
  *  handler — see `requireUserFromAuth` above. */
-async function uploadForUser(
+export async function uploadForUser(
   ctx: ActionCtx,
   user: Doc<"users">,
   args: {
@@ -134,258 +141,130 @@ async function uploadForUser(
     mime: string;
     filename: string;
     documentId?: Id<"documents">;
+    provider?: MediaProvider;
   },
 ): Promise<{
   mediaId: Id<"media">;
   url: string;
-  provider: ActiveProvider;
+  provider: MediaProvider;
   externalId: string;
 }> {
-  {
-    const key = user.tokenIdentifier;
+  const key = user.tokenIdentifier;
 
-    // ── Cheap checks first ──
-    if (args.bytes.byteLength > QUOTAS.MAX_UPLOAD_BYTES) {
-      throw new ConvexError({
-        code: "FILE_TOO_LARGE" as MediaErrorCode,
-        message: DEFAULT_MESSAGES.FILE_TOO_LARGE,
-      });
-    }
-    if (!isAllowedMime(args.mime)) {
-      throw new ConvexError({
-        code: "UNSUPPORTED_MIME" as MediaErrorCode,
-        message: DEFAULT_MESSAGES.UNSUPPORTED_MIME,
-      });
-    }
-
-    // Path traversal guard. The filename is concatenated into provider URLs
-    // and GitHub repo paths — a `../` segment would let a caller escape the
-    // configured media directory and overwrite e.g. `.github/workflows/*`.
-    const safeFilename = sanitizeFilename(args.filename);
-
-    // Rate limits — user, concurrency, and the global circuit breaker.
-    await rateLimiter.limit(ctx, "media:upload", { key, throws: true });
-    await rateLimiter.limit(ctx, "media:uploadConcurrency", {
-      key,
-      throws: true,
+  // ── Cheap checks first ──
+  if (args.bytes.byteLength > QUOTAS.MAX_UPLOAD_BYTES) {
+    throw new ConvexError({
+      code: "FILE_TOO_LARGE" as MediaErrorCode,
+      message: DEFAULT_MESSAGES.FILE_TOO_LARGE,
     });
-    await rateLimiter.limit(ctx, "media:globalUpload", {
-      key: "global",
-      throws: true,
+  }
+  if (!isAllowedMime(args.mime)) {
+    throw new ConvexError({
+      code: "UNSUPPORTED_MIME" as MediaErrorCode,
+      message: DEFAULT_MESSAGES.UNSUPPORTED_MIME,
     });
+  }
 
-    const owned = await ctx.runQuery(
-      internal.media.uploadsDb._findOwnedProject,
-      {
-        tokenIdentifier: user.tokenIdentifier,
-        projectId: args.projectId,
-      },
+  // Path traversal guard. The filename is concatenated into provider URLs,
+  // object keys and GitHub repo paths — a `../` segment would let a caller
+  // escape the configured media directory and overwrite e.g.
+  // `.github/workflows/*`.
+  const safeFilename = sanitizeFilename(args.filename);
+
+  // Rate limits — user, concurrency, and the global circuit breaker.
+  await rateLimiter.limit(ctx, "media:upload", { key, throws: true });
+  await rateLimiter.limit(ctx, "media:uploadConcurrency", {
+    key,
+    throws: true,
+  });
+  await rateLimiter.limit(ctx, "media:globalUpload", {
+    key: "global",
+    throws: true,
+  });
+
+  const owned = await requireOwnedProject(ctx, user, args.projectId);
+
+  // Per-project size limit (clamped to the absolute ceiling above).
+  const projectMax =
+    typeof owned.project.maxUploadBytes === "number" &&
+    owned.project.maxUploadBytes > 0
+      ? Math.min(owned.project.maxUploadBytes, QUOTAS.MAX_UPLOAD_BYTES)
+      : QUOTAS.MAX_UPLOAD_BYTES;
+  if (args.bytes.byteLength > projectMax) {
+    throw new ConvexError({
+      code: "FILE_TOO_LARGE" as MediaErrorCode,
+      message: DEFAULT_MESSAGES.FILE_TOO_LARGE,
+    });
+  }
+
+  // Project-level quota.
+  const quota = await ctx.runQuery(internal.media.uploadsDb._quotaCheck, {
+    projectId: args.projectId,
+    incomingBytes: args.bytes.byteLength,
+  });
+  if (!quota.ok) {
+    await logError(
+      ctx,
+      owned.userId,
+      args.projectId,
+      "convex",
+      "upload",
+      "PROJECT_QUOTA",
+      `Project hit ${quota.reason} quota`,
     );
-    if (!owned) throw new Error("Unauthorized");
-
-    // Per-project size limit (clamped to the absolute ceiling above).
-    const projectMax =
-      typeof owned.project.maxUploadBytes === "number" &&
-      owned.project.maxUploadBytes > 0
-        ? Math.min(owned.project.maxUploadBytes, QUOTAS.MAX_UPLOAD_BYTES)
-        : QUOTAS.MAX_UPLOAD_BYTES;
-    if (args.bytes.byteLength > projectMax) {
-      throw new ConvexError({
-        code: "FILE_TOO_LARGE" as MediaErrorCode,
-        message: DEFAULT_MESSAGES.FILE_TOO_LARGE,
-      });
-    }
-
-    // Project-level quota.
-    const quota = await ctx.runQuery(internal.media.uploadsDb._quotaCheck, {
-      projectId: args.projectId,
-      incomingBytes: args.bytes.byteLength,
+    throw new ConvexError({
+      code: "PROJECT_QUOTA" as MediaErrorCode,
+      message: DEFAULT_MESSAGES.PROJECT_QUOTA,
     });
-    if (!quota.ok) {
-      await logError(
-        ctx,
-        owned.userId,
-        args.projectId,
-        "convex",
-        "upload",
-        "PROJECT_QUOTA",
-        `Project hit ${quota.reason} quota`,
-      );
-      throw new ConvexError({
-        code: "PROJECT_QUOTA" as MediaErrorCode,
-        message: DEFAULT_MESSAGES.PROJECT_QUOTA,
-      });
-    }
+  }
 
-    const provider = resolveActiveProvider(owned.project.mediaStorageMode);
-    const buffer = Buffer.from(new Uint8Array(args.bytes));
+  // Named before the try block so the error path can attribute failures even
+  // when resolution itself is what threw.
+  const provider = resolveProviderName(owned.project, args.provider);
 
-    try {
-      let url: string;
-      let externalId: string;
-      let width: number | undefined;
-      let height: number | undefined;
-      let bytes = args.bytes.byteLength;
+  try {
+    const { adapter, cx } = await resolveProvider(ctx, {
+      project: owned.project,
+      userId: owned.userId,
+      requested: args.provider,
+      rateKey: key,
+      requireValid: true,
+    });
 
-      if (provider === "uploadthing") {
-        const cred = await ctx.runQuery(
-          internal.media.uploadsDb._getCredential,
-          {
-            projectId: args.projectId,
-            provider: "uploadthing",
-          },
-        );
-        if (!cred || cred.status === "invalid") {
-          throw new ConvexError({
-            code: "AUTH_INVALID" as MediaErrorCode,
-            message: DEFAULT_MESSAGES.AUTH_INVALID,
-          });
-        }
-        await rateLimiter.limit(ctx, "vault:read", { key, throws: true });
-        const token: string = await ctx.runAction(
-          internal.integrations.secretStore._read,
-          {
-            id: cred.vaultSecretId,
-          },
-        );
-        const res = await utUpload(token, {
-          buffer,
-          mime: args.mime,
-          filename: safeFilename,
-        });
-        url = res.url;
-        externalId = res.externalId;
-        bytes = res.bytes;
-      } else if (provider === "cloudinary") {
-        const cred = await ctx.runQuery(
-          internal.media.uploadsDb._getCredential,
-          {
-            projectId: args.projectId,
-            provider: "cloudinary",
-          },
-        );
-        if (!cred || cred.status === "invalid") {
-          throw new ConvexError({
-            code: "AUTH_INVALID" as MediaErrorCode,
-            message: DEFAULT_MESSAGES.AUTH_INVALID,
-          });
-        }
-        await rateLimiter.limit(ctx, "vault:read", { key, throws: true });
-        const rawSecret: string = await ctx.runAction(
-          internal.integrations.secretStore._read,
-          { id: cred.vaultSecretId },
-        );
-        const folder = owned.project.mediaPath ?? owned.project.slug;
-        const res = await cldUpload(
-          rawSecret,
-          { buffer, mime: args.mime, filename: safeFilename },
-          { folder },
-        );
-        url = res.url;
-        externalId = res.externalId;
-        bytes = res.bytes;
-        width = res.width;
-        height = res.height;
-      } else {
-        // GitHub — direct repo commit.
-        if (!owned.project.githubRepo) {
-          throw new ConvexError({
-            code: "AUTH_INVALID" as MediaErrorCode,
-            message:
-              "This project has no GitHub repo configured. Add one in settings before uploading.",
-          });
-        }
-        const { owner, repo } = parseRepoString(owned.project.githubRepo);
-        const { getGithubToken } = await import("../_lib/auth");
-        const token = await getGithubToken(ctx, owned.userId);
-        if (!token) {
-          throw new ConvexError({
-            code: "AUTH_INVALID" as MediaErrorCode,
-            message:
-              "GitHub isn't connected. Reconnect in settings before uploading.",
-          });
-        }
-        const spec = {
-          owner,
-          repo,
-          branch: owned.project.githubBranch ?? "main",
-          mediaPath: owned.project.mediaPath ?? "public/images",
-        };
-        const res = await ghUpload(token, spec, {
-          buffer,
-          mime: args.mime,
-          filename: safeFilename,
-        });
-        url = res.url;
-        externalId = res.externalId;
-        bytes = res.bytes;
-      }
+    const res = await adapter.upload(cx, {
+      buffer: Buffer.from(new Uint8Array(args.bytes)),
+      mime: args.mime,
+      filename: safeFilename,
+    });
 
-      const recordArgs: {
-        projectId: Id<"projects">;
-        userId: Id<"users">;
-        provider: ActiveProvider;
-        externalId: string;
-        url: string;
-        filename: string;
-        mime: string;
-        bytes: number;
-        width?: number;
-        height?: number;
-        documentId?: Id<"documents">;
-      } = {
+    const mediaId: Id<"media"> = await ctx.runMutation(
+      internal.media.uploadsDb._recordUpload,
+      {
         projectId: args.projectId,
         userId: owned.userId,
         provider,
-        externalId,
-        url,
+        externalId: res.externalId,
+        url: res.url,
         filename: safeFilename,
         mime: args.mime,
-        bytes,
-      };
-      if (width !== undefined) recordArgs.width = width;
-      if (height !== undefined) recordArgs.height = height;
-      if (args.documentId !== undefined)
-        recordArgs.documentId = args.documentId;
+        bytes: res.bytes,
+        ...(res.width !== undefined ? { width: res.width } : {}),
+        ...(res.height !== undefined ? { height: res.height } : {}),
+        ...(args.documentId !== undefined
+          ? { documentId: args.documentId }
+          : {}),
+      },
+    );
 
-      const mediaId = await ctx.runMutation(
-        internal.media.uploadsDb._recordUpload,
-        recordArgs,
-      );
-
-      return { mediaId, url, provider, externalId };
-    } catch (err) {
-      if (err instanceof ConvexError) {
-        await logError(
-          ctx,
-          owned.userId,
-          args.projectId,
-          provider,
-          "upload",
-          (err.data as { code?: string })?.code ?? "UNKNOWN",
-          (err.data as { message?: string })?.message ?? "Upload failed",
-          redactError(err),
-        );
-        throw err;
-      }
-      // Unexpected error — wrap, log, rethrow as ConvexError so the client
-      // never sees a raw provider stack.
-      const message = (err as { message?: string })?.message ?? "Upload failed";
-      await logError(
-        ctx,
-        owned.userId,
-        args.projectId,
-        provider,
-        "upload",
-        "UNKNOWN",
-        message,
-        redactError(err),
-      );
-      throw new ConvexError({
-        code: "UNKNOWN" as MediaErrorCode,
-        message: DEFAULT_MESSAGES.UNKNOWN,
-      });
-    }
+    return { mediaId, url: res.url, provider, externalId: res.externalId };
+  } catch (err) {
+    throw await normalizeFailure(
+      ctx,
+      err,
+      { userId: owned.userId, projectId: args.projectId, provider },
+      "upload",
+      "Upload failed",
+    );
   }
 }
 
@@ -414,6 +293,7 @@ export const uploadBase64 = action({
     mime: v.string(),
     filename: v.string(),
     documentId: v.optional(v.id("documents")),
+    provider: v.optional(mediaProviderValidator),
   },
   handler: async (ctx, args) =>
     await uploadBase64ForUser(ctx, await requireUserFromAuth(ctx), args),
@@ -430,53 +310,53 @@ export async function uploadBase64ForUser(
     mime: string;
     filename: string;
     documentId?: Id<"documents">;
+    provider?: MediaProvider;
   },
 ): Promise<{
   mediaId: Id<"media">;
   url: string;
-  provider: ActiveProvider;
+  provider: MediaProvider;
   externalId: string;
 }> {
-  {
-    // Reject oversized payloads before decoding: base64 inflates by ~4/3, so
-    // checking the encoded length first avoids allocating a buffer we're only
-    // going to throw away. `upload` re-checks the true byte length anyway.
-    const approxBytes = Math.floor((args.base64.length * 3) / 4);
-    if (approxBytes > QUOTAS.MAX_UPLOAD_BYTES) {
-      throw new ConvexError({
-        code: "FILE_TOO_LARGE" as MediaErrorCode,
-        message: DEFAULT_MESSAGES.FILE_TOO_LARGE,
-      });
-    }
-
-    let buffer: Buffer;
-    try {
-      // `base64` is strict here: Node's decoder silently ignores invalid
-      // characters, so a truncated or mangled payload would otherwise upload
-      // as a corrupt image rather than failing loudly.
-      buffer = Buffer.from(args.base64, "base64");
-      if (buffer.length === 0) throw new Error("empty");
-    } catch {
-      throw new ConvexError({
-        code: "UNSUPPORTED_MIME" as MediaErrorCode,
-        message: "Could not decode base64 payload.",
-      });
-    }
-
-    // Calls the shared body directly rather than `ctx.runAction(api...upload)`:
-    // one fewer action hop per upload, and it works for an MCP caller, where
-    // dispatching back through a public action would lose the identity again.
-    return await uploadForUser(ctx, user, {
-      projectId: args.projectId,
-      bytes: buffer.buffer.slice(
-        buffer.byteOffset,
-        buffer.byteOffset + buffer.byteLength,
-      ) as ArrayBuffer,
-      mime: args.mime,
-      filename: args.filename,
-      ...(args.documentId !== undefined ? { documentId: args.documentId } : {}),
+  // Reject oversized payloads before decoding: base64 inflates by ~4/3, so
+  // checking the encoded length first avoids allocating a buffer we're only
+  // going to throw away. `upload` re-checks the true byte length anyway.
+  const approxBytes = Math.floor((args.base64.length * 3) / 4);
+  if (approxBytes > QUOTAS.MAX_UPLOAD_BYTES) {
+    throw new ConvexError({
+      code: "FILE_TOO_LARGE" as MediaErrorCode,
+      message: DEFAULT_MESSAGES.FILE_TOO_LARGE,
     });
   }
+
+  let buffer: Buffer;
+  try {
+    // `base64` is strict here: Node's decoder silently ignores invalid
+    // characters, so a truncated or mangled payload would otherwise upload
+    // as a corrupt image rather than failing loudly.
+    buffer = Buffer.from(args.base64, "base64");
+    if (buffer.length === 0) throw new Error("empty");
+  } catch {
+    throw new ConvexError({
+      code: "UNSUPPORTED_MIME" as MediaErrorCode,
+      message: "Could not decode base64 payload.",
+    });
+  }
+
+  // Calls the shared body directly rather than `ctx.runAction(api...upload)`:
+  // one fewer action hop per upload, and it works for an MCP caller, where
+  // dispatching back through a public action would lose the identity again.
+  return await uploadForUser(ctx, user, {
+    projectId: args.projectId,
+    bytes: buffer.buffer.slice(
+      buffer.byteOffset,
+      buffer.byteOffset + buffer.byteLength,
+    ) as ArrayBuffer,
+    mime: args.mime,
+    filename: args.filename,
+    ...(args.documentId !== undefined ? { documentId: args.documentId } : {}),
+    ...(args.provider !== undefined ? { provider: args.provider } : {}),
+  });
 }
 
 /* ------------------------------------------------------------------ */
@@ -488,6 +368,8 @@ export const list = action({
     projectId: v.id("projects"),
     cursor: v.optional(v.string()),
     limit: v.optional(v.number()),
+    /** Which connected provider to browse. Omit for the project's default. */
+    provider: v.optional(mediaProviderValidator),
   },
   handler: async (ctx, args) =>
     await listMediaForUser(ctx, await requireUserFromAuth(ctx), args),
@@ -497,116 +379,47 @@ export const list = action({
 export async function listMediaForUser(
   ctx: ActionCtx,
   user: Doc<"users">,
-  args: { projectId: Id<"projects">; cursor?: string; limit?: number },
+  args: {
+    projectId: Id<"projects">;
+    cursor?: string;
+    limit?: number;
+    provider?: MediaProvider;
+  },
 ): Promise<{
-  provider: ActiveProvider;
-  items: NormalizedListItem[];
+  provider: MediaProvider;
+  items: NormalizedMediaItem[];
   nextCursor: string | null;
 }> {
-  {
-    const key = user.tokenIdentifier;
-    await rateLimiter.limit(ctx, "media:list", { key, throws: true });
+  const key = user.tokenIdentifier;
+  await rateLimiter.limit(ctx, "media:list", { key, throws: true });
 
-    const owned = await ctx.runQuery(
-      internal.media.uploadsDb._findOwnedProject,
-      {
-        tokenIdentifier: user.tokenIdentifier,
-        projectId: args.projectId,
-      },
+  const owned = await requireOwnedProject(ctx, user, args.projectId);
+  const provider = resolveProviderName(owned.project, args.provider);
+
+  try {
+    // A provider that isn't connected yet lists as empty rather than failing —
+    // the UI renders its "connect this provider" state from that.
+    const resolved = await tryResolveProvider(ctx, {
+      project: owned.project,
+      userId: owned.userId,
+      requested: args.provider,
+      rateKey: key,
+    });
+    if (!resolved) return { provider, items: [], nextCursor: null };
+
+    const { items, nextCursor } = await resolved.adapter.list(resolved.cx, {
+      cursor: args.cursor,
+      limit: Math.min(args.limit ?? 50, 100),
+    });
+    return { provider, items, nextCursor };
+  } catch (err) {
+    throw await normalizeFailure(
+      ctx,
+      err,
+      { userId: owned.userId, projectId: args.projectId, provider },
+      "list",
+      "List failed",
     );
-    if (!owned) throw new Error("Unauthorized");
-
-    const provider = resolveActiveProvider(owned.project.mediaStorageMode);
-    const max = Math.min(args.limit ?? 50, 100);
-
-    try {
-      if (provider === "uploadthing") {
-        const cred = await ctx.runQuery(
-          internal.media.uploadsDb._getCredential,
-          {
-            projectId: args.projectId,
-            provider: "uploadthing",
-          },
-        );
-        if (!cred) return { provider, items: [], nextCursor: null };
-        await rateLimiter.limit(ctx, "vault:read", { key, throws: true });
-        const token: string = await ctx.runAction(
-          internal.integrations.secretStore._read,
-          {
-            id: cred.vaultSecretId,
-          },
-        );
-        const offset = args.cursor ? Number(args.cursor) : 0;
-        const { items, hasMore } = await utList(token, {
-          limit: max,
-          offset,
-        });
-        return {
-          provider,
-          items,
-          nextCursor: hasMore ? String(offset + items.length) : null,
-        };
-      }
-
-      if (provider === "cloudinary") {
-        const cred = await ctx.runQuery(
-          internal.media.uploadsDb._getCredential,
-          {
-            projectId: args.projectId,
-            provider: "cloudinary",
-          },
-        );
-        if (!cred) return { provider, items: [], nextCursor: null };
-        await rateLimiter.limit(ctx, "vault:read", { key, throws: true });
-        const rawSecret: string = await ctx.runAction(
-          internal.integrations.secretStore._read,
-          { id: cred.vaultSecretId },
-        );
-        const folder = owned.project.mediaPath ?? owned.project.slug;
-        const listOpts: {
-          folder?: string;
-          nextCursor?: string;
-          max?: number;
-        } = { max };
-        if (folder) listOpts.folder = folder;
-        if (args.cursor) listOpts.nextCursor = args.cursor;
-        const { items, nextCursor } = await cldList(rawSecret, listOpts);
-        return { provider, items, nextCursor: nextCursor ?? null };
-      }
-
-      // GitHub
-      if (!owned.project.githubRepo) {
-        return { provider, items: [], nextCursor: null };
-      }
-      const { owner, repo } = parseRepoString(owned.project.githubRepo);
-      const { getGithubToken } = await import("../_lib/auth");
-      const token = await getGithubToken(ctx, owned.userId);
-      if (!token) return { provider, items: [], nextCursor: null };
-      const { items } = await ghList(token, {
-        owner,
-        repo,
-        branch: owned.project.githubBranch ?? "main",
-        mediaPath: owned.project.mediaPath ?? "public/images",
-      });
-      return { provider, items, nextCursor: null };
-    } catch (err) {
-      if (err instanceof ConvexError) throw err;
-      const message = (err as { message?: string })?.message ?? "List failed";
-      await logError(
-        ctx,
-        owned.userId,
-        args.projectId,
-        provider,
-        "list",
-        "UNKNOWN",
-        message,
-        redactError(err),
-      );
-      throw new ConvexError({
-        code: "UNKNOWN" as MediaErrorCode,
-        message: DEFAULT_MESSAGES.UNKNOWN,
-      });
-    }
   }
 }
 
@@ -614,12 +427,12 @@ export async function listMediaForUser(
 /*  Delete                                                              */
 /* ------------------------------------------------------------------ */
 
+/** Deletes a tracked upload: removes it at the provider, then drops the row. */
 export const del = action({
   args: { mediaId: v.id("media") },
   handler: async (ctx, args): Promise<void> => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
-    const key = await getRateLimitKey(ctx);
+    const user = await requireUserFromAuth(ctx);
+    const key = user.tokenIdentifier;
     await rateLimiter.limit(ctx, "media:delete", { key, throws: true });
 
     const row = await ctx.runQuery(internal.media.uploadsDb._getById, {
@@ -627,101 +440,33 @@ export const del = action({
     });
     if (!row) return;
 
-    const owned = await ctx.runQuery(
-      internal.media.uploadsDb._findOwnedProject,
-      {
-        tokenIdentifier: identity.tokenIdentifier,
-        projectId: row.projectId,
-      },
-    );
-    if (!owned) throw new Error("Unauthorized");
-
+    const owned = await requireOwnedProject(ctx, user, row.projectId);
     const provider = row.provider ?? "github";
-    try {
-      if (provider === "uploadthing" && row.externalId) {
-        const cred = await ctx.runQuery(
-          internal.media.uploadsDb._getCredential,
-          {
-            projectId: row.projectId,
-            provider: "uploadthing",
-          },
+
+    if (row.externalId) {
+      try {
+        // Best-effort: a provider that has since been disconnected shouldn't
+        // strand the row in our table forever.
+        const resolved = await tryResolveProvider(ctx, {
+          project: owned.project,
+          userId: owned.userId,
+          requested: provider,
+          rateKey: key,
+        });
+        if (resolved) {
+          await resolved.adapter.remove(resolved.cx, {
+            externalId: row.externalId,
+          });
+        }
+      } catch (err) {
+        throw await normalizeFailure(
+          ctx,
+          err,
+          { userId: owned.userId, projectId: row.projectId, provider },
+          "delete",
+          "Delete failed",
         );
-        if (cred) {
-          await rateLimiter.limit(ctx, "vault:read", { key, throws: true });
-          const token: string = await ctx.runAction(
-            internal.integrations.secretStore._read,
-            { id: cred.vaultSecretId },
-          );
-          await utDelete(token, [row.externalId]);
-        }
-      } else if (provider === "cloudinary" && row.externalId) {
-        const cred = await ctx.runQuery(
-          internal.media.uploadsDb._getCredential,
-          {
-            projectId: row.projectId,
-            provider: "cloudinary",
-          },
-        );
-        if (cred) {
-          await rateLimiter.limit(ctx, "vault:read", { key, throws: true });
-          const rawSecret: string = await ctx.runAction(
-            internal.integrations.secretStore._read,
-            { id: cred.vaultSecretId },
-          );
-          // Cloudinary's destroy needs the public_id; that's what we stored.
-          const { cldDelete: cldDeleteFn } = await import("../providers");
-          await cldDeleteFn(rawSecret, row.externalId);
-        }
-      } else if (provider === "github" && row.externalId) {
-        const project = owned.project;
-        if (project.githubRepo) {
-          const { owner, repo } = parseRepoString(project.githubRepo);
-          const { getGithubToken } = await import("../_lib/auth");
-          const token = await getGithubToken(ctx, owned.userId);
-          if (token) {
-            // GitHub delete needs the current blob sha; re-list to find it.
-            const listed = await ghList(token, {
-              owner,
-              repo,
-              branch: project.githubBranch ?? "main",
-              mediaPath: project.mediaPath ?? "public/images",
-            });
-            const match = listed.items.find(
-              (i) => i.externalId === row.externalId,
-            );
-            if (match) {
-              await ghDelete(
-                token,
-                {
-                  owner,
-                  repo,
-                  branch: project.githubBranch ?? "main",
-                  mediaPath: project.mediaPath ?? "public/images",
-                },
-                row.externalId,
-                match.sha,
-              );
-            }
-          }
-        }
       }
-    } catch (err) {
-      if (err instanceof ConvexError) throw err;
-      const message = (err as { message?: string })?.message ?? "Delete failed";
-      await logError(
-        ctx,
-        owned.userId,
-        row.projectId,
-        String(provider),
-        "delete",
-        "UNKNOWN",
-        message,
-        redactError(err),
-      );
-      throw new ConvexError({
-        code: "UNKNOWN" as MediaErrorCode,
-        message: DEFAULT_MESSAGES.UNKNOWN,
-      });
     }
 
     await ctx.runMutation(internal.media.uploadsDb._deleteRow, {
@@ -732,140 +477,51 @@ export const del = action({
 
 /**
  * Delete a media file by provider + externalId. Used by the media library
- * page where listings come straight from the provider — many of those files
- * may not have a corresponding row in our `media` table (e.g. files uploaded
- * to UploadThing / Cloudinary outside this app).
+ * page, where listings come straight from the provider — many of those files
+ * have no row in our `media` table (e.g. files uploaded to the same bucket
+ * outside this app).
  *
- * Behavior:
- *  - UploadThing: deletes by file key.
- *  - Cloudinary: deletes by public_id.
- *  - GitHub: requires `sha` (the GitHub blob SHA from the listing) so we
- *    don't double-fetch on every delete.
- * In every case, also removes a matching row in `media` if one exists.
+ * `sha` is an optimisation, not a requirement: GitHub deletes need the current
+ * blob SHA, and passing the one from the listing saves the adapter a lookup.
  */
 export const deleteByRef = action({
   args: {
     projectId: v.id("projects"),
-    provider: v.union(
-      v.literal("github"),
-      v.literal("uploadthing"),
-      v.literal("cloudinary"),
-    ),
+    provider: mediaProviderValidator,
     externalId: v.string(),
-    /** GitHub blob SHA — required for "github". Ignored otherwise. */
+    /** GitHub blob SHA from the listing. Ignored by other providers. */
     sha: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<void> => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
-    const key = await getRateLimitKey(ctx);
+    const user = await requireUserFromAuth(ctx);
+    const key = user.tokenIdentifier;
     await rateLimiter.limit(ctx, "media:delete", { key, throws: true });
 
-    const owned = await ctx.runQuery(
-      internal.media.uploadsDb._findOwnedProject,
-      {
-        tokenIdentifier: identity.tokenIdentifier,
-        projectId: args.projectId,
-      },
-    );
-    if (!owned) throw new Error("Unauthorized");
+    const owned = await requireOwnedProject(ctx, user, args.projectId);
 
     try {
-      if (args.provider === "uploadthing") {
-        const cred = await ctx.runQuery(
-          internal.media.uploadsDb._getCredential,
-          {
-            projectId: args.projectId,
-            provider: "uploadthing",
-          },
-        );
-        if (!cred) {
-          throw new ConvexError({
-            code: "AUTH_INVALID" as MediaErrorCode,
-            message: DEFAULT_MESSAGES.AUTH_INVALID,
-          });
-        }
-        await rateLimiter.limit(ctx, "vault:read", { key, throws: true });
-        const token: string = await ctx.runAction(
-          internal.integrations.secretStore._read,
-          {
-            id: cred.vaultSecretId,
-          },
-        );
-        await utDelete(token, [args.externalId]);
-      } else if (args.provider === "cloudinary") {
-        const cred = await ctx.runQuery(
-          internal.media.uploadsDb._getCredential,
-          {
-            projectId: args.projectId,
-            provider: "cloudinary",
-          },
-        );
-        if (!cred) {
-          throw new ConvexError({
-            code: "AUTH_INVALID" as MediaErrorCode,
-            message: DEFAULT_MESSAGES.AUTH_INVALID,
-          });
-        }
-        await rateLimiter.limit(ctx, "vault:read", { key, throws: true });
-        const rawSecret: string = await ctx.runAction(
-          internal.integrations.secretStore._read,
-          { id: cred.vaultSecretId },
-        );
-        const { cldDelete } = await import("../providers");
-        await cldDelete(rawSecret, args.externalId);
-      } else {
-        // GitHub
-        if (!args.sha) {
-          throw new ConvexError({
-            code: "UNKNOWN" as MediaErrorCode,
-            message: "GitHub deletes require a blob SHA.",
-          });
-        }
-        if (!owned.project.githubRepo) {
-          throw new ConvexError({
-            code: "AUTH_INVALID" as MediaErrorCode,
-            message: "GitHub repository is not configured.",
-          });
-        }
-        const { owner, repo } = parseRepoString(owned.project.githubRepo);
-        const { getGithubToken } = await import("../_lib/auth");
-        const token = await getGithubToken(ctx, owned.userId);
-        if (!token) {
-          throw new ConvexError({
-            code: "AUTH_INVALID" as MediaErrorCode,
-            message: "GitHub isn't connected.",
-          });
-        }
-        await ghDelete(
-          token,
-          {
-            owner,
-            repo,
-            branch: owned.project.githubBranch ?? "main",
-            mediaPath: owned.project.mediaPath ?? "public/images",
-          },
-          args.externalId,
-          args.sha,
-        );
-      }
-    } catch (err) {
-      if (err instanceof ConvexError) throw err;
-      const message = (err as { message?: string })?.message ?? "Delete failed";
-      await logError(
-        ctx,
-        owned.userId,
-        args.projectId,
-        args.provider,
-        "delete",
-        "UNKNOWN",
-        message,
-        redactError(err),
-      );
-      throw new ConvexError({
-        code: "UNKNOWN" as MediaErrorCode,
-        message: DEFAULT_MESSAGES.UNKNOWN,
+      const { adapter, cx } = await resolveProvider(ctx, {
+        project: owned.project,
+        userId: owned.userId,
+        requested: args.provider,
+        rateKey: key,
       });
+      await adapter.remove(cx, {
+        externalId: args.externalId,
+        ...(args.sha !== undefined ? { sha: args.sha } : {}),
+      });
+    } catch (err) {
+      throw await normalizeFailure(
+        ctx,
+        err,
+        {
+          userId: owned.userId,
+          projectId: args.projectId,
+          provider: args.provider,
+        },
+        "delete",
+        "Delete failed",
+      );
     }
 
     // Best-effort: remove any matching media row + decrement usage.
@@ -889,6 +545,54 @@ export const deleteByRef = action({
 /*  Helpers                                                              */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Logs a provider failure and returns the error to throw.
+ *
+ * `ConvexError`s already carry a normalised code from the adapter, so they pass
+ * through untouched. Anything else is logged with a redacted original and
+ * replaced by a generic error, so a raw provider stack never reaches a client.
+ */
+async function normalizeFailure(
+  ctx: ActionCtx,
+  err: unknown,
+  where: {
+    userId: Id<"users">;
+    projectId: Id<"projects">;
+    provider: MediaProvider;
+  },
+  operation: "upload" | "list" | "delete",
+  fallbackMessage: string,
+): Promise<unknown> {
+  if (err instanceof ConvexError) {
+    const data = err.data as { code?: string; message?: string };
+    await logError(
+      ctx,
+      where.userId,
+      where.projectId,
+      where.provider,
+      operation,
+      data?.code ?? "UNKNOWN",
+      data?.message ?? fallbackMessage,
+      redactError(err),
+    );
+    return err;
+  }
+  await logError(
+    ctx,
+    where.userId,
+    where.projectId,
+    where.provider,
+    operation,
+    "UNKNOWN",
+    (err as { message?: string })?.message ?? fallbackMessage,
+    redactError(err),
+  );
+  return new ConvexError({
+    code: "UNKNOWN" as MediaErrorCode,
+    message: DEFAULT_MESSAGES.UNKNOWN,
+  });
+}
+
 async function logError(
   ctx: ActionCtx,
   userId: Id<"users">,
@@ -900,24 +604,15 @@ async function logError(
   providerError?: string,
 ): Promise<void> {
   try {
-    const args: {
-      projectId: Id<"projects">;
-      userId: Id<"users">;
-      provider: string;
-      operation: string;
-      errorCode: string;
-      errorMessage: string;
-      providerError?: string;
-    } = {
+    await ctx.runMutation(internal.media.uploadsDb._logError, {
       projectId,
       userId,
       provider,
       operation,
       errorCode,
       errorMessage,
-    };
-    if (providerError !== undefined) args.providerError = providerError;
-    await ctx.runMutation(internal.media.uploadsDb._logError, args);
+      ...(providerError !== undefined ? { providerError } : {}),
+    });
   } catch {
     // Logging is best-effort; never let it mask the original error.
   }

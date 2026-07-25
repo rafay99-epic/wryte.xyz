@@ -8,6 +8,13 @@ import {
   DEFAULT_COMPRESSION_SETTINGS,
 } from "@wryte/logic/lib/image-compression/index";
 import {
+  buildCredentialPublicConfig,
+  buildCredentialSecret,
+  type CredentialValues,
+  missingCredentialFields,
+  readCredentialPublicConfig,
+} from "@wryte/logic/lib/media-credentials";
+import {
   smoothTransition,
   staggerContainer,
   staggerItem,
@@ -19,23 +26,24 @@ import {
   resolveMaxUploadBytes,
 } from "@wryte/logic/lib/upload-limits";
 import { cn } from "@wryte/logic/lib/utils";
+import {
+  ALL_CREDENTIAL_PROVIDERS,
+  ALL_MEDIA_PROVIDERS,
+  type CredentialProvider,
+  MEDIA_PROVIDER_LABELS,
+  type MediaProviderEntry,
+} from "@wryte/logic/types/media";
 import { Button } from "@wryte/ui/button";
 import { InfoHint } from "@wryte/ui/info-hint";
 import { Input } from "@wryte/ui/input";
 import { Switch } from "@wryte/ui/switch";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { motion } from "framer-motion";
-import {
-  Eye,
-  EyeOff,
-  ImageIcon,
-  Loader2,
-  RotateCcw,
-  Trash2,
-} from "lucide-react";
+import { ImageIcon, Loader2, RotateCcw, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { CompressionSettingsForm } from "@/components/forms/compression-settings-form";
+import { CredentialFieldsForm } from "@/components/forms/credential-fields-form";
 import { ConfirmActionDialog } from "@/components/settings/confirm-action-dialog";
 import { SaveBar } from "@/components/settings/save-bar";
 import { useMediaSection } from "../hooks/use-media-section";
@@ -65,12 +73,7 @@ export function MediaSection({
     pathHint,
   } = useMediaSection({ projectId, project });
 
-  const storageLabel =
-    mediaStorageMode === "github"
-      ? "GitHub"
-      : mediaStorageMode === "uploadthing"
-        ? "UploadThing"
-        : "Cloudinary";
+  const storageLabel = MEDIA_PROVIDER_LABELS[mediaStorageMode];
 
   return (
     <motion.div variants={staggerContainer} initial="initial" animate="animate">
@@ -101,44 +104,43 @@ export function MediaSection({
           </FieldGroup>
 
           <FieldGroup
-            label="Storage backend"
-            hint="Per project. Switching doesn't move existing media."
+            label="Default upload destination"
+            hint="Where uploads land unless you pick another connected provider. Switching doesn't move existing media."
           >
-            <div className="grid gap-3 sm:grid-cols-3">
-              <MediaModeOption
-                active={mediaStorageMode === "github"}
-                onClick={() => setMediaStorageMode("github")}
-                title="GitHub"
-                description="Commit into the repo"
-              />
-              <MediaModeOption
-                active={mediaStorageMode === "uploadthing"}
-                onClick={() => setMediaStorageMode("uploadthing")}
-                title="UploadThing"
-                description="Your own account"
-              />
-              <MediaModeOption
-                active={mediaStorageMode === "cloudinary"}
-                onClick={() => setMediaStorageMode("cloudinary")}
-                title="Cloudinary"
-                description="Your own account"
-              />
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {ALL_MEDIA_PROVIDERS.map((entry) => (
+                <MediaModeOption
+                  key={entry.id}
+                  active={mediaStorageMode === entry.id}
+                  onClick={() => setMediaStorageMode(entry.id)}
+                  title={entry.label}
+                  description={entry.description}
+                />
+              ))}
             </div>
           </FieldGroup>
-
-          {(mediaStorageMode === "uploadthing" ||
-            mediaStorageMode === "cloudinary") && (
-            <MediaCredentialsForm
-              projectId={projectId}
-              provider={mediaStorageMode}
-            />
-          )}
 
           <SaveBar
             hasChanges={hasChanges}
             isSaving={isSaving}
             onSave={handleSave}
           />
+
+          {/*
+            Every credential-backed provider gets its own card, not just the
+            default one: a project can keep several buckets connected and
+            browse all of them from the media library.
+          */}
+          <div className="space-y-4">
+            {ALL_CREDENTIAL_PROVIDERS.map((entry) => (
+              <MediaCredentialsForm
+                key={entry.id}
+                projectId={projectId}
+                entry={entry}
+                isDefault={mediaStorageMode === entry.id}
+              />
+            ))}
+          </div>
         </SettingsGroup>
 
         <SettingsGroup
@@ -469,13 +471,23 @@ function ProjectWatermarkSection({
   );
 }
 
+/**
+ * Connect / verify / rotate / disconnect one storage provider.
+ *
+ * Entirely driven by the provider's registry entry — the inputs, how they
+ * serialise into the vault secret, and which of them are echoed back after
+ * saving all come from `entry.fields`. Adding a provider needs no change here.
+ */
 function MediaCredentialsForm({
   projectId,
-  provider,
+  entry,
+  isDefault,
 }: {
   projectId: Id<"projects">;
-  provider: "uploadthing" | "cloudinary";
+  entry: MediaProviderEntry;
+  isDefault: boolean;
 }) {
+  const provider = entry.id as CredentialProvider;
   const config = useQuery(api.media.credentialsDb.getPublicConfig, {
     projectId,
     provider,
@@ -486,96 +498,48 @@ function MediaCredentialsForm({
   const rotate = useAction(api.media.credentials.rotate);
   const deleteCredentials = useAction(api.media.credentials.deleteCredentials);
 
-  const [token, setToken] = useState("");
-  const [cloudName, setCloudName] = useState("");
-  const [apiKey, setApiKey] = useState("");
-  const [apiSecret, setApiSecret] = useState("");
-  const [folder, setFolder] = useState("");
-  const [showSecret, setShowSecret] = useState(false);
+  const [values, setValues] = useState<CredentialValues>({});
   const [busy, setBusy] = useState<"save" | "test" | "delete" | null>(null);
 
   const hasExisting = config !== null && config !== undefined;
   const isRotating = config?.status === "rotating";
 
-  const publicCloudName = useMemo(() => {
-    if (provider !== "cloudinary" || !config?.publicConfig) return null;
-    try {
-      const parsed = JSON.parse(config.publicConfig) as {
-        cloudName?: string;
-        folder?: string;
-      };
-      return parsed.cloudName ?? null;
-    } catch {
-      return null;
-    }
-  }, [config?.publicConfig, provider]);
-
-  const publicFolder = useMemo(() => {
-    if (provider !== "cloudinary" || !config?.publicConfig) return null;
-    try {
-      const parsed = JSON.parse(config.publicConfig) as { folder?: string };
-      return parsed.folder ?? null;
-    } catch {
-      return null;
-    }
-  }, [config?.publicConfig, provider]);
-
-  useEffect(() => {
-    setToken("");
-    setCloudName("");
-    setApiKey("");
-    setApiSecret("");
-    setFolder("");
+  const handleFieldChange = useCallback((key: string, value: string) => {
+    setValues((prev) => ({ ...prev, [key]: value }));
   }, []);
 
-  const buildSecret = useCallback((): string | null => {
-    if (provider === "uploadthing") {
-      const trimmed = token.trim();
-      return trimmed.length > 0 ? trimmed : null;
-    }
-    if (
-      cloudName.trim() === "" ||
-      apiKey.trim() === "" ||
-      apiSecret.trim() === ""
-    ) {
-      return null;
-    }
-    return JSON.stringify({
-      cloud_name: cloudName.trim(),
-      api_key: apiKey.trim(),
-      api_secret: apiSecret.trim(),
-    });
-  }, [apiKey, apiSecret, cloudName, provider, token]);
-
-  const buildPublicConfig = useCallback((): string | undefined => {
-    if (provider !== "cloudinary") return undefined;
-    const out: Record<string, string> = {};
-    if (cloudName.trim() !== "") out["cloudName"] = cloudName.trim();
-    if (folder.trim() !== "") out["folder"] = folder.trim();
-    return Object.keys(out).length === 0 ? undefined : JSON.stringify(out);
-  }, [cloudName, folder, provider]);
+  /** Non-secret values from the stored row — "connected to <bucket>". */
+  const savedHints = useMemo(() => {
+    const read = readCredentialPublicConfig(config?.publicConfig);
+    return entry.fields
+      .filter((field) => field.showAfterSave && !field.secret)
+      .map((field) => ({ label: field.label, value: read(field.key) }))
+      .filter((hint): hint is { label: string; value: string } =>
+        Boolean(hint.value),
+      );
+  }, [config?.publicConfig, entry.fields]);
 
   const handleSave = useCallback(async () => {
-    const secret = buildSecret();
+    const secret = buildCredentialSecret(entry, values);
     if (!secret) {
+      const missing = missingCredentialFields(entry, values);
       toast.error(
-        provider === "uploadthing"
-          ? "Paste your UPLOADTHING_TOKEN before saving."
-          : "Cloud name, API key, and API secret are all required.",
+        missing.length > 0
+          ? `Required: ${missing.map((f) => f.label).join(", ")}.`
+          : `Fill in your ${entry.label} credentials before saving.`,
       );
       return;
     }
 
     setBusy("save");
     try {
-      const publicConfig = buildPublicConfig();
-      const args: {
-        projectId: Id<"projects">;
-        provider: "uploadthing" | "cloudinary";
-        secret: string;
-        publicConfig?: string;
-      } = { projectId, provider, secret };
-      if (publicConfig !== undefined) args.publicConfig = publicConfig;
+      const publicConfig = buildCredentialPublicConfig(entry, values);
+      const args = {
+        projectId,
+        provider,
+        secret,
+        ...(publicConfig !== undefined ? { publicConfig } : {}),
+      };
 
       if (hasExisting) {
         await rotate(args);
@@ -583,15 +547,20 @@ function MediaCredentialsForm({
       } else {
         const result = await setCredentials(args);
         if (result.ok) {
-          toast.success(
-            `${provider === "uploadthing" ? "UploadThing" : "Cloudinary"} connected.`,
-          );
+          toast.success(`${entry.label} connected.`);
         } else {
           toast.error(result.message ?? "Credentials failed verification.");
         }
       }
-      setToken("");
-      setApiSecret("");
+      // Clear secrets from component state once they've been handed over; the
+      // non-secret fields stay so the form still shows what was configured.
+      setValues((prev) => {
+        const next = { ...prev };
+        for (const field of entry.fields) {
+          if (field.secret) delete next[field.key];
+        }
+        return next;
+      });
     } catch (err) {
       const data = (err as { data?: { message?: string } })?.data;
       toast.error(
@@ -601,15 +570,7 @@ function MediaCredentialsForm({
     } finally {
       setBusy(null);
     }
-  }, [
-    buildPublicConfig,
-    buildSecret,
-    hasExisting,
-    projectId,
-    provider,
-    rotate,
-    setCredentials,
-  ]);
+  }, [entry, hasExisting, projectId, provider, rotate, setCredentials, values]);
 
   const handleTest = useCallback(async () => {
     setBusy("test");
@@ -649,17 +610,33 @@ function MediaCredentialsForm({
   }, [deleteCredentials, projectId, provider]);
 
   return (
-    <div className="mt-4 space-y-4 border-t border-border/40 pt-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-sm font-semibold">
-            {provider === "uploadthing"
-              ? "UploadThing credentials"
-              : "Cloudinary credentials"}
+    <div className="space-y-4 rounded-xl border border-border/40 bg-card/40 p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="flex items-center gap-2 text-sm font-semibold">
+            {entry.label}
+            {isDefault && (
+              <span className="rounded-sm bg-primary/10 px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide text-primary">
+                Default
+              </span>
+            )}
           </h3>
           <p className="mt-0.5 text-xs text-muted-foreground">
             Stored encrypted in WorkOS Vault. We never log or display the
             secret.
+            {entry.dashboardUrl && (
+              <>
+                {" "}
+                <a
+                  href={entry.dashboardUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline decoration-dotted hover:text-foreground"
+                >
+                  Get your keys
+                </a>
+              </>
+            )}
           </p>
         </div>
         {hasExisting && <StatusBadge status={config.status} />}
@@ -672,136 +649,24 @@ function MediaCredentialsForm({
         </div>
       )}
 
-      {provider === "uploadthing" && (
-        <FieldGroup
-          label={hasExisting ? "Replace token" : "UPLOADTHING_TOKEN"}
-          htmlFor="ut-token"
-          hint="The single base64-encoded token from your UploadThing dashboard."
-        >
-          <div className="relative">
-            <Input
-              id="ut-token"
-              type={showSecret ? "text" : "password"}
-              value={token}
-              onChange={(e) => setToken(e.target.value)}
-              placeholder={
-                hasExisting ? "Paste a new token to rotate..." : "ut_..."
-              }
-              autoComplete="off"
-              spellCheck={false}
-              className="pr-9 font-mono text-xs"
-            />
-            <button
-              type="button"
-              onClick={() => setShowSecret((v) => !v)}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              aria-label={showSecret ? "Hide" : "Show"}
-            >
-              {showSecret ? (
-                <EyeOff className="size-3.5" />
-              ) : (
-                <Eye className="size-3.5" />
-              )}
-            </button>
-          </div>
-        </FieldGroup>
-      )}
-
-      {provider === "cloudinary" && (
-        <div className="space-y-3">
-          {hasExisting && publicCloudName && (
-            <div className="text-xs text-muted-foreground">
-              Connected to{" "}
-              <span className="font-mono text-foreground">
-                {publicCloudName}
-              </span>
-              {publicFolder ? (
-                <>
-                  {" · folder "}
-                  <span className="font-mono text-foreground">
-                    {publicFolder}
-                  </span>
-                </>
-              ) : null}
-            </div>
-          )}
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <FieldGroup
-              label="Cloud name"
-              htmlFor="cld-name"
-              hint="Visible in your Cloudinary URLs."
-            >
-              <Input
-                id="cld-name"
-                value={cloudName}
-                onChange={(e) => setCloudName(e.target.value)}
-                placeholder="my-cloud"
-                autoComplete="off"
-                spellCheck={false}
-                className="font-mono text-xs"
-              />
-            </FieldGroup>
-            <FieldGroup
-              label="Folder (optional)"
-              htmlFor="cld-folder"
-              hint="Prefix every upload, e.g. blog/wryte."
-            >
-              <Input
-                id="cld-folder"
-                value={folder}
-                onChange={(e) => setFolder(e.target.value)}
-                placeholder="wryte/blog"
-                autoComplete="off"
-                spellCheck={false}
-                className="font-mono text-xs"
-              />
-            </FieldGroup>
-            <FieldGroup label="API key" htmlFor="cld-key">
-              <Input
-                id="cld-key"
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                placeholder="123456789012345"
-                autoComplete="off"
-                spellCheck={false}
-                className="font-mono text-xs"
-              />
-            </FieldGroup>
-            <FieldGroup
-              label={hasExisting ? "Replace API secret" : "API secret"}
-              htmlFor="cld-secret"
-            >
-              <div className="relative">
-                <Input
-                  id="cld-secret"
-                  type={showSecret ? "text" : "password"}
-                  value={apiSecret}
-                  onChange={(e) => setApiSecret(e.target.value)}
-                  placeholder={
-                    hasExisting ? "Type to rotate..." : "your_api_secret"
-                  }
-                  autoComplete="off"
-                  spellCheck={false}
-                  className="pr-9 font-mono text-xs"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowSecret((v) => !v)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  aria-label={showSecret ? "Hide" : "Show"}
-                >
-                  {showSecret ? (
-                    <EyeOff className="size-3.5" />
-                  ) : (
-                    <Eye className="size-3.5" />
-                  )}
-                </button>
-              </div>
-            </FieldGroup>
-          </div>
+      {savedHints.length > 0 && (
+        <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+          {savedHints.map((hint) => (
+            <span key={hint.label}>
+              {hint.label}:{" "}
+              <span className="font-mono text-foreground">{hint.value}</span>
+            </span>
+          ))}
         </div>
       )}
+
+      <CredentialFieldsForm
+        entry={entry}
+        values={values}
+        onChange={handleFieldChange}
+        hasExisting={hasExisting}
+        idPrefix={`cred-${entry.id}`}
+      />
 
       <div className="flex flex-wrap items-center gap-2">
         <Button

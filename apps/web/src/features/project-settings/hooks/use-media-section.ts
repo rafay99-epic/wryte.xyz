@@ -1,6 +1,6 @@
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
-import type { MediaStorageMode } from "@wryte/logic/types/media";
+import { getMediaProvider, type MediaProvider } from "@wryte/logic/types/media";
 import { useMutation } from "convex/react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -18,7 +18,10 @@ export function useMediaSection({
   const [mediaPath, setMediaPath] = useState(
     project.mediaPath ?? "public/images",
   );
-  const [mediaStorageMode, setMediaStorageMode] = useState<MediaStorageMode>(
+  // The project's *default* upload destination. Other connected providers
+  // stay usable — this only decides where an upload with no explicit
+  // destination lands.
+  const [mediaStorageMode, setMediaStorageMode] = useState<MediaProvider>(
     project.mediaStorageMode ?? "github",
   );
   const [isSaving, setIsSaving] = useState(false);
@@ -48,13 +51,6 @@ export function useMediaSection({
     }
   }, [mediaPath, mediaStorageMode, projectId, updateProject]);
 
-  const pathHint =
-    mediaStorageMode === "github"
-      ? "Repo directory for images, e.g. public/images (Astro/Next.js) or static/images (Hugo/SvelteKit)."
-      : mediaStorageMode === "cloudinary"
-        ? "Folder prefix every upload lands under in your Cloudinary account."
-        : "Informational for UploadThing — files live in a flat namespace.";
-
   return {
     mediaPath,
     setMediaPath,
@@ -63,6 +59,6 @@ export function useMediaSection({
     isSaving,
     hasChanges,
     handleSave,
-    pathHint,
+    pathHint: getMediaProvider(mediaStorageMode).pathHint,
   };
 }

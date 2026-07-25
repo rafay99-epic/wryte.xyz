@@ -6,12 +6,12 @@ import {
   useGithubInvalidation,
   useGithubMedia,
 } from "@wryte/logic/hooks/use-github";
+import { canShowMediaLibrary } from "@wryte/logic/lib/media-provider";
 import {
-  canShowMediaLibrary,
-  resolveActiveMediaProvider,
-} from "@wryte/logic/lib/media-provider";
-import type { MediaStorageMode } from "@wryte/logic/types/media";
-import { useAction } from "convex/react";
+  type MediaProvider,
+  resolveDefaultProvider,
+} from "@wryte/logic/types/media";
+import { useAction, useQuery } from "convex/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 /** Provider-agnostic media item for library grids and pickers. */
@@ -27,7 +27,7 @@ export type MediaLibraryItem = {
 };
 
 export type ProjectMediaContext = {
-  mediaStorageMode?: MediaStorageMode;
+  mediaStorageMode?: MediaProvider;
   githubRepo?: string;
   githubBranch?: string;
   mediaPath?: string;
@@ -38,6 +38,14 @@ type UseProjectMediaLibraryArgs = {
   project: ProjectMediaContext | undefined;
   /** When false, skips provider API fetches (GitHub query also disabled). */
   enabled?: boolean;
+};
+
+/** A connected provider, as returned by `media.credentialsDb.listEnabledProviders`. */
+export type MediaProviderOption = {
+  provider: MediaProvider;
+  isDefault: boolean;
+  configured: boolean;
+  status?: "active" | "verifying" | "invalid" | "rotating";
 };
 
 function githubPublicPath(repoPath: string, mediaPath?: string): string {
@@ -59,9 +67,20 @@ export function useProjectMediaLibrary({
   project,
   enabled = true,
 }: UseProjectMediaLibraryArgs) {
+  // Which connected provider is being browsed. `null` means "follow the
+  // project's default", so a settings change is picked up without extra
+  // wiring — and switching tabs is one setState for every consumer.
+  const [selected, setSelected] = useState<MediaProvider | null>(null);
+
+  const providerTabs: MediaProviderOption[] =
+    useQuery(
+      api.media.credentialsDb.listEnabledProviders,
+      enabled ? { projectId } : "skip",
+    ) ?? [];
+
   const provider = useMemo(
-    () => resolveActiveMediaProvider(project?.mediaStorageMode),
-    [project?.mediaStorageMode],
+    () => selected ?? resolveDefaultProvider(project?.mediaStorageMode),
+    [selected, project?.mediaStorageMode],
   );
 
   const isGithub = provider === "github";
@@ -92,8 +111,9 @@ export function useProjectMediaLibrary({
   const providerCursorRef = useRef<string | null>(null);
   // Monotonic token. Each fetch bumps it; in-flight fetches whose token is
   // no longer the latest drop their result instead of stomping on the state
-  // for the newer (e.g. for a different project) fetch. The previous
-  // boolean lock dropped the NEW fetch when an old one was still running.
+  // for the newer (e.g. for a different project, or a different provider)
+  // fetch. The previous boolean lock dropped the NEW fetch when an old one
+  // was still running.
   const fetchSeqRef = useRef(0);
 
   const fetchProvider = useCallback(
@@ -108,16 +128,15 @@ export function useProjectMediaLibrary({
         setError(null);
       }
       try {
-        const args: {
-          projectId: Id<"projects">;
-          cursor?: string;
-          limit?: number;
-        } = { projectId, limit: 100 };
         const cursor = append ? providerCursorRef.current : null;
-        if (cursor) args.cursor = cursor;
-        const res = await listMedia(args);
-        // A newer fetch superseded this one (e.g. projectId changed) — drop
-        // the result rather than overwriting the newer state.
+        const res = await listMedia({
+          projectId,
+          provider,
+          limit: 100,
+          ...(cursor ? { cursor } : {}),
+        });
+        // A newer fetch superseded this one (e.g. projectId or provider
+        // changed) — drop the result rather than overwriting the newer state.
         if (seq !== fetchSeqRef.current) return;
         const newItems: MediaLibraryItem[] = res.items.map((it) => ({
           externalId: it.externalId,
@@ -146,10 +165,10 @@ export function useProjectMediaLibrary({
         }
       }
     },
-    [enabled, isGithub, listMedia, projectId],
+    [enabled, isGithub, listMedia, projectId, provider],
   );
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: fetchProvider is stable per projectId; reset when provider mode or enabled changes.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: fetchProvider is stable per (projectId, provider); reset when either, the provider mode, or enabled changes.
   useEffect(() => {
     if (isGithub || !enabled) return;
     setProviderItems([]);
@@ -157,7 +176,7 @@ export function useProjectMediaLibrary({
     setHasMore(false);
     providerCursorRef.current = null;
     void fetchProvider({ append: false });
-  }, [enabled, isGithub, projectId, fetchProvider]);
+  }, [enabled, isGithub, projectId, provider, fetchProvider]);
 
   const items: MediaLibraryItem[] = useMemo(() => {
     if (isGithub) {
@@ -208,7 +227,12 @@ export function useProjectMediaLibrary({
   );
 
   return {
+    /** The provider currently being browsed — selected tab, else the default. */
     provider,
+    /** Switch which connected provider the library reads and writes. */
+    setProvider: setSelected,
+    /** Connected providers, for `<MediaProviderTabs>`. */
+    providerTabs,
     isGithub,
     hasGithubConfig,
     showLibrary,

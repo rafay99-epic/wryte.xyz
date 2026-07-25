@@ -15,9 +15,11 @@ import {
 } from "@wryte/logic/lib/image-compression/index";
 import { formatMb } from "@wryte/logic/lib/upload-limits";
 import { cn } from "@wryte/logic/lib/utils";
+import type { MediaProvider } from "@wryte/logic/types/media";
 import { Button } from "@wryte/ui/button";
 import { Input } from "@wryte/ui/input";
 import { Label } from "@wryte/ui/label";
+import { MediaProviderTabs } from "@wryte/ui/media-provider-tabs";
 import {
   Sheet,
   SheetBody,
@@ -63,6 +65,9 @@ export function MediaPickerDrawer({
   );
 
   const {
+    provider,
+    setProvider,
+    providerTabs,
     showLibrary,
     items: libraryItems,
     isLoading: isLibraryLoading,
@@ -169,6 +174,12 @@ export function MediaPickerDrawer({
 
             {showLibrary && (
               <TabsContent value="library">
+                <MediaProviderTabs
+                  tabs={providerTabs}
+                  selected={provider}
+                  onSelect={setProvider}
+                  className="mb-3"
+                />
                 {libraryError && (
                   <p className="mb-3 text-xs text-destructive">
                     {libraryError}
@@ -256,6 +267,7 @@ export function MediaPickerDrawer({
             <TabsContent value="upload">
               <UploadTab
                 projectId={projectId}
+                provider={provider}
                 onUploaded={(url) => {
                   void refreshLibrary();
                   handleSelect(url);
@@ -453,9 +465,12 @@ function RecentMediaItem({
 
 function UploadTab({
   projectId,
+  provider,
   onUploaded,
 }: {
   projectId: string;
+  /** Destination for this upload — the provider selected in the Library tab. */
+  provider: MediaProvider;
   onUploaded: (url: string) => void;
 }) {
   const uploadMedia = useAction(api.media.uploads.upload);
@@ -506,6 +521,7 @@ function UploadTab({
         setProgressStep("upload");
         const result = await uploadMedia({
           projectId: projectId as Id<"projects">,
+          provider,
           bytes,
           mime: toUpload.type,
           filename: toUpload.name,
@@ -534,6 +550,7 @@ function UploadTab({
       uploadMedia,
       projectId,
       onUploaded,
+      provider,
     ],
   );
 

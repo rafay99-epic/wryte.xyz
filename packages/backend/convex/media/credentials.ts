@@ -16,16 +16,16 @@ import type { Id } from "../_generated/dataModel";
 import type { ActionCtx } from "../_generated/server";
 import { action } from "../_generated/server";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
-import { cldPing, utPing } from "../providers";
-import { mapCloudinaryError, mapUploadThingError } from "../providers/errors";
-import { parseCloudinarySecret } from "../providers/shared";
+import { getAdapter } from "../providers/registry";
+import {
+  type CredentialProvider,
+  credentialProviderValidator,
+  getMediaProvider,
+} from "./_lib/providers";
 
-const PROVIDER_VALIDATOR = v.union(
-  v.literal("uploadthing"),
-  v.literal("cloudinary"),
-);
+const PROVIDER_VALIDATOR = credentialProviderValidator;
 
-type ProviderName = "uploadthing" | "cloudinary";
+type ProviderName = CredentialProvider;
 
 /* ------------------------------------------------------------------ */
 /*  Public actions                                                      */
@@ -68,19 +68,9 @@ export const setCredentials = action({
       throw new Error("Unauthorized");
     }
 
-    // Validate Cloudinary shape early so we never persist a malformed secret.
-    if (args.provider === "cloudinary") {
-      try {
-        parseCloudinarySecret(args.secret);
-      } catch (e) {
-        throw new ConvexError({
-          code: "UNKNOWN" as const,
-          message:
-            (e as Error)?.message ??
-            "Cloudinary credentials must be JSON with cloud_name, api_key, api_secret",
-        });
-      }
-    }
+    // Validate the credential shape early so we never persist a malformed
+    // secret — the adapter owns what "well-formed" means for its provider.
+    assertValidSecretShape(args.provider, args.secret);
 
     const existing = await ctx.runQuery(
       internal.media.credentialsDb._findByProjectAndProvider,
@@ -271,18 +261,7 @@ export const rotate = action({
 
     const cred = await loadOwnedCredential(ctx, args.projectId, args.provider);
 
-    if (args.provider === "cloudinary") {
-      try {
-        parseCloudinarySecret(args.secret);
-      } catch (e) {
-        throw new ConvexError({
-          code: "UNKNOWN" as const,
-          message:
-            (e as Error)?.message ??
-            "Cloudinary credentials must be JSON with cloud_name, api_key, api_secret",
-        });
-      }
-    }
+    assertValidSecretShape(args.provider, args.secret);
 
     // Snapshot the prior status so the workflow can revert correctly on a
     // failed verify — promoting a previously-invalid row to "active" was
@@ -402,24 +381,47 @@ async function loadOwnedCredential(
   };
 }
 
+/**
+ * Rejects a credential blob the adapter can't parse, before it reaches the
+ * vault. Surfaced as a `ConvexError` so the settings form shows the adapter's
+ * own "missing field X" message rather than a generic failure.
+ */
+function assertValidSecretShape(provider: ProviderName, secret: string): void {
+  try {
+    getAdapter(provider).validateSecret(secret);
+  } catch (e) {
+    throw new ConvexError({
+      code: "UNKNOWN" as const,
+      message:
+        (e as Error)?.message ??
+        `${getMediaProvider(provider).label} credentials are malformed.`,
+    });
+  }
+}
+
 async function runProviderPing(
   provider: ProviderName,
   secret: string,
 ): Promise<{ ok: true } | { ok: false; code: string; message: string }> {
+  const adapter = getAdapter(provider);
   try {
-    if (provider === "uploadthing") {
-      await utPing(secret);
-    } else {
-      await cldPing(secret);
-    }
+    await adapter.ping(secret);
     return { ok: true };
   } catch (err) {
-    const code =
-      provider === "uploadthing"
-        ? mapUploadThingError(err)
-        : mapCloudinaryError(err);
-    const message =
-      (err as { message?: string })?.message ?? "Provider ping failed";
-    return { ok: false, code, message };
+    // Adapters that already normalised the failure throw a `ConvexError`
+    // carrying the code and a provider-worded message; prefer both over
+    // re-deriving them from an error shape that has none.
+    const data =
+      err instanceof ConvexError
+        ? (err.data as { code?: string; message?: string })
+        : null;
+    return {
+      ok: false,
+      code: data?.code ?? adapter.mapError(err),
+      message:
+        data?.message ??
+        (err as { message?: string })?.message ??
+        "Provider ping failed",
+    };
   }
 }

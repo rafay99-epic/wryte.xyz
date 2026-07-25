@@ -17,6 +17,7 @@ import { formatMb } from "@wryte/logic/lib/upload-limits";
 import { Button } from "@wryte/ui/button";
 import { Input } from "@wryte/ui/input";
 import { Label } from "@wryte/ui/label";
+import { MediaProviderTabs } from "@wryte/ui/media-provider-tabs";
 import {
   Sheet,
   SheetBody,
@@ -84,6 +85,9 @@ export function ImageInsertDialog({
   const [compressionOverride, setCompressionOverride] =
     useState<CompressionSettings | null>(null);
   const {
+    provider,
+    setProvider,
+    providerTabs,
     showLibrary,
     items: libraryItems,
     isLoading: isLibraryLoading,
@@ -181,6 +185,7 @@ export function ImageInsertDialog({
         setProgressStep("upload");
         const result = await uploadMedia({
           projectId: projectId as Id<"projects">,
+          provider,
           bytes,
           mime: toUpload.type,
           filename: toUpload.name,
@@ -221,6 +226,7 @@ export function ImageInsertDialog({
       resetForm,
       uploadMedia,
       removeWatermark,
+      provider,
     ],
   );
 
@@ -262,6 +268,11 @@ export function ImageInsertDialog({
             {showLibrary && (
               <TabsContent value="library">
                 <div className="space-y-4">
+                  <MediaProviderTabs
+                    tabs={providerTabs}
+                    selected={provider}
+                    onSelect={setProvider}
+                  />
                   <div className="space-y-1.5">
                     <Label htmlFor="img-library-alt">Alt text</Label>
                     <Input

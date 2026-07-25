@@ -5,7 +5,7 @@ import type {
   FrontmatterField,
   FrontmatterFieldType,
 } from "@wryte/logic/types/frontmatter";
-import type { MediaStorageMode } from "@wryte/logic/types/media";
+import type { MediaProvider } from "@wryte/logic/types/media";
 import {
   BarChart3,
   Code2,
@@ -27,7 +27,7 @@ export type {
   CompressionSettings,
   FrontmatterField,
   FrontmatterFieldType,
-  MediaStorageMode,
+  MediaProvider,
 };
 
 export type ProjectData = {
@@ -40,7 +40,7 @@ export type ProjectData = {
   animationsPath?: string;
   animationsEnabled?: boolean;
   importEnabled?: boolean;
-  mediaStorageMode?: MediaStorageMode;
+  mediaStorageMode?: MediaProvider;
   frontmatterSchema?: string;
   commitMessageTemplate?: string;
   commitAttribution?: boolean;

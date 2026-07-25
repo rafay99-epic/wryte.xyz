@@ -87,6 +87,29 @@ export function mapCloudinaryError(err: unknown): MediaErrorCode {
   return "UNKNOWN";
 }
 
+/**
+ * R2 errors are plain HTTP responses, so the caller passes the status (and the
+ * `<Message>` body when it read one) rather than a thrown SDK object.
+ */
+export function mapR2Error(err: unknown): MediaErrorCode {
+  const e = err as { status?: number; message?: string };
+  const status = e?.status;
+  const message = (e?.message ?? "").toLowerCase();
+
+  if (message.includes("quota") || message.includes("exceeded"))
+    return "STORAGE_FULL";
+  if (status === 400 && message.includes("credential")) return "AUTH_INVALID";
+  if (status === 401) return "AUTH_INVALID";
+  // R2 answers 403 for a bad signature as well as for a token that lacks the
+  // object permissions, and 404 for a bucket the token can't see at all.
+  if (status === 403) return "AUTH_FORBIDDEN";
+  if (status === 404) return "AUTH_FORBIDDEN";
+  if (status === 429 || status === 503) return "RATE_LIMITED";
+  if (status !== undefined && status >= 500 && status < 600)
+    return "PROVIDER_DOWN";
+  return "UNKNOWN";
+}
+
 export function mapGithubError(err: unknown): MediaErrorCode {
   const e = err as { status?: number; message?: string };
   const status = e?.status;

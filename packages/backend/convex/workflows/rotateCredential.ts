@@ -13,11 +13,9 @@ import { WorkflowManager } from "@convex-dev/workflow";
 import { v } from "convex/values";
 import { components, internal } from "../_generated/api";
 import { internalMutation } from "../_generated/server";
+import { credentialProviderValidator } from "../media/_lib/providers";
 
-const PROVIDER_VALIDATOR = v.union(
-  v.literal("uploadthing"),
-  v.literal("cloudinary"),
-);
+const PROVIDER_VALIDATOR = credentialProviderValidator;
 
 export const rotateWorkflowManager = new WorkflowManager(components.workflow, {
   workpoolOptions: {

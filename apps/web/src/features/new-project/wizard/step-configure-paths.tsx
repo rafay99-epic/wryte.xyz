@@ -3,26 +3,28 @@
 import { useDetectFrontmatter } from "@wryte/logic/hooks/use-github";
 import { cn } from "@wryte/logic/lib/utils";
 import type { FrontmatterField } from "@wryte/logic/types/frontmatter";
+import {
+  ALL_MEDIA_PROVIDERS,
+  getMediaProvider,
+  type MediaProvider,
+} from "@wryte/logic/types/media";
 import { Button } from "@wryte/ui/button";
 import { Input } from "@wryte/ui/input";
 import { Label } from "@wryte/ui/label";
 import {
   Cloud,
-  Eye,
-  EyeOff,
   GitBranch,
+  HardDrive,
   Loader2,
   Lock,
   ScanSearch,
   Sparkles,
   UploadCloud,
 } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
 import { toast } from "sonner";
-import type {
-  MediaStorageMode,
-  WizardState,
-} from "@/features/new-project/new-project-page";
+import { CredentialFieldsForm } from "@/components/forms/credential-fields-form";
+import type { WizardState } from "@/features/new-project/new-project-page";
 
 type StepConfigurePathsProps = {
   state: WizardState;
@@ -56,45 +58,16 @@ function normalizeFieldType(type: string): FrontmatterField["type"] {
 }
 
 /**
- * Per-provider metadata for the media-storage picker. Adding a new provider
- * later (S3, R2, …) only needs a new entry here plus the corresponding
- * credential subform below.
+ * Icon per provider id. The label, description, credential fields and path
+ * hint all come from the media provider registry — only the glyph is a UI
+ * choice, so this is the whole per-provider surface in the wizard.
  */
-const PROVIDERS: Array<{
-  id: MediaStorageMode;
-  label: string;
-  description: string;
-  icon: typeof GitBranch;
-}> = [
-  {
-    id: "github",
-    label: "GitHub Repository",
-    description: "Commit images directly into the repo you linked.",
-    icon: GitBranch,
-  },
-  {
-    id: "uploadthing",
-    label: "UploadThing",
-    description: "Use your own UploadThing account.",
-    icon: UploadCloud,
-  },
-  {
-    id: "cloudinary",
-    label: "Cloudinary",
-    description: "Use your own Cloudinary account.",
-    icon: Cloud,
-  },
-];
-
-function mediaPathHint(mode: MediaStorageMode): string {
-  if (mode === "github") {
-    return "Where images live in the repo, e.g. public/images (Astro/Next.js) or static/images (Hugo/SvelteKit).";
-  }
-  if (mode === "cloudinary") {
-    return "Folder prefix applied to every upload in your Cloudinary account.";
-  }
-  return "Informational only — UploadThing files live in a flat namespace.";
-}
+const PROVIDER_ICONS: Record<MediaProvider, typeof GitBranch> = {
+  github: GitBranch,
+  uploadthing: UploadCloud,
+  cloudinary: Cloud,
+  r2: HardDrive,
+};
 
 export function StepConfigurePaths({
   state,
@@ -198,7 +171,7 @@ export function StepConfigurePaths({
             }
           />
           <p className="text-[11px] text-muted-foreground/60">
-            {mediaPathHint(state.mediaStorageMode)}
+            {getMediaProvider(state.mediaStorageMode).pathHint}
           </p>
         </div>
 
@@ -207,15 +180,23 @@ export function StepConfigurePaths({
           <Label className="text-xs font-medium text-muted-foreground">
             Media Storage
           </Label>
-          <div className="grid gap-2 sm:grid-cols-3">
-            {PROVIDERS.map((p) => (
+          <div className="grid gap-2 sm:grid-cols-2">
+            {ALL_MEDIA_PROVIDERS.map((entry) => (
               <ProviderOption
-                key={p.id}
-                active={state.mediaStorageMode === p.id}
-                onClick={() => onChange({ mediaStorageMode: p.id })}
-                title={p.label}
-                description={p.description}
-                Icon={p.icon}
+                key={entry.id}
+                active={state.mediaStorageMode === entry.id}
+                onClick={() =>
+                  onChange({
+                    mediaStorageMode: entry.id,
+                    // Credential values are keyed per provider; carrying the
+                    // previous provider's entries over would submit fields the
+                    // new one doesn't understand.
+                    mediaCredentials: {},
+                  })
+                }
+                title={entry.label}
+                description={entry.description}
+                Icon={PROVIDER_ICONS[entry.id]}
               />
             ))}
           </div>
@@ -225,13 +206,8 @@ export function StepConfigurePaths({
           </p>
         </div>
 
-        {/* Provider-specific credentials */}
-        {state.mediaStorageMode === "uploadthing" && (
-          <UploadThingCredentialsForm state={state} onChange={onChange} />
-        )}
-        {state.mediaStorageMode === "cloudinary" && (
-          <CloudinaryCredentialsForm state={state} onChange={onChange} />
-        )}
+        {/* Credential inputs for the chosen provider, straight from its registry entry. */}
+        <MediaCredentialsStep state={state} onChange={onChange} />
         {state.mediaStorageMode === "github" && hasRepo && (
           <div className="flex items-start gap-2 rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">
             <GitBranch className="mt-0.5 size-3.5 shrink-0" />
@@ -253,7 +229,7 @@ export function StepConfigurePaths({
             <GitBranch className="mt-0.5 size-3.5 shrink-0" />
             <span>
               GitHub mode needs a linked repository. Go back to step 1 and pick
-              one, or choose UploadThing / Cloudinary instead.
+              one, or choose another storage provider instead.
             </span>
           </div>
         )}
@@ -354,179 +330,56 @@ function ProviderOption({
 /* ------------------------------------------------------------------ */
 
 /**
- * Single masked input for the UPLOADTHING_TOKEN. The Convex action validates
- * and rate-limits — we just collect the string here.
+ * Credential inputs for whichever provider is selected.
+ *
+ * Renders the provider's registry fields — one component for every storage
+ * backend, present and future. GitHub has no fields, so it shows the
+ * repo-destination note instead of a form.
  */
-function UploadThingCredentialsForm({
+function MediaCredentialsStep({
   state,
   onChange,
 }: {
   state: WizardState;
   onChange: (updates: Partial<WizardState>) => void;
 }) {
-  const [show, setShow] = useState(false);
-  return (
-    <div className="space-y-3 rounded-lg border bg-muted/30 p-4">
-      <div className="flex items-center gap-2">
-        <Lock className="size-3.5 text-muted-foreground" />
-        <p className="text-xs font-medium">UploadThing credentials</p>
-      </div>
-      <p className="text-[11px] text-muted-foreground">
-        Stored encrypted in the secret vault. We never log or display the token
-        after this step.
-      </p>
-      <div className="space-y-1.5">
-        <Label htmlFor="ut-token" className="text-xs">
-          UPLOADTHING_TOKEN
-        </Label>
-        <div className="relative">
-          <Input
-            id="ut-token"
-            type={show ? "text" : "password"}
-            value={state.uploadthingToken}
-            onChange={(e) =>
-              onChange({
-                uploadthingToken: (e.target as HTMLInputElement).value,
-              })
-            }
-            placeholder="ut_…"
-            autoComplete="off"
-            spellCheck={false}
-            className="pr-9 font-mono text-xs"
-          />
-          <button
-            type="button"
-            onClick={() => setShow((v) => !v)}
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-            aria-label={show ? "Hide" : "Show"}
-          >
-            {show ? (
-              <EyeOff className="size-3.5" />
-            ) : (
-              <Eye className="size-3.5" />
-            )}
-          </button>
-        </div>
-        <p className="text-[10px] text-muted-foreground/70">
-          Copy the single base64 token from your UploadThing dashboard → API
-          Keys.
-        </p>
-      </div>
-    </div>
-  );
-}
+  const entry = getMediaProvider(state.mediaStorageMode);
 
-/**
- * Cloudinary needs cloud_name + api_key + api_secret, plus an optional folder
- * prefix. The folder is non-secret — it also goes into the credential row's
- * `publicConfig` so the UI can show it without decrypting the vault.
- */
-function CloudinaryCredentialsForm({
-  state,
-  onChange,
-}: {
-  state: WizardState;
-  onChange: (updates: Partial<WizardState>) => void;
-}) {
-  const [showSecret, setShowSecret] = useState(false);
+  const handleFieldChange = (key: string, value: string) => {
+    onChange({ mediaCredentials: { ...state.mediaCredentials, [key]: value } });
+  };
+
+  if (entry.fields.length === 0) return null;
+
   return (
     <div className="space-y-3 rounded-lg border bg-muted/30 p-4">
       <div className="flex items-center gap-2">
         <Lock className="size-3.5 text-muted-foreground" />
-        <p className="text-xs font-medium">Cloudinary credentials</p>
+        <p className="text-xs font-medium">{entry.label} credentials</p>
       </div>
       <p className="text-[11px] text-muted-foreground">
-        Stored encrypted in the secret vault. We never log the API secret.
-      </p>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="space-y-1.5">
-          <Label htmlFor="cld-name" className="text-xs">
-            Cloud name
-          </Label>
-          <Input
-            id="cld-name"
-            value={state.cloudinaryCloudName}
-            onChange={(e) =>
-              onChange({
-                cloudinaryCloudName: (e.target as HTMLInputElement).value,
-              })
-            }
-            placeholder="my-cloud"
-            autoComplete="off"
-            spellCheck={false}
-            className="font-mono text-xs"
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="cld-folder" className="text-xs">
-            Folder (optional)
-          </Label>
-          <Input
-            id="cld-folder"
-            value={state.cloudinaryFolder}
-            onChange={(e) =>
-              onChange({
-                cloudinaryFolder: (e.target as HTMLInputElement).value,
-              })
-            }
-            placeholder="wryte/blog"
-            autoComplete="off"
-            spellCheck={false}
-            className="font-mono text-xs"
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="cld-key" className="text-xs">
-            API key
-          </Label>
-          <Input
-            id="cld-key"
-            value={state.cloudinaryApiKey}
-            onChange={(e) =>
-              onChange({
-                cloudinaryApiKey: (e.target as HTMLInputElement).value,
-              })
-            }
-            placeholder="123456789012345"
-            autoComplete="off"
-            spellCheck={false}
-            className="font-mono text-xs"
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="cld-secret" className="text-xs">
-            API secret
-          </Label>
-          <div className="relative">
-            <Input
-              id="cld-secret"
-              type={showSecret ? "text" : "password"}
-              value={state.cloudinaryApiSecret}
-              onChange={(e) =>
-                onChange({
-                  cloudinaryApiSecret: (e.target as HTMLInputElement).value,
-                })
-              }
-              placeholder="your_api_secret"
-              autoComplete="off"
-              spellCheck={false}
-              className="pr-9 font-mono text-xs"
-            />
-            <button
-              type="button"
-              onClick={() => setShowSecret((v) => !v)}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              aria-label={showSecret ? "Hide" : "Show"}
+        Stored encrypted in the secret vault. We never log or display the secret
+        after this step.
+        {entry.dashboardUrl && (
+          <>
+            {" "}
+            <a
+              href={entry.dashboardUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="underline decoration-dotted hover:text-foreground"
             >
-              {showSecret ? (
-                <EyeOff className="size-3.5" />
-              ) : (
-                <Eye className="size-3.5" />
-              )}
-            </button>
-          </div>
-        </div>
-      </div>
+              Get your keys
+            </a>
+          </>
+        )}
+      </p>
+      <CredentialFieldsForm
+        entry={entry}
+        values={state.mediaCredentials}
+        onChange={handleFieldChange}
+        idPrefix={`wizard-${entry.id}`}
+      />
     </div>
   );
 }
