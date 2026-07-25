@@ -1,0 +1,28 @@
+apps/web/src/features/media-library/media-library-page.tsx
+  s_7d98ae3d9972f4::t_501ba1fbbe346d 500-506,518-523
+packages/backend/convex/providers/shared.ts
+  s_7d98ae3d9972f4::t_3c0e11fcccd08e 134-149,157-158
+packages/backend/convex/providers/cloudinary.ts
+  s_7d98ae3d9972f4::t_b41df8c6e3291c 12-33,69,74-78,126-129,132-135
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "a9e4b711de5372cc2f996592ea975ac93764c0a2",
+  "prompts": {},
+  "humans": {
+    "h_1e0ba4a9f2a4b4": {
+      "author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  },
+  "sessions": {
+    "s_7d98ae3d9972f4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e575c576-ca70-48f6-ab70-c36e1b4efaa2",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
