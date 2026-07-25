@@ -1,0 +1,35 @@
+package.json
+  s_72477441c6c3c3::t_db3edc35b75af9 50,54,64
+  s_72477441c6c3c3::t_b63ea05bc4fbf7 65-67
+vercel.json
+  s_72477441c6c3c3::t_0abfa4f50be841 2-9
+.github/workflows/ci-cd.yml
+  s_72477441c6c3c3::t_291dce1244fc95 149
+MONOREPO.md
+  s_72477441c6c3c3::t_290ff62a8d67b5 36-48,50-54,56-58
+  s_72477441c6c3c3::t_dd767739dd5082 81-84
+packages/ui/package.json
+  s_72477441c6c3c3::t_db3edc35b75af9 18
+apps/web/package.json
+  s_72477441c6c3c3::t_db3edc35b75af9 40,56
+bunfig.toml
+  s_72477441c6c3c3::t_e950e4134f1b9a 4-7
+bun.lock
+  s_72477441c6c3c3::t_b4d272da798659 50,66,143,166,168-169,177,182,510,512,514,516,518,520,522,524,526,878,1726,1730,1836,2080
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "baf32024850f97c9838f4f871033f5c7818a051f",
+  "prompts": {},
+  "sessions": {
+    "s_72477441c6c3c3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c79af440-04d8-4f34-bc49-93740f9d1b93",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
