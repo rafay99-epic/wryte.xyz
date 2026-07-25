@@ -131,6 +131,22 @@ export function normalizeKeyPrefix(raw: string | null | undefined): string {
     .join("/");
 }
 
+/** Splits a filename into its stem and its final extension (dot included). */
+export function splitExtension(filename: string): {
+  stem: string;
+  ext: string;
+} {
+  const dot = filename.lastIndexOf(".");
+  return dot > 0
+    ? { stem: filename.slice(0, dot), ext: filename.slice(dot) }
+    : { stem: filename, ext: "" };
+}
+
+/** Short disambiguator appended to uploaded names. */
+export function randomSuffix(): string {
+  return Math.random().toString(36).slice(2, 8);
+}
+
 /**
  * Builds a collision-free object key. Plain `PutObject` overwrites silently,
  * where UploadThing dedupes and Cloudinary versions — so a short random
@@ -138,11 +154,8 @@ export function normalizeKeyPrefix(raw: string | null | undefined): string {
  * copy that documents may already reference.
  */
 export function uniqueObjectKey(prefix: string, filename: string): string {
-  const dot = filename.lastIndexOf(".");
-  const stem = dot > 0 ? filename.slice(0, dot) : filename;
-  const ext = dot > 0 ? filename.slice(dot) : "";
-  const suffix = Math.random().toString(36).slice(2, 8);
-  const name = `${stem}-${suffix}${ext}`;
+  const { stem, ext } = splitExtension(filename);
+  const name = `${stem}-${randomSuffix()}${ext}`;
   return prefix ? `${prefix}/${name}` : name;
 }
 

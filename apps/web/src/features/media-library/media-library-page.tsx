@@ -497,6 +497,13 @@ function EmptyState({
 /*  Media Card                                                         */
 /* ------------------------------------------------------------------ */
 
+const IMAGE_EXTENSIONS = /\.(png|jpe?g|gif|webp|svg|avif|bmp|ico)(?:$|[?#])/i;
+
+/** True when a filename or URL path ends in a renderable image extension. */
+function hasImageExtension(value: string): boolean {
+  return IMAGE_EXTENSIONS.test(value);
+}
+
 function MediaCard({
   item,
   provider,
@@ -507,9 +514,13 @@ function MediaCard({
   onDelete: () => void;
 }) {
   const isImage =
-    /\.(png|jpe?g|gif|webp|svg|avif|bmp|ico)$/i.test(item.name) &&
     typeof item.url === "string" &&
-    item.url.length > 0;
+    item.url.length > 0 &&
+    // Checked against the URL as well as the name: object stores don't all
+    // keep an extension in the display name (a Cloudinary public_id has none),
+    // and a missing extension shouldn't downgrade a real image to a
+    // placeholder icon.
+    (hasImageExtension(item.name) || hasImageExtension(item.url));
   const sizeKB = (item.size / 1024).toFixed(1);
 
   const handleCopyUrl = useCallback(() => {

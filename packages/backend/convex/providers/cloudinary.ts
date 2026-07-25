@@ -9,6 +9,28 @@
 
 import { v2 as cloudinary } from "cloudinary";
 import { mapCloudinaryError, throwMediaError } from "./errors";
+import { randomSuffix, splitExtension } from "./shared";
+
+/**
+ * Cloudinary derives a public_id from the uploaded file's name — but only when
+ * it *has* one. We upload a base64 data URI, which carries no filename, so
+ * `use_filename` has nothing to work from and Cloudinary falls back to a random
+ * id like `quzsyj0cloja0zzh3ggq`. That id is what the media library then shows
+ * as the file's name, and because it has no extension the grid can't tell it's
+ * an image and renders a placeholder instead of a preview.
+ *
+ * Passing the public_id explicitly fixes both. The extension is stripped —
+ * Cloudinary appends the real format itself — and the characters are reduced to
+ * what reads cleanly in a URL.
+ */
+function publicIdFromFilename(filename: string): string {
+  const slug = splitExtension(filename)
+    .stem.normalize("NFKD")
+    .replace(/[^a-zA-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+  return `${slug || "file"}-${randomSuffix()}`;
+}
 
 export interface CloudinaryCreds {
   cloud_name: string;
@@ -44,14 +66,16 @@ export async function uploadOne(
 ): Promise<CldUploadResult> {
   const dataUri = `data:${file.mime};base64,${file.buffer.toString("base64")}`;
   try {
+    const publicId = opts.publicId ?? publicIdFromFilename(file.filename);
     const res = await cloudinary.uploader.upload(dataUri, {
       ...creds,
       resource_type: "auto",
       ...(opts.folder ? { folder: opts.folder } : {}),
-      ...(opts.publicId ? { public_id: opts.publicId } : {}),
-      // unique_filename keeps Cloudinary from overwriting an existing public_id
-      unique_filename: !opts.publicId,
-      use_filename: !opts.publicId,
+      public_id: publicId,
+      // The suffix in `publicId` already disambiguates, so let Cloudinary use
+      // the id verbatim rather than appending a second random segment.
+      unique_filename: false,
+      use_filename: false,
     });
     const result: CldUploadResult = {
       url: res.secure_url,
@@ -99,9 +123,16 @@ export async function listResources(
       created_at?: string;
     }>;
     const items: CldListItem[] = resources.map((r) => {
+      // public_ids carry no extension. Re-attaching the stored format keeps the
+      // displayed name honest and lets the library recognise it as an image —
+      // including for files uploaded before public_ids were set explicitly.
+      const base = r.public_id.split("/").pop() ?? r.public_id;
       const item: CldListItem = {
         externalId: r.public_id,
-        filename: r.public_id.split("/").pop() ?? r.public_id,
+        filename:
+          r.format && !base.toLowerCase().endsWith(`.${r.format.toLowerCase()}`)
+            ? `${base}.${r.format}`
+            : base,
         size: r.bytes,
         url: r.secure_url,
       };
