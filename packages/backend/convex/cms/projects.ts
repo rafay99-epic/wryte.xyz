@@ -103,19 +103,50 @@ function sortProjectsForList(projects: Doc<"projects">[]): Doc<"projects">[] {
   return [...withOrder, ...withoutOrder];
 }
 
-/** Sorted projects for the signed-in user, or [] if unauthenticated / no user row. */
+/**
+ * The list query's body, taking the actor explicitly.
+ *
+ * Split out so both entry points share it: the public `list` (actor from
+ * `ctx.auth`) and the internal MCP handler (actor injected by the gateway,
+ * because component-dispatched tools have no `ctx.auth`). See
+ * `_lib/auth.ts → requireCaller`.
+ */
+export async function projectsForUser(
+  ctx: QueryCtx,
+  userId: Id<"users">,
+): Promise<Doc<"projects">[]> {
+  const projects = await ctx.db
+    .query("projects")
+    .withIndex("by_userId", (q) => q.eq("userId", userId))
+    .take(100);
+
+  return sortProjectsForList(projects);
+}
+
 async function projectsForCurrentUserOrEmpty(
   ctx: QueryCtx,
 ): Promise<Doc<"projects">[]> {
   const user = await getAuthedUserOrNull(ctx);
   if (!user) return [];
+  return await projectsForUser(ctx, user._id);
+}
 
-  const projects = await ctx.db
-    .query("projects")
-    .withIndex("by_userId", (q) => q.eq("userId", user._id))
-    .take(100);
-
-  return sortProjectsForList(projects);
+/**
+ * Ownership-checked project read, shared by the public `get` and the MCP
+ * handler. Throws rather than returning null on a foreign project so an agent
+ * can't probe for the existence of other people's project ids.
+ */
+async function projectForUser(
+  ctx: QueryCtx,
+  userId: Id<"users">,
+  projectId: Id<"projects">,
+): Promise<Doc<"projects"> | null> {
+  const project = await ctx.db.get(projectId);
+  if (!project) return null;
+  if (project.userId !== userId) {
+    throw new Error("Unauthorized: you do not own this project");
+  }
+  return project;
 }
 
 /**
@@ -173,17 +204,7 @@ export const get = query({
     if (!user) {
       throw new Error("Not authenticated");
     }
-
-    const project = await ctx.db.get(args.projectId);
-    if (!project) {
-      return null;
-    }
-
-    if (project.userId !== user._id) {
-      throw new Error("Unauthorized: you do not own this project");
-    }
-
-    return project;
+    return await projectForUser(ctx, user._id, args.projectId);
   },
 });
 

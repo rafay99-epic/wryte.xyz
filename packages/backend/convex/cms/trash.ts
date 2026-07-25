@@ -17,6 +17,7 @@
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
+import type { MutationCtx } from "../_generated/server";
 import { internalMutation, mutation, query } from "../_generated/server";
 import { getAuthedUserOrNull, getCurrentUser } from "../_lib/auth";
 import { adjustDocumentCount } from "../_lib/documentCount";
@@ -75,7 +76,23 @@ async function loadOwnedTrashedDoc(
   },
   documentId: Id<"documents">,
 ): Promise<Doc<"documents">> {
-  const user = await getCurrentUser(ctx);
+  return await loadTrashedDocForUser(
+    ctx,
+    await getCurrentUser(ctx),
+    documentId,
+  );
+}
+
+/**
+ * Ownership-checked read of a trashed document with the actor passed in
+ * explicitly. Shared with the MCP handler, which has no `ctx.auth` — see
+ * `_lib/auth.ts → requireCaller`.
+ */
+async function loadTrashedDocForUser(
+  ctx: { db: import("../_generated/server").MutationCtx["db"] },
+  user: Doc<"users">,
+  documentId: Id<"documents">,
+): Promise<Doc<"documents">> {
   const doc = await ctx.db.get(documentId);
   if (!doc) throw new Error("Document not found");
 
@@ -98,14 +115,28 @@ async function loadOwnedTrashedDoc(
  */
 export const restore = mutation({
   args: { documentId: v.id("documents") },
-  handler: async (ctx, args) => {
-    const key = await getRateLimitKey(ctx);
+  handler: async (ctx, args) =>
+    await restoreTrashedForUser(
+      ctx,
+      await getCurrentUser(ctx),
+      args.documentId,
+    ),
+});
+
+/** `restore`'s body with the actor passed in explicitly. Shared with the MCP
+ *  handler, which has no `ctx.auth` — see `_lib/auth.ts → requireCaller`. */
+export async function restoreTrashedForUser(
+  ctx: MutationCtx,
+  user: Doc<"users">,
+  documentId: Id<"documents">,
+) {
+  {
     await rateLimiter.limit(ctx, "documents:restoreFromTrash", {
-      key,
+      key: user.tokenIdentifier,
       throws: true,
     });
 
-    const doc = await loadOwnedTrashedDoc(ctx, args.documentId);
+    const doc = await loadTrashedDocForUser(ctx, user, documentId);
 
     await ctx.db.patch(doc._id, {
       trashedAt: undefined,
@@ -124,8 +155,8 @@ export const restore = mutation({
       oldStatus: null,
       newStatus: doc.status,
     });
-  },
-});
+  }
+}
 
 /**
  * Permanently deletes a trashed doc. No undo. Use only from the trash

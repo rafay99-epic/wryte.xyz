@@ -8,6 +8,7 @@ import {
   ImageIcon,
   MessageSquare,
   Palette,
+  Plug,
   Skull,
   User,
   XCircle,
@@ -18,6 +19,7 @@ export type SettingsTab =
   | "profile"
   | "appearance"
   | "media"
+  | "mcp"
   | "shortcuts"
   | "support"
   | "self-destruct";
@@ -31,6 +33,7 @@ export const TABS: {
   { id: "profile", label: "Profile", icon: Globe },
   { id: "appearance", label: "Appearance", icon: Palette },
   { id: "media", label: "Media", icon: ImageIcon },
+  { id: "mcp", label: "MCP Server", icon: Plug },
   { id: "shortcuts", label: "Shortcuts", icon: Command },
   { id: "support", label: "Support", icon: HelpCircle },
   { id: "self-destruct", label: "Self-Destruct", icon: Skull },

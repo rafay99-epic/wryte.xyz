@@ -242,6 +242,20 @@ export const internalGetByToken = internalQuery({
 });
 
 /**
+ * Lookup by Clerk user id, for MCP tools backed by actions. Actions have no
+ * `ctx.db`, so `userFromCallerInAction` in `_lib/auth.ts` routes through here.
+ */
+export const internalGetByClerkId = internalQuery({
+  args: { clerkUserId: v.string() },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("users")
+      .withIndex("by_clerkUserId", (q) => q.eq("clerkUserId", args.clerkUserId))
+      .unique();
+  },
+});
+
+/**
  * Sets the vault-backed GitHub secret pointer. Internal because it's invoked
  * from the `updateGithubToken` action.
  */

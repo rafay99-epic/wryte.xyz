@@ -855,4 +855,76 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     rate: 5,
     period: HOUR,
   },
+
+  /* ------------------------------------------------------------------ */
+  /*  MCP server                                                         */
+  /* ------------------------------------------------------------------ */
+
+  /**
+   * MCP limits are keyed on the OAuth token **subject** (the Clerk user id),
+   * not `tokenIdentifier`, so all of one user's agents share a single budget
+   * no matter how many OAuth clients they've registered. Registering a fresh
+   * client must not buy fresh quota.
+   *
+   * These are checked in `convex/mcp/gate.ts` *before* the request reaches
+   * the gateway. That ordering is the point: the gateway writes a session
+   * row, an audit row and dispatches an action, so rejecting here costs one
+   * rate-limiter write instead of three writes plus an action.
+   *
+   * `shards` spreads each bucket over multiple rows so a busy agent fleet
+   * doesn't serialise on one document and generate OCC conflicts. Rule of
+   * thumb from the component docs: shards ≈ peak QPS / 2, and never so many
+   * that a shard holds under ~5 capacity.
+   */
+
+  /** Every MCP request — the outer envelope. Generous burst so a normal
+   *  agent session never notices; the sustained rate is what bounds cost. */
+  "mcp:request": {
+    kind: "token bucket",
+    rate: 600,
+    period: MINUTE,
+    capacity: 120,
+    shards: 8,
+  },
+  /** Session creation. Each `initialize` inserts a row in the gateway's
+   *  session table, so this is the anti-churn limit. */
+  "mcp:initialize": {
+    kind: "fixed window",
+    rate: 20,
+    period: MINUTE,
+  },
+  /** Changing which capabilities MCP clients get — a deliberate settings
+   *  action, so a tight cap is plenty. */
+  "mcp:setGrant": {
+    kind: "fixed window",
+    rate: 20,
+    period: MINUTE,
+  },
+  /**
+   * There is deliberately no `mcp:write` / `mcp:action` limit here. Every
+   * mutation and action an MCP tool wraps *already* calls
+   * `rateLimiter.limit(ctx, "<op>", { key })` with its own per-user budget
+   * (155 call sites across 38 modules). Adding an MCP-specific write limit
+   * would spend a second rate-limiter write per call to enforce a ceiling
+   * that the underlying function enforces anyway — cost with no coverage.
+   *
+   * The two limits above cover what those don't: `mcp:request` bounds
+   * *reads* (queries are not rate-limited anywhere else, because the limiter
+   * needs write access), and `mcp:initialize` bounds session-table churn.
+   */
+
+  /**
+   * Unkeyed circuit breaker across all MCP traffic. Every MCP request costs
+   * ~3 mutations, and Convex caps concurrent mutations per deployment class,
+   * so one pathological agent fleet could starve the web app of write
+   * throughput. This is the limit that protects the deployment (and the
+   * bill) when every per-user limit is behaving.
+   */
+  "mcp:global": {
+    kind: "token bucket",
+    rate: 20000,
+    period: MINUTE,
+    capacity: 4000,
+    shards: 64,
+  },
 });

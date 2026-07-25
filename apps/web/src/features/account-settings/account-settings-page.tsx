@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { SettingsShell } from "@/components/settings/settings-shell";
 import { AccountTab } from "./components/account-tab";
 import { AppearanceTab } from "./components/appearance-tab";
+import { McpTab } from "./components/mcp-tab";
 import { MediaTab } from "./components/media-tab";
 import { ProfileTab } from "./components/profile-tab";
 import { SelfDestructTab } from "./components/self-destruct-tab";
@@ -63,6 +64,7 @@ export function AccountSettingsPage() {
       {activeTab === "media" && (
         <MediaTab current={convexUser?.defaultCompressionSettings ?? null} />
       )}
+      {activeTab === "mcp" && <McpTab />}
       {activeTab === "shortcuts" && <ShortcutsTab />}
       {activeTab === "support" && <SupportTab />}
       {activeTab === "self-destruct" && <SelfDestructTab />}

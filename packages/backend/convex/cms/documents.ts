@@ -1,8 +1,12 @@
 import { paginationOptsValidator } from "convex/server";
-import { v } from "convex/values";
+import { type ObjectType, v } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
-import type { DatabaseReader } from "../_generated/server";
+import type {
+  DatabaseReader,
+  MutationCtx,
+  QueryCtx,
+} from "../_generated/server";
 import {
   internalMutation,
   internalQuery,
@@ -169,29 +173,14 @@ export const listForLink = query({
     paginationOpts: paginationOptsValidator,
   },
   handler: async (ctx, args) => {
-    const empty = { page: [], isDone: true, continueCursor: "" };
     const user = await getAuthedUserOrNull(ctx);
-    if (!user) return empty;
-
-    const project = await ctx.db.get(args.projectId);
-    if (!project || project.userId !== user._id) return empty;
-
-    const result = await ctx.db
-      .query("documents")
-      .withIndex("by_projectId_and_trashedAt", (q) =>
-        q.eq("projectId", args.projectId).eq("trashedAt", undefined),
-      )
-      .order("desc")
-      .paginate(args.paginationOpts);
-
-    return {
-      ...result,
-      page: result.page.map((doc) => ({
-        _id: doc._id,
-        title: doc.title,
-        slug: doc.slug,
-      })),
-    };
+    if (!user) return { page: [], isDone: true, continueCursor: "" };
+    return await documentsPageForUser(
+      ctx,
+      user._id,
+      args.projectId,
+      args.paginationOpts,
+    );
   },
 });
 
@@ -233,6 +222,119 @@ export const searchForLink = query({
       .map((doc) => ({ _id: doc._id, title: doc.title, slug: doc.slug }));
   },
 });
+
+/**
+ * How many projects a single cross-project search will fan out over. The
+ * `search_title` index is filtered by `projectId`, so an unscoped search means
+ * one indexed search per owned project. Bounded so a user with a very large
+ * project count can't turn one tool call into an unbounded number of index
+ * reads; the response reports truncation rather than silently covering less.
+ */
+const SEARCH_MAX_PROJECTS = 20;
+
+/**
+ * Title search for MCP clients (`wryte_documents_search`), scoped to one
+ * project or fanned out across the caller's projects.
+ *
+ * Backed by the `search_title` index that already exists for the editor's
+ * `[[` link menu, so this adds a query, not an index. That does mean it is
+ * **title-only** — document bodies live in a separate `document_content`
+ * table specifically so hot queries never read them, and adding a body search
+ * index would undo that tradeoff. Titles cover the lookup an agent actually
+ * needs ("find my post about X"); revisit only if usage proves otherwise.
+ *
+ * The fan-out searches each owned project *through the index filter* rather
+ * than searching globally and discarding other users' rows afterwards. Same
+ * result, except no other tenant's titles are ever read into memory.
+ */
+export const search = query({
+  args: {
+    term: v.string(),
+    projectId: v.optional(v.id("projects")),
+    limit: v.optional(v.number()),
+  },
+  returns: v.object({
+    results: v.array(
+      v.object({
+        _id: v.id("documents"),
+        projectId: v.id("projects"),
+        projectName: v.string(),
+        title: v.string(),
+        slug: v.string(),
+        status: v.string(),
+        updatedAt: v.number(),
+        wordCount: v.optional(v.number()),
+      }),
+    ),
+    /** True when the caller owns more projects than the fan-out cap. */
+    truncatedProjects: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const user = await getAuthedUserOrNull(ctx);
+    if (!user) return { results: [], truncatedProjects: false };
+    return await searchDocumentsForUser(ctx, user._id, args);
+  },
+});
+
+/** `search`'s body with the actor passed in explicitly. */
+export async function searchDocumentsForUser(
+  ctx: QueryCtx,
+  userId: Id<"users">,
+  args: { term: string; projectId?: Id<"projects">; limit?: number },
+) {
+  {
+    const empty = { results: [], truncatedProjects: false };
+    const term = args.term.trim();
+    if (!term) return empty;
+
+    const limit = Math.min(Math.max(args.limit ?? 20, 1), 50);
+
+    // Resolve the project set first — this is also the ownership check.
+    let projects: Doc<"projects">[];
+    let truncatedProjects = false;
+    if (args.projectId) {
+      const project = await ctx.db.get(args.projectId);
+      if (!project || project.userId !== userId) return empty;
+      projects = [project];
+    } else {
+      const owned = await ctx.db
+        .query("projects")
+        .withIndex("by_userId", (q) => q.eq("userId", userId))
+        .take(SEARCH_MAX_PROJECTS + 1);
+      truncatedProjects = owned.length > SEARCH_MAX_PROJECTS;
+      projects = owned.slice(0, SEARCH_MAX_PROJECTS);
+    }
+
+    const names = new Map(projects.map((p) => [p._id, p.name]));
+    const matches: Doc<"documents">[] = [];
+    for (const project of projects) {
+      const docs = await ctx.db
+        .query("documents")
+        .withSearchIndex("search_title", (q) =>
+          q.search("title", term).eq("projectId", project._id),
+        )
+        .take(limit);
+      matches.push(...docs.filter((doc) => doc.trashedAt === undefined));
+    }
+
+    return {
+      results: matches
+        .sort((a, b) => b.updatedAt - a.updatedAt)
+        .slice(0, limit)
+        .map((doc) => ({
+          _id: doc._id,
+          projectId: doc.projectId,
+          projectName: names.get(doc.projectId) ?? "",
+          title: doc.title,
+          slug: doc.slug,
+          status: doc.status,
+          updatedAt: doc.updatedAt,
+          ...(doc.wordCount !== undefined ? { wordCount: doc.wordCount } : {}),
+        })),
+      truncatedProjects,
+    };
+  }
+}
 
 /**
  * Paginated full-content feed for the one-shot project export in
@@ -437,30 +539,88 @@ export const get = query({
     if (!user) {
       throw new Error("Not authenticated");
     }
-    const document = await verifyDocumentOwnership(
-      ctx,
-      args.documentId,
-      user._id,
-    );
-    // Trashed docs are invisible to the editor / dashboard. The trash
-    // view fetches them through `trash.listByProject` instead.
-    if (document.trashedAt !== undefined) {
-      return null;
-    }
-    // Join the body back from `document_content` so every existing
-    // consumer of `get` (editor, AI synthesis, draft tabs, frontmatter
-    // editor) keeps receiving `document.content` unchanged. This is a
-    // single-document read — it does NOT reintroduce the list-query read
-    // amplification this migration removed.
+    // Joins the body back from `document_content` so every existing consumer
+    // of `get` (editor, AI synthesis, draft tabs, frontmatter editor) keeps
+    // receiving `document.content` unchanged. Single-document read — it does
+    // NOT reintroduce the list-query read amplification this migration removed.
     //
-    // NOTE: because the content row is a read-dependency, a LIVE
-    // subscription to this query re-runs (and re-sends the full body) on
-    // every autosave tick. Always-mounted UI must subscribe to `getMeta`
-    // instead and fetch the body one-shot — see `getMeta` below.
-    const content = await readContent(ctx, document);
-    return { ...document, content };
+    // NOTE: because the content row is a read-dependency, a LIVE subscription
+    // to this query re-runs (and re-sends the full body) on every autosave
+    // tick. Always-mounted UI must subscribe to `getMeta` instead and fetch the
+    // body one-shot — see `getMeta` below.
+    return await documentWithContentForUser(ctx, user._id, args.documentId);
   },
 });
+
+/**
+ * `get`'s ownership check and body join, with the actor passed in explicitly.
+ *
+ * Shared with the MCP handler, which cannot use `ctx.auth`: the gateway
+ * dispatches tools from inside its component, where Convex does not propagate
+ * identity. See `_lib/auth.ts → requireCaller`.
+ */
+export async function documentWithContentForUser(
+  ctx: QueryCtx,
+  userId: Id<"users">,
+  documentId: Id<"documents">,
+) {
+  const document = await verifyDocumentOwnership(ctx, documentId, userId);
+  if (document.trashedAt !== undefined) return null;
+  const content = await readContent(ctx, document);
+  return { ...document, content };
+}
+
+/** `getBySlug`'s body with the actor passed in explicitly. */
+async function documentBySlugForUser(
+  ctx: QueryCtx,
+  userId: Id<"users">,
+  projectId: Id<"projects">,
+  slug: string,
+) {
+  const project = await ctx.db.get(projectId);
+  if (!project || project.userId !== userId) return null;
+
+  const matches = await ctx.db
+    .query("documents")
+    .withIndex("by_projectId_and_slug", (q) =>
+      q.eq("projectId", projectId).eq("slug", slug),
+    )
+    .take(10);
+
+  const match = matches.find((d) => d.trashedAt === undefined);
+  if (!match) return null;
+  const content = await readContent(ctx, match);
+  return { ...match, content };
+}
+
+/** `listForLink`'s body with the actor passed in explicitly. */
+export async function documentsPageForUser(
+  ctx: QueryCtx,
+  userId: Id<"users">,
+  projectId: Id<"projects">,
+  paginationOpts: { numItems: number; cursor: string | null },
+) {
+  const empty = { page: [], isDone: true, continueCursor: "" };
+  const project = await ctx.db.get(projectId);
+  if (!project || project.userId !== userId) return empty;
+
+  const result = await ctx.db
+    .query("documents")
+    .withIndex("by_projectId_and_trashedAt", (q) =>
+      q.eq("projectId", projectId).eq("trashedAt", undefined),
+    )
+    .order("desc")
+    .paginate(paginationOpts);
+
+  return {
+    ...result,
+    page: result.page.map((doc) => ({
+      _id: doc._id,
+      title: doc.title,
+      slug: doc.slug,
+    })),
+  };
+}
 
 /**
  * Metadata-only variant of {@link get} — same ownership/trash rules, but
@@ -514,16 +674,26 @@ export const getBacklinks = query({
   handler: async (ctx, args) => {
     const user = await getAuthedUserOrNull(ctx);
     if (!user) return [];
+    return await backlinksForUser(ctx, user._id, args.documentId);
+  },
+});
 
-    const document = await ctx.db.get(args.documentId);
+/** `getBacklinks`'s body with the actor passed in explicitly. */
+export async function backlinksForUser(
+  ctx: QueryCtx,
+  userId: Id<"users">,
+  documentId: Id<"documents">,
+) {
+  {
+    const document = await ctx.db.get(documentId);
     if (!document) return [];
     const project = await ctx.db.get(document.projectId);
-    if (!project || project.userId !== user._id) return [];
+    if (!project || project.userId !== userId) return [];
 
     const edges = await ctx.db
       .query("document_links")
       .withIndex("by_targetDocumentId", (q) =>
-        q.eq("targetDocumentId", args.documentId),
+        q.eq("targetDocumentId", documentId),
       )
       .take(50);
 
@@ -547,8 +717,8 @@ export const getBacklinks = query({
     }
 
     return rows.sort((a, b) => b.updatedAt - a.updatedAt);
-  },
-});
+  }
+}
 
 /**
  * Creates a new blank document in draft status within the specified project.
@@ -573,11 +743,43 @@ export const create = mutation({
   },
   returns: v.id("documents"),
   handler: async (ctx, args) => {
-    const key = await getRateLimitKey(ctx);
-    await rateLimiter.limit(ctx, "documents:create", { key, throws: true });
-
     const user = await getCurrentUser(ctx);
+    return await createDocumentForUser(ctx, user, args);
+  },
+});
 
+/**
+ * `create`'s body with the actor passed in explicitly.
+ *
+ * Shared by the public mutation (actor from `ctx.auth`) and the MCP handler
+ * (actor injected by the gateway — component-dispatched tools have no
+ * `ctx.auth`; see `_lib/auth.ts → requireCaller`).
+ *
+ * The rate-limit key comes from `user.tokenIdentifier` rather than
+ * `getRateLimitKey(ctx)`. Same value on the web path, but it also fixes a bug
+ * the MCP path would otherwise have: `getRateLimitKey` reads `ctx.auth`, which
+ * is null under component dispatch, so it returns the literal `"anonymous"` —
+ * collapsing every MCP user's writes into one shared global bucket.
+ */
+export async function createDocumentForUser(
+  ctx: MutationCtx,
+  user: Doc<"users">,
+  args: {
+    projectId: Id<"projects">;
+    title: string;
+    slug: string;
+    status?: string;
+    tags?: string[];
+    frontmatter?: string;
+    content?: string;
+  },
+): Promise<Id<"documents">> {
+  await rateLimiter.limit(ctx, "documents:create", {
+    key: user.tokenIdentifier,
+    throws: true,
+  });
+
+  {
     const project = await ctx.db.get(args.projectId);
     if (!project) {
       throw new Error("Project not found");
@@ -631,8 +833,8 @@ export const create = mutation({
     });
 
     return documentId;
-  },
-});
+  }
+}
 
 /**
  * Partially updates a document's content, metadata, or status.
@@ -653,11 +855,39 @@ export const update = mutation({
     boardPosition: v.optional(v.number()),
   },
   returns: v.null(),
-  handler: async (ctx, args) => {
-    const key = await getRateLimitKey(ctx);
-    await rateLimiter.limit(ctx, "documents:update", { key, throws: true });
+  handler: async (ctx, args) =>
+    await updateDocumentForUser(ctx, await getCurrentUser(ctx), args),
+});
 
-    const user = await getCurrentUser(ctx);
+/**
+ * `update`'s body with the actor passed in explicitly. Shared with the MCP
+ * handler, which has no `ctx.auth` — see `_lib/auth.ts → requireCaller`.
+ *
+ * Rate-limit key comes from `user.tokenIdentifier`, not `getRateLimitKey(ctx)`:
+ * identical on the web path, but `getRateLimitKey` reads `ctx.auth` and would
+ * return the literal `"anonymous"` under component dispatch, collapsing every
+ * MCP user into one shared bucket.
+ */
+export async function updateDocumentForUser(
+  ctx: MutationCtx,
+  user: Doc<"users">,
+  args: {
+    documentId: Id<"documents">;
+    title?: string;
+    slug?: string;
+    content?: string;
+    frontmatter?: string;
+    status?: string;
+    tags?: string[];
+    boardPosition?: number;
+  },
+): Promise<null> {
+  {
+    await rateLimiter.limit(ctx, "documents:update", {
+      key: user.tokenIdentifier,
+      throws: true,
+    });
+
     const document = await verifyDocumentOwnership(
       ctx,
       args.documentId,
@@ -775,8 +1005,8 @@ export const update = mutation({
       });
     }
     return null;
-  },
-});
+  }
+}
 
 /**
  * Hot-path autosave: persists ONLY the document body to `document_content`.
@@ -882,11 +1112,22 @@ export const duplicate = mutation({
     documentId: v.id("documents"),
     title: v.string(),
   }),
-  handler: async (ctx, args) => {
-    const key = await getRateLimitKey(ctx);
-    await rateLimiter.limit(ctx, "documents:duplicate", { key, throws: true });
+  handler: async (ctx, args) =>
+    await duplicateDocumentForUser(ctx, await getCurrentUser(ctx), args),
+});
 
-    const user = await getCurrentUser(ctx);
+/** `duplicate`'s body with the actor passed in explicitly. */
+async function duplicateDocumentForUser(
+  ctx: MutationCtx,
+  user: Doc<"users">,
+  args: { documentId: Id<"documents"> },
+): Promise<{ documentId: Id<"documents">; title: string }> {
+  {
+    await rateLimiter.limit(ctx, "documents:duplicate", {
+      key: user.tokenIdentifier,
+      throws: true,
+    });
+
     const doc = await verifyDocumentOwnership(ctx, args.documentId, user._id);
 
     const now = Date.now();
@@ -929,8 +1170,8 @@ export const duplicate = mutation({
       newStatus: doc.status,
     });
     return { documentId: newId, title: newTitle };
-  },
-});
+  }
+}
 
 /**
  * Transitions a document's status. When transitioning to "published",
@@ -940,20 +1181,31 @@ export const duplicate = mutation({
  * @param args.documentId - The document to update.
  * @param args.status - The new status: "draft", "scheduled", or "published".
  */
+export const updateStatusArgs = {
+  documentId: v.id("documents"),
+  status: v.string(),
+};
+
 export const updateStatus = mutation({
-  args: {
-    documentId: v.id("documents"),
-    status: v.string(),
-  },
+  args: updateStatusArgs,
   returns: v.null(),
-  handler: async (ctx, args) => {
-    const key = await getRateLimitKey(ctx);
+  handler: async (ctx, args) =>
+    await updateStatusForUser(ctx, await getCurrentUser(ctx), args),
+});
+
+/** `updateStatus`'s body with the actor passed in explicitly. Shared with the
+ *  MCP handler, which has no `ctx.auth` — see `_lib/auth.ts → requireCaller`. */
+async function updateStatusForUser(
+  ctx: MutationCtx,
+  user: Doc<"users">,
+  args: ObjectType<typeof updateStatusArgs>,
+): Promise<null> {
+  {
     await rateLimiter.limit(ctx, "documents:updateStatus", {
-      key,
+      key: user.tokenIdentifier,
       throws: true,
     });
 
-    const user = await getCurrentUser(ctx);
     const doc = await verifyDocumentOwnership(ctx, args.documentId, user._id);
 
     const now = Date.now();
@@ -981,8 +1233,8 @@ export const updateStatus = mutation({
       });
     }
     return null;
-  },
-});
+  }
+}
 
 /**
  * Soft-deletes a document by setting `trashedAt` and cancelling any
@@ -1001,11 +1253,22 @@ export const updateStatus = mutation({
 export const remove = mutation({
   args: { documentId: v.id("documents") },
   returns: v.null(),
-  handler: async (ctx, args) => {
-    const key = await getRateLimitKey(ctx);
-    await rateLimiter.limit(ctx, "documents:remove", { key, throws: true });
+  handler: async (ctx, args) =>
+    await trashDocumentForUser(ctx, await getCurrentUser(ctx), args),
+});
 
-    const user = await getCurrentUser(ctx);
+/** `remove`'s body (soft delete) with the actor passed in explicitly. */
+export async function trashDocumentForUser(
+  ctx: MutationCtx,
+  user: Doc<"users">,
+  args: { documentId: Id<"documents"> },
+): Promise<null> {
+  {
+    await rateLimiter.limit(ctx, "documents:remove", {
+      key: user.tokenIdentifier,
+      throws: true,
+    });
+
     const document = await verifyDocumentOwnership(
       ctx,
       args.documentId,
@@ -1027,8 +1290,8 @@ export const remove = mutation({
       newStatus: null,
     });
     return null;
-  },
-});
+  }
+}
 
 /**
  * Imports a markdown file from GitHub into the project as a published document.
@@ -1221,27 +1484,17 @@ export const getBySlug = query({
     const user = await getAuthedUserOrNull(ctx);
     if (!user) return null;
 
-    const project = await ctx.db.get(args.projectId);
-    if (!project || project.userId !== user._id) {
-      return null;
-    }
-
     // O(log n) lookup on the exact slug via `by_projectId_and_slug` instead
     // of scanning up to 2000 metadata rows. Slugs aren't unique across the
     // active/trashed split (a soft-deleted doc can share a slug with its
-    // replacement), so filter trash among the handful of exact matches and
-    // join the body back only for the winner.
-    const matches = await ctx.db
-      .query("documents")
-      .withIndex("by_projectId_and_slug", (q) =>
-        q.eq("projectId", args.projectId).eq("slug", args.slug),
-      )
-      .take(10);
-
-    const match = matches.find((d) => d.trashedAt === undefined);
-    if (!match) return null;
-    const content = await readContent(ctx, match);
-    return { ...match, content };
+    // replacement), so trash is filtered among the handful of exact matches
+    // and the body joined back only for the winner.
+    return await documentBySlugForUser(
+      ctx,
+      user._id,
+      args.projectId,
+      args.slug,
+    );
   },
 });
 
@@ -1451,17 +1704,30 @@ export const moveCard = mutation({
  * Updates the tags on a document, keeping both the denormalized `tags` array
  * and the `frontmatter` JSON string in sync.
  */
-export const updateTags = mutation({
-  args: {
-    documentId: v.id("documents"),
-    tags: v.array(v.string()),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    const key = await getRateLimitKey(ctx);
-    await rateLimiter.limit(ctx, "documents:updateTags", { key, throws: true });
+export const updateTagsArgs = {
+  documentId: v.id("documents"),
+  tags: v.array(v.string()),
+};
 
-    const user = await getCurrentUser(ctx);
+export const updateTags = mutation({
+  args: updateTagsArgs,
+  returns: v.null(),
+  handler: async (ctx, args) =>
+    await updateTagsForUser(ctx, await getCurrentUser(ctx), args),
+});
+
+/** `updateTags`'s body with the actor passed in explicitly. */
+async function updateTagsForUser(
+  ctx: MutationCtx,
+  user: Doc<"users">,
+  args: ObjectType<typeof updateTagsArgs>,
+): Promise<null> {
+  {
+    await rateLimiter.limit(ctx, "documents:updateTags", {
+      key: user.tokenIdentifier,
+      throws: true,
+    });
+
     await verifyDocumentOwnership(ctx, args.documentId, user._id);
 
     const doc = await ctx.db.get(args.documentId);
@@ -1483,8 +1749,8 @@ export const updateTags = mutation({
       updatedAt: Date.now(),
     });
     return null;
-  },
-});
+  }
+}
 
 export const internalUpdateAfterPublish = internalMutation({
   args: {
@@ -1624,15 +1890,25 @@ export const getPublishHistory = query({
   handler: async (ctx, args) => {
     const user = await getAuthedUserOrNull(ctx);
     if (!user) return [];
+    return await publishHistoryForUser(ctx, user._id, args.documentId);
+  },
+});
 
-    const document = await ctx.db.get(args.documentId);
+/** `getPublishHistory`'s body with the actor passed in explicitly. */
+export async function publishHistoryForUser(
+  ctx: QueryCtx,
+  userId: Id<"users">,
+  documentId: Id<"documents">,
+) {
+  {
+    const document = await ctx.db.get(documentId);
     if (!document) return [];
     const project = await ctx.db.get(document.projectId);
-    if (!project || project.userId !== user._id) return [];
+    if (!project || project.userId !== userId) return [];
 
     const history = await ctx.db
       .query("publish_history")
-      .withIndex("by_documentId", (q) => q.eq("documentId", args.documentId))
+      .withIndex("by_documentId", (q) => q.eq("documentId", documentId))
       .order("desc")
       .take(100);
 
@@ -1647,8 +1923,8 @@ export const getPublishHistory = query({
       ...(h.isBulk !== undefined ? { isBulk: h.isBulk } : {}),
       createdAt: h.createdAt,
     }));
-  },
-});
+  }
+}
 
 const PUBLISH_SNAPSHOT = v.object({
   content: v.string(),
@@ -1732,14 +2008,21 @@ export const rollbackToVersion = mutation({
     title: v.string(),
     restoredFrom: v.number(),
   }),
-  handler: async (ctx, args) => {
-    const key = await getRateLimitKey(ctx);
+  handler: async (ctx, args) =>
+    await rollbackDocumentForUser(ctx, await getCurrentUser(ctx), args),
+});
+
+/** `rollbackToVersion`'s body with the actor passed in explicitly. */
+async function rollbackDocumentForUser(
+  ctx: MutationCtx,
+  user: Doc<"users">,
+  args: { documentId: Id<"documents">; historyId: Id<"publish_history"> },
+) {
+  {
     await rateLimiter.limit(ctx, "documents:rollbackToVersion", {
-      key,
+      key: user.tokenIdentifier,
       throws: true,
     });
-
-    const user = await getCurrentUser(ctx);
 
     const document = await ctx.db.get(args.documentId);
     if (!document) throw new Error("Document not found");
@@ -1791,8 +2074,8 @@ export const rollbackToVersion = mutation({
       title: historyEntry.titleSnapshot,
       restoredFrom: historyEntry.createdAt,
     };
-  },
-});
+  }
+}
 
 /**
  * Lightweight query for the content calendar view.
@@ -1817,14 +2100,24 @@ export const listForCalendar = query({
   handler: async (ctx, args) => {
     const user = await getAuthedUserOrNull(ctx);
     if (!user) return [];
+    return await calendarForUser(ctx, user._id, args.projectId);
+  },
+});
 
-    const project = await ctx.db.get(args.projectId);
-    if (!project || project.userId !== user._id) return [];
+/** `listForCalendar`'s body with the actor passed in explicitly. */
+export async function calendarForUser(
+  ctx: QueryCtx,
+  userId: Id<"users">,
+  projectId: Id<"projects">,
+) {
+  {
+    const project = await ctx.db.get(projectId);
+    if (!project || project.userId !== userId) return [];
 
     const documents = await ctx.db
       .query("documents")
       .withIndex("by_projectId_and_trashedAt", (q) =>
-        q.eq("projectId", args.projectId).eq("trashedAt", undefined),
+        q.eq("projectId", projectId).eq("trashedAt", undefined),
       )
       .take(500);
 
@@ -1838,8 +2131,8 @@ export const listForCalendar = query({
       updatedAt: d.updatedAt,
       createdAt: d.createdAt,
     }));
-  },
-});
+  }
+}
 
 /**
  * Cross-project calendar feed — one lean row per dated document across all
@@ -1867,10 +2160,16 @@ export const listForCalendarAllProjects = query({
   handler: async (ctx) => {
     const user = await getAuthedUserOrNull(ctx);
     if (!user) return [];
+    return await allProjectsCalendarForUser(ctx, user._id);
+  },
+});
 
+/** `listForCalendarAllProjects`'s body with the actor passed in explicitly. */
+async function allProjectsCalendarForUser(ctx: QueryCtx, userId: Id<"users">) {
+  {
     const projects = await ctx.db
       .query("projects")
-      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
       .take(25);
 
     const rows: Array<{
@@ -1910,8 +2209,8 @@ export const listForCalendarAllProjects = query({
       }
     }
     return rows;
-  },
-});
+  }
+}
 
 /**
  * Stale-content radar: published documents that haven't been touched in
@@ -1937,9 +2236,20 @@ export const listStale = query({
   handler: async (ctx, args) => {
     const user = await getAuthedUserOrNull(ctx);
     if (!user) return [];
+    return await staleDocumentsForUser(ctx, user._id, args);
+  },
+});
 
+/** `listStale`'s body with the actor passed in explicitly. Shared with the MCP
+ *  handler, which has no `ctx.auth` — see `_lib/auth.ts → requireCaller`. */
+async function staleDocumentsForUser(
+  ctx: QueryCtx,
+  userId: Id<"users">,
+  args: { projectId: Id<"projects">; olderThanMonths?: number },
+) {
+  {
     const project = await ctx.db.get(args.projectId);
-    if (!project || project.userId !== user._id) {
+    if (!project || project.userId !== userId) {
       return [];
     }
 
@@ -1965,8 +2275,8 @@ export const listStale = query({
         ...(d.publishedAt !== undefined ? { publishedAt: d.publishedAt } : {}),
         ...(d.wordCount !== undefined ? { wordCount: d.wordCount } : {}),
       }));
-  },
-});
+  }
+}
 
 /* ------------------------------------------------------------------ */
 /*  Bulk import — tracking, progress, and workpool callback             */

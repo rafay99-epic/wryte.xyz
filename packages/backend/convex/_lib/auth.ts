@@ -24,6 +24,99 @@ export function parseClerkUserId(tokenIdentifier: string): string | null {
 }
 
 /**
+ * Resolves the `users` row for an MCP caller injected by the gateway, throwing
+ * if there isn't one.
+ *
+ * ## Why this exists, and why it must only be reachable from internal functions
+ *
+ * Convex does not propagate `ctx.auth` into component code, and the MCP gateway
+ * dispatches tools from inside its component — so a tool handler sees
+ * `ctx.auth.getUserIdentity() === null` no matter how valid the caller's token
+ * was. The gateway's answer is `identityArg`: it resolves the caller host-side
+ * (where the JWT *is* validated), strips any client-supplied value for that
+ * argument, and injects the verified `{ subject, claims }` before dispatch.
+ *
+ * So `caller.subject` is trustworthy **only because of where it comes from**.
+ * Every function that accepts one must be an `internalQuery` /
+ * `internalMutation` / `internalAction`. A `caller` argument on a *public*
+ * function would be a total impersonation hole: any unauthenticated client
+ * could pass `{ subject: "user_someoneElse" }` and act as them. Nothing in the
+ * callee can distinguish a component dispatch from a browser call, so internal
+ * visibility is the enforcement mechanism.
+ *
+ * Throws (rather than returning null) because every one of the ~21 MCP handlers
+ * wants the same outcome, and the message is the actionable one: this happens
+ * when someone authorizes an agent before ever signing in on the web, since the
+ * `users` row is created by the web app's `users.getOrCreate`.
+ */
+export const NO_MCP_ACCOUNT =
+  "No Wryte account for this identity. Sign in at wryte.xyz once, then reconnect.";
+
+export async function requireCaller(
+  ctx: AuthQueryCtx,
+  caller: { subject: string },
+): Promise<Doc<"users">> {
+  const user = await ctx.db
+    .query("users")
+    .withIndex("by_clerkUserId", (q) => q.eq("clerkUserId", caller.subject))
+    .unique();
+  if (!user) throw new Error(NO_MCP_ACCOUNT);
+  return user;
+}
+
+/**
+ * Action-context twin of {@link requireCaller}. Actions have no `ctx.db`, so the
+ * lookup goes through an internal query.
+ */
+export async function requireCallerInAction(
+  ctx: ActionCtx,
+  caller: { subject: string },
+): Promise<Doc<"users">> {
+  const user = await ctx.runQuery(internal.account.users.internalGetByClerkId, {
+    clerkUserId: caller.subject,
+  });
+  if (!user) throw new Error(NO_MCP_ACCOUNT);
+  return user;
+}
+
+/**
+ * Resolves a `users` row from a Convex `tokenIdentifier` (`<iss>|<sub>`).
+ *
+ * Two lookups, in order:
+ *
+ *   1. `by_tokenIdentifier` — the exact match. Every web-app request takes
+ *      this path, so the common case is one indexed read.
+ *   2. `by_clerkUserId` — fallback keyed on the Clerk subject parsed out of
+ *      the token identifier. This exists for MCP clients: they authenticate
+ *      with a Clerk *OAuth access token* rather than a session token, and
+ *      while both carry the same `sub`, we can't assume Clerk emits a
+ *      byte-identical `iss` for both. Rather than gate the whole MCP feature
+ *      on that assumption, resolve by subject when the exact match misses.
+ *
+ * Both paths land on the same row, so a user who signed up in the browser
+ * and then connects an agent is one user, not two.
+ */
+async function resolveUser(
+  ctx: AuthQueryCtx,
+  tokenIdentifier: string,
+): Promise<Doc<"users"> | null> {
+  const exact = await ctx.db
+    .query("users")
+    .withIndex("by_tokenIdentifier", (q) =>
+      q.eq("tokenIdentifier", tokenIdentifier),
+    )
+    .unique();
+  if (exact) return exact;
+
+  const clerkUserId = parseClerkUserId(tokenIdentifier);
+  if (!clerkUserId) return null;
+  return await ctx.db
+    .query("users")
+    .withIndex("by_clerkUserId", (q) => q.eq("clerkUserId", clerkUserId))
+    .unique();
+}
+
+/**
  * Authenticates the caller and loads their `users` row. Lazily backfills
  * `clerkUserId` for legacy users so downstream Convex actions can call
  * Clerk's backend SDK without having to reparse `tokenIdentifier`.
@@ -34,12 +127,7 @@ export async function getCurrentUser(ctx: AuthDbCtx): Promise<Doc<"users">> {
     throw new Error("Not authenticated");
   }
 
-  const user = await ctx.db
-    .query("users")
-    .withIndex("by_tokenIdentifier", (q) =>
-      q.eq("tokenIdentifier", identity.tokenIdentifier),
-    )
-    .unique();
+  const user = await resolveUser(ctx, identity.tokenIdentifier);
 
   if (!user) {
     throw new Error("User not found. Please sign in first.");
@@ -73,12 +161,7 @@ export async function getAuthedUserOrNull(
 ): Promise<Doc<"users"> | null> {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) return null;
-  return await ctx.db
-    .query("users")
-    .withIndex("by_tokenIdentifier", (q) =>
-      q.eq("tokenIdentifier", identity.tokenIdentifier),
-    )
-    .unique();
+  return await resolveUser(ctx, identity.tokenIdentifier);
 }
 
 /**

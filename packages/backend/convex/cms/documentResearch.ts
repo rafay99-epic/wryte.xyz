@@ -1,6 +1,10 @@
 import { v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
-import type { DatabaseReader } from "../_generated/server";
+import type {
+  DatabaseReader,
+  MutationCtx,
+  QueryCtx,
+} from "../_generated/server";
 import { mutation, query } from "../_generated/server";
 import { getAuthedUserOrNull, getCurrentUser } from "../_lib/auth";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
@@ -35,16 +39,28 @@ export const list = query({
   handler: async (ctx, args) => {
     const user = await getAuthedUserOrNull(ctx);
     if (!user) return [];
-    await verifyDocumentOwnership(ctx, args.documentId, user._id);
+    return await researchForUser(ctx, user._id, args.documentId);
+  },
+});
+
+/** `list`'s body with the actor passed in explicitly. Shared with the MCP
+ *  handler, which has no `ctx.auth` — see `_lib/auth.ts → requireCaller`. */
+export async function researchForUser(
+  ctx: QueryCtx,
+  userId: Id<"users">,
+  documentId: Id<"documents">,
+) {
+  {
+    await verifyDocumentOwnership(ctx, documentId, userId);
 
     const items = await ctx.db
       .query("document_research")
-      .withIndex("by_documentId", (q) => q.eq("documentId", args.documentId))
+      .withIndex("by_documentId", (q) => q.eq("documentId", documentId))
       .take(200);
 
     return items.sort((a, b) => b.updatedAt - a.updatedAt);
-  },
-});
+  }
+}
 
 export const listSelectedForAi = query({
   args: { documentId: v.id("documents"), limit: v.optional(v.number()) },
@@ -73,14 +89,30 @@ export const create = mutation({
     sourceName: v.optional(v.string()),
     selectedForAi: v.optional(v.boolean()),
   },
-  handler: async (ctx, args) => {
-    const key = await getRateLimitKey(ctx);
+  handler: async (ctx, args) =>
+    await createResearchForUser(ctx, await getCurrentUser(ctx), args),
+});
+
+/** `create`'s body with the actor passed in explicitly. */
+export async function createResearchForUser(
+  ctx: MutationCtx,
+  user: Doc<"users">,
+  args: {
+    documentId: Id<"documents">;
+    type: Doc<"document_research">["type"];
+    title: string;
+    content: string;
+    url?: string;
+    sourceName?: string;
+    selectedForAi?: boolean;
+  },
+) {
+  {
     await rateLimiter.limit(ctx, "documentResearch:create", {
-      key,
+      key: user.tokenIdentifier,
       throws: true,
     });
 
-    const user = await getCurrentUser(ctx);
     const document = await verifyDocumentOwnership(
       ctx,
       args.documentId,
@@ -103,8 +135,8 @@ export const create = mutation({
       createdAt: now,
       updatedAt: now,
     });
-  },
-});
+  }
+}
 
 export const update = mutation({
   args: {
@@ -116,14 +148,30 @@ export const update = mutation({
     sourceName: v.optional(v.string()),
     selectedForAi: v.optional(v.boolean()),
   },
-  handler: async (ctx, args) => {
-    const key = await getRateLimitKey(ctx);
+  handler: async (ctx, args) =>
+    await updateResearchForUser(ctx, await getCurrentUser(ctx), args),
+});
+
+/** `update`'s body with the actor passed in explicitly. */
+export async function updateResearchForUser(
+  ctx: MutationCtx,
+  user: Doc<"users">,
+  args: {
+    researchId: Id<"document_research">;
+    type?: Doc<"document_research">["type"];
+    title?: string;
+    content?: string;
+    url?: string;
+    sourceName?: string;
+    selectedForAi?: boolean;
+  },
+) {
+  {
     await rateLimiter.limit(ctx, "documentResearch:update", {
-      key,
+      key: user.tokenIdentifier,
       throws: true,
     });
 
-    const user = await getCurrentUser(ctx);
     const item = await ctx.db.get(args.researchId);
     if (!item || item.userId !== user._id) {
       throw new Error("Research item not found");
@@ -149,8 +197,8 @@ export const update = mutation({
       updates.selectedForAi = args.selectedForAi;
 
     await ctx.db.patch(args.researchId, updates);
-  },
-});
+  }
+}
 
 export const toggleSelectedForAi = mutation({
   args: { researchId: v.id("document_research"), selectedForAi: v.boolean() },
@@ -175,18 +223,26 @@ export const toggleSelectedForAi = mutation({
 
 export const remove = mutation({
   args: { researchId: v.id("document_research") },
-  handler: async (ctx, args) => {
-    const key = await getRateLimitKey(ctx);
+  handler: async (ctx, args) =>
+    await removeResearchForUser(ctx, await getCurrentUser(ctx), args),
+});
+
+/** `remove`'s body with the actor passed in explicitly. */
+export async function removeResearchForUser(
+  ctx: MutationCtx,
+  user: Doc<"users">,
+  args: { researchId: Id<"document_research"> },
+) {
+  {
     await rateLimiter.limit(ctx, "documentResearch:remove", {
-      key,
+      key: user.tokenIdentifier,
       throws: true,
     });
 
-    const user = await getCurrentUser(ctx);
     const item = await ctx.db.get(args.researchId);
     if (!item || item.userId !== user._id) {
       throw new Error("Research item not found");
     }
     await ctx.db.delete(args.researchId);
-  },
-});
+  }
+}

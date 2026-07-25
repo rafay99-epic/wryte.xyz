@@ -14,7 +14,7 @@
 
 import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
-import type { Id } from "../_generated/dataModel";
+import type { Doc, Id } from "../_generated/dataModel";
 import type { ActionCtx } from "../_generated/server";
 import { action } from "../_generated/server";
 import { isAllowedMime, QUOTAS } from "../_lib/quotas";
@@ -38,6 +38,25 @@ import {
 } from "../providers/errors";
 
 type ActiveProvider = "github" | "uploadthing" | "cloudinary";
+
+/**
+ * Resolves the acting user from `ctx.auth` inside an action.
+ *
+ * Media actions previously used `identity.tokenIdentifier` directly for both
+ * rate limiting and the owned-project lookup. Resolving the `users` row once
+ * instead lets the same bodies be reused by the MCP handlers, which are handed
+ * an already-resolved caller because component-dispatched tools have no
+ * `ctx.auth` — see `_lib/auth.ts → requireCallerInAction`.
+ */
+async function requireUserFromAuth(ctx: ActionCtx): Promise<Doc<"users">> {
+  const identity = await ctx.auth.getUserIdentity();
+  if (!identity) throw new Error("Not authenticated");
+  const user = await ctx.runQuery(internal.account.users.internalGetByToken, {
+    tokenIdentifier: identity.tokenIdentifier,
+  });
+  if (!user) throw new Error("User not found");
+  return user;
+}
 
 function resolveActiveProvider(mode: string | undefined): ActiveProvider {
   if (mode === "uploadthing" || mode === "cloudinary" || mode === "github") {
@@ -100,18 +119,30 @@ export const upload = action({
     filename: v.string(),
     documentId: v.optional(v.id("documents")),
   },
-  handler: async (
-    ctx,
-    args,
-  ): Promise<{
-    mediaId: Id<"media">;
-    url: string;
-    provider: ActiveProvider;
-    externalId: string;
-  }> => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
-    const key = await getRateLimitKey(ctx);
+  handler: async (ctx, args) =>
+    await uploadForUser(ctx, await requireUserFromAuth(ctx), args),
+});
+
+/** `upload`'s body with the actor passed in explicitly. Shared with the MCP
+ *  handler — see `requireUserFromAuth` above. */
+async function uploadForUser(
+  ctx: ActionCtx,
+  user: Doc<"users">,
+  args: {
+    projectId: Id<"projects">;
+    bytes: ArrayBuffer;
+    mime: string;
+    filename: string;
+    documentId?: Id<"documents">;
+  },
+): Promise<{
+  mediaId: Id<"media">;
+  url: string;
+  provider: ActiveProvider;
+  externalId: string;
+}> {
+  {
+    const key = user.tokenIdentifier;
 
     // ── Cheap checks first ──
     if (args.bytes.byteLength > QUOTAS.MAX_UPLOAD_BYTES) {
@@ -146,7 +177,7 @@ export const upload = action({
     const owned = await ctx.runQuery(
       internal.media.uploadsDb._findOwnedProject,
       {
-        tokenIdentifier: identity.tokenIdentifier,
+        tokenIdentifier: user.tokenIdentifier,
         projectId: args.projectId,
       },
     );
@@ -355,8 +386,98 @@ export const upload = action({
         message: DEFAULT_MESSAGES.UNKNOWN,
       });
     }
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Upload (base64) — MCP entry point                                    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Base64 twin of {@link upload}, for callers that can't send binary.
+ *
+ * `upload` takes `v.bytes()`, which has no representation in JSON-RPC — the
+ * MCP transport is JSON, so an ArrayBuffer argument can't survive the wire.
+ * A base64 string is also a far better argument for a language model to
+ * produce than Convex's `{"$bytes": …}` envelope.
+ *
+ * Deliberately a thin decode-and-delegate rather than a second copy of the
+ * upload pipeline: provider routing, quota checks, path-traversal guards,
+ * rate limits and error normalisation all stay in exactly one place. The cost
+ * is one extra action hop per upload, which is irrelevant at media-upload
+ * frequency (single digits per minute, per the `media:upload` limit).
+ */
+export const uploadBase64 = action({
+  args: {
+    projectId: v.id("projects"),
+    base64: v.string(),
+    mime: v.string(),
+    filename: v.string(),
+    documentId: v.optional(v.id("documents")),
   },
+  handler: async (ctx, args) =>
+    await uploadBase64ForUser(ctx, await requireUserFromAuth(ctx), args),
 });
+
+/** `uploadBase64`'s body with the actor passed in explicitly. Shared with the
+ *  MCP handler — see `requireUserFromAuth` above. */
+export async function uploadBase64ForUser(
+  ctx: ActionCtx,
+  user: Doc<"users">,
+  args: {
+    projectId: Id<"projects">;
+    base64: string;
+    mime: string;
+    filename: string;
+    documentId?: Id<"documents">;
+  },
+): Promise<{
+  mediaId: Id<"media">;
+  url: string;
+  provider: ActiveProvider;
+  externalId: string;
+}> {
+  {
+    // Reject oversized payloads before decoding: base64 inflates by ~4/3, so
+    // checking the encoded length first avoids allocating a buffer we're only
+    // going to throw away. `upload` re-checks the true byte length anyway.
+    const approxBytes = Math.floor((args.base64.length * 3) / 4);
+    if (approxBytes > QUOTAS.MAX_UPLOAD_BYTES) {
+      throw new ConvexError({
+        code: "FILE_TOO_LARGE" as MediaErrorCode,
+        message: DEFAULT_MESSAGES.FILE_TOO_LARGE,
+      });
+    }
+
+    let buffer: Buffer;
+    try {
+      // `base64` is strict here: Node's decoder silently ignores invalid
+      // characters, so a truncated or mangled payload would otherwise upload
+      // as a corrupt image rather than failing loudly.
+      buffer = Buffer.from(args.base64, "base64");
+      if (buffer.length === 0) throw new Error("empty");
+    } catch {
+      throw new ConvexError({
+        code: "UNSUPPORTED_MIME" as MediaErrorCode,
+        message: "Could not decode base64 payload.",
+      });
+    }
+
+    // Calls the shared body directly rather than `ctx.runAction(api...upload)`:
+    // one fewer action hop per upload, and it works for an MCP caller, where
+    // dispatching back through a public action would lose the identity again.
+    return await uploadForUser(ctx, user, {
+      projectId: args.projectId,
+      bytes: buffer.buffer.slice(
+        buffer.byteOffset,
+        buffer.byteOffset + buffer.byteLength,
+      ) as ArrayBuffer,
+      mime: args.mime,
+      filename: args.filename,
+      ...(args.documentId !== undefined ? { documentId: args.documentId } : {}),
+    });
+  }
+}
 
 /* ------------------------------------------------------------------ */
 /*  List                                                                 */
@@ -368,23 +489,28 @@ export const list = action({
     cursor: v.optional(v.string()),
     limit: v.optional(v.number()),
   },
-  handler: async (
-    ctx,
-    args,
-  ): Promise<{
-    provider: ActiveProvider;
-    items: NormalizedListItem[];
-    nextCursor: string | null;
-  }> => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
-    const key = await getRateLimitKey(ctx);
+  handler: async (ctx, args) =>
+    await listMediaForUser(ctx, await requireUserFromAuth(ctx), args),
+});
+
+/** `list`'s body with the actor passed in explicitly. */
+export async function listMediaForUser(
+  ctx: ActionCtx,
+  user: Doc<"users">,
+  args: { projectId: Id<"projects">; cursor?: string; limit?: number },
+): Promise<{
+  provider: ActiveProvider;
+  items: NormalizedListItem[];
+  nextCursor: string | null;
+}> {
+  {
+    const key = user.tokenIdentifier;
     await rateLimiter.limit(ctx, "media:list", { key, throws: true });
 
     const owned = await ctx.runQuery(
       internal.media.uploadsDb._findOwnedProject,
       {
-        tokenIdentifier: identity.tokenIdentifier,
+        tokenIdentifier: user.tokenIdentifier,
         projectId: args.projectId,
       },
     );
@@ -481,8 +607,8 @@ export const list = action({
         message: DEFAULT_MESSAGES.UNKNOWN,
       });
     }
-  },
-});
+  }
+}
 
 /* ------------------------------------------------------------------ */
 /*  Delete                                                              */

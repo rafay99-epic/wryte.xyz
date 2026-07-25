@@ -81,9 +81,34 @@ export default defineSchema({
      * `src/lib/image-compression/defaults.ts`.
      */
     defaultCompressionSettings: v.optional(compressionSettingsValidator),
+    /**
+     * Capabilities granted to this user's MCP clients (see `convex/mcp/`).
+     *
+     * This lives here rather than in the OAuth token because Clerk does not
+     * support custom OAuth scopes yet — its `scopes_supported` is a fixed list
+     * (`openid`, `profile`, `email`, `public_metadata`, `private_metadata`,
+     * `offline_access`), so a `wryte:publish` scope cannot be issued or
+     * consented to. The token proves *identity*; this field decides
+     * *capability*.
+     *
+     * Absent means the default grant (`DEFAULT_GRANT` in `mcp/scopes.ts`:
+     * read + write). Anything with an effect outside Wryte — publishing to
+     * GitHub, spending media provider quota, moving documents to trash —
+     * must be turned on deliberately.
+     *
+     * When Clerk ships custom scopes, intersect the two rather than replacing
+     * this: a token narrower than the user's grant should still be honoured.
+     */
+    mcpScopes: v.optional(v.array(v.string())),
     createdAt: v.number(),
   })
     .index("by_tokenIdentifier", ["tokenIdentifier"])
+    // Fallback identity lookup for tokens whose issuer differs from the one
+    // that created the row — specifically Clerk OAuth access tokens from MCP
+    // clients, whose `iss` may not match the session-token issuer byte for
+    // byte. `getCurrentUser` tries `by_tokenIdentifier` first and only falls
+    // through to here. See `_lib/auth.ts`.
+    .index("by_clerkUserId", ["clerkUserId"])
     .index("by_username", ["username"]),
 
   /**
