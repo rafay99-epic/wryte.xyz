@@ -1,0 +1,20 @@
+packages/backend/tests/r2.test.ts
+  s_7d98ae3d9972f4::t_7be872aeca9c63 30,45,55
+  s_7d98ae3d9972f4::t_69b82f38bcec3a 59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "ddf1b04e2a31630b018651260de9a48bb037a7bf",
+  "prompts": {},
+  "sessions": {
+    "s_7d98ae3d9972f4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e575c576-ca70-48f6-ab70-c36e1b4efaa2",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
