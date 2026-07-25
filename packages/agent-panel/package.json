@@ -1,0 +1,22 @@
+{
+  "name": "@wryte/agent-panel",
+  "version": "1.3.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./*": "./src/*.tsx"
+  },
+  "scripts": {
+    "type": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@wryte/logic": "workspace:*",
+    "@wryte/ui": "workspace:*",
+    "lucide-react": "^1.25.0",
+    "react": "19.2.7"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.17",
+    "typescript": "^6.0.3"
+  }
+}

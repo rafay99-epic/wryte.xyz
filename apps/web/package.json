@@ -26,6 +26,7 @@
     "@tanstack/react-hotkeys": "^0.10.0",
     "@tanstack/react-query": "^5.101.2",
     "@vercel/analytics": "^2.0.1",
+    "@wryte/agent-panel": "workspace:*",
     "@wryte/backend": "workspace:*",
     "@wryte/logic": "workspace:*",
     "@wryte/ui": "workspace:*",

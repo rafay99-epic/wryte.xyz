@@ -25,6 +25,7 @@ const win = require("./src/window/window.cjs");
 const menu = require("./src/menu/menu.cjs");
 const updater = require("./src/updater/updater.cjs");
 const tray = require("./src/tray/tray.cjs");
+const harness = require("./src/harness/manager.cjs");
 
 const isMac = process.platform === "darwin";
 
@@ -149,6 +150,9 @@ if (!app.requestSingleInstanceLock()) {
 
   // ── IPC: renderer queries worker status (PIDs) ────────────────────────
   ipcMain.handle("worker-status", () => workerStatus());
+
+  // ── IPC: agent harnesses (spawn local CLIs, stream back) ──────────────
+  harness.register();
 
   // ── IPC: renderer forwards logs to the main-process logger ────────────
   ipcMain.on("log", (_event, { level, message }) => {

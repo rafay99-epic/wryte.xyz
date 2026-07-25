@@ -29,7 +29,12 @@ const nextConfig: NextConfig = {
   reactCompiler: true,
   // Workspace packages ship untranspiled TS/TSX source — Next must compile
   // them itself rather than treating them as prebuilt node_modules.
-  transpilePackages: ["@wryte/ui", "@wryte/logic", "@wryte/backend"],
+  transpilePackages: [
+    "@wryte/ui",
+    "@wryte/logic",
+    "@wryte/backend",
+    "@wryte/agent-panel",
+  ],
   experimental: {
     // Tree-shake barrel imports to per-module paths. `lucide-react` is
     // already in Next's built-in default list; `framer-motion` is not, so we

@@ -34,6 +34,13 @@ const MdxPreview = dynamic(
   { ssr: false, loading: previewLoading },
 );
 
+// Desktop-only. The panel drives local agent CLIs through the Electron preload
+// bridge, so it renders nothing (and this chunk never downloads) in a browser.
+const AgentPanel = dynamic(
+  () => import("@wryte/agent-panel/agent-panel").then((m) => m.AgentPanel),
+  { ssr: false },
+);
+
 type EditorLayoutProps = {
   documentId: string;
   projectId: string;
@@ -246,6 +253,8 @@ export function EditorLayout({
                 onClose={toggleReadabilityPanel}
               />
             )}
+
+            <AgentPanel documentId={documentId} />
           </div>
         </div>
       </div>

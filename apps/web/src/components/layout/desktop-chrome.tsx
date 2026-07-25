@@ -3,25 +3,9 @@
 import { useEffect, useState } from "react";
 import { DesktopOfflineBanner } from "@/components/layout/desktop-offline-banner";
 
-declare global {
-  interface Window {
-    wryteDesktop?: {
-      isDesktop: boolean;
-      platform: string;
-      isMac: boolean;
-      online: boolean | null;
-      onOnlineStatusChange: (cb: (online: boolean) => void) => () => void;
-      submitTask: (
-        task: string,
-        params: Record<string, unknown>,
-      ) => Promise<unknown>;
-      getWorkerStatus: () => Promise<{
-        connectivity: number | null;
-        task: number | null;
-      }>;
-    };
-  }
-}
+// `window.wryteDesktop` is declared once, in @wryte/agent-panel — it owns the
+// preload bridge contract and mirrors apps/desktop/src/window/preload.cjs.
+import "@wryte/agent-panel/desktop-agents";
 
 /**
  * Marks the document when running inside the macOS desktop shell so the site's

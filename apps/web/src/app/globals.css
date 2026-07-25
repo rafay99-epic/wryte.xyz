@@ -7,6 +7,7 @@
    automatic source detection never reaches them — declare them explicitly or
    every class used only by a shared component gets purged. */
 @source "../../../../packages/ui/src";
+@source "../../../../packages/agent-panel/src";
 @source "../../../../packages/logic/src";
 
 @custom-variant dark (&:is(.dark *));

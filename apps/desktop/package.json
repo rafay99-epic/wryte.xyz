@@ -8,7 +8,8 @@
     "pack": "electron-builder --dir",
     "dist": "electron-builder",
     "dev:pack": "WRYTE_FLAVOR=dev electron-builder --dir",
-    "dev:dist": "WRYTE_FLAVOR=dev electron-builder"
+    "dev:dist": "WRYTE_FLAVOR=dev electron-builder",
+    "test": "node tests/harness.test.cjs"
   },
   "dependencies": {
     "electron-updater": "^6.8.9"

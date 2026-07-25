@@ -68,6 +68,35 @@ const desktopAPI = {
   log: (level, message) => {
     ipcRenderer.send("log", { level, message });
   },
+
+  /**
+   * Local agent harnesses. Present only in the desktop shell — the web app
+   * feature-detects this and renders the agent panel when it exists, so a
+   * browser tab never sees (or downloads) any of it.
+   */
+  agents: {
+    /** @returns {Promise<Array<{id: string, installed: boolean, path: string | null, version: string | null}>>} */
+    probe: () => ipcRenderer.invoke("agent-probe"),
+    /** @param {string} label @returns {Promise<{sessionId: string, cwd: string}>} */
+    start: (label) => ipcRenderer.invoke("agent-start", { label }),
+    /** @param {string} sessionId @param {string} prompt */
+    send: (sessionId, prompt) =>
+      ipcRenderer.invoke("agent-send", { sessionId, prompt }),
+    /** @param {string} sessionId */
+    interrupt: (sessionId) =>
+      ipcRenderer.send("agent-interrupt", { sessionId }),
+    /** @param {string} sessionId */
+    stop: (sessionId) => ipcRenderer.send("agent-stop", { sessionId }),
+    /**
+     * Subscribe to normalized agent events. Returns an unsubscribe fn.
+     * @param {(event: Record<string, unknown>) => void} cb
+     */
+    onEvent: (cb) => {
+      const handler = (_event, payload) => cb(payload);
+      ipcRenderer.on("agent-event", handler);
+      return () => ipcRenderer.removeListener("agent-event", handler);
+    },
+  },
 };
 
 contextBridge.exposeInMainWorld("wryteDesktop", desktopAPI);
