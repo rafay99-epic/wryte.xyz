@@ -4,7 +4,6 @@
     "deploymentEnabled": false
   },
   "framework": "nextjs",
-  "installCommand": "bun install",
-  "buildCommand": "bun run build:deploy",
-  "outputDirectory": "apps/web/.next"
+  "installCommand": "cd ../.. && bun install",
+  "buildCommand": "cd ../.. && bun run build:deploy"
 }
