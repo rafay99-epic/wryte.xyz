@@ -36,6 +36,9 @@ export type DesktopAgents = {
   interrupt: (sessionId: string) => void;
   stop: (sessionId: string) => void;
   onEvent: (cb: (event: AgentEvent) => void) => () => void;
+  onToolCall?: (
+    run: (name: string, args: Record<string, unknown>) => Promise<unknown>,
+  ) => () => void;
 };
 
 /**

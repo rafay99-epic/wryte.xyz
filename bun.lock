@@ -83,8 +83,10 @@
       "name": "@wryte/agent-panel",
       "version": "1.3.0",
       "dependencies": {
+        "@wryte/backend": "workspace:*",
         "@wryte/logic": "workspace:*",
         "@wryte/ui": "workspace:*",
+        "convex": "^1.42.3",
         "lucide-react": "^1.25.0",
         "react": "19.2.7",
       },

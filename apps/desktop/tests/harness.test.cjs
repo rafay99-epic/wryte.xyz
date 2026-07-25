@@ -99,4 +99,61 @@ assert.deepEqual(
 assert.equal(normalize({ type: "rate_limit_event" }), null);
 assert.equal(normalize({ type: "stream_event", event: undefined }), null);
 
-console.log("harness: all assertions passed");
+// ── MCP dispatch: protocol shape + tool proxying ──────────────────────────
+{
+  const { McpServer, TOOLS } = require("../src/harness/mcp-server.cjs");
+  const seen = [];
+  const server = new McpServer(async (name, args) => {
+    seen.push([name, args]);
+    if (name === "get_document") throw new Error("boom");
+    return { ok: true };
+  });
+
+  const run = async () => {
+    const init = await server.dispatch({ method: "initialize" });
+    assert.equal(init.result.serverInfo.name, "wryte");
+    assert.ok(init.result.capabilities.tools, "must advertise tools");
+
+    const list = await server.dispatch({ method: "tools/list" });
+    assert.deepEqual(
+      list.result.tools.map((tool) => tool.name),
+      TOOLS.map((tool) => tool.name),
+    );
+
+    const ok = await server.dispatch({
+      method: "tools/call",
+      params: { name: "add_research", arguments: { title: "T" } },
+    });
+    assert.equal(ok.result.isError, undefined);
+    assert.deepEqual(seen[0], ["add_research", { title: "T" }]);
+
+    // A failing tool must come back as a tool result the model can read,
+    // not a JSON-RPC error that kills the turn.
+    const failed = await server.dispatch({
+      method: "tools/call",
+      params: { name: "get_document", arguments: {} },
+    });
+    assert.equal(failed.result.isError, true);
+    assert.match(failed.result.content[0].text, /boom/);
+
+    // Tools outside the declared set never reach the renderer.
+    const before = seen.length;
+    const unknown = await server.dispatch({
+      method: "tools/call",
+      params: { name: "delete_everything", arguments: {} },
+    });
+    assert.equal(unknown.error.code, -32602);
+    assert.equal(seen.length, before, "unknown tool must not be proxied");
+
+    const bad = await server.dispatch({ method: "nope" });
+    assert.equal(bad.error.code, -32601);
+  };
+
+  run().then(
+    () => console.info("harness: all assertions passed"),
+    (error) => {
+      console.error(error);
+      process.exit(1);
+    },
+  );
+}

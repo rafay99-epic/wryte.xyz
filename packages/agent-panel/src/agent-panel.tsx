@@ -18,15 +18,28 @@ import {
   type HarnessInfo,
   useDesktopAgents,
 } from "./desktop-agents";
+import { useAgentTools } from "./use-agent-tools";
 
 type Turn = {
   id: number;
   prompt: string;
   assistant: string;
   reasoning: string;
-  tools: string[];
+  /** What the agent actually did to the app, in order. */
+  actions: string[];
   running: boolean;
   error: string | null;
+};
+
+/** Tool names the user shouldn't have to read as `mcp__wryte__add_research`. */
+const ACTION_LABELS: Record<string, string> = {
+  mcp__wryte__get_document: "Read your document",
+  mcp__wryte__update_document: "Edited your document",
+  mcp__wryte__create_draft: "Created a draft",
+  mcp__wryte__add_research: "Filed research",
+  mcp__wryte__search_documents: "Searched your writing",
+  WebSearch: "Searched the web",
+  WebFetch: "Read a page",
 };
 
 /**
@@ -55,6 +68,21 @@ export function AgentPanel({
 
   const running = turns.some((turn) => turn.running);
 
+  // Tool calls arrive from main and execute here, against Convex.
+  useAgentTools({
+    documentId,
+    onToolResult: (_name, summary) => {
+      setTurns((current) => {
+        const index = current.findIndex((turn) => turn.running);
+        const turn = index === -1 ? undefined : current[index];
+        if (!turn) return current;
+        const next = [...current];
+        next[index] = { ...turn, actions: [...turn.actions, summary] };
+        return next;
+      });
+    },
+  });
+
   useEffect(() => {
     if (!agents || !open || harnesses) return;
     void agents.probe().then(setHarnesses);
@@ -78,9 +106,14 @@ export function AgentPanel({
                 ? { ...turn, assistant: turn.assistant + event.text }
                 : { ...turn, reasoning: turn.reasoning + event.text };
             break;
-          case "tool.started":
-            next[index] = { ...turn, tools: [...turn.tools, event.name] };
+          case "tool.started": {
+            // Wryte tools report their own outcome via onToolResult, which is
+            // more specific than the bare name. Only label the rest.
+            if (event.name.startsWith("mcp__wryte__")) return current;
+            const label = ACTION_LABELS[event.name] ?? event.name;
+            next[index] = { ...turn, actions: [...turn.actions, label] };
             break;
+          }
           case "turn.completed":
             next[index] = {
               ...turn,
@@ -126,7 +159,7 @@ export function AgentPanel({
         prompt,
         assistant: "",
         reasoning: "",
-        tools: [],
+        actions: [],
         running: true,
         error: null,
       },
@@ -195,8 +228,9 @@ export function AgentPanel({
       >
         {turns.length === 0 && (
           <p className="text-muted-foreground text-sm">
-            Ask for research, an outline, a rewrite. Read-only for now — it can
-            look and suggest, but it cannot edit files, commit, or push.
+            It can read and edit this document, create drafts, file research
+            into the research panel, and search your earlier writing. It cannot
+            publish, schedule, commit, or push — those stay yours.
           </p>
         )}
 
@@ -228,13 +262,13 @@ export function AgentPanel({
               </div>
             )}
 
-            {turn.tools.map((tool, index) => (
+            {turn.actions.map((action, index) => (
               <p
-                key={`${turn.id}-${tool}-${index}`}
-                className="flex items-center gap-1.5 font-mono text-muted-foreground text-xs"
+                key={`${turn.id}-${action}-${index}`}
+                className="flex items-center gap-1.5 text-primary text-xs"
               >
-                <Wrench className="size-3" />
-                {tool}
+                <Wrench className="size-3 shrink-0" />
+                {action}
               </p>
             ))}
 

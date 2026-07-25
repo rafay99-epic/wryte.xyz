@@ -96,6 +96,28 @@ const desktopAPI = {
       ipcRenderer.on("agent-event", handler);
       return () => ipcRenderer.removeListener("agent-event", handler);
     },
+    /**
+     * Register the executor for agent tool calls. Main proxies every call here
+     * because Convex auth lives in the renderer, not in main.
+     * @param {(name: string, args: Record<string, unknown>) => Promise<unknown>} run
+     */
+    onToolCall: (run) => {
+      const handler = (_event, { callId, name, args }) => {
+        Promise.resolve()
+          .then(() => run(name, args))
+          .then(
+            (result) =>
+              ipcRenderer.send("agent-tool-result", { callId, result }),
+            (error) =>
+              ipcRenderer.send("agent-tool-result", {
+                callId,
+                error: error?.message ?? String(error),
+              }),
+          );
+      };
+      ipcRenderer.on("agent-tool-call", handler);
+      return () => ipcRenderer.removeListener("agent-tool-call", handler);
+    },
   },
 };
 

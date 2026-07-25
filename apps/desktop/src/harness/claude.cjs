@@ -86,12 +86,14 @@ function normalize(msg) {
  */
 class ClaudeSession {
   /**
-   * @param {{ cwd: string, onEvent: (event: any) => void }} options
+   * @param {{ cwd: string, onEvent: (event: any) => void, mcpConfig?: string, systemPrompt?: string }} options
    */
-  constructor({ cwd, onEvent }) {
+  constructor({ cwd, onEvent, mcpConfig, systemPrompt }) {
     this.id = randomUUID();
     this.cwd = cwd;
     this.onEvent = onEvent;
+    this.mcpConfig = mcpConfig ?? null;
+    this.systemPrompt = systemPrompt ?? null;
     this.child = null;
     this.started = false;
   }
@@ -123,11 +125,22 @@ class ClaudeSession {
       "stream-json",
       "--include-partial-messages",
       "--verbose",
-      // Read-only for now. The agent can research and draft, but cannot edit
-      // files, commit, or push. Widening this is a deliberate later step, not
-      // a default.
-      "--permission-mode",
-      "plan",
+      // Print mode has nobody to ask, so every tool the agent may use has to be
+      // pre-approved. The Wryte tools operate the app; Read/Grep/Glob and web
+      // access let it research. Everything else stays off.
+      "--allowedTools",
+      "mcp__wryte,Read,Grep,Glob,WebSearch,WebFetch,TodoWrite",
+      // Belt and braces: no shell, no filesystem writes, no git. The workspace
+      // has no remote either, so pushing is not merely denied, it is absent.
+      "--disallowedTools",
+      "Bash,Write,Edit,NotebookEdit",
+      ...(this.mcpConfig
+        ? ["--mcp-config", this.mcpConfig, "--strict-mcp-config"]
+        : []),
+      // Only on the first turn — a resumed session already carries it.
+      ...(this.systemPrompt && !this.started
+        ? ["--append-system-prompt", this.systemPrompt]
+        : []),
       ...(this.started ? ["--resume", this.id] : ["--session-id", this.id]),
     ];
 
