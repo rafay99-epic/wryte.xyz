@@ -65,17 +65,14 @@ jobs:
 
           # Website-affecting changes: src, public assets, deps, configs.
           if git diff --name-only "$BASE" HEAD -- \
-              'src/' \
-              'public/' \
+              'apps/web/' \
+              'packages/' \
               'package.json' \
               'bun.lock' \
               'patches/' \
-              'next.config.*' \
-              'tsconfig.json' \
+              'turbo.json' \
+              'tsconfig.base.json' \
               'biome.json' \
-              'postcss.config.*' \
-              'tailwind.config.*' \
-              '*.config.*' \
               '.github/workflows/ci-cd.yml' | grep -q .; then
             echo "src_changed=true" >> "$GITHUB_OUTPUT"
           else
@@ -84,12 +81,11 @@ jobs:
 
           # Desktop-affecting changes: electron source, build resources, deps, builder config.
           if git diff --name-only "$BASE" HEAD -- \
-              'electron/' \
-              'build/' \
+              'apps/desktop/' \
               'package.json' \
               'bun.lock' \
               'patches/' \
-              'electron-builder.js' \
+              'turbo.json' \
               '.github/workflows/ci-cd.yml' | grep -q .; then
             echo "electron_changed=true" >> "$GITHUB_OUTPUT"
           else
@@ -180,7 +176,7 @@ jobs:
           # Tag must be exactly v${VERSION}: electron-builder derives its GitHub
           # release tag from the app version, and the cask downloads from
           # .../releases/download/v${version}/Wryte.dmg.
-          MM=$(jq -r '.version' package.json | cut -d. -f1,2)
+          MM=$(jq -r '.version' apps/desktop/package.json | cut -d. -f1,2)
           VERSION="${MM}.${GITHUB_RUN_NUMBER}"
           TAG="v${VERSION}"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
@@ -221,13 +217,14 @@ jobs:
           node-version: 22
 
       - run: bun install --frozen-lockfile
-      - run: node node_modules/electron/install.js
+      - run: node apps/desktop/node_modules/electron/install.js
 
       - name: Build & upload to draft release
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           WRYTE_VERSION: ${{ needs.prepare-release.outputs.version }}
+        working-directory: apps/desktop
         run: bunx electron-builder --publish always
 
   # ── PATH B: Publish release + bump Homebrew cask ─────────────────────

@@ -1,0 +1,36 @@
+import { api } from "@wryte/backend/_generated/api";
+import { useAction } from "convex/react";
+import { useCallback, useState } from "react";
+import { toast } from "sonner";
+
+export function useGithubTokenInput() {
+  const updateGithubToken = useAction(api.account.users.updateGithubToken);
+  const [token, setToken] = useState("");
+  const [showToken, setShowToken] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSave = useCallback(async () => {
+    if (!token.trim()) {
+      toast.error("Token is required");
+      return;
+    }
+    setIsSaving(true);
+    try {
+      await updateGithubToken({ token: token.trim() });
+      toast.success("GitHub token saved");
+    } catch {
+      toast.error("Failed to save token");
+    } finally {
+      setIsSaving(false);
+    }
+  }, [token, updateGithubToken]);
+
+  return {
+    token,
+    setToken,
+    showToken,
+    setShowToken,
+    isSaving,
+    handleSave,
+  };
+}

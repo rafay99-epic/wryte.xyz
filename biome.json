@@ -9,11 +9,13 @@
     "ignoreUnknown": true,
     "includes": [
       "**",
-      "!node_modules",
-      "!.next",
-      "!dist",
-      "!build",
-      "!convex/_generated"
+      "!**/node_modules",
+      "!**/.next",
+      "!**/.turbo",
+      "!**/dist",
+      "!**/dist-dev",
+      "!apps/desktop/build",
+      "!packages/backend/convex/_generated"
     ]
   },
   "css": {

@@ -1,0 +1,50 @@
+{
+  "name": "@wryte/backend",
+  "version": "1.3.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./_generated/api": {
+      "types": "./convex/_generated/api.d.ts",
+      "default": "./convex/_generated/api.js"
+    },
+    "./_generated/server": {
+      "types": "./convex/_generated/server.d.ts",
+      "default": "./convex/_generated/server.js"
+    },
+    "./_generated/dataModel": "./convex/_generated/dataModel.d.ts",
+    "./*": "./convex/*.ts"
+  },
+  "scripts": {
+    "dev": "convex dev",
+    "dev:local": "convex dev --local",
+    "deploy": "convex deploy --cmd-url-env-var-name NEXT_PUBLIC_CONVEX_URL --cmd 'cd ../../apps/web && bun run build'",
+    "type": "tsc --noEmit -p convex/tsconfig.json",
+    "test": "bun test tests"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.110.0",
+    "@clerk/backend": "^3.11.7",
+    "@convex-dev/persistent-text-streaming": "^0.3.3",
+    "@convex-dev/rate-limiter": "^0.3.2",
+    "@convex-dev/resend": "^0.2.5",
+    "@convex-dev/workflow": "^0.4.4",
+    "@convex-dev/workpool": "^0.4.8",
+    "@google/genai": "^2.12.0",
+    "@octokit/rest": "^22.0.1",
+    "@workos-inc/node": "^10.8.0",
+    "cloudinary": "^2.10.0",
+    "convex": "^1.42.3",
+    "openai": "^6.48.0",
+    "remark-mdx": "^3.1.1",
+    "remark-parse": "^11.0.0",
+    "smol-toml": "^1.7.0",
+    "unified": "^11.0.5",
+    "unist-util-visit": "^5.1.0",
+    "uploadthing": "^7.7.4"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.5",
+    "typescript": "^6.0.3"
+  }
+}
