@@ -8,11 +8,12 @@
 import { type WorkflowId, WorkflowManager } from "@convex-dev/workflow";
 import { v } from "convex/values";
 import { components, internal } from "../_generated/api";
-import type { Id } from "../_generated/dataModel";
+import type { Doc, Id } from "../_generated/dataModel";
+import type { MutationCtx } from "../_generated/server";
 import { internalMutation, mutation, query } from "../_generated/server";
 import { getAuthedUserOrNull, getCurrentUser } from "../_lib/auth";
 import { scheduleStatusChange } from "../_lib/projectStats";
-import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
+import { rateLimiter } from "../_lib/rateLimits";
 
 /* ------------------------------------------------------------------ */
 /*  Workflow manager                                                    */
@@ -145,11 +146,26 @@ export const schedule = mutation({
     scheduledAt: v.number(),
     socialPostText: v.optional(v.string()),
   },
-  handler: async (ctx, args) => {
-    const key = await getRateLimitKey(ctx);
-    await rateLimiter.limit(ctx, "scheduling:schedule", { key, throws: true });
+  handler: async (ctx, args) =>
+    await scheduleForUser(ctx, await getCurrentUser(ctx), args),
+});
 
-    const user = await getCurrentUser(ctx);
+/** `schedule`'s body with the actor passed in explicitly. Shared with the MCP
+ *  handler, which has no `ctx.auth` — see `_lib/auth.ts → requireCaller`. */
+export async function scheduleForUser(
+  ctx: MutationCtx,
+  user: Doc<"users">,
+  args: {
+    documentId: Id<"documents">;
+    scheduledAt: number;
+    socialPostText?: string;
+  },
+) {
+  {
+    await rateLimiter.limit(ctx, "scheduling:schedule", {
+      key: user.tokenIdentifier,
+      throws: true,
+    });
 
     const document = await ctx.db.get(args.documentId);
     if (!document) {
@@ -256,8 +272,8 @@ export const schedule = mutation({
       oldStatus,
       newStatus: "scheduled",
     });
-  },
-});
+  }
+}
 
 /**
  * Cancels all pending scheduled publishes for a document and reverts its
@@ -269,11 +285,21 @@ export const schedule = mutation({
  */
 export const cancel = mutation({
   args: { documentId: v.id("documents") },
-  handler: async (ctx, args) => {
-    const key = await getRateLimitKey(ctx);
-    await rateLimiter.limit(ctx, "scheduling:cancel", { key, throws: true });
+  handler: async (ctx, args) =>
+    await cancelScheduleForUser(ctx, await getCurrentUser(ctx), args),
+});
 
-    const user = await getCurrentUser(ctx);
+/** `cancel`'s body with the actor passed in explicitly. */
+export async function cancelScheduleForUser(
+  ctx: MutationCtx,
+  user: Doc<"users">,
+  args: { documentId: Id<"documents"> },
+) {
+  {
+    await rateLimiter.limit(ctx, "scheduling:cancel", {
+      key: user.tokenIdentifier,
+      throws: true,
+    });
 
     const document = await ctx.db.get(args.documentId);
     if (!document) {
@@ -324,8 +350,8 @@ export const cancel = mutation({
       oldStatus: "scheduled",
       newStatus: "draft",
     });
-  },
-});
+  }
+}
 
 /* ------------------------------------------------------------------ */
 /*  Internal mutations (used by workflow steps)                         */

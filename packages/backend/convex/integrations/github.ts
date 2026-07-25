@@ -19,7 +19,7 @@ import { Octokit } from "@octokit/rest";
 import { v } from "convex/values";
 import { stringify as stringifyToml } from "smol-toml";
 import { internal } from "../_generated/api";
-import type { Id } from "../_generated/dataModel";
+import type { Doc, Id } from "../_generated/dataModel";
 import type { ActionCtx } from "../_generated/server";
 import { action, internalAction } from "../_generated/server";
 import {
@@ -1045,13 +1045,39 @@ export const publish = action({
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    const key = await getRateLimitKey(ctx);
-    await rateLimiter.limit(ctx, "github:publish", { key, throws: true });
-
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Not authenticated");
-    }
+    if (!identity) throw new Error("Not authenticated");
+    const user = await ctx.runQuery(internal.account.users.internalGetByToken, {
+      tokenIdentifier: identity.tokenIdentifier,
+    });
+    if (!user) throw new Error("User not found");
+    return await publishForUser(ctx, user, args);
+  },
+});
+
+/**
+ * `publish`'s body with the actor passed in explicitly. Shared with the MCP
+ * handler: component-dispatched tools have no `ctx.auth`, so the caller is
+ * resolved host-side and injected — see `_lib/auth.ts → requireCallerInAction`.
+ *
+ * Ownership is checked against `project.userId` rather than by comparing
+ * `tokenIdentifier` strings; same guarantee, and it works for a caller resolved
+ * by Clerk subject instead of by session token.
+ */
+export async function publishForUser(
+  ctx: ActionCtx,
+  user: Doc<"users">,
+  args: {
+    documentId: Id<"documents">;
+    commitMessage?: string;
+    socialPostText?: string;
+  },
+): Promise<null> {
+  {
+    await rateLimiter.limit(ctx, "github:publish", {
+      key: user.tokenIdentifier,
+      throws: true,
+    });
 
     const document = await ctx.runQuery(internal.cms.documents.internalGet, {
       documentId: args.documentId,
@@ -1067,14 +1093,7 @@ export const publish = action({
       throw new Error("Project not found");
     }
 
-    const user = await ctx.runQuery(internal.account.users.internalGet, {
-      userId: project.userId,
-    });
-    if (!user) {
-      throw new Error("User not found");
-    }
-
-    if (user.tokenIdentifier !== identity.tokenIdentifier) {
+    if (project.userId !== user._id) {
       throw new Error("Unauthorized: you do not own this document");
     }
 
@@ -1092,8 +1111,8 @@ export const publish = action({
       }),
     });
     return null;
-  },
-});
+  }
+}
 
 /**
  * Bulk publish multiple documents to GitHub in a single atomic commit.

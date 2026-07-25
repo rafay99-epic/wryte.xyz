@@ -5,6 +5,8 @@
  * here) so document-creation side effects stay in one place.
  */
 import { v } from "convex/values";
+import type { Doc, Id } from "../_generated/dataModel";
+import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { mutation, query } from "../_generated/server";
 import { getAuthedUserOrNull, getCurrentUser } from "../_lib/auth";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
@@ -18,18 +20,26 @@ export const list = query({
   handler: async (ctx, args) => {
     const user = await getAuthedUserOrNull(ctx);
     if (!user) return [];
-
-    const project = await ctx.db.get(args.projectId);
-    if (!project || project.userId !== user._id) return [];
-
-    const ideas = await ctx.db
-      .query("ideas")
-      .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
-      .order("desc")
-      .take(MAX_IDEAS_PER_PROJECT);
-    return ideas;
+    return await ideasForUser(ctx, user._id, args.projectId);
   },
 });
+
+/** `list`'s body with the actor passed in explicitly. Shared with the MCP
+ *  handler, which has no `ctx.auth` — see `_lib/auth.ts → requireCaller`. */
+async function ideasForUser(
+  ctx: QueryCtx,
+  userId: Id<"users">,
+  projectId: Id<"projects">,
+) {
+  const project = await ctx.db.get(projectId);
+  if (!project || project.userId !== userId) return [];
+
+  return await ctx.db
+    .query("ideas")
+    .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+    .order("desc")
+    .take(MAX_IDEAS_PER_PROJECT);
+}
 
 export const create = mutation({
   args: {
@@ -37,11 +47,22 @@ export const create = mutation({
     title: v.string(),
     note: v.optional(v.string()),
   },
-  handler: async (ctx, args) => {
-    const key = await getRateLimitKey(ctx);
-    await rateLimiter.limit(ctx, "ideas:create", { key, throws: true });
+  handler: async (ctx, args) =>
+    await createIdeaForUser(ctx, await getCurrentUser(ctx), args),
+});
 
-    const user = await getCurrentUser(ctx);
+/** `create`'s body with the actor passed in explicitly. */
+async function createIdeaForUser(
+  ctx: MutationCtx,
+  user: Doc<"users">,
+  args: { projectId: Id<"projects">; title: string; note?: string },
+) {
+  {
+    await rateLimiter.limit(ctx, "ideas:create", {
+      key: user.tokenIdentifier,
+      throws: true,
+    });
+
     const project = await ctx.db.get(args.projectId);
     if (!project || project.userId !== user._id) {
       throw new Error("Unauthorized: you do not own this project");
@@ -59,8 +80,8 @@ export const create = mutation({
       ...(note ? { note } : {}),
       createdAt: Date.now(),
     });
-  },
-});
+  }
+}
 
 export const remove = mutation({
   args: { ideaId: v.id("ideas") },

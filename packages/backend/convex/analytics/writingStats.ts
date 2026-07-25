@@ -1,5 +1,6 @@
 import { v } from "convex/values";
-import type { MutationCtx } from "../_generated/server";
+import type { Id } from "../_generated/dataModel";
+import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { internalMutation, mutation, query } from "../_generated/server";
 import { getAuthedUserOrNull, getCurrentUser } from "../_lib/auth";
 import {
@@ -21,15 +22,25 @@ export const getDashboardStats = query({
   handler: async (ctx) => {
     const user = await getAuthedUserOrNull(ctx);
     if (!user) return null;
+    return await dashboardStatsForUser(ctx, user._id);
+  },
+});
 
+/** `getDashboardStats`'s body with the actor passed in explicitly. Shared with
+ *  the MCP handler, which has no `ctx.auth` — see `_lib/auth.ts`. */
+export async function dashboardStatsForUser(
+  ctx: QueryCtx,
+  userId: Id<"users">,
+) {
+  {
     const writingStats = await ctx.db
       .query("writing_stats")
-      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
       .unique();
 
     const allProjectStats = await ctx.db
       .query("project_stats")
-      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
       .take(100);
 
     let totalDrafts = 0;
@@ -73,7 +84,7 @@ export const getDashboardStats = query({
 
     const projects = await ctx.db
       .query("projects")
-      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
       .take(100);
     const projectMap = new Map(projects.map((p) => [p._id.toString(), p.name]));
 
@@ -105,8 +116,8 @@ export const getDashboardStats = query({
         publishedCount: ps.publishedCount,
       })),
     };
-  },
-});
+  }
+}
 
 /**
  * Lean per-user stats for the editor toolbar: today's words, streak, and

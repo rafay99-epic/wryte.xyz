@@ -51,4 +51,24 @@ crons.cron(
   internal.ai.aiStreams._cleanupOwners,
 );
 
+/**
+ * MCP gateway retention. Hourly, not daily: both tables grow with agent
+ * traffic rather than with user count, and a daily tick would let a busy day
+ * accumulate a backlog that takes many chained mutations to drain. Cheap when
+ * there's nothing to do (one bounded indexed read), so frequency costs little.
+ *
+ * Offset from each other and off the hour so they never contend with the
+ * 03:00–03:30 cleanup block above.
+ */
+crons.cron(
+  "mcp:prune-audit",
+  "10 * * * *",
+  internal.mcp.maintenance.pruneAudit,
+);
+crons.cron(
+  "mcp:prune-sessions",
+  "40 * * * *",
+  internal.mcp.maintenance.pruneSessions,
+);
+
 export default crons;
