@@ -1,0 +1,31 @@
+packages/logic/package.json
+  s_9210e140928bca::t_b123ba6074a22d 3
+packages/backend/package.json
+  s_9210e140928bca::t_b123ba6074a22d 3
+packages/ui/package.json
+  s_9210e140928bca::t_b123ba6074a22d 3
+apps/web/package.json
+  s_9210e140928bca::t_b123ba6074a22d 3
+package.json
+  s_9210e140928bca::t_b123ba6074a22d 3
+packages/backend/convex/_seed/changelog.ts
+  s_9210e140928bca::t_b123ba6074a22d 1710-1735
+apps/desktop/package.json
+  s_9210e140928bca::t_b123ba6074a22d 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "adeb158945899de0844282ffadf65b39ebf76fcb",
+  "prompts": {},
+  "sessions": {
+    "s_9210e140928bca": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f9f56-ac81-7cc0-adc0-dafc41d3bf55",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
