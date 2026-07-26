@@ -23,6 +23,36 @@ export function buildExcerpt(content: string): string {
     : content;
 }
 
+/** Characters of body context kept on each side of the first matched term. */
+const SNIPPET_RADIUS = 90;
+
+/**
+ * Body excerpt centred on the first query term, for the command palette's
+ * content-search rows. Keeps the wire payload at ~200 characters per hit so
+ * article bodies stay on the server even though the search had to read them.
+ *
+ * The last term of a Convex search expression is prefix-matched, so a hit can
+ * legitimately have no literal `indexOf` match (searching "deplo" matches
+ * "deployment"). Falling back to offset 0 then yields the article's opening,
+ * which is a useful excerpt rather than an empty string.
+ */
+export function extractSnippet(content: string, term: string): string {
+  const haystack = content.toLowerCase();
+  const firstHit =
+    term
+      .toLowerCase()
+      .split(/\s+/)
+      .map((token) => haystack.indexOf(token))
+      .filter((index) => index >= 0)
+      .sort((a, b) => a - b)[0] ?? 0;
+
+  const start = Math.max(0, firstHit - SNIPPET_RADIUS);
+  const end = Math.min(content.length, firstHit + SNIPPET_RADIUS);
+  const body = content.slice(start, end).replace(/\s+/g, " ").trim();
+
+  return `${start > 0 ? "…" : ""}${body}${end < content.length ? "…" : ""}`;
+}
+
 /**
  * Reads a document's body given the document row. Uses the denormalized
  * `contentId` pointer when present (direct `get`, no index lookup), else

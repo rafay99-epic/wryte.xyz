@@ -4,17 +4,16 @@ import { api } from "@wryte/backend/_generated/api";
 import { splitShortcutKeys } from "@wryte/logic/lib/shortcuts";
 import { cn } from "@wryte/logic/lib/utils";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
-import { useSearchStore } from "@wryte/logic/stores/search-store";
 import { useShortcutsStore } from "@wryte/logic/stores/shortcuts-store";
 import { useThemeStore } from "@wryte/logic/stores/theme-store";
 import { Kbd, KbdGroup } from "@wryte/ui/kbd";
 import { useQuery } from "convex/react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
+  FileSearch,
   FileText,
   FolderOpen,
   Home,
-  Keyboard,
   Layout,
   Moon,
   Palette,
@@ -36,6 +35,10 @@ import {
 } from "react";
 import { getRecentDocOpens, openBoost, recordDocOpen } from "./lib/frecency";
 import { scoreItem } from "./lib/fuzzy";
+import {
+  accountSettingsEntries,
+  projectSettingsEntries,
+} from "./lib/settings-index";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -54,7 +57,7 @@ type CommandItem = {
   /** When true, pass fill="currentColor" (e.g. favorite star). */
   iconFilled?: boolean | undefined;
   shortcutId?: string | undefined;
-  category: "action" | "project" | "article" | "navigation";
+  category: "action" | "project" | "article" | "navigation" | "setting";
   /** 0..1 freshness for articles — small ranking boost, newest wins ties. */
   recency?: number | undefined;
   /** Position in the recently-opened list (0 = last opened), if present. */
@@ -74,7 +77,11 @@ type CommandPaletteProps = {
 
 type Category = CommandItem["category"];
 
-/** Display order of category sections when the query is empty. */
+/**
+ * Display order of category sections when the query is empty. Settings panes
+ * are searchable but not listed at rest — 21 rows of them would bury the
+ * projects and recent articles the idle view exists to surface.
+ */
 const CATEGORY_ORDER: readonly Category[] = [
   "action",
   "navigation",
@@ -87,6 +94,7 @@ const CATEGORY_LABELS: Record<Category, string> = {
   navigation: "Navigation",
   project: "Projects",
   article: "Recent Articles",
+  setting: "Settings",
 };
 
 /** Articles shown in the idle (empty-query) state. */
@@ -94,6 +102,19 @@ const IDLE_ARTICLE_COUNT = 10;
 
 /** Result rows kept after ranking — beyond this nobody scrolls. */
 const MAX_RESULTS = 50;
+
+/**
+ * Debounce before a body search reaches the server. Matches the `[[` link
+ * menu, and keeps "performance" at one query instead of eleven.
+ */
+const CONTENT_SEARCH_DEBOUNCE_MS = 200;
+
+/**
+ * Minimum query length for a body search. Below this the index returns noise
+ * and the client-side tiers already answer instantly. Mirrored server-side in
+ * `cms/documents.searchContent`.
+ */
+const MIN_CONTENT_TERM = 3;
 
 // ---------------------------------------------------------------------------
 // Component
@@ -125,6 +146,11 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   // then the subscriptions stay warm for instant reopens. The document
   // catalog is one metadata-only query; every keystroke after that is
   // matched client-side and costs zero Convex calls.
+  //
+  // Body search is the one exception: article bodies live in a separate table
+  // so hot queries never read them, so they can only be searched server-side.
+  // That query is therefore debounced, length-gated, and capped — see
+  // `cms/documents.searchContent`.
   // ---------------------------------------------------------------------------
 
   const [activated, setActivated] = useState(false);
@@ -137,6 +163,30 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     api.cms.documents.listPalette,
     activated ? {} : "skip",
   );
+
+  // Debounced mirror of `query` — each distinct value is a distinct Convex
+  // subscription, so this is what keeps a fast typist from opening a dozen.
+  const [contentTerm, setContentTerm] = useState("");
+  useEffect(() => {
+    const trimmed = query.trim();
+    if (trimmed.length < MIN_CONTENT_TERM) {
+      setContentTerm("");
+      return;
+    }
+    const id = setTimeout(
+      () => setContentTerm(trimmed),
+      CONTENT_SEARCH_DEBOUNCE_MS,
+    );
+    return () => clearTimeout(id);
+  }, [query]);
+
+  // Unscoped on purpose: the palette searches every project the user owns.
+  const contentHits = useQuery(
+    api.cms.documents.searchContent,
+    activated && contentTerm ? { term: contentTerm } : "skip",
+  );
+  /** True while a body search is in flight for the current query. */
+  const contentPending = Boolean(contentTerm) && contentHits === undefined;
 
   const projectNames = useMemo(() => {
     const map = new Map<string, string>();
@@ -270,18 +320,32 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       },
     });
 
-    items.push({
-      id: "action-keyboard-shortcuts",
-      label: "Keyboard Shortcuts",
-      description: "View and customize shortcuts",
-      keywords: "keys hotkeys bindings",
-      icon: Keyboard,
-      category: "navigation",
-      onSelect: () => {
-        close();
-        router.push("/settings#shortcuts");
-      },
-    });
+    // Settings panes — every account pane, plus the active project's panes.
+    // Derived from the arrays the settings shells themselves render from, so
+    // "api key", "watermark", or "delete account" all land on a real pane.
+    const settingsEntries = [
+      ...accountSettingsEntries(),
+      ...(activeProjectId
+        ? projectSettingsEntries(
+            activeProjectId,
+            projectNames.get(activeProjectId) ?? "project",
+          )
+        : []),
+    ];
+    for (const entry of settingsEntries) {
+      items.push({
+        id: entry.id,
+        label: entry.label,
+        description: entry.group,
+        keywords: entry.keywords,
+        icon: entry.icon,
+        category: "setting",
+        onSelect: () => {
+          close();
+          router.push(entry.href);
+        },
+      });
+    }
 
     // Projects
     if (projects) {
@@ -385,41 +449,35 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       scored.sort((a, b) => b.score - a.score);
       const results = scored.slice(0, MAX_RESULTS).map((s) => s.item);
 
-      // Escape hatch into full-text search: titles/slugs/tags live in the
-      // palette, bodies don't — hand the query to the project's content
-      // search instead of paying for a server-side body index.
-      if (activeProjectId) {
-        results.push({
-          id: "action-deep-search",
-          label: `Search content for "${trimmed}"`,
-          description: `Full-text search in ${
-            projectNames.get(activeProjectId) ?? "current project"
-          }`,
-          icon: Search,
-          category: "action",
-          onSelect: () => {
-            onOpenChange(false);
-            useSearchStore.getState().setPendingQuery({
-              projectId: activeProjectId,
-              query: trimmed,
-            });
-            router.push(`/projects/${activeProjectId}/articles`);
-          },
-        });
-      }
-
       sections = results.length ? [{ label: "Results", items: results }] : [];
+
+      // Body matches, as their own section below the client-ranked list. The
+      // two orderings are deliberately NOT merged: BM25 relevance and the
+      // fuzzy score aren't comparable numbers, and blending them would make
+      // the top row jump around as the debounced query lands.
+      const alreadyRanked = new Set(results.map((item) => item.id));
+      const contentItems: RenderItem[] = (contentHits ?? [])
+        .filter((hit) => !alreadyRanked.has(`article-${hit.documentId}`))
+        .map((hit) => ({
+          id: `content-${hit.documentId}`,
+          label: hit.title,
+          description: hit.snippet,
+          icon: FileSearch,
+          category: "article" as const,
+          onSelect: () => {
+            recordDocOpen(hit.documentId);
+            onOpenChange(false);
+            router.push(`/editor/${hit.documentId}`);
+          },
+        }));
+
+      if (contentItems.length) {
+        sections.push({ label: "In content", items: contentItems });
+      }
     }
 
     return { sections, flatItems: sections.flatMap((s) => s.items) };
-  }, [
-    commandItems,
-    query,
-    activeProjectId,
-    projectNames,
-    router,
-    onOpenChange,
-  ]);
+  }, [commandItems, query, contentHits, router, onOpenChange]);
 
   // ---------------------------------------------------------------------------
   // Keyboard navigation
@@ -610,7 +668,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                   isKeyboardNav.current = false;
                 }}
               >
-                {flatItems.length === 0 ? (
+                {flatItems.length === 0 && !contentPending ? (
                   <div className="px-4 py-10 text-center text-sm text-muted-foreground/70">
                     No results found for &ldquo;{query}&rdquo;
                   </div>
@@ -686,6 +744,17 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                       })}
                     </div>
                   ))
+                )}
+
+                {/* Body search lands after the client-side rows. Announce it
+                    rather than letting results appear to pop in at random —
+                    deliberately outside `flatItems`, so arrow keys and Enter
+                    can never land on a row that isn't there yet. */}
+                {contentPending && (
+                  <div className="flex items-center gap-3 px-3 py-2 text-sm text-muted-foreground/60">
+                    <FileSearch className="size-4 shrink-0 animate-pulse" />
+                    <span>Searching content…</span>
+                  </div>
                 )}
               </div>
 

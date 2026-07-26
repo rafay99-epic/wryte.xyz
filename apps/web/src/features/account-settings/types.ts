@@ -24,19 +24,98 @@ export type SettingsTab =
   | "support"
   | "self-destruct";
 
+/**
+ * Account settings panes. `keywords` mirrors the project-settings registry so
+ * both feed the command palette's settings search through one shape — someone
+ * typing "api key" or "delete account" should land on the right pane without
+ * knowing which tab it lives under.
+ */
 export const TABS: {
   id: SettingsTab;
   label: string;
   icon: React.ElementType;
+  /** Search terms for the palette beyond the label. */
+  keywords: string[];
 }[] = [
-  { id: "account", label: "Account", icon: User },
-  { id: "profile", label: "Profile", icon: Globe },
-  { id: "appearance", label: "Appearance", icon: Palette },
-  { id: "media", label: "Media", icon: ImageIcon },
-  { id: "mcp", label: "MCP Server", icon: Plug },
-  { id: "shortcuts", label: "Shortcuts", icon: Command },
-  { id: "support", label: "Support", icon: HelpCircle },
-  { id: "self-destruct", label: "Self-Destruct", icon: Skull },
+  {
+    id: "account",
+    label: "Account",
+    icon: User,
+    keywords: [
+      "email",
+      "github",
+      "token",
+      "pat",
+      "personal access token",
+      "connection",
+      "sign out",
+    ],
+  },
+  {
+    id: "profile",
+    label: "Profile",
+    icon: Globe,
+    keywords: [
+      "public page",
+      "handle",
+      "username",
+      "bio",
+      "avatar",
+      "social links",
+      "website",
+    ],
+  },
+  {
+    id: "appearance",
+    label: "Appearance",
+    icon: Palette,
+    keywords: ["theme", "dark", "light", "font", "accent", "color", "colour"],
+  },
+  {
+    id: "media",
+    label: "Media",
+    icon: ImageIcon,
+    keywords: [
+      "uploadthing",
+      "cloudinary",
+      "storage",
+      "quota",
+      "upload limit",
+      "images",
+    ],
+  },
+  {
+    id: "mcp",
+    label: "MCP Server",
+    icon: Plug,
+    keywords: [
+      "agent",
+      "claude",
+      "cursor",
+      "oauth",
+      "endpoint",
+      "tools",
+      "model context protocol",
+    ],
+  },
+  {
+    id: "shortcuts",
+    label: "Shortcuts",
+    icon: Command,
+    keywords: ["keybinding", "hotkey", "keys", "remap", "keyboard"],
+  },
+  {
+    id: "support",
+    label: "Support",
+    icon: HelpCircle,
+    keywords: ["ticket", "help", "contact", "bug report", "feedback"],
+  },
+  {
+    id: "self-destruct",
+    label: "Self-Destruct",
+    icon: Skull,
+    keywords: ["delete account", "wipe", "erase", "gdpr", "danger", "close"],
+  },
 ];
 
 export const CATEGORY_LABELS: Record<ShortcutCategory, string> = {

@@ -88,7 +88,7 @@ own `components/`, `hooks/`, and `lib/`:
 | `account-settings` | Profile, appearance, shortcuts, media, support, self-destruct |
 | `media-library` | Project media browsing and management |
 | `project-analytics` | Per-project traffic and content insights |
-| `command-palette` | Fuzzy command launcher with frecency ranking |
+| `command-palette` | Fuzzy command launcher with frecency ranking, settings-pane search, and full-text body search |
 | `sync-conflicts` | Conflict resolution when local and remote diverge |
 | `animation-gallery` | Reusable animation snippets for MDX |
 | `marketing` | Landing-page sections and canvas animations |

@@ -2,9 +2,10 @@
 
 import { useUser } from "@clerk/nextjs";
 import { api } from "@wryte/backend/_generated/api";
+import { useHashTab } from "@wryte/logic/hooks/use-hash-tab";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
 import { useQuery } from "convex/react";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { SettingsShell } from "@/components/settings/settings-shell";
 import { AccountTab } from "./components/account-tab";
 import { AppearanceTab } from "./components/appearance-tab";
@@ -18,17 +19,15 @@ import { SupportTab } from "./components/support-tab";
 import type { SettingsTab } from "./types";
 import { TABS } from "./types";
 
+/** Stable identity for `useHashTab`'s dependency — never rebuilt per render. */
+const TAB_IDS: readonly SettingsTab[] = TABS.map((t) => t.id);
+
 export function AccountSettingsPage() {
   const { user: clerkUser, isLoaded: clerkLoaded } = useUser();
   const convexUser = useQuery(api.account.users.get);
-  const [activeTab, setActiveTab] = useState<SettingsTab>("account");
-
-  useEffect(() => {
-    const hash = window.location.hash.replace("#", "") as SettingsTab;
-    if (hash && TABS.some((t) => t.id === hash)) {
-      setActiveTab(hash);
-    }
-  }, []);
+  // Deep-link support: `/settings#mcp` opens that pane, including on a
+  // fragment-only jump from the command palette while already on this page.
+  const [activeTab, setActiveTab] = useHashTab<SettingsTab>("account", TAB_IDS);
 
   useEffect(() => {
     useEditorStore.getState().setActiveProjectId(null);
