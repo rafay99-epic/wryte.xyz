@@ -1,6 +1,7 @@
 "use client";
 
 import { api } from "@wryte/backend/_generated/api";
+import { MIN_CONTENT_TERM } from "@wryte/backend/cms/_lib/documentContent";
 import { splitShortcutKeys } from "@wryte/logic/lib/shortcuts";
 import { cn } from "@wryte/logic/lib/utils";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
@@ -108,13 +109,6 @@ const MAX_RESULTS = 50;
  * menu, and keeps "performance" at one query instead of eleven.
  */
 const CONTENT_SEARCH_DEBOUNCE_MS = 200;
-
-/**
- * Minimum query length for a body search. Below this the index returns noise
- * and the client-side tiers already answer instantly. Mirrored server-side in
- * `cms/documents.searchContent`.
- */
-const MIN_CONTENT_TERM = 3;
 
 // ---------------------------------------------------------------------------
 // Component

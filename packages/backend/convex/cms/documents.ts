@@ -23,7 +23,9 @@ import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
 import { countWords } from "../_lib/wordCount";
 import {
   buildExcerpt,
+  CONTENT_SEARCH_LIMIT,
   extractSnippet,
+  MIN_CONTENT_TERM,
   readContent,
   readContentById,
   writeContent,
@@ -320,18 +322,6 @@ export async function searchDocumentsForUser(
     })),
   };
 }
-
-/**
- * Body hits returned per palette query. Every hit bills its whole body, so
- * this cap is the feature's main cost lever — keep it small.
- */
-const CONTENT_SEARCH_LIMIT = 8;
-
-/**
- * Minimum term length for a body search. Enforced here as well as in the UI
- * so a client bug can't run a one-character search across every body.
- */
-const MIN_CONTENT_TERM = 3;
 
 /**
  * Body full-text search behind the command palette's "In content" section —
