@@ -1,0 +1,49 @@
+apps/web/src/features/content-dashboard/components/content-dashboard.tsx
+  s_6a25305bfda836::t_ed2a757abd4c69 122-128
+  s_6a25305bfda836::t_549f052a3df78f 184
+  s_6a25305bfda836::t_b6baf903a2ad5c 755-765
+  s_6a25305bfda836::t_0ebc1f97d24291 766-768
+apps/web/src/features/project-detail/project-detail-page.tsx
+  s_6a25305bfda836::t_501642984554c5 375-393
+  s_6a25305bfda836::t_3115dca728064b 99-118
+  s_6a25305bfda836::t_5022e28ea28fb9 7
+  s_6a25305bfda836::t_9d609e720f3b8e 431
+  s_6a25305bfda836::t_6e4ed37d9654d3 5-6,8,10
+  s_6a25305bfda836::t_df14ecf7559f00 718
+packages/logic/src/hooks/use-debounced-value.ts
+  s_6a25305bfda836::t_1d7be6322a9d42 1-25
+apps/web/e2e/features/command-palette.authed.spec.ts
+  s_6a25305bfda836::t_2260e595d17170 3-4
+  s_6a25305bfda836::t_6344e5d4802150 117-118
+apps/web/e2e/features/content-search.authed.spec.ts
+  s_6a25305bfda836::t_2559b76bf8bf0f 57-58
+  s_6a25305bfda836::t_de6ca5356aa33d 51-52,55-56
+  s_6a25305bfda836::t_40dac69b97e399 5
+  s_6a25305bfda836::t_59d1cc9a0b7a7b 1-4,6-50,53-54,59-60
+apps/web/src/features/command-palette/command-palette.tsx
+  s_6a25305bfda836::t_2bb0feacb9e1fb 161-166
+  s_6a25305bfda836::t_9200f1d8ab8f4c 4-7
+  s_6a25305bfda836::t_8e8c4a322b0c5f 8
+apps/web/e2e/support/editor.ts
+  s_6a25305bfda836::t_db683c78c3747f 78-97,102-106
+  s_6a25305bfda836::t_2559b76bf8bf0f 98-101
+packages/backend/convex/cms/_lib/documentContent.ts
+  s_6a25305bfda836::t_89fef36c2a9393 33-39
+  s_6a25305bfda836::t_f187c5fe63fab7 32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "51e8781c8f70ba996ebc028323460e53983fa31a",
+  "prompts": {},
+  "sessions": {
+    "s_6a25305bfda836": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "89f212f3-21a4-4e82-b784-e8ba0a8d348d",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
