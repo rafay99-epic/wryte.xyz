@@ -14,6 +14,22 @@ import type { MutationCtx, QueryCtx } from "../../_generated/server";
 const EXCERPT_LENGTH = 200;
 
 /**
+ * Minimum term length for a body search. Below this the index returns noise.
+ *
+ * Exported because the callers that *gate* on it live on the client (the
+ * command palette, the project content search) while the query that *enforces*
+ * it lives in `cms/documents.searchContent`. Both sides reading this constant
+ * is what keeps the client's gate and the server's guard from drifting apart.
+ */
+export const MIN_CONTENT_TERM = 3;
+
+/**
+ * Hits returned per body search. Every hit bills its whole body, so this cap
+ * is the feature's main cost lever — keep it small.
+ */
+export const CONTENT_SEARCH_LIMIT = 8;
+
+/**
  * Builds the short preview stored on `documents.excerpt` for list/board
  * cards. Mirrors the projection the list query used to derive inline.
  */
