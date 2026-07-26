@@ -1,0 +1,23 @@
+apps/web/src/features/command-palette/command-palette.tsx
+  s_6a25305bfda836::t_01fa19a95d4a28 4
+packages/backend/convex/cms/documents.ts
+  s_6a25305bfda836::t_afc5c510f81d99 26,28
+packages/backend/convex/cms/_lib/documentContent.ts
+  s_6a25305bfda836::t_e2c5ec3d1e3cab 16-31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "6a498cb1d6513b3b1c793962f892b062ea8978b0",
+  "prompts": {},
+  "sessions": {
+    "s_6a25305bfda836": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "89f212f3-21a4-4e82-b784-e8ba0a8d348d",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
