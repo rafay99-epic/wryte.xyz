@@ -1709,6 +1709,32 @@ Stored secrets are **never sent to the browser**, not even behind a reveal toggl
 Adding a storage backend is now a two-file change internally \u2014 a registry entry and one adapter. The settings form, the setup wizard, the provider tabs, the icons and the empty states all read from that entry, so the fifth provider will not need any of them touched.
 `,
   },
+  {
+    title: "Command palette search across the workspace",
+    slug: "command-palette-search-across-the-workspace",
+    description:
+      "Search article bodies, settings panes, projects, and commands from ⌘K, then land on the exact document or settings panel without a distracting transition.",
+    version: "1.6.0",
+    build: "2b5ab98",
+    publishedAt: Date.parse("2026-07-26T22:11:44+05:00"),
+    content: `## What's new
+
+- **Search article bodies.** The command palette now finds text inside every article you can access, not just titles, slugs, tags, and excerpts.
+- **Jump straight to settings panes.** Account and project settings are indexed as searchable commands, including deep links such as Media, Shortcuts, Frontmatter, and AI.
+- **Search across the workspace.** Projects, articles, body matches, settings, and actions appear in one focused ⌘K flow with fuzzy ranking and highlighted matches.
+
+## Fixes
+
+- **Selection transitions are stable.** Pressing Enter or clicking a result closes the palette completely before navigation begins, removing the white flash and preventing the old screen from competing with the destination during the transition.
+- Body search stays bounded and responsive with a short debounce, a minimum search length, and capped results.
+
+## Under the hood
+
+- Metadata search remains client-side and warm after the first palette open.
+- Article body search uses a dedicated Convex full-text index, so the normal document catalog never loads full bodies.
+- Settings commands are derived from the same tab registries rendered by the settings pages, keeping labels, keywords, and deep links in sync.
+`,
+  },
 ];
 
 const seedResult = v.object({
