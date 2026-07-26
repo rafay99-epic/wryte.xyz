@@ -2,7 +2,12 @@
 
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
+import {
+  CONTENT_SEARCH_DEBOUNCE_MS,
+  MIN_CONTENT_TERM,
+} from "@wryte/backend/cms/_lib/documentContent";
 import type { PageStat } from "@wryte/backend/insights/_lib/providers";
+import { useDebouncedValue } from "@wryte/logic/hooks/use-debounced-value";
 import {
   type ContentFile,
   useGithubContentList,
@@ -91,6 +96,26 @@ export function ProjectDetailPage() {
   // --- Search store (persisted per-project) ---
   const searchQuery = useSearchStore((s) => s.query);
   const setSearchQuery = useSearchStore((s) => s.setQuery);
+
+  // Body search, scoped to this project. The client-side index below only sees
+  // `excerpt` (the denormalized first ~200 characters), so a phrase from deeper
+  // in an article is invisible to it — bodies live in `document_content`
+  // specifically so this page's list query never reads them. This query is the
+  // one that can see them: debounced, length-gated, and capped server-side.
+  const debouncedQuery = useDebouncedValue(
+    searchQuery.trim(),
+    CONTENT_SEARCH_DEBOUNCE_MS,
+  );
+  const bodySearchTerm =
+    debouncedQuery.length >= MIN_CONTENT_TERM ? debouncedQuery : "";
+  const bodyHits = useQuery(
+    api.cms.documents.searchContent,
+    bodySearchTerm ? { term: bodySearchTerm, projectId } : "skip",
+  );
+  const bodyHitIds = useMemo(
+    () => new Set((bodyHits ?? []).map((hit) => hit.documentId as string)),
+    [bodyHits],
+  );
   const sortOrder = useSearchStore((s) => s.getSortOrder(projectId));
   const kindFilter = useSearchStore((s) => s.getKindFilter(projectId));
   const tagFilters = useSearchStore((s) => s.getTagFilters(projectId));
@@ -347,7 +372,25 @@ export function ProjectDetailPage() {
         scored.sort((a, b) => b.score - a.score);
       }
 
-      items = scored.map((s) => s.item);
+      const matched = scored.map((s) => s.item);
+
+      // Documents whose BODY matches but whose excerpt/title/tags don't — the
+      // client index cannot see these at all. Appended after the scored rows
+      // (step 6 re-sorts them into the chosen order unless it's relevance) and
+      // drawn from the already-filtered `items`, so tab/status/tag filters
+      // still apply.
+      if (bodyHitIds.size > 0) {
+        const seen = new Set(
+          matched.map((i) => (i.kind === "local" ? i.id : i.path)),
+        );
+        for (const item of items) {
+          if (item.kind !== "local" || !item.id) continue;
+          if (seen.has(item.id) || !bodyHitIds.has(item.id)) continue;
+          matched.push(item);
+        }
+      }
+
+      items = matched;
     }
 
     // 6. Sort (when not in relevance-search mode)
@@ -385,6 +428,7 @@ export function ProjectDetailPage() {
     sortOrder,
     searchIndex,
     frontmatterMap,
+    bodyHitIds,
   ]);
 
   // --- Auto-import + navigate for remote files ---
@@ -671,6 +715,7 @@ export function ProjectDetailPage() {
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         hasGithub={hasGithub}
+        isSearchingBodies={Boolean(bodySearchTerm) && bodyHits === undefined}
         isLoadingRemote={isLoadingRemote}
         hasLoadedRemote={hasLoadedRemote}
         onRefreshRemote={() => void handleSyncFromGithub()}
