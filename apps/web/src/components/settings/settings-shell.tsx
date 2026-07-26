@@ -45,6 +45,7 @@ export function SettingsShell<Id extends string>({
   activeTab,
   onTabChange,
   layoutId,
+  contentClassName,
   children,
 }: {
   title: string;
@@ -54,6 +55,7 @@ export function SettingsShell<Id extends string>({
   onTabChange: (tab: Id) => void;
   /** Unique framer layoutId for the active-tab pill of this shell. */
   layoutId: string;
+  contentClassName?: string | undefined;
   children: React.ReactNode;
 }) {
   return (
@@ -65,6 +67,7 @@ export function SettingsShell<Id extends string>({
         activeTab={activeTab}
         onTabChange={onTabChange}
         layoutId={layoutId}
+        contentClassName={contentClassName}
       >
         {children}
       </SettingsShellInner>
@@ -79,6 +82,7 @@ function SettingsShellInner<Id extends string>({
   activeTab,
   onTabChange,
   layoutId,
+  contentClassName,
   children,
 }: {
   title: string;
@@ -87,6 +91,7 @@ function SettingsShellInner<Id extends string>({
   activeTab: Id;
   onTabChange: (tab: Id) => void;
   layoutId: string;
+  contentClassName?: string | undefined;
   children: React.ReactNode;
 }) {
   const dirtyCount = useSettingsDirty();
@@ -189,7 +194,12 @@ function SettingsShellInner<Id extends string>({
 
       {/* Content */}
       <div ref={contentRef} className="flex-1 overflow-y-auto slim-scrollbar">
-        <div className="mx-auto max-w-2xl px-4 py-6 md:px-10 md:py-8">
+        <div
+          className={cn(
+            "mx-auto max-w-2xl px-4 py-6 md:px-10 md:py-8",
+            contentClassName,
+          )}
+        >
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
               key={activeTab}

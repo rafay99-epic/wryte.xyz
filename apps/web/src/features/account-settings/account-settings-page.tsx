@@ -45,6 +45,7 @@ export function AccountSettingsPage() {
       activeTab={activeTab}
       onTabChange={setActiveTab}
       layoutId="settingsTabIndicator"
+      contentClassName={activeTab === "mcp" ? "max-w-4xl" : undefined}
     >
       {activeTab === "account" && (
         <AccountTab

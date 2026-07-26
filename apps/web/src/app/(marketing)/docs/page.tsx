@@ -3,6 +3,8 @@ import { Card, CardDescription, CardTitle } from "@wryte/ui/card";
 import { ArrowRight, Plug, Sparkles } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { McpClientSetup } from "@/components/mcp/mcp-client-setup";
+import { resolveMcpEndpoint } from "@/features/account-settings/lib/mcp-endpoint";
 import { DocsIcon } from "@/features/docs/components/docs-icon";
 import { DocsShell } from "@/features/docs/components/docs-shell";
 import { DOC_PAGES } from "@/features/docs/registry";
@@ -20,16 +22,18 @@ const STEPS = [
     body: "Your account is created on first web sign-in. Agents are matched to it.",
   },
   {
-    title: "Add the endpoint",
-    body: "One command. Copy the exact URL from Settings → MCP Server.",
+    title: "Choose your tool",
+    body: "Use the one-click setup for Claude Code, Codex or Cursor below.",
   },
   {
     title: "Authorize in the browser",
-    body: "Run /mcp, choose Authenticate, approve. No token is ever stored.",
+    body: "Approve access once. No token is ever stored in Wryte.",
   },
 ];
 
 export default function DocsIndexPage() {
+  const endpoint = resolveMcpEndpoint();
+
   return (
     <DocsShell>
       {/* ── Hero ──────────────────────────────────────────────────── */}
@@ -59,9 +63,6 @@ export default function DocsIndexPage() {
         <div className="mt-5 flex flex-wrap items-center gap-2">
           <Badge variant="outline" className="font-mono text-[11px]">
             21 tools
-          </Badge>
-          <Badge variant="outline" className="font-mono text-[11px]">
-            OAuth 2.1 + PKCE
           </Badge>
           <Badge variant="outline" className="font-mono text-[11px]">
             No API tokens
@@ -94,17 +95,11 @@ export default function DocsIndexPage() {
             </div>
           ))}
         </div>
-
-        <div className="border-t border-foreground/[0.07] bg-foreground/[0.02] px-5 py-4">
-          <pre className="overflow-x-auto font-mono text-[11.5px] leading-relaxed text-foreground/70">
-            <span className="text-amber-600 dark:text-amber-400">$</span> claude
-            mcp add --transport http wryte{" "}
-            <span className="text-foreground/45">
-              https://&lt;your-deployment&gt;.convex.site/mcp
-            </span>
-          </pre>
-        </div>
       </Card>
+
+      <div className="mb-12">
+        <McpClientSetup endpoint={endpoint} />
+      </div>
 
       {/* ── Pages ─────────────────────────────────────────────────── */}
       <p className="mb-3 font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-foreground/40">

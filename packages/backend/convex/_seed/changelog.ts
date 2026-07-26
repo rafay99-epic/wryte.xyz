@@ -1735,6 +1735,26 @@ Adding a storage backend is now a two-file change internally \u2014 a registry e
 - Settings commands are derived from the same tab registries rendered by the settings pages, keeping labels, keywords, and deep links in sync.
 `,
   },
+  {
+    title: "MCP setup polish and client quickstarts",
+    slug: "mcp-setup-polish-and-client-quickstarts",
+    description:
+      "A clearer MCP setup experience with categorized desktop and CLI clients, one-click setup actions, and theme-aware client icons.",
+    version: "1.6.1",
+    build: "unreleased",
+    publishedAt: Date.parse("2026-07-26T23:00:00+05:00"),
+    content: `## What's new
+
+- **Choose your client faster.** MCP setup is organized into desktop apps, command-line tools, and a generic client option so the right path is easy to find.
+- **Use quick setup actions.** Copy controls and supported one-click links make connecting Claude, Codex, and Cursor faster without exposing unnecessary configuration text.
+- **Keep the UI in theme.** Client logos and action icons now use the app accent and adapt cleanly to light and dark mode.
+
+## Fixes
+
+- Removed nested card layouts and reduced setup copy so the MCP settings panel is easier to scan at a wider layout.
+- Added clearer documentation for desktop and CLI setup paths, including Codex and Claude.
+`,
+  },
 ];
 
 const seedResult = v.object({

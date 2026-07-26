@@ -17,13 +17,53 @@ Your exact URL is shown in **Settings → MCP Server**, with a copy button.
 
 ## Connect
 
+Choose the client you use. The setup cards on the [MCP Server docs home](/docs)
+and in **Settings → MCP Server** copy the exact endpoint automatically.
+
+### Claude Code
+
 ```bash
 claude mcp add --transport http wryte https://<your-deployment>.convex.site/mcp
 ```
 
-Then in Claude Code run `/mcp`, pick **wryte**, and choose **Authenticate**. A
-browser window opens, you approve, and that's it. The agent holds a short-lived
-token it refreshes on its own.
+Then run `/mcp`, pick **wryte**, and choose **Authenticate**.
+
+### Claude Desktop
+
+In Claude Desktop, open **Settings → Connectors → Add custom connector** and
+paste the Wryte endpoint. Claude opens the browser to finish sign-in.
+
+### Codex
+
+```bash
+codex mcp add wryte --url https://<your-deployment>.convex.site/mcp
+```
+
+Then authenticate the `wryte` server from Codex. Codex opens the browser and
+stores the OAuth credential in its own credential store.
+
+Codex Desktop and Codex CLI use the same MCP configuration, so the command
+above also makes Wryte available in the desktop app.
+
+### Cursor
+
+Cursor supports a one-click **Add to Cursor** action from the setup card. For a
+manual setup, add this to your global `~/.cursor/mcp.json` or a project-level
+`.cursor/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "wryte": {
+      "url": "https://<your-deployment>.convex.site/mcp"
+    }
+  }
+}
+```
+
+After adding it, open Cursor's MCP settings and authenticate `wryte` when
+prompted. Each client opens the browser for OAuth approval; Wryte never creates
+or stores a copy-paste API token.
 
 Use the URL exactly as shown, with no trailing slash. The server advertises
 itself under that precise spelling, and the OAuth spec makes clients verify the
