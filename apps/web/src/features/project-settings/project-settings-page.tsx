@@ -2,10 +2,11 @@
 
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
+import { useHashTab } from "@wryte/logic/hooks/use-hash-tab";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
 import { useQuery } from "convex/react";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { SettingsShell } from "@/components/settings/settings-shell";
 import { AiSection } from "./components/ai-section";
 import { AnalyticsSection } from "./components/analytics-section";
@@ -26,23 +27,30 @@ import { ToolsSection } from "./components/tools-section";
 import type { SettingsTab } from "./types";
 import { TABS } from "./types";
 
+/** Stable identity for `useHashTab`'s dependency — never rebuilt per render. */
+const TAB_IDS: readonly SettingsTab[] = TABS.map((t) => t.id);
+
 export function ProjectSettingsPage() {
   const params = useParams<{ projectId: string }>();
   const projectId = params.projectId as Id<"projects">;
   const router = useRouter();
   const project = useQuery(api.cms.projects.get, { projectId });
   const projectDeleted = project === null;
-  const [activeTab, setActiveTab] = useState<SettingsTab>("general");
+  // Deep-link support: `#frontmatter` opens that pane and keeps working on a
+  // fragment-only jump from the command palette.
+  const [activeTab, setActiveTab] = useHashTab<SettingsTab>("general", TAB_IDS);
 
-  // Deep-link support: open a specific tab from `?tab=frontmatter`. Read on the
-  // client (avoids useSearchParams' static-prerender Suspense requirement);
-  // runs once on mount, so a banner's "Review schema" link lands on the right tab.
+  // Legacy deep-link: `?tab=frontmatter`, still used by in-app banners (e.g.
+  // "Review schema"). Read on the client to avoid useSearchParams' static
+  // prerender Suspense requirement; runs once on mount, and yields to a
+  // fragment when both are present so the two forms can't fight.
   useEffect(() => {
+    if (window.location.hash) return;
     const tabParam = new URLSearchParams(window.location.search).get("tab");
     if (tabParam && TABS.some((t) => t.id === tabParam)) {
       setActiveTab(tabParam as SettingsTab);
     }
-  }, []);
+  }, [setActiveTab]);
 
   useEffect(() => {
     useEditorStore.getState().setActiveProjectId(projectId);

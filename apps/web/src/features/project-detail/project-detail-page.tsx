@@ -82,15 +82,6 @@ export function ProjectDetailPage() {
   // Set active project in sidebar on mount; reset transient state on unmount
   useEffect(() => {
     useEditorStore.getState().setActiveProjectId(projectId);
-    // Consume a search handed off by the command palette ("Search content
-    // for …"). One-shot: cleared whether or not it targeted this project,
-    // so a stale handoff can never resurface on a later visit.
-    const { pendingQuery, setPendingQuery, setQuery } =
-      useSearchStore.getState();
-    if (pendingQuery) {
-      if (pendingQuery.projectId === projectId) setQuery(pendingQuery.query);
-      setPendingQuery(null);
-    }
     return () => {
       useBoardStore.getState().reset();
       useSearchStore.getState().setQuery("");
