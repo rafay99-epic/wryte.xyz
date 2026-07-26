@@ -61,8 +61,8 @@ test.describe("authenticated command palette", () => {
 
     // Enter opens the top-ranked result (index 0) in the editor.
     await page.keyboard.press("Enter");
-    await page.waitForURL(/\/editor\//, { timeout: 30_000 });
     await expect(palette).toBeHidden();
+    await page.waitForURL(/\/editor\//, { timeout: 30_000 });
   });
 
   test("settings panes are reachable by keyword and deep-link to the pane", async ({
@@ -93,7 +93,8 @@ test.describe("authenticated command palette", () => {
       .filter({ hasText: "Account settings" })
       .first();
     await expect(shortcutsPane).toBeVisible({ timeout: 15_000 });
-    await shortcutsPane.click();
+    await page.keyboard.press("Enter");
+    await expect(palette).toBeHidden();
     await page.waitForURL(/\/settings#shortcuts$/, { timeout: 30_000 });
 
     // Fragment-only jump from the settings page itself must still switch panes:
@@ -106,7 +107,8 @@ test.describe("authenticated command palette", () => {
       .filter({ hasText: "Account settings" })
       .first();
     await expect(mediaPane).toBeVisible({ timeout: 15_000 });
-    await mediaPane.click();
+    await page.keyboard.press("Enter");
+    await expect(palette).toBeHidden();
     await page.waitForURL(/\/settings#media$/, { timeout: 30_000 });
   });
 
@@ -135,8 +137,8 @@ test.describe("authenticated command palette", () => {
     await expect(contentHit).toContainText(marker);
 
     await page.keyboard.press("Enter");
-    await page.waitForURL(/\/editor\//, { timeout: 30_000 });
     await expect(palette).toBeHidden();
+    await page.waitForURL(/\/editor\//, { timeout: 30_000 });
   });
 
   test("a query nothing matches settles on the empty state", async ({

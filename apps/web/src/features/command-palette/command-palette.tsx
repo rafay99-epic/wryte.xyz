@@ -33,6 +33,7 @@ import { useRouter } from "next/navigation";
 import {
   Fragment,
   type ReactNode,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -120,6 +121,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
 
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const pendingSelectionRef = useRef<(() => void) | null>(null);
 
   // Input-modality refs: keep mouse hover from fighting keyboard nav.
   // - isKeyboardNav stays true until the pointer is *actually* moved.
@@ -196,7 +198,6 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
 
   const commandItems = useMemo(() => {
     const items: CommandItem[] = [];
-    const close = () => onOpenChange(false);
 
     // Quick actions
     items.push({
@@ -210,7 +211,6 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       shortcutId: "newArticle",
       category: "action",
       onSelect: () => {
-        close();
         if (activeProjectId) {
           router.push(`/projects/${activeProjectId}/documents/new`);
         }
@@ -225,7 +225,6 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       shortcutId: "goToDashboard",
       category: "navigation",
       onSelect: () => {
-        close();
         router.push("/dashboard");
       },
     });
@@ -238,7 +237,6 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       shortcutId: "goToSettings",
       category: "navigation",
       onSelect: () => {
-        close();
         router.push("/settings");
       },
     });
@@ -251,7 +249,6 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       shortcutId: "toggleSidebar",
       category: "action",
       onSelect: () => {
-        close();
         useEditorStore.getState().toggleSidebar();
       },
     });
@@ -264,7 +261,6 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       shortcutId: "switchLayout",
       category: "action",
       onSelect: () => {
-        close();
         window.dispatchEvent(new CustomEvent("wryte:switch-layout"));
       },
     });
@@ -276,7 +272,6 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       icon: Sun,
       category: "action",
       onSelect: () => {
-        close();
         useThemeStore.getState().setMode("light");
       },
     });
@@ -288,7 +283,6 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       icon: Moon,
       category: "action",
       onSelect: () => {
-        close();
         useThemeStore.getState().setMode("dark");
       },
     });
@@ -300,7 +294,6 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       icon: Palette,
       category: "action",
       onSelect: () => {
-        close();
         useThemeStore.getState().setMode("system");
       },
     });
@@ -326,7 +319,6 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         icon: entry.icon,
         category: "setting",
         onSelect: () => {
-          close();
           router.push(entry.href);
         },
       });
@@ -344,7 +336,6 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
           iconFilled: project.isFavorite,
           category: "project",
           onSelect: () => {
-            close();
             useEditorStore.getState().setActiveProjectId(project._id);
             router.push(`/projects/${project._id}`);
           },
@@ -371,7 +362,6 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
           openRank: openRanks.get(doc._id),
           onSelect: () => {
             recordDocOpen(doc._id);
-            close();
             router.push(`/editor/${doc._id}`);
           },
         });
@@ -379,15 +369,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     }
 
     return items;
-  }, [
-    projects,
-    documents,
-    projectNames,
-    openRanks,
-    activeProjectId,
-    router,
-    onOpenChange,
-  ]);
+  }, [projects, documents, projectNames, openRanks, activeProjectId, router]);
 
   // ---------------------------------------------------------------------------
   // Filtering & ranking
@@ -451,7 +433,6 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
           category: "article" as const,
           onSelect: () => {
             recordDocOpen(hit.documentId);
-            onOpenChange(false);
             router.push(`/editor/${hit.documentId}`);
           },
         }));
@@ -462,7 +443,21 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     }
 
     return { sections, flatItems: sections.flatMap((s) => s.items) };
-  }, [commandItems, query, contentHits, router, onOpenChange]);
+  }, [commandItems, query, contentHits, router]);
+
+  /**
+   * Keep the current screen visible while the palette exits, then execute the
+   * command. This prevents route changes from showing through the translucent
+   * backdrop as a white flash and keeps hash-only settings jumps consistent.
+   */
+  const selectItem = useCallback(
+    (item: CommandItem) => {
+      if (pendingSelectionRef.current) return;
+      pendingSelectionRef.current = item.onSelect;
+      onOpenChange(false);
+    },
+    [onOpenChange],
+  );
 
   // ---------------------------------------------------------------------------
   // Keyboard navigation
@@ -526,7 +521,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
           e.preventDefault();
           e.stopImmediatePropagation();
           const item = flatItemsRef.current[selectedIndexRef.current];
-          if (item) item.onSelect();
+          if (item) selectItem(item);
           break;
         }
         case "Escape":
@@ -541,7 +536,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     return () => {
       wrapper.removeEventListener("keydown", handleKeyDown, true);
     };
-  }, [open, onOpenChange]);
+  }, [open, onOpenChange, selectItem]);
 
   // Reset state every time the palette opens.
   useEffect(() => {
@@ -594,7 +589,13 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   let runningIndex = 0;
 
   return (
-    <AnimatePresence>
+    <AnimatePresence
+      onExitComplete={() => {
+        const action = pendingSelectionRef.current;
+        pendingSelectionRef.current = null;
+        action?.();
+      }}
+    >
       {open && (
         <>
           {/* Backdrop */}
@@ -685,7 +686,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                             )}
                             onClick={() => {
                               const target = flatItems[globalIndex];
-                              if (target) target.onSelect();
+                              if (target) selectItem(target);
                             }}
                             onPointerEnter={() => {
                               if (isKeyboardNav.current) return;
