@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import {
-  appendToEditor,
-  getEditorTextarea,
+  CONTENT_PROBE_MARKER,
+  ensureBodyProbe,
   openSeededArticle,
   openSeededProject,
 } from "../support/editor";
@@ -114,17 +114,8 @@ test.describe("authenticated command palette", () => {
     page,
   }) => {
     await openSeededArticle(page);
-
-    // Fixed nonsense marker, appended once — it cannot collide with a title,
-    // slug, or tag, so a hit can only have come from the body index.
-    const marker = "zebracornmarker";
-    const existing = await getEditorTextarea(page).inputValue();
-    if (!existing.includes(marker)) {
-      await appendToEditor(page, `\n\nContent search probe: ${marker}\n`);
-      await expect(
-        page.locator('[data-testid="save-status"][data-save-state="saved"]'),
-      ).toBeVisible({ timeout: 30_000 });
-    }
+    await ensureBodyProbe(page);
+    const marker = CONTENT_PROBE_MARKER;
 
     await page.keyboard.press("ControlOrMeta+k");
     const palette = page.getByTestId("command-palette");

@@ -119,6 +119,13 @@ type ContentDashboardProps = {
   searchQuery: string;
   onSearchChange: (q: string) => void;
   hasGithub: boolean;
+  /**
+   * True while the server-side body search for the current query is in flight.
+   * Article bodies live in `document_content`, so a phrase past the first ~200
+   * characters can only match server-side — this keeps the empty state from
+   * flashing before those hits land.
+   */
+  isSearchingBodies: boolean;
   isLoadingRemote: boolean;
   hasLoadedRemote: boolean;
   onRefreshRemote: () => void;
@@ -174,6 +181,7 @@ export function ContentDashboard({
   searchQuery,
   onSearchChange,
   hasGithub,
+  isSearchingBodies,
   isLoadingRemote,
   hasLoadedRemote,
   onRefreshRemote,
@@ -744,7 +752,20 @@ export function ContentDashboard({
             </div>
           )}
 
-          {items.length === 0 && viewMode !== "calendar" ? (
+          {isSearchingBodies && viewMode !== "calendar" && (
+            <div className="mb-3 flex items-center gap-2 text-xs text-muted-foreground">
+              <Loader2 className="size-3 animate-spin" />
+              Searching article content...
+            </div>
+          )}
+
+          {/* `isSearchingBodies` suppresses the empty state while a body search
+              is in flight — otherwise a query that only matches deep inside an
+              article flashes "no results" for the debounce window before its
+              hits arrive. */}
+          {items.length === 0 &&
+          !isSearchingBodies &&
+          viewMode !== "calendar" ? (
             <ContentEmptyState
               viewFilter={viewFilter}
               searchQuery={searchQuery}

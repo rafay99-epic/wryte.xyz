@@ -1,7 +1,11 @@
 "use client";
 
 import { api } from "@wryte/backend/_generated/api";
-import { MIN_CONTENT_TERM } from "@wryte/backend/cms/_lib/documentContent";
+import {
+  CONTENT_SEARCH_DEBOUNCE_MS,
+  MIN_CONTENT_TERM,
+} from "@wryte/backend/cms/_lib/documentContent";
+import { useDebouncedValue } from "@wryte/logic/hooks/use-debounced-value";
 import { splitShortcutKeys } from "@wryte/logic/lib/shortcuts";
 import { cn } from "@wryte/logic/lib/utils";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
@@ -104,12 +108,6 @@ const IDLE_ARTICLE_COUNT = 10;
 /** Result rows kept after ranking — beyond this nobody scrolls. */
 const MAX_RESULTS = 50;
 
-/**
- * Debounce before a body search reaches the server. Matches the `[[` link
- * menu, and keeps "performance" at one query instead of eleven.
- */
-const CONTENT_SEARCH_DEBOUNCE_MS = 200;
-
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -160,19 +158,12 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
 
   // Debounced mirror of `query` — each distinct value is a distinct Convex
   // subscription, so this is what keeps a fast typist from opening a dozen.
-  const [contentTerm, setContentTerm] = useState("");
-  useEffect(() => {
-    const trimmed = query.trim();
-    if (trimmed.length < MIN_CONTENT_TERM) {
-      setContentTerm("");
-      return;
-    }
-    const id = setTimeout(
-      () => setContentTerm(trimmed),
-      CONTENT_SEARCH_DEBOUNCE_MS,
-    );
-    return () => clearTimeout(id);
-  }, [query]);
+  const debouncedQuery = useDebouncedValue(
+    query.trim(),
+    CONTENT_SEARCH_DEBOUNCE_MS,
+  );
+  const contentTerm =
+    debouncedQuery.length >= MIN_CONTENT_TERM ? debouncedQuery : "";
 
   // Unscoped on purpose: the palette searches every project the user owns.
   const contentHits = useQuery(

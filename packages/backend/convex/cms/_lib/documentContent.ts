@@ -30,6 +30,14 @@ export const MIN_CONTENT_TERM = 3;
 export const CONTENT_SEARCH_LIMIT = 8;
 
 /**
+ * Debounce before a body search reaches the server. Each distinct term is a
+ * distinct Convex subscription, so this is what keeps a fast typist from
+ * opening one per keystroke. Client-only, but it belongs beside the other two
+ * knobs — tuning body-search cost means reading all three together.
+ */
+export const CONTENT_SEARCH_DEBOUNCE_MS = 200;
+
+/**
  * Builds the short preview stored on `documents.excerpt` for list/board
  * cards. Mirrors the projection the list query used to derive inline.
  */
