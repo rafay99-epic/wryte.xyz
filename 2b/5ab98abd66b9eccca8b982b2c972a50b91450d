@@ -1,0 +1,25 @@
+apps/web/src/features/command-palette/command-palette.tsx
+  s_9210e140928bca::t_cb4286f1711f9d 448-460,524,539,592-598,689
+  s_9210e140928bca::t_1d987346cfdd4e 36,124
+  s_9210e140928bca::t_3da5f88b4a94c7 446
+  s_9210e140928bca::t_2009abea762bf5 372
+  s_9210e140928bca::t_ad62e431a81987 447
+apps/web/e2e/features/command-palette.authed.spec.ts
+  s_9210e140928bca::t_6a8227b53ac841 65,96-97,110-111,141
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "2b5ab98abd66b9eccca8b982b2c972a50b91450d",
+  "prompts": {},
+  "sessions": {
+    "s_9210e140928bca": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f9f56-ac81-7cc0-adc0-dafc41d3bf55",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
