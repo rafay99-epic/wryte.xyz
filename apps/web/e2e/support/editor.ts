@@ -76,6 +76,35 @@ export function getEditorTextarea(page: Page) {
 }
 
 /**
+ * Nonsense token used to prove BODY search works. It appears in no title,
+ * slug, or tag, so anything that finds it must have gone through the
+ * `document_content.search_content` index rather than the client-side
+ * metadata matchers.
+ */
+export const CONTENT_PROBE_MARKER = "zebracornmarker";
+
+/**
+ * Ensures the currently-open article's body contains {@link
+ * CONTENT_PROBE_MARKER}, appending it and waiting for autosave only when it
+ * isn't already there. Idempotent, so re-runs neither grow the seeded body nor
+ * pay the autosave round-trip twice.
+ *
+ * Call with an article already open in the editor (see `openSeededArticle`).
+ */
+export async function ensureBodyProbe(page: Page): Promise<void> {
+  const existing = await getEditorTextarea(page).inputValue();
+  if (existing.includes(CONTENT_PROBE_MARKER)) return;
+
+  await appendToEditor(
+    page,
+    `\n\nContent search probe: ${CONTENT_PROBE_MARKER}\n`,
+  );
+  await expect(
+    page.locator('[data-testid="save-status"][data-save-state="saved"]'),
+  ).toBeVisible({ timeout: 30_000 });
+}
+
+/**
  * Append text at the end of the editor textarea without clobbering existing
  * (seeded) content. Uses a real cursor + keystrokes so the editor's input
  * handlers and autosave fire exactly as they would for a human.

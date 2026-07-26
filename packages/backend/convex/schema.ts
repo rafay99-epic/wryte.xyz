@@ -376,9 +376,14 @@ export default defineSchema({
     .index("by_projectId_and_slug", ["projectId", "slug"])
     // Title typeahead for the editor's `[[` internal-link menu — search
     // scoped to the project so results never leak across projects.
+    //
+    // `userId` is a filter field too so a cross-project title search is ONE
+    // indexed read scoped to the owner, instead of one read per owned project
+    // fanned out in a loop. Both filters stay because the `[[` menu genuinely
+    // wants the narrower project scope.
     .searchIndex("search_title", {
       searchField: "title",
-      filterFields: ["projectId"],
+      filterFields: ["projectId", "userId"],
     }),
 
   /**
@@ -402,7 +407,23 @@ export default defineSchema({
   })
     .index("by_documentId", ["documentId"])
     .index("by_projectId", ["projectId"])
-    .index("by_userId", ["userId"]),
+    .index("by_userId", ["userId"])
+    // Body full-text behind the command palette's "In content" section — the
+    // ONE place that deliberately opts back into reading bodies. `userId` is
+    // filtered inside the index so a cross-project search is a single read
+    // and no other tenant's body is ever loaded into memory; `projectId`
+    // supports the scoped variant.
+    //
+    // Reading a hit bills its whole body, so `cms/documents.searchContent`
+    // caps the result count and enforces a minimum term length. If this table
+    // ever grows large enough that the backfill blocks a deploy, push this
+    // index once with `staged: true`, wait for the backfill, then remove the
+    // flag — a staged index cannot be queried, so the flag and the query must
+    // not land in the same deploy.
+    .searchIndex("search_content", {
+      searchField: "content",
+      filterFields: ["userId", "projectId"],
+    }),
 
   /**
    * Directed wiki-link edges — the graph behind the editor's "Linked from"

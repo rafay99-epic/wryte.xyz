@@ -14,6 +14,30 @@ import type { MutationCtx, QueryCtx } from "../../_generated/server";
 const EXCERPT_LENGTH = 200;
 
 /**
+ * Minimum term length for a body search. Below this the index returns noise.
+ *
+ * Exported because the callers that *gate* on it live on the client (the
+ * command palette, the project content search) while the query that *enforces*
+ * it lives in `cms/documents.searchContent`. Both sides reading this constant
+ * is what keeps the client's gate and the server's guard from drifting apart.
+ */
+export const MIN_CONTENT_TERM = 3;
+
+/**
+ * Hits returned per body search. Every hit bills its whole body, so this cap
+ * is the feature's main cost lever — keep it small.
+ */
+export const CONTENT_SEARCH_LIMIT = 8;
+
+/**
+ * Debounce before a body search reaches the server. Each distinct term is a
+ * distinct Convex subscription, so this is what keeps a fast typist from
+ * opening one per keystroke. Client-only, but it belongs beside the other two
+ * knobs — tuning body-search cost means reading all three together.
+ */
+export const CONTENT_SEARCH_DEBOUNCE_MS = 200;
+
+/**
  * Builds the short preview stored on `documents.excerpt` for list/board
  * cards. Mirrors the projection the list query used to derive inline.
  */
@@ -21,6 +45,36 @@ export function buildExcerpt(content: string): string {
   return content.length > EXCERPT_LENGTH
     ? `${content.slice(0, EXCERPT_LENGTH)}...`
     : content;
+}
+
+/** Characters of body context kept on each side of the first matched term. */
+const SNIPPET_RADIUS = 90;
+
+/**
+ * Body excerpt centred on the first query term, for the command palette's
+ * content-search rows. Keeps the wire payload at ~200 characters per hit so
+ * article bodies stay on the server even though the search had to read them.
+ *
+ * The last term of a Convex search expression is prefix-matched, so a hit can
+ * legitimately have no literal `indexOf` match (searching "deplo" matches
+ * "deployment"). Falling back to offset 0 then yields the article's opening,
+ * which is a useful excerpt rather than an empty string.
+ */
+export function extractSnippet(content: string, term: string): string {
+  const haystack = content.toLowerCase();
+  const firstHit =
+    term
+      .toLowerCase()
+      .split(/\s+/)
+      .map((token) => haystack.indexOf(token))
+      .filter((index) => index >= 0)
+      .sort((a, b) => a - b)[0] ?? 0;
+
+  const start = Math.max(0, firstHit - SNIPPET_RADIUS);
+  const end = Math.min(content.length, firstHit + SNIPPET_RADIUS);
+  const body = content.slice(start, end).replace(/\s+/g, " ").trim();
+
+  return `${start > 0 ? "…" : ""}${body}${end < content.length ? "…" : ""}`;
 }
 
 /**

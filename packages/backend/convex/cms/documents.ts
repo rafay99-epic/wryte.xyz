@@ -23,6 +23,9 @@ import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
 import { countWords } from "../_lib/wordCount";
 import {
   buildExcerpt,
+  CONTENT_SEARCH_LIMIT,
+  extractSnippet,
+  MIN_CONTENT_TERM,
   readContent,
   readContentById,
   writeContent,
@@ -224,28 +227,18 @@ export const searchForLink = query({
 });
 
 /**
- * How many projects a single cross-project search will fan out over. The
- * `search_title` index is filtered by `projectId`, so an unscoped search means
- * one indexed search per owned project. Bounded so a user with a very large
- * project count can't turn one tool call into an unbounded number of index
- * reads; the response reports truncation rather than silently covering less.
- */
-const SEARCH_MAX_PROJECTS = 20;
-
-/**
  * Title search for MCP clients (`wryte_documents_search`), scoped to one
- * project or fanned out across the caller's projects.
+ * project or across every project the caller owns.
  *
  * Backed by the `search_title` index that already exists for the editor's
- * `[[` link menu, so this adds a query, not an index. That does mean it is
- * **title-only** — document bodies live in a separate `document_content`
- * table specifically so hot queries never read them, and adding a body search
- * index would undo that tradeoff. Titles cover the lookup an agent actually
- * needs ("find my post about X"); revisit only if usage proves otherwise.
+ * `[[` link menu, so this adds a query, not an index. It is **title-only** by
+ * design: body search costs a full-body read per hit, so it lives in
+ * `searchContent` behind the palette's explicit, debounced, capped path rather
+ * than on an agent tool that might call it in a loop.
  *
- * The fan-out searches each owned project *through the index filter* rather
- * than searching globally and discarding other users' rows afterwards. Same
- * result, except no other tenant's titles are ever read into memory.
+ * Both paths filter *inside* the index — by `projectId` when scoped, by
+ * `userId` otherwise — so a search is a single indexed read and no other
+ * tenant's titles are ever loaded into memory.
  */
 export const search = query({
   args: {
@@ -266,12 +259,10 @@ export const search = query({
         wordCount: v.optional(v.number()),
       }),
     ),
-    /** True when the caller owns more projects than the fan-out cap. */
-    truncatedProjects: v.boolean(),
   }),
   handler: async (ctx, args) => {
     const user = await getAuthedUserOrNull(ctx);
-    if (!user) return { results: [], truncatedProjects: false };
+    if (!user) return { results: [] };
     return await searchDocumentsForUser(ctx, user._id, args);
   },
 });
@@ -282,59 +273,131 @@ export async function searchDocumentsForUser(
   userId: Id<"users">,
   args: { term: string; projectId?: Id<"projects">; limit?: number },
 ) {
-  {
-    const empty = { results: [], truncatedProjects: false };
+  const empty = { results: [] };
+  const term = args.term.trim();
+  if (!term) return empty;
+
+  const limit = Math.min(Math.max(args.limit ?? 20, 1), 50);
+
+  // Scoped searches verify ownership up front; unscoped ones are scoped by the
+  // index's own `userId` filter, which is the same guarantee without reading
+  // every project row to get it.
+  if (args.projectId) {
+    const project = await ctx.db.get(args.projectId);
+    if (!project || project.userId !== userId) return empty;
+  }
+
+  const matches = (
+    await ctx.db
+      .query("documents")
+      .withSearchIndex("search_title", (q) =>
+        args.projectId
+          ? q.search("title", term).eq("projectId", args.projectId)
+          : q.search("title", term).eq("userId", userId),
+      )
+      .take(limit)
+  ).filter((doc) => doc.trashedAt === undefined);
+
+  // `projectName` is part of this response's contract (MCP clients show it),
+  // so resolve each distinct parent once — hits cluster into a handful of
+  // projects, which is far cheaper than the owned-projects scan the old
+  // per-project fan-out needed just to build its name map.
+  const names = new Map<Id<"projects">, string>();
+  for (const doc of matches) {
+    if (names.has(doc.projectId)) continue;
+    const project = await ctx.db.get(doc.projectId);
+    names.set(doc.projectId, project?.name ?? "");
+  }
+
+  return {
+    results: matches.map((doc) => ({
+      _id: doc._id,
+      projectId: doc.projectId,
+      projectName: names.get(doc.projectId) ?? "",
+      title: doc.title,
+      slug: doc.slug,
+      status: doc.status,
+      updatedAt: doc.updatedAt,
+      ...(doc.wordCount !== undefined ? { wordCount: doc.wordCount } : {}),
+    })),
+  };
+}
+
+/**
+ * Body full-text search behind the command palette's "In content" section —
+ * the one path that deliberately opts back into reading article bodies.
+ *
+ * `document_content` is a separate table precisely so the list/board/calendar
+ * queries never read bodies; this query reads them because the user explicitly
+ * typed prose, and it is debounced, gated on a minimum term length, and capped
+ * at `CONTENT_SEARCH_LIMIT` hits so that cost stays bounded and per-intent.
+ *
+ * `userId` is filtered inside the search index, so another tenant's body is
+ * never loaded into memory. Results stay in the index's relevance order —
+ * re-sorting by date here would throw away the BM25 ranking that makes a body
+ * search useful.
+ */
+export const searchContent = query({
+  args: {
+    term: v.string(),
+    projectId: v.optional(v.id("projects")),
+  },
+  returns: v.array(
+    v.object({
+      documentId: v.id("documents"),
+      projectId: v.id("projects"),
+      title: v.string(),
+      status: v.string(),
+      snippet: v.string(),
+      updatedAt: v.number(),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const user = await getAuthedUserOrNull(ctx);
+    if (!user) return [];
+
     const term = args.term.trim();
-    if (!term) return empty;
+    if (term.length < MIN_CONTENT_TERM) return [];
 
-    const limit = Math.min(Math.max(args.limit ?? 20, 1), 50);
-
-    // Resolve the project set first — this is also the ownership check.
-    let projects: Doc<"projects">[];
-    let truncatedProjects = false;
     if (args.projectId) {
       const project = await ctx.db.get(args.projectId);
-      if (!project || project.userId !== userId) return empty;
-      projects = [project];
-    } else {
-      const owned = await ctx.db
-        .query("projects")
-        .withIndex("by_userId", (q) => q.eq("userId", userId))
-        .take(SEARCH_MAX_PROJECTS + 1);
-      truncatedProjects = owned.length > SEARCH_MAX_PROJECTS;
-      projects = owned.slice(0, SEARCH_MAX_PROJECTS);
+      if (!project || project.userId !== user._id) return [];
     }
 
-    const names = new Map(projects.map((p) => [p._id, p.name]));
-    const matches: Doc<"documents">[] = [];
-    for (const project of projects) {
-      const docs = await ctx.db
-        .query("documents")
-        .withSearchIndex("search_title", (q) =>
-          q.search("title", term).eq("projectId", project._id),
-        )
-        .take(limit);
-      matches.push(...docs.filter((doc) => doc.trashedAt === undefined));
+    const rows = await ctx.db
+      .query("document_content")
+      .withSearchIndex("search_content", (q) =>
+        args.projectId
+          ? q
+              .search("content", term)
+              .eq("userId", user._id)
+              .eq("projectId", args.projectId)
+          : q.search("content", term).eq("userId", user._id),
+      )
+      .take(CONTENT_SEARCH_LIMIT);
+
+    // Snippets are cut here, before anything is returned, so bodies stay
+    // local to this function — only ~200 characters per hit cross the wire.
+    // No project name is resolved: the palette row shows the snippet instead,
+    // and `projects` rows are large enough that reading eight of them for a
+    // label nobody displays would be the most expensive part of the query.
+    const hits = [];
+    for (const row of rows) {
+      const doc = await ctx.db.get(row.documentId);
+      if (!doc || doc.trashedAt !== undefined) continue;
+      hits.push({
+        documentId: doc._id,
+        projectId: doc.projectId,
+        title: doc.title || "Untitled",
+        status: doc.status,
+        snippet: extractSnippet(row.content, term),
+        updatedAt: doc.updatedAt,
+      });
     }
 
-    return {
-      results: matches
-        .sort((a, b) => b.updatedAt - a.updatedAt)
-        .slice(0, limit)
-        .map((doc) => ({
-          _id: doc._id,
-          projectId: doc.projectId,
-          projectName: names.get(doc.projectId) ?? "",
-          title: doc.title,
-          slug: doc.slug,
-          status: doc.status,
-          updatedAt: doc.updatedAt,
-          ...(doc.wordCount !== undefined ? { wordCount: doc.wordCount } : {}),
-        })),
-      truncatedProjects,
-    };
-  }
-}
+    return hits;
+  },
+});
 
 /**
  * Paginated full-content feed for the one-shot project export in
