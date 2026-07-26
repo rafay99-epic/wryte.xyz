@@ -1,0 +1,62 @@
+apps/web/src/features/command-palette/lib/settings-index.ts
+  s_6a25305bfda836::t_e7838b9187373d 1-18,20-56
+  s_6a25305bfda836::t_c07c893d7f75bd 19
+packages/logic/src/hooks/use-hash-tab.ts
+  s_6a25305bfda836::t_30c43cac56ea19 1-36
+docs/structure.md
+  s_6a25305bfda836::t_2ab4bbd0f02af2 91
+apps/web/e2e/features/command-palette.authed.spec.ts
+  s_6a25305bfda836::t_1e70f1312fab59 167
+  s_6a25305bfda836::t_8732fd15297ae9 2-7,10-11,15-22,47-50,68,77-80,82-85,88-166
+packages/backend/convex/cms/documents.ts
+  s_6a25305bfda836::t_c37042782afb41 229,232-235,237-239,263
+  s_6a25305bfda836::t_13ee42fee743c0 299-302,304-307,309-321
+  s_6a25305bfda836::t_bf0962ba880fc7 26
+  s_6a25305bfda836::t_6c2d7aa87edd7c 274-298,303,308,322-367,369-370,374,377-388,395-397,399-402,404,409-410
+  s_6a25305bfda836::t_c192093c6da8c8 391-393,408
+  s_6a25305bfda836::t_4fb24daeb99ed9 389-390,394,398,403,405
+packages/backend/convex/cms/_lib/documentContent.ts
+  s_6a25305bfda836::t_a7d8e61edd4226 26-55
+packages/backend/tests/document-snippet.test.ts
+  s_6a25305bfda836::t_e492a574d6b5c0 1-36,41-49
+  s_6a25305bfda836::t_d8f4d2f93da366 37-40
+apps/web/src/features/project-settings/project-settings-page.tsx
+  s_6a25305bfda836::t_85b4f9e0279da2 5,9
+  s_6a25305bfda836::t_6eb8029905df95 30-32,39-41,43-46,48,53
+apps/web/src/features/account-settings/types.ts
+  s_6a25305bfda836::t_bba756ebe80385 27-32,37-38,40-118
+packages/backend/convex/schema.ts
+  s_6a25305bfda836::t_a6913211659e6c 379-383,386
+  s_6a25305bfda836::t_0807e27eca63a9 410-426
+apps/web/src/features/command-palette/command-palette.tsx
+  s_6a25305bfda836::t_9451934fddc4fe 149-153,167-189
+  s_6a25305bfda836::t_3f21a50d31dccd 323-348
+  s_6a25305bfda836::t_c3f230dbfd34cd 13
+  s_6a25305bfda836::t_65a7784ec61b02 671
+  s_6a25305bfda836::t_4c595405729647 38-41
+  s_6a25305bfda836::t_31d9d4c3ad8e5b 80-84,97,106-117
+  s_6a25305bfda836::t_8d815272abdd86 118
+  s_6a25305bfda836::t_59372abd85548b 60
+  s_6a25305bfda836::t_f59b0c20bc360c 190
+  s_6a25305bfda836::t_0f5e8b44d2d80c 452-466,468,470,472,474-476,480
+  s_6a25305bfda836::t_883bd81594bd44 748-758
+apps/web/src/features/account-settings/account-settings-page.tsx
+  s_6a25305bfda836::t_1143c1400d2a54 22-24,28-30
+  s_6a25305bfda836::t_20ef0f706ce8b8 5,8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "4022ec95805fe33b9f8604d32a37f0dc83e41440",
+  "prompts": {},
+  "sessions": {
+    "s_6a25305bfda836": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "89f212f3-21a4-4e82-b784-e8ba0a8d348d",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
