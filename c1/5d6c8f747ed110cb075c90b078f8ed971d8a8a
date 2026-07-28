@@ -1,0 +1,46 @@
+packages/backend/convex/maintenance/retireExternalAnalytics.ts
+  s_595c08d55906ac::t_8160a120b5a14e 1-63,71-97
+  s_595c08d55906ac::t_83e407714e15f4 64-70
+apps/web/package.json
+  s_595c08d55906ac::t_795b3449ea43e4 3
+apps/desktop/package.json
+  s_595c08d55906ac::t_795b3449ea43e4 3
+packages/backend/convex/_seed/changelog.ts
+  s_595c08d55906ac::t_5f6174fb1d1ee2 1756-1774
+packages/ui/package.json
+  s_595c08d55906ac::t_795b3449ea43e4 3
+apps/web/src/app/(app)/admin/seed/_components/seed-runner.tsx
+  s_595c08d55906ac::t_354f90ced287df 4,13,27-33,70-72,81-83,86-104,106-112,174-200,202-204
+  s_595c08d55906ac::t_5f6174fb1d1ee2 201
+  s_595c08d55906ac::t_83e407714e15f4 105
+  s_595c08d55906ac::t_5ed9809d554968 205-206
+packages/backend/package.json
+  s_595c08d55906ac::t_795b3449ea43e4 3
+packages/logic/package.json
+  s_595c08d55906ac::t_795b3449ea43e4 3
+packages/backend/convex/_generated/api.d.ts
+  s_595c08d55906ac::t_921fe47fb05a11 70,183
+packages/backend/convex/schema.ts
+  s_595c08d55906ac::t_7c57452610225c 879-908
+  s_595c08d55906ac::t_c52ce0bfee351a 878
+packages/backend/convex/_lib/rateLimits.ts
+  s_595c08d55906ac::t_7c57452610225c 683-688
+package.json
+  s_595c08d55906ac::t_795b3449ea43e4 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "c15d6c8f747ed110cb075c90b078f8ed971d8a8a",
+  "prompts": {},
+  "sessions": {
+    "s_595c08d55906ac": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fa8d4-56a1-7420-8c36-cd601257f9be",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
