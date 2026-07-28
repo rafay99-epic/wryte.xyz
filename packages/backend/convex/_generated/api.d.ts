@@ -67,6 +67,7 @@ import type * as integrations_oembed from "../integrations/oembed.js";
 import type * as integrations_oembedProviders from "../integrations/oembedProviders.js";
 import type * as integrations_scheduling from "../integrations/scheduling.js";
 import type * as integrations_secretStore from "../integrations/secretStore.js";
+import type * as maintenance_retireExternalAnalytics from "../maintenance/retireExternalAnalytics.js";
 import type * as mcp_admin from "../mcp/admin.js";
 import type * as mcp_authorize from "../mcp/authorize.js";
 import type * as mcp_gate from "../mcp/gate.js";
@@ -179,6 +180,7 @@ declare const fullApi: ApiFromModules<{
   "integrations/oembedProviders": typeof integrations_oembedProviders;
   "integrations/scheduling": typeof integrations_scheduling;
   "integrations/secretStore": typeof integrations_secretStore;
+  "maintenance/retireExternalAnalytics": typeof maintenance_retireExternalAnalytics;
   "mcp/admin": typeof mcp_admin;
   "mcp/authorize": typeof mcp_authorize;
   "mcp/gate": typeof mcp_gate;

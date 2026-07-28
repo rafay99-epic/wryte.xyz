@@ -680,6 +680,12 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     capacity: 3,
   },
 
+  "maintenance:retireExternalAnalytics": {
+    kind: "fixed window",
+    rate: 3,
+    period: HOUR,
+  },
+
   /* ------------------------------------------------------------------ */
   /*  GitHub actions                                                     */
   /* ------------------------------------------------------------------ */

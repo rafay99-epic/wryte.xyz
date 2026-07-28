@@ -1755,6 +1755,25 @@ Adding a storage backend is now a two-file change internally \u2014 a registry e
 - Added clearer documentation for desktop and CLI setup paths, including Codex and Claude.
 `,
   },
+  {
+    title: "Retire external analytics and clean up provider data",
+    slug: "retire-external-analytics",
+    description:
+      "Remove the retired Plausible and Umami project integration, with an admin-run cleanup for stored targets, snapshots, and provider secrets.",
+    version: "1.6.2",
+    build: "unreleased",
+    publishedAt: Date.parse("2026-07-28T00:00:00+05:00"),
+    content: `## What's new
+
+- **Plausible and Umami are retired.** The project Analytics page, settings connection flow, provider APIs, share-link dashboard, and pageview column are gone.
+- **Legacy provider data can be removed safely.** Admins can run the cleanup from **Admin → Seed data**. It drains the old targets and snapshots in batches and queues deletion of stored provider API secrets.
+
+## What stays
+
+- Vercel Analytics continues tracking website visitors.
+- Writing streaks, daily and weekly goals, dashboards, editor progress, and all internal Convex writing stats are unchanged.
+`,
+  },
 ];
 
 const seedResult = v.object({

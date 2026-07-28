@@ -876,6 +876,37 @@ export default defineSchema({
     .index("by_projectId", ["projectId"]),
 
   /**
+   * Temporary compatibility table for the retired Plausible/Umami cleanup.
+   * The admin migration drains this table and schedules vault-secret deletion;
+   * remove both retired tables after the migration has completed everywhere.
+   */
+  analytics_targets: defineTable({
+    projectId: v.id("projects"),
+    userId: v.id("users"),
+    provider: v.union(v.literal("plausible"), v.literal("umami")),
+    mode: v.optional(v.union(v.literal("api"), v.literal("share"))),
+    vaultSecretId: v.optional(v.string()),
+    shareUrl: v.optional(v.string()),
+    embedBlocked: v.optional(v.boolean()),
+    baseUrl: v.optional(v.string()),
+    siteId: v.string(),
+    enabled: v.optional(v.boolean()),
+    status: v.union(v.literal("active"), v.literal("invalid")),
+    lastError: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_projectId", ["projectId"]),
+
+  /** Temporary compatibility table drained by the external analytics migration. */
+  analytics_snapshots: defineTable({
+    projectId: v.id("projects"),
+    range: v.string(),
+    fetchedAt: v.number(),
+    totalsJson: v.string(),
+    pagesJson: v.string(),
+  }).index("by_projectId", ["projectId"]),
+
+  /**
    * Media usage counters — denormalized so quota checks don't scan the media table
    * on every upload. Incremented in the same mutation that writes the media row,
    * decremented on delete. `uploadsThisMonth` resets when `monthBucket` rolls over.
