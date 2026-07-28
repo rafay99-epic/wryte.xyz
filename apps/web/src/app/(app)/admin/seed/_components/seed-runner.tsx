@@ -1,6 +1,7 @@
 "use client";
 
 import { api } from "@wryte/backend/_generated/api";
+import { Switch } from "@wryte/ui/switch";
 import { useAction } from "convex/react";
 import {
   BarChart3,
@@ -9,6 +10,7 @@ import {
   Lightbulb,
   Newspaper,
   Play,
+  ShieldAlert,
 } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -21,6 +23,13 @@ type SeedResult = {
 };
 
 type SeedKey = "changelog" | "featureRequests" | "writingStats";
+
+type ExternalAnalyticsMigrationResult = {
+  deletedTargets: number;
+  deletedSnapshots: number;
+  secretsQueued: number;
+  remaining: boolean;
+};
 
 const SEEDS: {
   key: SeedKey;
@@ -58,6 +67,9 @@ const SEEDS: {
 ];
 
 export function SeedRunner() {
+  const runExternalAnalyticsMigration = useAction(
+    api.maintenance.retireExternalAnalytics.run,
+  );
   const seedChangelog = useAction(api._seed.changelog.seed);
   const seedFeatureRequests = useAction(api._seed.featureRequests.seed);
   const seedWritingStats = useAction(api._seed.writingStats.seed);
@@ -66,7 +78,37 @@ export function SeedRunner() {
   const [results, setResults] = useState<Partial<Record<SeedKey, SeedResult>>>(
     {},
   );
+  const [migrationRunning, setMigrationRunning] = useState(false);
+  const [migrationResult, setMigrationResult] =
+    useState<ExternalAnalyticsMigrationResult | null>(null);
   const emailRef = useRef<HTMLInputElement>(null);
+
+  const runMigration = useCallback(
+    async (checked: boolean) => {
+      if (!checked || migrationRunning) return;
+      if (
+        !window.confirm(
+          "Delete all retired Plausible/Umami data and queue deletion of its stored API secrets? This cannot be undone.",
+        )
+      ) {
+        return;
+      }
+
+      setMigrationRunning(true);
+      try {
+        const result = await runExternalAnalyticsMigration();
+        setMigrationResult(result);
+        toast.success("External analytics migration started", {
+          description: `${String(result.deletedTargets)} targets · ${String(result.deletedSnapshots)} snapshots · ${String(result.secretsQueued)} secrets queued${result.remaining ? " · more batches are queued" : ""}`,
+        });
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Migration failed");
+      } finally {
+        setMigrationRunning(false);
+      }
+    },
+    [migrationRunning, runExternalAnalyticsMigration],
+  );
 
   const run = useCallback(
     async (key: SeedKey) => {
@@ -127,6 +169,39 @@ export function SeedRunner() {
             existing rows are upserted or skipped depending on the seed.
           </p>
         </div>
+      </div>
+
+      <div className="mb-3 flex items-start gap-4 rounded-xl border border-red-500/20 bg-red-500/[0.04] p-5">
+        <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-red-500/10 text-red-600 dark:text-red-400">
+          <ShieldAlert className="size-4.5" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <h2 className="text-[15px] font-semibold tracking-tight text-foreground">
+            Remove legacy external analytics data
+          </h2>
+          <p className="mt-1 text-[13px] leading-relaxed text-foreground/60">
+            Deletes retired Plausible/Umami targets and snapshots, and queues
+            deletion of their stored API secrets. Vercel Analytics and writing
+            stats are not touched.
+          </p>
+          {migrationResult && (
+            <div className="mt-3 flex items-center gap-2 rounded-lg bg-emerald-500/10 px-3 py-2 text-[12px] text-emerald-700 dark:text-emerald-300">
+              <CheckCircle2 className="size-3.5 shrink-0" />
+              <span className="font-mono">
+                {migrationResult.deletedTargets} targets ·{" "}
+                {migrationResult.deletedSnapshots} snapshots ·{" "}
+                {migrationResult.secretsQueued} secrets queued
+                {migrationResult.remaining ? " · more batches queued" : ""}
+              </span>
+            </div>
+          )}
+        </div>
+        <Switch
+          checked={migrationRunning}
+          disabled={migrationRunning || migrationResult !== null}
+          onCheckedChange={runMigration}
+          aria-label="Run external analytics cleanup migration"
+        />
       </div>
 
       <div className="space-y-3">

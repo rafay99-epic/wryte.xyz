@@ -1,6 +1,6 @@
 {
   "name": "@wryte/desktop",
-  "version": "1.6.1",
+  "version": "1.6.2",
   "private": true,
   "main": "main.cjs",
   "scripts": {

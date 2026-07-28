@@ -12,7 +12,6 @@ import { useQuery } from "convex/react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowLeft,
-  BarChart3,
   CalendarDays,
   Clapperboard,
   Database,
@@ -53,13 +52,6 @@ export function AppSidebar() {
     api.cms.documents.list,
     activeProjectId ? { projectId: activeProjectId as Id<"projects"> } : "skip",
   );
-  // Analytics nav item only exists while a connected provider is enabled.
-  const analyticsTarget = useQuery(
-    api.insights.targets.get,
-    activeProjectId ? { projectId: activeProjectId as Id<"projects"> } : "skip",
-  );
-  const analyticsEnabled = analyticsTarget?.enabled === true;
-
   // Animations nav item: MDX projects with the feature toggled on. Derived
   // from the already-fetched projects list — no extra query. Absent toggle
   // falls back to path presence (projects configured before it existed).
@@ -349,13 +341,6 @@ export function AppSidebar() {
                   icon={CalendarDays}
                   label="Calendar"
                 />
-                {analyticsEnabled && (
-                  <NavLink
-                    href={`/projects/${activeProjectId}/analytics`}
-                    icon={BarChart3}
-                    label="Analytics"
-                  />
-                )}
                 <NavLink
                   href={`/projects/${activeProjectId}/settings`}
                   icon={Settings}

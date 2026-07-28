@@ -680,21 +680,10 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     capacity: 3,
   },
 
-  /* ------------------------------------------------------------------ */
-  /*  Analytics (Plausible / Umami)                                      */
-  /* ------------------------------------------------------------------ */
-
-  "analytics:connect": {
-    kind: "token bucket",
-    rate: 5,
-    period: MINUTE,
-    capacity: 2,
-  },
-  "analytics:refresh": {
-    kind: "token bucket",
-    rate: 10,
-    period: MINUTE,
-    capacity: 4,
+  "maintenance:retireExternalAnalytics": {
+    kind: "fixed window",
+    rate: 3,
+    period: HOUR,
   },
 
   /* ------------------------------------------------------------------ */
