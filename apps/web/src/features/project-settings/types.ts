@@ -7,7 +7,6 @@ import type {
 } from "@wryte/logic/types/frontmatter";
 import type { MediaProvider } from "@wryte/logic/types/media";
 import {
-  BarChart3,
   Code2,
   FolderTree,
   GitBranch,
@@ -117,7 +116,6 @@ export type SettingsTab =
   | "editor"
   | "social"
   | "syndication"
-  | "analytics"
   | "sharing"
   | "tools";
 
@@ -231,20 +229,6 @@ export const TABS: {
       "canonical",
       "syndicate",
       "mirror",
-    ],
-  },
-  {
-    id: "analytics",
-    label: "Analytics",
-    icon: BarChart3,
-    keywords: [
-      "plausible",
-      "umami",
-      "views",
-      "pageviews",
-      "visitors",
-      "stats",
-      "traffic",
     ],
   },
   {

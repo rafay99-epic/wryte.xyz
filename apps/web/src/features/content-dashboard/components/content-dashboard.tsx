@@ -167,8 +167,6 @@ type ContentDashboardProps = {
   onBulkDeleteDone?: (() => void) | undefined;
   projectId: string;
   frontmatterMap: Map<string, ParsedFrontmatter>;
-  /** 30d pageviews per document id, from the analytics snapshot. Column is hidden when undefined. */
-  views?: Map<string, number> | undefined;
 };
 
 export function ContentDashboard({
@@ -205,7 +203,6 @@ export function ContentDashboard({
   onBulkDeleteDone,
   projectId,
   frontmatterMap,
-  views,
 }: ContentDashboardProps) {
   const { viewMode, setViewMode } = useViewPreferences(projectId);
   const activeTagFilters = useBoardStore((s) => s.activeTagFilters);
@@ -809,7 +806,6 @@ export function ContentDashboard({
                     onOpenItem={handleOpenItem}
                     onDeleteLocal={onDeleteLocal}
                     onDeleteRemote={onDeleteRemote}
-                    views={views}
                   />
 
                   {/* Pagination */}

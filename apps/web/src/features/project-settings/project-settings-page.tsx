@@ -9,7 +9,6 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { SettingsShell } from "@/components/settings/settings-shell";
 import { AiSection } from "./components/ai-section";
-import { AnalyticsSection } from "./components/analytics-section";
 import { ContentSection } from "./components/content-section";
 import { DangerZoneSection } from "./components/danger-zone-section";
 import { DeploymentSection } from "./components/deployment-section";
@@ -112,9 +111,6 @@ export function ProjectSettingsPage() {
       )}
       {activeTab === "syndication" && (
         <SyndicationSection projectId={projectId} project={project} />
-      )}
-      {activeTab === "analytics" && (
-        <AnalyticsSection projectId={projectId} project={project} />
       )}
       {activeTab === "sharing" && <SharingSection projectId={projectId} />}
       {activeTab === "tools" && (

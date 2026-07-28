@@ -876,66 +876,6 @@ export default defineSchema({
     .index("by_projectId", ["projectId"]),
 
   /**
-   * BYO analytics connection (Plausible / Umami) — one per project. Token
-   * lives in the vault; the row keeps only the vault id plus the resolved
-   * site identifier (Plausible domain / Umami websiteId, resolved once at
-   * connect). Lean connect+remove shape like `deployment_targets`, not the
-   * heavier rotate/test credentials CRUD — this is a read-only key.
-   */
-  analytics_targets: defineTable({
-    projectId: v.id("projects"),
-    userId: v.id("users"),
-    provider: v.union(v.literal("plausible"), v.literal("umami")),
-    /**
-     * "api" = BYO token, per-post views + snapshot (paid provider plans).
-     * "share" = the provider's public share link embedded in the Analytics
-     * page — free tier, no token, no per-post data. Absent = "api".
-     */
-    mode: v.optional(v.union(v.literal("api"), v.literal("share"))),
-    /** Absent in share mode — there is no secret. */
-    vaultSecretId: v.optional(v.string()),
-    /** Share mode: the provider's public share/embed URL. */
-    shareUrl: v.optional(v.string()),
-    /**
-     * Share mode: provider sends X-Frame-Options / frame-ancestors that
-     * forbid embedding (Umami Cloud does) — probed at connect time. The
-     * Analytics page then shows an open-in-new-tab panel instead of a
-     * blank iframe.
-     */
-    embedBlocked: v.optional(v.boolean()),
-    /** Self-hosted instance URL; absent = the provider's cloud endpoint. */
-    baseUrl: v.optional(v.string()),
-    /** Plausible site_id (domain) or Umami websiteId (UUID); "" in share mode. */
-    siteId: v.string(),
-    /**
-     * Master switch — off by default even after connect. Gates the sidebar
-     * Analytics page, the views column, and snapshot refreshes.
-     */
-    enabled: v.optional(v.boolean()),
-    status: v.union(v.literal("active"), v.literal("invalid")),
-    lastError: v.optional(v.string()),
-    createdAt: v.number(),
-    updatedAt: v.number(),
-  }).index("by_projectId", ["projectId"]),
-
-  /**
-   * Cached 30-day analytics snapshot — ONE row per project, refreshed at
-   * most every 15 minutes by `insights/snapshots.refresh`. Page stats are
-   * a JSON string (dodges the 1024-entry object limit, single small write
-   * per refresh). The dashboard reads this row reactively; a fresh row
-   * means zero external calls.
-   */
-  analytics_snapshots: defineTable({
-    projectId: v.id("projects"),
-    range: v.string(),
-    fetchedAt: v.number(),
-    /** JSON: { pageviews, visitors } */
-    totalsJson: v.string(),
-    /** JSON: PageStat[] — [{ path, pageviews, visitors? }] */
-    pagesJson: v.string(),
-  }).index("by_projectId", ["projectId"]),
-
-  /**
    * Media usage counters — denormalized so quota checks don't scan the media table
    * on every upload. Incremented in the same mutation that writes the media row,
    * decremented on delete. `uploadsThisMonth` resets when `monthBucket` rolls over.

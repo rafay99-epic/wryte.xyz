@@ -55,7 +55,6 @@ wryte.xyz/
 │       │   ├── ai/                 #   AI provider integrations
 │       │   ├── integrations/       #   GitHub, Clerk, secret store
 │       │   ├── syndication/        #   Cross-posting providers
-│       │   ├── insights/           #   Analytics providers
 │       │   ├── workflows/          #   Durable scheduled publishing
 │       │   ├── account/            #   User settings and preferences
 │       │   ├── support/            #   Support tickets
@@ -87,7 +86,6 @@ own `components/`, `hooks/`, and `lib/`:
 | `project-settings` | Per-project config: GitHub, AI, media, syndication, frontmatter |
 | `account-settings` | Profile, appearance, shortcuts, media, support, self-destruct |
 | `media-library` | Project media browsing and management |
-| `project-analytics` | Per-project traffic and content insights |
 | `command-palette` | Fuzzy command launcher with frecency ranking, settings-pane search, and full-text body search |
 | `sync-conflicts` | Conflict resolution when local and remote diverge |
 | `animation-gallery` | Reusable animation snippets for MDX |
