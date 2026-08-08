@@ -4,6 +4,7 @@ import { cn } from "@wryte/logic/lib/utils";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Suspense } from "react";
 
 type SidebarNavLinkProps = {
   href: string;
@@ -26,13 +27,70 @@ export function SidebarNavLink({
   active,
   exact,
 }: SidebarNavLinkProps) {
-  const pathname = usePathname();
-  const isActive =
-    active ??
-    (exact
-      ? pathname === href
-      : pathname === href || pathname.startsWith(`${href}/`));
+  if (active !== undefined) {
+    return (
+      <SidebarNavLinkContent
+        href={href}
+        icon={Icon}
+        isActive={active}
+        label={label}
+      />
+    );
+  }
 
+  return (
+    <Suspense
+      fallback={
+        <SidebarNavLinkContent
+          href={href}
+          icon={Icon}
+          isActive={false}
+          label={label}
+        />
+      }
+    >
+      <PathAwareSidebarNavLink
+        exact={exact ?? false}
+        href={href}
+        icon={Icon}
+        label={label}
+      />
+    </Suspense>
+  );
+}
+
+function PathAwareSidebarNavLink({
+  exact,
+  href,
+  icon,
+  label,
+}: Omit<SidebarNavLinkProps, "active" | "exact"> & { exact: boolean }) {
+  const pathname = usePathname();
+  const isActive = exact
+    ? pathname === href
+    : pathname === href || pathname.startsWith(`${href}/`);
+
+  return (
+    <SidebarNavLinkContent
+      href={href}
+      icon={icon}
+      isActive={isActive}
+      label={label}
+    />
+  );
+}
+
+function SidebarNavLinkContent({
+  href,
+  icon: Icon,
+  isActive,
+  label,
+}: {
+  href: string;
+  icon: React.ElementType;
+  isActive: boolean;
+  label: string;
+}) {
   return (
     <Link
       href={href}

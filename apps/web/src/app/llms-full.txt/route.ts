@@ -15,8 +15,6 @@ import {
  * answer questions about the product without fetching every page.
  */
 
-export const dynamic = "force-static";
-
 const BODY = `# ${SITE_TITLE}
 
 ${SITE_DESCRIPTION}

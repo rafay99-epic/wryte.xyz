@@ -1,5 +1,6 @@
 "use client";
 
+import { useIsMacPlatform } from "@wryte/logic/hooks/use-is-mac-platform";
 import { splitShortcutKeys } from "@wryte/logic/lib/shortcuts";
 import { useShortcutsStore } from "@wryte/logic/stores/shortcuts-store";
 import { KbdGroup } from "@wryte/ui/kbd";
@@ -14,6 +15,7 @@ const SHORTCUT_ITEMS = [
 
 export function ShortcutsPanel() {
   const getKeys = useShortcutsStore((s) => s.getKeys);
+  const isMacPlatform = useIsMacPlatform();
 
   return (
     <>
@@ -27,7 +29,7 @@ export function ShortcutsPanel() {
         <p className="text-[12px] leading-relaxed text-muted-foreground/60">
           Press{" "}
           <KbdGroup
-            keys={splitShortcutKeys(getKeys("commandPalette"))}
+            keys={splitShortcutKeys(getKeys("commandPalette"), isMacPlatform)}
             className="mx-0.5"
           />{" "}
           to open the command palette. Search articles, switch projects, or
@@ -48,7 +50,9 @@ export function ShortcutsPanel() {
               <span className="text-[12px] text-muted-foreground/50">
                 {item.label}
               </span>
-              <KbdGroup keys={splitShortcutKeys(getKeys(item.id))} />
+              <KbdGroup
+                keys={splitShortcutKeys(getKeys(item.id), isMacPlatform)}
+              />
             </div>
           ))}
         </div>

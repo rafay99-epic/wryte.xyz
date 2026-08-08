@@ -1,6 +1,6 @@
 {
   "name": "@wryte/desktop",
-  "version": "1.6.2",
+  "version": "1.6.3",
   "private": true,
   "main": "main.cjs",
   "scripts": {
@@ -14,7 +14,7 @@
     "electron-updater": "^6.8.9"
   },
   "devDependencies": {
-    "electron": "^43.1.1",
+    "electron": "^43.3.0",
     "electron-builder": "^26.15.3"
   }
 }

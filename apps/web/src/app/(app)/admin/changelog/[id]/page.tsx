@@ -1,20 +1,32 @@
 import type { Id } from "@wryte/backend/_generated/dataModel";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { requireAdminOr404 } from "../../_lib/require-admin";
+import { Suspense, use } from "react";
+import { AppPageSkeleton } from "@/components/feedback/skeletons/app-page-skeleton";
 import { ChangelogEdit } from "./_components/changelog-edit";
 
 export const metadata: Metadata = {
   title: "Edit changelog entry",
 };
 
-export default async function EditChangelogPage({
+export default function EditChangelogPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireAdminOr404();
-  const { id } = await params;
+  return (
+    <Suspense
+      fallback={
+        <AppPageSkeleton className="mx-auto w-full max-w-4xl px-6 py-10" />
+      }
+    >
+      <EditChangelogRoute params={params} />
+    </Suspense>
+  );
+}
+
+function EditChangelogRoute({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-10">

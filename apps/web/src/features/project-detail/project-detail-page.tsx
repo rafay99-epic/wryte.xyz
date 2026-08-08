@@ -33,7 +33,7 @@ import { useAction, useMutation, useQuery } from "convex/react";
 import { motion } from "framer-motion";
 import { Cloud, Plus, Settings, Trash2, Upload } from "lucide-react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { SyncConflictsBanner } from "@/components/editor/sync-conflicts-banner";
@@ -62,9 +62,12 @@ type RemoteFile = ContentFile;
  * Project detail page — thin orchestrator that fetches data, manages state,
  * and delegates rendering to `<ContentDashboard>` + dialog components.
  */
-export function ProjectDetailPage() {
-  const params = useParams<{ projectId: string }>();
-  const projectId = params.projectId as Id<"projects">;
+export function ProjectDetailPage({
+  projectId: rawProjectId,
+}: {
+  projectId: string;
+}) {
+  const projectId = rawProjectId as Id<"projects">;
   const router = useRouter();
 
   const project = useQuery(api.cms.projects.get, { projectId });

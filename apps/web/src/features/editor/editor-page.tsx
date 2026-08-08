@@ -11,7 +11,7 @@ import { useMutation, useQuery } from "convex/react";
 import { motion } from "framer-motion";
 import { ArrowLeft, FileQuestion, LayoutDashboard } from "lucide-react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useShallow } from "zustand/react/shallow";
@@ -23,10 +23,7 @@ import { useSaveShortcut } from "@/features/editor/hooks/use-save-shortcut";
 import { useVersionSnapshots } from "@/features/editor/hooks/use-version-snapshots";
 import { AiSynthesisDialog } from "./components/ai-synthesis-dialog";
 
-export function EditorPage() {
-  const params = useParams();
-  const documentId = params["documentId"] as string;
-
+export function EditorPage({ documentId }: { documentId: string }) {
   // Deliberately the FULL live subscription (body included) — and the only
   // always-mounted one allowed to be. The `!isDirty` effect below re-syncs
   // an idle editor when another device autosaves; without it, typing from a

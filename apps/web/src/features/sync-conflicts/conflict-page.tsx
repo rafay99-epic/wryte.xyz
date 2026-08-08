@@ -17,7 +17,7 @@ import {
   PencilLine,
 } from "lucide-react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { MarkdownDiffViewer } from "@/components/diff/markdown-diff-viewer";
@@ -38,11 +38,16 @@ type ViewMode = "diff" | "merge";
  * All resolutions bump `documents.githubSyncedAt` so the next sync
  * starts from a clean baseline.
  */
-export function ConflictPage() {
-  const params = useParams<{ projectId: string; conflictId: string }>();
+export function ConflictPage({
+  conflictId: rawConflictId,
+  projectId: rawProjectId,
+}: {
+  conflictId: string;
+  projectId: string;
+}) {
   const router = useRouter();
-  const conflictId = params.conflictId as Id<"sync_conflicts">;
-  const projectId = params.projectId as Id<"projects">;
+  const conflictId = rawConflictId as Id<"sync_conflicts">;
+  const projectId = rawProjectId as Id<"projects">;
 
   const data = useQuery(api.cms.conflicts.get, { conflictId });
   const resolveUseGithub = useMutation(api.cms.conflicts.resolveUseGithub);

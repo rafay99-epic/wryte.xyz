@@ -5,7 +5,7 @@ import type { Id } from "@wryte/backend/_generated/dataModel";
 import { useHashTab } from "@wryte/logic/hooks/use-hash-tab";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
 import { useQuery } from "convex/react";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { SettingsShell } from "@/components/settings/settings-shell";
 import { AiSection } from "./components/ai-section";
@@ -29,9 +29,12 @@ import { TABS } from "./types";
 /** Stable identity for `useHashTab`'s dependency — never rebuilt per render. */
 const TAB_IDS: readonly SettingsTab[] = TABS.map((t) => t.id);
 
-export function ProjectSettingsPage() {
-  const params = useParams<{ projectId: string }>();
-  const projectId = params.projectId as Id<"projects">;
+export function ProjectSettingsPage({
+  projectId: rawProjectId,
+}: {
+  projectId: string;
+}) {
+  const projectId = rawProjectId as Id<"projects">;
   const router = useRouter();
   const project = useQuery(api.cms.projects.get, { projectId });
   const projectDeleted = project === null;

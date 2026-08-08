@@ -1774,6 +1774,33 @@ Adding a storage backend is now a two-file change internally \u2014 a registry e
 - Writing streaks, daily and weekly goals, dashboards, editor progress, and all internal Convex writing stats are unchanged.
 `,
   },
+  {
+    title: "Next.js 16.3 instant navigation and rendering hardening",
+    slug: "nextjs-16-3-instant-navigation-and-rendering-hardening",
+    description:
+      "Upgrade Wryte's application shell for Next.js 16.3 with partial prefetching, route-wide streaming boundaries, and deterministic hydration across authenticated, project, admin, and marketing pages.",
+    version: "1.6.3",
+    build: "unreleased",
+    publishedAt: Date.parse("2026-08-09T03:23:32+05:00"),
+    content: `## What's new
+
+- **Next.js 16.3 instant navigation.** Cache Components and Partial Prefetching now keep reusable route shells ready while request-specific content streams into place.
+- **Route-wide streaming boundaries.** Project dashboards, articles, calendars, media, animations, settings, trash, document creation, sync conflicts, the editor, draft previews, and admin editing resolve URL parameters beneath explicit Suspense boundaries.
+- **Responsive application chrome.** Sidebar, header, focus-mode routing, and authentication states remain interactive while route-specific content loads.
+
+## Fixes
+
+- **Hydration is deterministic across platforms.** Keyboard shortcuts no longer render \`Ctrl\` on the server and \`⌘\` on macOS during the first client render.
+- **Admin navigation no longer blocks on Clerk.** Request-specific authorization stays behind a streaming boundary, preserving the prefetched admin shell without exposing protected content.
+- **Marketing pages prerender cleanly.** The shared footer no longer reads the current clock during rendering, removing the unstable \`new Date()\` insight from documentation and other static pages.
+- Removed incompatible route runtime configuration and migrated the request boundary to Next.js 16's Node.js \`proxy.ts\` convention.
+
+## Reliability
+
+- Dynamic URL data, client navigation hooks, and fresh server data now sit behind the boundaries required by Cache Components instead of opting routes out with \`instant = false\`.
+- Shared loading skeletons provide predictable fallback UI across authenticated pages and subpages.
+`,
+  },
 ];
 
 const seedResult = v.object({

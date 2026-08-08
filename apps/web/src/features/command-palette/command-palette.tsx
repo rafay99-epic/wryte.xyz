@@ -6,6 +6,7 @@ import {
   MIN_CONTENT_TERM,
 } from "@wryte/backend/cms/_lib/documentContent";
 import { useDebouncedValue } from "@wryte/logic/hooks/use-debounced-value";
+import { useIsMacPlatform } from "@wryte/logic/hooks/use-is-mac-platform";
 import { splitShortcutKeys } from "@wryte/logic/lib/shortcuts";
 import { cn } from "@wryte/logic/lib/utils";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
@@ -115,6 +116,7 @@ const MAX_RESULTS = 50;
 
 export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const router = useRouter();
+  const isMacPlatform = useIsMacPlatform();
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -669,7 +671,10 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                         const isSelected = globalIndex === selectedIndex;
                         const Icon = item.icon;
                         const shortcutKeys = item.shortcutId
-                          ? splitShortcutKeys(getKeys(item.shortcutId))
+                          ? splitShortcutKeys(
+                              getKeys(item.shortcutId),
+                              isMacPlatform,
+                            )
                           : [];
 
                         return (

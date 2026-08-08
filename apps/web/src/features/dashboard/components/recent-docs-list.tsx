@@ -10,7 +10,7 @@ import { cn } from "@wryte/logic/lib/utils";
 import { Skeleton } from "@wryte/ui/skeleton";
 import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 const STATUS_STYLES = {
   published: { dot: "bg-emerald-500", label: "Published" },
@@ -35,8 +35,6 @@ export function RecentDocsList({
   docs: RecentDoc[] | undefined;
   projectName?: (projectId: string) => string | undefined;
 }) {
-  const router = useRouter();
-
   if (docs === undefined) {
     return (
       <div className="space-y-1">
@@ -73,42 +71,40 @@ export function RecentDocsList({
             key={doc._id}
             variants={staggerItem}
             transition={smoothTransition}
-            role="button"
-            tabIndex={0}
-            onClick={() => router.push(`/editor/${doc._id}`)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                router.push(`/editor/${doc._id}`);
-              }
-            }}
             className={cn(
-              "group flex cursor-pointer items-center gap-3 bg-card/30 px-4 py-3 transition-colors hover:bg-muted/40",
+              "bg-card/30 transition-colors hover:bg-muted/40",
               i < docs.length - 1 && "border-b border-border/20",
             )}
           >
-            <span className={cn("size-2 shrink-0 rounded-full", status.dot)} />
+            <Link
+              href={`/editor/${doc._id}`}
+              className="group flex items-center gap-3 px-4 py-3"
+            >
+              <span
+                className={cn("size-2 shrink-0 rounded-full", status.dot)}
+              />
 
-            <div className="min-w-0 flex-1">
-              <span className="block truncate text-[13px] font-medium text-foreground">
-                {doc.title || "Untitled"}
-              </span>
-              <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground/50">
-                {name && (
-                  <>
-                    <span>{name}</span>
-                    <span className="text-border">&middot;</span>
-                  </>
-                )}
-                <span>{relativeTime(doc.updatedAt)}</span>
+              <div className="min-w-0 flex-1">
+                <span className="block truncate text-[13px] font-medium text-foreground">
+                  {doc.title || "Untitled"}
+                </span>
+                <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground/50">
+                  {name && (
+                    <>
+                      <span>{name}</span>
+                      <span className="text-border">&middot;</span>
+                    </>
+                  )}
+                  <span>{relativeTime(doc.updatedAt)}</span>
+                </div>
               </div>
-            </div>
 
-            <span className="shrink-0 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/40">
-              {status.label}
-            </span>
+              <span className="shrink-0 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/40">
+                {status.label}
+              </span>
 
-            <ArrowRight className="size-3 shrink-0 text-muted-foreground/0 transition-all group-hover:text-muted-foreground/40 group-hover:translate-x-0.5" />
+              <ArrowRight className="size-3 shrink-0 text-muted-foreground/0 transition-all group-hover:text-muted-foreground/40 group-hover:translate-x-0.5" />
+            </Link>
           </motion.div>
         );
       })}

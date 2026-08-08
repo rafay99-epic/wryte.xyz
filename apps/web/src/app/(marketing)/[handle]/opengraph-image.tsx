@@ -3,7 +3,6 @@ import { ConvexHttpClient } from "convex/browser";
 import { ImageResponse } from "next/og";
 import { accentHex } from "@/features/profile/accents";
 
-export const runtime = "nodejs";
 export const alt = "Writing profile on Wryte";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";

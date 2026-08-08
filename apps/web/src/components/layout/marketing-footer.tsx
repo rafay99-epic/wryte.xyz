@@ -2,6 +2,11 @@ import { APP_RELEASE_LABEL } from "@wryte/logic/lib/release";
 import Link from "next/link";
 import { BrandIcon } from "@/components/branding/brand-icon";
 
+// Keep prerender output deterministic. The footer is pulled into both Server
+// and Client Component trees, so reading the clock here would invalidate the
+// static shell and could also cross a year boundary during hydration.
+const COPYRIGHT_YEAR = process.env["NEXT_PUBLIC_BUILD_YEAR"] ?? "2026";
+
 const footerLinks = {
   Product: [
     { label: "Features", href: "/#features" },
@@ -110,8 +115,7 @@ export function MarketingFooter() {
         <div className="mt-10 border-t border-foreground/[0.06] pt-6 dark:border-foreground/[0.03]">
           <div className="flex flex-col items-center justify-between gap-3 sm:flex-row">
             <p className="text-[11px] text-foreground/30 dark:text-foreground/15">
-              &copy; {new Date().getFullYear()} Wryte &middot;{" "}
-              {APP_RELEASE_LABEL}
+              &copy; {COPYRIGHT_YEAR} Wryte &middot; {APP_RELEASE_LABEL}
             </p>
             <p className="text-[11px] text-foreground/25 dark:text-foreground/10">
               Open Source &middot; MIT Licensed
