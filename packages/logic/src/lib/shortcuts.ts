@@ -15,9 +15,8 @@ export function isMac(): boolean {
  * On macOS: "⌘⇧K"
  * On Windows/Linux: "Ctrl+Shift+K"
  */
-export function formatShortcutDisplay(keys: string): string {
+export function formatShortcutDisplay(keys: string, mac = isMac()): string {
   if (!keys) return "";
-  const mac = isMac();
   return keys
     .split("+")
     .map((k) => {
@@ -44,9 +43,8 @@ export function formatShortcutDisplay(keys: string): string {
  * Split a formatted display string into individual key tokens for rendering
  * as separate <kbd> elements.
  */
-export function splitShortcutKeys(keys: string): string[] {
+export function splitShortcutKeys(keys: string, mac = isMac()): string[] {
   if (!keys) return [];
-  const mac = isMac();
   return keys.split("+").map((k) => {
     const lower = k.toLowerCase();
     if (lower === "mod") return mac ? "⌘" : "Ctrl";

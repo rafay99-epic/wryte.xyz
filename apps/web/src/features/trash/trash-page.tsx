@@ -14,7 +14,6 @@ import {
 import { Skeleton } from "@wryte/ui/skeleton";
 import { useMutation, useQuery } from "convex/react";
 import { RotateCcw, Trash2 } from "lucide-react";
-import { useParams } from "next/navigation";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
 
@@ -26,9 +25,8 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
  * "Empty trash" requires a confirmation dialog because the action is
  * destructive and large in blast radius.
  */
-export function TrashPage() {
-  const params = useParams<{ projectId: string }>();
-  const projectId = params.projectId as Id<"projects">;
+export function TrashPage({ projectId: rawProjectId }: { projectId: string }) {
+  const projectId = rawProjectId as Id<"projects">;
 
   const data = useQuery(api.cms.trash.listByProject, { projectId });
   const restore = useMutation(api.cms.trash.restore);

@@ -26,6 +26,11 @@ const buildSha =
   "dev";
 
 const nextConfig: NextConfig = {
+  // Enables Next 16.3's cache-aware route shells. This is required for
+  // Partial Prefetching, which reuses one prefetched shell per route and
+  // makes App Router navigations feel immediate while data streams in.
+  cacheComponents: true,
+  partialPrefetching: true,
   reactCompiler: true,
   // Workspace packages ship untranspiled TS/TSX source — Next must compile
   // them itself rather than treating them as prebuilt node_modules.
@@ -44,6 +49,7 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_APP_VERSION: packageJson.version,
     NEXT_PUBLIC_BUILD_NUMBER: buildNumber,
     NEXT_PUBLIC_BUILD_SHA: buildSha,
+    NEXT_PUBLIC_BUILD_YEAR: new Date().getUTCFullYear().toString(),
   },
   images: {
     remotePatterns: [

@@ -3,11 +3,12 @@ import { absoluteUrl, SITE_NAME } from "@wryte/logic/lib/seo";
 import { ConvexHttpClient } from "convex/browser";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { cache } from "react";
+import { cache, Suspense } from "react";
 import {
   PublicProfile,
   type PublicProfileData,
 } from "@/features/profile/public-profile";
+import { ProfileLoading } from "./_components/profile-loading";
 
 /**
  * Public writing profile at `wryte.xyz/@username`.
@@ -93,7 +94,7 @@ export async function generateMetadata({
   };
 }
 
-export default async function ProfilePage({
+async function ProfileContent({
   params,
   searchParams,
 }: {
@@ -109,5 +110,16 @@ export default async function ProfilePage({
       profile={result.profile}
       {...(result.preview ? { preview: result.preview } : {})}
     />
+  );
+}
+
+export default function ProfilePage(props: {
+  params: Promise<{ handle: string }>;
+  searchParams: Promise<{ preview?: string }>;
+}) {
+  return (
+    <Suspense fallback={<ProfileLoading />}>
+      <ProfileContent {...props} />
+    </Suspense>
   );
 }

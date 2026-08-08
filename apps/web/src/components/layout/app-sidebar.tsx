@@ -28,11 +28,11 @@ import {
   Star,
 } from "lucide-react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useMemo } from "react";
 import { BrandIcon } from "@/components/branding/brand-icon";
+import { SidebarDocumentLink } from "@/components/layout/app-sidebar/sidebar-document-link";
 import { SidebarNavLink as NavLink } from "@/components/layout/app-sidebar/sidebar-nav-link";
-import { SidebarStatusDot as StatusDot } from "@/components/layout/app-sidebar/sidebar-status-dot";
 import { useIsAdmin } from "@/components/layout/hooks/use-is-admin";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 
@@ -41,7 +41,6 @@ import { ThemeToggle } from "@/components/layout/theme-toggle";
 /* ------------------------------------------------------------------ */
 
 export function AppSidebar() {
-  const pathname = usePathname();
   const router = useRouter();
   const activeProjectId = useEditorStore((s) => s.activeProjectId);
   const setActiveProjectId = useEditorStore((s) => s.setActiveProjectId);
@@ -61,6 +60,8 @@ export function AppSidebar() {
     (activeProject.animationsEnabled ?? !!activeProject.animationsPath);
 
   function handleBack() {
+    const pathname = window.location.pathname;
+
     // Hierarchical "up", one level at a time — the user's mental model is
     // editor → project → dashboard, and equally sub-page (media/animations/
     // calendar/…) → project → dashboard. Deterministic on purpose: browser
@@ -77,11 +78,6 @@ export function AppSidebar() {
     }
     setActiveProjectId(null);
     router.push("/dashboard");
-  }
-
-  function handleSelectProject(projectId: string) {
-    setActiveProjectId(projectId);
-    router.push(`/projects/${projectId}`);
   }
 
   // Compute status counts for sidebar filter chips
@@ -239,25 +235,28 @@ export function AppSidebar() {
                           Favorites
                         </p>
                         {sidebarFavorites.map((project, index) => (
-                          <motion.button
+                          <motion.div
                             key={project._id}
-                            type="button"
                             initial={{ opacity: 0, y: 4 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: index * 0.03, duration: 0.2 }}
-                            onClick={() => handleSelectProject(project._id)}
-                            className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] text-left text-muted-foreground transition-all hover:bg-muted/60 hover:text-foreground"
                           >
-                            <FolderOpen className="size-4 shrink-0 text-muted-foreground/60" />
-                            <span className="min-w-0 flex-1 truncate">
-                              {project.name}
-                            </span>
-                            <Star
-                              className="size-3.5 shrink-0 text-amber-400"
-                              fill="currentColor"
-                              aria-hidden
-                            />
-                          </motion.button>
+                            <Link
+                              href={`/projects/${project._id}`}
+                              onClick={() => setActiveProjectId(project._id)}
+                              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] text-left text-muted-foreground transition-all hover:bg-muted/60 hover:text-foreground"
+                            >
+                              <FolderOpen className="size-4 shrink-0 text-muted-foreground/60" />
+                              <span className="min-w-0 flex-1 truncate">
+                                {project.name}
+                              </span>
+                              <Star
+                                className="size-3.5 shrink-0 text-amber-400"
+                                fill="currentColor"
+                                aria-hidden
+                              />
+                            </Link>
+                          </motion.div>
                         ))}
                       </div>
                     )}
@@ -269,23 +268,26 @@ export function AppSidebar() {
                           </p>
                         )}
                         {sidebarOthers.map((project, index) => (
-                          <motion.button
+                          <motion.div
                             key={project._id}
-                            type="button"
                             initial={{ opacity: 0, y: 4 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{
                               delay: (sidebarFavorites.length + index) * 0.03,
                               duration: 0.2,
                             }}
-                            onClick={() => handleSelectProject(project._id)}
-                            className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] text-left text-muted-foreground transition-all hover:bg-muted/60 hover:text-foreground"
                           >
-                            <FolderOpen className="size-4 shrink-0 text-muted-foreground/60" />
-                            <span className="min-w-0 flex-1 truncate">
-                              {project.name}
-                            </span>
-                          </motion.button>
+                            <Link
+                              href={`/projects/${project._id}`}
+                              onClick={() => setActiveProjectId(project._id)}
+                              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] text-left text-muted-foreground transition-all hover:bg-muted/60 hover:text-foreground"
+                            >
+                              <FolderOpen className="size-4 shrink-0 text-muted-foreground/60" />
+                              <span className="min-w-0 flex-1 truncate">
+                                {project.name}
+                              </span>
+                            </Link>
+                          </motion.div>
                         ))}
                       </div>
                     )}
@@ -411,30 +413,15 @@ export function AppSidebar() {
                   </p>
                 ) : (
                   <div className="space-y-0.5">
-                    {documents.map((doc, index) => {
-                      const isActive = pathname === `/editor/${doc._id}`;
-
-                      return (
-                        <motion.div
-                          key={doc._id}
-                          initial={{ opacity: 0, y: 4 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: index * 0.03, duration: 0.2 }}
-                          onClick={() => router.push(`/editor/${doc._id}`)}
-                          className={cn(
-                            "flex cursor-pointer items-center gap-2.5 rounded-lg px-3 py-1.5 text-[13px] transition-all",
-                            isActive
-                              ? "bg-primary/10 font-medium text-primary"
-                              : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-                          )}
-                        >
-                          <StatusDot status={doc.status ?? "draft"} />
-                          <span className="truncate">
-                            {doc.title || "Untitled"}
-                          </span>
-                        </motion.div>
-                      );
-                    })}
+                    {documents.map((doc, index) => (
+                      <SidebarDocumentLink
+                        key={doc._id}
+                        documentId={doc._id}
+                        index={index}
+                        status={doc.status ?? "draft"}
+                        title={doc.title || "Untitled"}
+                      />
+                    ))}
                   </div>
                 )}
               </div>

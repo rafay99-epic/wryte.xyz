@@ -14,8 +14,6 @@ import {
  * `/llms-full.txt` and contains the actual content.
  */
 
-export const dynamic = "force-static";
-
 const BODY = `# ${SITE_NAME}
 
 > ${SITE_DESCRIPTION}

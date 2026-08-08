@@ -20,7 +20,6 @@ import {
   Type,
 } from "lucide-react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
 import { useEffect } from "react";
 import { RecentDocsList } from "@/features/dashboard/components/recent-docs-list";
 import { ShortcutsPanel } from "@/features/dashboard/components/shortcuts-panel";
@@ -32,9 +31,12 @@ import { StaleContentSection } from "./components/stale-content-section";
 import { StatusDistribution } from "./components/status-distribution";
 import { useProjectDashboard } from "./hooks/use-project-dashboard";
 
-export function ProjectDashboardPage() {
-  const params = useParams<{ projectId: string }>();
-  const projectId = params.projectId as Id<"projects">;
+export function ProjectDashboardPage({
+  projectId: rawProjectId,
+}: {
+  projectId: string;
+}) {
+  const projectId = rawProjectId as Id<"projects">;
 
   const { stats, recentDocs, upcoming, isLoading, totalDocs, statusCounts } =
     useProjectDashboard(projectId);

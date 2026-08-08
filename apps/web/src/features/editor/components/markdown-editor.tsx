@@ -2,6 +2,7 @@
 
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
+import { useIsMacPlatform } from "@wryte/logic/hooks/use-is-mac-platform";
 import { splitShortcutKeys } from "@wryte/logic/lib/shortcuts";
 import { useEditorPreferencesStore } from "@wryte/logic/stores/editor-preferences-store";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
@@ -84,7 +85,10 @@ export function MarkdownEditor({
   const onCodeBlock = useCallback(() => {}, []);
 
   const inlineAiKeys = useShortcutsStore((s) => s.getKeys("inlineAI"));
-  const inlineAiLabel = splitShortcutKeys(inlineAiKeys).join("+");
+  const isMacPlatform = useIsMacPlatform();
+  const inlineAiLabel = splitShortcutKeys(inlineAiKeys, isMacPlatform).join(
+    "+",
+  );
 
   // Inline AI is only available once the project's AI provider has an
   // active credential. We still register the shortcut so users discover

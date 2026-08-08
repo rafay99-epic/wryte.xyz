@@ -19,7 +19,7 @@ import {
   PenLine,
   Sparkles,
 } from "lucide-react";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -30,9 +30,12 @@ import { toast } from "sonner";
  * preview, and a prominent CTA. The layout uses the full content area
  * for a focused, distraction-free creation experience.
  */
-export function NewProjectDocumentPage() {
-  const params = useParams<{ projectId: string }>();
-  const projectId = params.projectId as Id<"projects">;
+export function NewProjectDocumentPage({
+  projectId: rawProjectId,
+}: {
+  projectId: string;
+}) {
+  const projectId = rawProjectId as Id<"projects">;
   const router = useRouter();
 
   const project = useQuery(api.cms.projects.get, { projectId });

@@ -1,5 +1,6 @@
 "use client";
 
+import { useIsMacPlatform } from "@wryte/logic/hooks/use-is-mac-platform";
 import {
   smoothTransition,
   staggerContainer,
@@ -16,6 +17,7 @@ import { CATEGORY_LABELS, CATEGORY_ORDER } from "../types";
 import { SectionHeader } from "./shared";
 
 export function ShortcutsTab() {
+  const isMacPlatform = useIsMacPlatform();
   const {
     bindings,
     getKeys,
@@ -80,7 +82,7 @@ export function ShortcutsTab() {
                   const currentKeys = getKeys(shortcut.id);
                   const isRecording = recordingId === shortcut.id;
                   const isCustomized = bindings[shortcut.id] !== undefined;
-                  const keys = splitShortcutKeys(currentKeys);
+                  const keys = splitShortcutKeys(currentKeys, isMacPlatform);
                   const isLast = idx === shortcuts.length - 1;
 
                   return (
@@ -117,6 +119,7 @@ export function ShortcutsTab() {
                                 <KbdGroup
                                   keys={splitShortcutKeys(
                                     recorder.recordedHotkey,
+                                    isMacPlatform,
                                   )}
                                 />
                               ) : (

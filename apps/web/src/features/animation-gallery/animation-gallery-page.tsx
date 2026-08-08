@@ -32,7 +32,6 @@ import {
   Trash2,
 } from "lucide-react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -69,9 +68,12 @@ function extractDefaultExportName(source: string): string | null {
  * from the server; source code is fetched lazily per-card via Intersection-
  * Observer, so loading 200 cards costs ~20KB of reads instead of ~20MB.
  */
-export function AnimationGalleryPage() {
-  const params = useParams<{ projectId: string }>();
-  const projectId = params.projectId as Id<"projects">;
+export function AnimationGalleryPage({
+  projectId: rawProjectId,
+}: {
+  projectId: string;
+}) {
+  const projectId = rawProjectId as Id<"projects">;
 
   const project = useQuery(api.cms.projects.get, { projectId });
   const cards = useQuery(api.cms.animations.listNames, { projectId });

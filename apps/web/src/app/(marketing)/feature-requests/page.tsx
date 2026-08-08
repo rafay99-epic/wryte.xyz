@@ -7,8 +7,6 @@ export const metadata: Metadata = {
   description: "Ask for what Wryte should build next. Upvote ideas you'd use.",
 };
 
-export const revalidate = 30;
-
 export default function FeatureRequestsPage() {
   return (
     <div className="relative min-h-screen">

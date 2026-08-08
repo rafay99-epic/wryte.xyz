@@ -53,7 +53,6 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { CompressionOverrideDisclosure } from "@/components/forms/compression-override-disclosure";
@@ -72,9 +71,12 @@ type UnifiedMediaItem = MediaLibraryItem;
 /*  Page                                                               */
 /* ------------------------------------------------------------------ */
 
-export function MediaLibraryPage() {
-  const params = useParams<{ projectId: string }>();
-  const projectId = params.projectId as Id<"projects">;
+export function MediaLibraryPage({
+  projectId: rawProjectId,
+}: {
+  projectId: string;
+}) {
+  const projectId = rawProjectId as Id<"projects">;
   const project = useQuery(api.cms.projects.get, { projectId });
 
   useEffect(() => {

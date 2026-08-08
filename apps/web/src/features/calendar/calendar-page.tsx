@@ -7,13 +7,15 @@ import { useEditorStore } from "@wryte/logic/stores/editor-store";
 import { useQuery } from "convex/react";
 import { motion } from "framer-motion";
 import { CalendarDays } from "lucide-react";
-import { useParams } from "next/navigation";
 import { useEffect } from "react";
 import { CalendarSurface } from "@/features/calendar/components/calendar-surface";
 
-export function CalendarPage() {
-  const params = useParams<{ projectId: string }>();
-  const projectId = params.projectId as Id<"projects">;
+export function CalendarPage({
+  projectId: rawProjectId,
+}: {
+  projectId: string;
+}) {
+  const projectId = rawProjectId as Id<"projects">;
 
   const project = useQuery(api.cms.projects.get, { projectId });
 

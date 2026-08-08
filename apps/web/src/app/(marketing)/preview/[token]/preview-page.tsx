@@ -7,7 +7,7 @@ import { Skeleton } from "@wryte/ui/skeleton";
 import { useQuery } from "convex/react";
 import { ArrowRight, Clock, Eye, FileQuestion } from "lucide-react";
 import Image from "next/image";
-import { useParams } from "next/navigation";
+import Link from "next/link";
 import { ChangelogMarkdown } from "@/components/changelog/changelog-markdown";
 import { SharedMdxContent } from "@/components/markdown/shared-mdx-content";
 
@@ -28,7 +28,7 @@ function PreviewChrome({ children }: { children: React.ReactNode }) {
     <div className="flex min-h-screen flex-col">
       <header className="border-b border-border/40 bg-background/80 backdrop-blur">
         <div className="mx-auto flex w-full max-w-3xl items-center justify-between px-6 py-3">
-          <a
+          <Link
             href={PREVIEW_CTA_URL}
             className="flex items-center gap-2 transition-opacity hover:opacity-80"
           >
@@ -41,7 +41,7 @@ function PreviewChrome({ children }: { children: React.ReactNode }) {
               unoptimized
             />
             <span className="text-sm font-semibold tracking-tight">wryte</span>
-          </a>
+          </Link>
           <span className="flex items-center gap-1.5 rounded-full bg-amber-500/10 px-2.5 py-1 text-[11px] font-medium text-amber-600 dark:text-amber-500">
             <Eye className="size-3" />
             Draft preview
@@ -59,10 +59,7 @@ function PreviewChrome({ children }: { children: React.ReactNode }) {
  * the same neutral not-found state. The page stays noindex (see page.tsx);
  * branding and the CTA are for the human reader, never for crawlers.
  */
-export function PreviewPage() {
-  const params = useParams<{ token: string }>();
-  const token = params.token;
-
+export function PreviewPage({ token }: { token: string }) {
   const document = useQuery(
     api.cms.shareLinks.getByToken,
     token ? { token } : "skip",
@@ -75,19 +72,7 @@ export function PreviewPage() {
   );
 
   if (document === undefined) {
-    return (
-      <PreviewChrome>
-        <main className="mx-auto w-full max-w-3xl flex-1 px-6 py-16">
-          <Skeleton className="mb-3 h-5 w-32" />
-          <Skeleton className="mb-8 h-9 w-3/4" />
-          <div className="space-y-3">
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-4 w-2/3" />
-          </div>
-        </main>
-      </PreviewChrome>
-    );
+    return <PreviewLoading />;
   }
 
   if (document === null) {
@@ -142,18 +127,34 @@ export function PreviewPage() {
               open-source, git-native CMS. Write in markdown, publish straight
               to GitHub; your repo stays the source of truth.
             </p>
-            <a
+            <Link
               href={PREVIEW_CTA_URL}
               className="flex shrink-0 items-center gap-1.5 rounded-xl bg-amber-500 px-4 py-2 text-[13px] font-medium text-black transition-colors hover:bg-amber-400"
             >
               Start writing free
               <ArrowRight className="size-3.5" />
-            </a>
+            </Link>
           </div>
           <p className="mt-4 text-[11px] text-muted-foreground/50">
             Shared by its author — always reflects the latest saved version.
           </p>
         </footer>
+      </main>
+    </PreviewChrome>
+  );
+}
+
+export function PreviewLoading() {
+  return (
+    <PreviewChrome>
+      <main className="mx-auto w-full max-w-3xl flex-1 px-6 py-16">
+        <Skeleton className="mb-3 h-5 w-32" />
+        <Skeleton className="mb-8 h-9 w-3/4" />
+        <div className="space-y-3">
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-2/3" />
+        </div>
       </main>
     </PreviewChrome>
   );

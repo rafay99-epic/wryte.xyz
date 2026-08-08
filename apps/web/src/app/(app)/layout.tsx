@@ -1,9 +1,9 @@
 "use client";
 
 import { api } from "@wryte/backend/_generated/api";
+import { useIsMacPlatform } from "@wryte/logic/hooks/use-is-mac-platform";
 import { useVersionCheck } from "@wryte/logic/hooks/use-version-check";
 import { splitShortcutKeys } from "@wryte/logic/lib/shortcuts";
-import { cn } from "@wryte/logic/lib/utils";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
 import { useShortcutsStore } from "@wryte/logic/stores/shortcuts-store";
 import { Button } from "@wryte/ui/button";
@@ -12,8 +12,9 @@ import { Skeleton } from "@wryte/ui/skeleton";
 import { useConvexAuth, useMutation } from "convex/react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Minimize2 } from "lucide-react";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { AppHeader } from "@/components/layout/app-header";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { useAppHotkeys } from "@/components/layout/hooks/use-app-hotkeys";
@@ -29,8 +30,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const sidebarOpen = useEditorStore((s) => s.sidebarOpen);
   const focusMode = useEditorStore((s) => s.focusMode);
   const toggleFocusMode = useEditorStore((s) => s.toggleFocusMode);
-  const pathname = usePathname();
-  const isEditorPage = pathname.startsWith("/editor/");
   const hasInitialized = useRef(false);
 
   // Command palette state
@@ -52,14 +51,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   });
 
   const getKeys = useShortcutsStore((s) => s.getKeys);
-  const focusKeys = splitShortcutKeys(getKeys("toggleFocusMode"));
-
-  // Exit focus mode when navigating away from editor
-  useEffect(() => {
-    if (!isEditorPage && focusMode) {
-      toggleFocusMode();
-    }
-  }, [isEditorPage, focusMode, toggleFocusMode]);
+  const isMacPlatform = useIsMacPlatform();
+  const focusKeys = splitShortcutKeys(
+    getKeys("toggleFocusMode"),
+    isMacPlatform,
+  );
 
   useEffect(() => {
     if (isAuthenticated && !hasInitialized.current) {
@@ -70,61 +66,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
   }, [isAuthenticated, getOrCreate]);
 
-  // --- Loading skeleton ---
-  if (isLoading) {
-    return (
-      <div className="flex h-screen bg-background">
-        {/* Sidebar skeleton */}
-        <div className="w-[260px] border-r border-border/50 bg-sidebar p-4">
-          <Skeleton className="mb-6 h-6 w-20" />
-          <div className="space-y-2">
-            <Skeleton className="h-8 w-full" />
-            <Skeleton className="h-8 w-full" />
-            <Skeleton className="h-8 w-3/4" />
-          </div>
-        </div>
-        {/* Content skeleton */}
-        <div className="flex flex-1 flex-col bg-background">
-          <div className="flex h-12 items-center border-b border-border/50 px-4">
-            <Skeleton className="h-5 w-40" />
-          </div>
-          <div className="flex-1 p-6">
-            <Skeleton className="mb-4 h-8 w-64" />
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <Skeleton className="h-28 w-full rounded-xl" />
-              <Skeleton className="h-28 w-full rounded-xl" />
-              <Skeleton className="h-28 w-full rounded-xl" />
-              <Skeleton className="h-28 w-full rounded-xl" />
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // --- Unauthenticated fallback ---
-  if (!isAuthenticated) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-center"
-        >
-          <p className="mb-4 text-lg text-muted-foreground">
-            Please sign in to continue.
-          </p>
-          <a
-            href="/sign-in"
-            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-          >
-            Sign in
-          </a>
-        </motion.div>
-      </div>
-    );
-  }
-
   // --- Main app chrome ---
   return (
     <div className="relative flex h-screen overflow-hidden bg-background">
@@ -134,7 +75,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         animate={{ width: sidebarOpen && !focusMode ? 260 : 0 }}
         transition={{ type: "spring", stiffness: 400, damping: 35 }}
       >
-        <AppSidebar />
+        <Suspense fallback={<AppSidebarFallback />}>
+          <AppSidebar />
+        </Suspense>
       </motion.aside>
 
       {/* Main content */}
@@ -149,19 +92,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
               className="shrink-0 overflow-hidden"
             >
-              <AppHeader />
+              <Suspense fallback={<AppHeaderFallback />}>
+                <AppHeader />
+              </Suspense>
             </motion.div>
           )}
         </AnimatePresence>
 
         <main
-          className={cn(
-            // `min-w-0` lets this flex item stay within the viewport instead of
-            // being stretched by wide content (e.g. the kanban board), so inner
-            // `overflow-x-auto` regions can actually scroll.
-            "min-w-0 flex-1",
-            isEditorPage ? "overflow-hidden" : "overflow-y-auto slim-scrollbar",
-          )}
+          // `min-w-0` lets this flex item stay within the viewport instead of
+          // being stretched by wide content (e.g. the kanban board), so inner
+          // `overflow-x-auto` regions can actually scroll. Editor content is
+          // height-constrained and manages its own overflow.
+          className="min-w-0 flex-1 overflow-y-auto slim-scrollbar"
         >
           {children}
         </main>
@@ -198,6 +141,113 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <AppAuthOverlay isAuthenticated={isAuthenticated} isLoading={isLoading} />
+
+      <Suspense fallback={null}>
+        <FocusModeRouteSync
+          focusMode={focusMode}
+          toggleFocusMode={toggleFocusMode}
+        />
+      </Suspense>
+    </div>
+  );
+}
+
+function AppHeaderFallback() {
+  return (
+    <div className="flex h-12 items-center border-b border-border/50 px-3">
+      <Skeleton className="h-5 w-40" />
+    </div>
+  );
+}
+
+function AppSidebarFallback() {
+  return (
+    <div className="h-full w-[260px] bg-sidebar p-4">
+      <Skeleton className="mb-6 h-6 w-20" />
+      <div className="space-y-2">
+        <Skeleton className="h-8 w-full" />
+        <Skeleton className="h-8 w-full" />
+        <Skeleton className="h-8 w-3/4" />
+      </div>
+    </div>
+  );
+}
+
+function FocusModeRouteSync({
+  focusMode,
+  toggleFocusMode,
+}: {
+  focusMode: boolean;
+  toggleFocusMode: () => void;
+}) {
+  const pathname = usePathname();
+
+  useEffect(() => {
+    if (!pathname.startsWith("/editor/") && focusMode) {
+      toggleFocusMode();
+    }
+  }, [pathname, focusMode, toggleFocusMode]);
+
+  return null;
+}
+
+function AppAuthOverlay({
+  isAuthenticated,
+  isLoading,
+}: {
+  isAuthenticated: boolean;
+  isLoading: boolean;
+}) {
+  if (!isLoading && isAuthenticated) {
+    return null;
+  }
+
+  return (
+    <div className="absolute inset-0 z-[100] flex bg-background">
+      {isLoading ? (
+        <>
+          <div className="w-[260px] border-r border-border/50 bg-sidebar p-4">
+            <Skeleton className="mb-6 h-6 w-20" />
+            <div className="space-y-2">
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-8 w-3/4" />
+            </div>
+          </div>
+          <div className="flex flex-1 flex-col bg-background">
+            <div className="flex h-12 items-center border-b border-border/50 px-4">
+              <Skeleton className="h-5 w-40" />
+            </div>
+            <div className="flex-1 p-6">
+              <Skeleton className="mb-4 h-8 w-64" />
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <Skeleton className="h-28 w-full rounded-xl" />
+                <Skeleton className="h-28 w-full rounded-xl" />
+                <Skeleton className="h-28 w-full rounded-xl" />
+                <Skeleton className="h-28 w-full rounded-xl" />
+              </div>
+            </div>
+          </div>
+        </>
+      ) : (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="m-auto text-center"
+        >
+          <p className="mb-4 text-lg text-muted-foreground">
+            Please sign in to continue.
+          </p>
+          <Link
+            href="/sign-in"
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          >
+            Sign in
+          </Link>
+        </motion.div>
+      )}
     </div>
   );
 }

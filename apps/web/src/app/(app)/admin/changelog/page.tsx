@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { requireAdminOr404 } from "../_lib/require-admin";
 import { ChangelogListAdmin } from "./_components/changelog-list-admin";
 
 export const metadata: Metadata = {
@@ -11,7 +10,6 @@ export const metadata: Metadata = {
  * entry to edit; the "Add new" button routes to
  * `/admin/changelog/new`.
  */
-export default async function ChangelogListPage() {
-  await requireAdminOr404();
+export default function ChangelogListPage() {
   return <ChangelogListAdmin />;
 }

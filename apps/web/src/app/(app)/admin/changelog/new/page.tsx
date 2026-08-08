@@ -1,15 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { requireAdminOr404 } from "../../_lib/require-admin";
 import { ChangelogForm } from "../_components/changelog-form";
 
 export const metadata: Metadata = {
   title: "New changelog entry",
 };
 
-export default async function NewChangelogPage() {
-  await requireAdminOr404();
-
+export default function NewChangelogPage() {
   return (
     <div className="mx-auto max-w-4xl px-6 py-10">
       <div className="mb-8">
