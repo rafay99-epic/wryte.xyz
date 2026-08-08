@@ -1,0 +1,16 @@
+apps/desktop/package.json
+  h_1e0ba4a9f2a4b4 17
+bun.lock
+  h_1e0ba4a9f2a4b4 9,1144
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "7cee5e3f5dd37d2b20c33aaa288c699169778f38",
+  "prompts": {},
+  "humans": {
+    "h_1e0ba4a9f2a4b4": {
+      "author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
