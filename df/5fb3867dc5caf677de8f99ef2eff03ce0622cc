@@ -1,0 +1,19 @@
+apps/web/src/components/layout/clerk-auth-widget.tsx
+  s_bd45b7e5408446::t_d2901e0a57f3b0 4,104-116,129-137,149-156
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "df5fb3867dc5caf677de8f99ef2eff03ce0622cc",
+  "prompts": {},
+  "sessions": {
+    "s_bd45b7e5408446": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fd14c-00a4-7d32-8ff5-91069b5fc333",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
