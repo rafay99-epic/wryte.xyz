@@ -2,19 +2,11 @@
 
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
-import { useImageCompression } from "@wryte/logic/hooks/use-image-compression";
 import {
   type MediaFilter,
   type MediaLibraryItem,
   useProjectMediaLibrary,
 } from "@wryte/logic/hooks/use-project-media-library";
-import { useUploadLimit } from "@wryte/logic/hooks/use-upload-limit";
-import { useWatermarkRemoval } from "@wryte/logic/hooks/use-watermark-removal";
-import {
-  type CompressionSettings,
-  describeSavings,
-} from "@wryte/logic/lib/image-compression/index";
-import { formatMb } from "@wryte/logic/lib/upload-limits";
 import { cn } from "@wryte/logic/lib/utils";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
 import {
@@ -34,14 +26,19 @@ import {
 import { Input } from "@wryte/ui/input";
 import { MediaProviderIcon } from "@wryte/ui/media-provider-icon";
 import { MediaProviderTabs } from "@wryte/ui/media-provider-tabs";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@wryte/ui/sheet";
 import { Skeleton } from "@wryte/ui/skeleton";
-import { UploadProgress } from "@wryte/ui/upload-progress";
 import { useAction, useQuery } from "convex/react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Copy,
   ExternalLink,
-  FileImage,
   ImageIcon,
   Layers,
   Loader2,
@@ -50,12 +47,14 @@ import {
   Trash2,
   Upload,
   UploadCloud,
-  X,
 } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { CompressionOverrideDisclosure } from "@/components/forms/compression-override-disclosure";
+import {
+  BatchImageUpload,
+  type InitialImageBatch,
+} from "@/components/media/batch-image-upload";
 import { MediaImage } from "@/features/media-library/components/media-image";
 import { usePendingDeletes } from "@/features/media-library/hooks/use-pending-deletes";
 
@@ -66,6 +65,10 @@ import { usePendingDeletes } from "@/features/media-library/hooks/use-pending-de
 type ActiveProvider = MediaProvider;
 
 type UnifiedMediaItem = MediaLibraryItem;
+
+function hasFiles(dataTransfer: DataTransfer): boolean {
+  return Array.from(dataTransfer.types).includes("Files");
+}
 
 /* ------------------------------------------------------------------ */
 /*  Page                                                               */
@@ -83,7 +86,12 @@ export function MediaLibraryPage({
     useEditorStore.getState().setActiveProjectId(projectId);
   }, [projectId]);
 
-  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
+  const [uploadSheetOpen, setUploadSheetOpen] = useState(false);
+  const [initialUploadBatch, setInitialUploadBatch] =
+    useState<InitialImageBatch | null>(null);
+  const [isDraggingFiles, setIsDraggingFiles] = useState(false);
+  const dragDepthRef = useRef(0);
+  const uploadBatchIdRef = useRef(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<UnifiedMediaItem | null>(
     null,
@@ -100,7 +108,6 @@ export function MediaLibraryPage({
   const {
     filter,
     setFilter,
-    uploadProvider,
     providerTabs,
     configuredTabs,
     items,
@@ -186,6 +193,24 @@ export function MediaLibraryPage({
     void refresh();
   }, [refresh]);
 
+  const openUploadSheet = useCallback(() => {
+    setInitialUploadBatch(null);
+    setUploadSheetOpen(true);
+  }, []);
+
+  const handlePageDrop = useCallback((event: React.DragEvent) => {
+    if (!hasFiles(event.dataTransfer)) return;
+    event.preventDefault();
+    dragDepthRef.current = 0;
+    setIsDraggingFiles(false);
+    uploadBatchIdRef.current += 1;
+    setInitialUploadBatch({
+      id: uploadBatchIdRef.current,
+      files: Array.from(event.dataTransfer.files),
+    });
+    setUploadSheetOpen(true);
+  }, []);
+
   /* ---------- Render guards ---------- */
   if (project === undefined) {
     return (
@@ -219,7 +244,35 @@ export function MediaLibraryPage({
         false);
 
   return (
-    <div className="p-4 sm:p-6">
+    <div
+      className="relative p-4 sm:p-6"
+      onDragEnter={(event) => {
+        if (!hasFiles(event.dataTransfer)) return;
+        event.preventDefault();
+        dragDepthRef.current += 1;
+        setIsDraggingFiles(true);
+      }}
+      onDragOver={(event) => {
+        if (hasFiles(event.dataTransfer)) event.preventDefault();
+      }}
+      onDragLeave={(event) => {
+        if (!hasFiles(event.dataTransfer)) return;
+        dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+        if (dragDepthRef.current === 0) setIsDraggingFiles(false);
+      }}
+      onDrop={handlePageDrop}
+    >
+      {isDraggingFiles && (
+        <div className="pointer-events-none fixed inset-3 z-50 flex items-center justify-center border-2 border-dashed border-primary bg-background/95">
+          <div className="text-center">
+            <Upload className="mx-auto mb-3 size-8 text-primary" />
+            <p className="font-medium">Drop up to 10 images to upload</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              You can review the batch before it starts.
+            </p>
+          </div>
+        </div>
+      )}
       {/* Navigation lives in the sidebar's single Back button — no
           per-page back links. */}
       {/* Header */}
@@ -259,7 +312,7 @@ export function MediaLibraryPage({
                 Upload button off the row. */}
             <span className="hidden sm:inline">Refresh</span>
           </Button>
-          <Button size="sm" onClick={() => setUploadDialogOpen(true)}>
+          <Button size="sm" onClick={openUploadSheet}>
             <Upload className="size-4" />
             Upload
           </Button>
@@ -349,7 +402,7 @@ export function MediaLibraryPage({
         <EmptyState
           scopeLabel={scopeLabel}
           needsConfig={needsConfig}
-          onUpload={() => setUploadDialogOpen(true)}
+          onUpload={openUploadSheet}
           location={location}
           projectId={projectId}
         />
@@ -394,11 +447,15 @@ export function MediaLibraryPage({
         </p>
       )}
 
-      <UploadMediaDialog
+      <UploadMediaSheet
         projectId={projectId}
-        provider={uploadProvider}
-        open={uploadDialogOpen}
-        onOpenChange={setUploadDialogOpen}
+        providers={configuredTabs.map((tab) => tab.provider)}
+        initialFiles={initialUploadBatch}
+        open={uploadSheetOpen}
+        onOpenChange={(nextOpen) => {
+          setUploadSheetOpen(nextOpen);
+          if (!nextOpen) setInitialUploadBatch(null);
+        }}
         onUploaded={handleUploaded}
       />
 
@@ -647,367 +704,64 @@ function MediaCard({
 }
 
 /* ------------------------------------------------------------------ */
-/*  Upload Dialog                                                      */
+/*  Upload sheet                                                       */
 /* ------------------------------------------------------------------ */
 
-function UploadMediaDialog({
+function UploadMediaSheet({
   projectId,
-  provider,
+  providers,
+  initialFiles,
   open,
   onOpenChange,
   onUploaded,
 }: {
   projectId: Id<"projects">;
-  provider: ActiveProvider;
+  providers: MediaProvider[];
+  initialFiles: InitialImageBatch | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onUploaded: () => void;
 }) {
-  const uploadMedia = useAction(api.media.uploads.upload);
-  const { compress, isCompressing, resolvedSettings } =
-    useImageCompression(projectId);
-  const { removeWatermark } = useWatermarkRemoval(projectId);
-  const { maxBytes: maxUploadBytes, formatted: maxUploadLabel } =
-    useUploadLimit(projectId);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isRunning, setIsRunning] = useState(false);
 
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const [override, setOverride] = useState<CompressionSettings | null>(null);
-  const [progressStep, setProgressStep] = useState<string | null>(null);
-
-  const uploadSteps = [
-    { id: "compress", label: "Compressing image" },
-    { id: "watermark", label: "Checking for Gemini watermark" },
-    { id: "upload", label: "Uploading to provider" },
-  ];
-
-  useEffect(() => {
-    if (!open) {
-      setSelectedFile(null);
-      setIsDragging(false);
-      setOverride(null);
-      setProgressStep(null);
-    }
-  }, [open]);
-
-  const handleUpload = useCallback(async () => {
-    if (!selectedFile) {
-      toast.error("Please select a file");
-      return;
-    }
-    setIsUploading(true);
-
-    try {
-      // Step 1: Compress
-      setProgressStep("compress");
-      const compressed = await compress(selectedFile, override ?? undefined);
-      let toUpload = compressed.file;
-      let savings = describeSavings(compressed);
-
-      // Step 2: Check & remove watermark
-      setProgressStep("watermark");
-      const cleaned = await removeWatermark(toUpload);
-      if (cleaned.wasApplied) {
-        savings = savings
-          ? `${savings} · Gemini watermark removed`
-          : "Gemini watermark removed";
-        toUpload = cleaned.file;
-      }
-
-      if (toUpload.size > maxUploadBytes) {
-        toast.error("File too large", {
-          description: `${formatMb(toUpload.size)} exceeds the ${maxUploadLabel} limit (even after compression). Try a smaller image, increase compression, or raise the limit in project settings.`,
-        });
-        setIsUploading(false);
-        setProgressStep(null);
-        return;
-      }
-
-      // Step 3: Upload
-      setProgressStep("upload");
-      const bytes = await toUpload.arrayBuffer();
-      // Explicit destination: the upload lands in whichever provider the
-      // library is showing, not silently in the project default.
-      await uploadMedia({
-        projectId,
-        provider,
-        bytes,
-        mime: toUpload.type,
-        filename: toUpload.name,
-      });
-      toast.success(`Uploaded ${toUpload.name}`, {
-        description: savings || undefined,
-      });
-      onUploaded();
-      onOpenChange(false);
-    } catch (err) {
-      const data = (err as { data?: { message?: string } })?.data;
-      toast.error(
-        data?.message ??
-          (err instanceof Error ? err.message : "Failed to upload"),
-      );
-    } finally {
-      setIsUploading(false);
-      setProgressStep(null);
-    }
-  }, [
-    compress,
-    removeWatermark,
-    maxUploadBytes,
-    maxUploadLabel,
-    onOpenChange,
-    onUploaded,
-    override,
-    projectId,
-    provider,
-    selectedFile,
-    uploadMedia,
-  ]);
+  function handleOpenChange(nextOpen: boolean) {
+    if (!nextOpen && isRunning) return;
+    onOpenChange(nextOpen);
+  }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <div className="relative">
-          {selectedFile && !isUploading && !isCompressing && (
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedFile(null);
-                if (fileInputRef.current) fileInputRef.current.value = "";
-              }}
-              className="absolute -right-1 -top-1 z-10 flex size-6 items-center justify-center rounded-full border bg-background text-muted-foreground shadow-xs transition-colors hover:text-foreground"
-              aria-label="Remove file"
-            >
-              <X className="size-3.5" />
-            </button>
-          )}
+    <Sheet open={open} onOpenChange={handleOpenChange}>
+      <SheetContent
+        className="sm:max-w-xl lg:max-w-2xl"
+        overlayClassName="bg-black/50 supports-backdrop-filter:backdrop-blur-none"
+        showCloseButton={!isRunning}
+      >
+        <SheetHeader className="pr-14">
+          <SheetTitle>Upload images</SheetTitle>
+          <SheetDescription>
+            Review up to 10 images. Two files upload at a time.
+          </SheetDescription>
+        </SheetHeader>
 
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Upload className="size-4 text-primary" />
-              Upload to {PROVIDER_LABEL[provider]}
-            </DialogTitle>
-            <DialogDescription>
-              {provider === "github"
-                ? "Image goes straight to your GitHub repo."
-                : `Image goes straight to your ${PROVIDER_LABEL[provider]} account.`}
-            </DialogDescription>
-          </DialogHeader>
-        </div>
-
-        {/* Drop zone / file preview */}
-        {selectedFile && !isUploading && !isCompressing ? (
-          <SelectedFilePreview
-            file={selectedFile}
-            onRemove={() => {
-              setSelectedFile(null);
-              if (fileInputRef.current) fileInputRef.current.value = "";
-            }}
-          />
-        ) : (
-          <DropZone
-            isDragging={isDragging}
-            isProcessing={isUploading || isCompressing}
-            onClick={() => fileInputRef.current?.click()}
-            onDragOver={(e) => {
-              e.preventDefault();
-              setIsDragging(true);
-            }}
-            onDragLeave={(e) => {
-              e.preventDefault();
-              setIsDragging(false);
-            }}
-            onDrop={(e) => {
-              e.preventDefault();
-              setIsDragging(false);
-              const file = e.dataTransfer.files[0];
-              if (file) setSelectedFile(file);
-            }}
-            onFileSelected={(file) => setSelectedFile(file)}
-            fileInputRef={fileInputRef}
-            maxLabel={maxUploadLabel}
-          />
-        )}
-
-        {/* Compression override (only when idle with a file) */}
-        {selectedFile && !isUploading && !isCompressing && (
-          <div className="mt-3">
-            <CompressionOverrideDisclosure
-              resolvedSettings={resolvedSettings}
-              override={override}
-              onOverrideChange={setOverride}
-            />
-          </div>
-        )}
-
-        {/* Progress step indicator */}
-        {progressStep && (
-          <div className="mt-4">
-            <UploadProgress steps={uploadSteps} currentStep={progressStep} />
-          </div>
-        )}
-
-        <DialogFooter className="mt-3 gap-2 sm:gap-2">
-          <Button
-            variant="outline"
-            onClick={() => {
+        {open && (
+          <BatchImageUpload
+            projectId={projectId}
+            providers={providers}
+            initialFiles={initialFiles}
+            layout="tray"
+            onCancel={() => handleOpenChange(false)}
+            onRunningChange={setIsRunning}
+            onComplete={(files) => {
+              toast.success(
+                `Uploaded ${files.length} image${files.length === 1 ? "" : "s"}`,
+              );
+              onUploaded();
               onOpenChange(false);
-              setSelectedFile(null);
-            }}
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={handleUpload}
-            disabled={!selectedFile || isUploading || isCompressing}
-          >
-            {(isUploading || isCompressing) && (
-              <Loader2 className="size-4 animate-spin" />
-            )}
-            {isCompressing
-              ? "Compressing…"
-              : isUploading
-                ? "Uploading…"
-                : `Upload to ${PROVIDER_LABEL[provider]}`}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/*  Sub-components for the Upload dialog                               */
-/* ------------------------------------------------------------------ */
-
-function SelectedFilePreview({
-  file,
-  onRemove,
-}: {
-  file: File;
-  onRemove: () => void;
-}) {
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    const url = URL.createObjectURL(file);
-    setPreviewUrl(url);
-    return () => URL.revokeObjectURL(url);
-  }, [file]);
-
-  const isImage = file.type.startsWith("image/");
-  const sizeKB = (file.size / 1024).toFixed(1);
-
-  return (
-    <div className="mt-4 overflow-hidden rounded-lg border">
-      {/* Preview area */}
-      <div className="flex max-h-36 items-center justify-center bg-muted/30">
-        {isImage && previewUrl ? (
-          <img
-            src={previewUrl}
-            alt={file.name}
-            className="max-h-36 w-full object-contain"
-            onError={(e) => {
-              (e.target as HTMLImageElement).style.display = "none";
             }}
           />
-        ) : (
-          <div className="flex h-24 items-center justify-center">
-            <FileImage className="size-10 text-muted-foreground/40" />
-          </div>
         )}
-      </div>
-
-      {/* File info row */}
-      <div className="flex items-center gap-3 border-t px-3 py-2.5">
-        <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary/10">
-          <ImageIcon className="size-4 text-primary" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium leading-tight">
-            {file.name}
-          </p>
-          <p className="text-[11px] text-muted-foreground">{sizeKB} KB</p>
-        </div>
-        <button
-          type="button"
-          onClick={onRemove}
-          className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          aria-label="Remove file"
-        >
-          <X className="size-4" />
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function DropZone({
-  isDragging,
-  isProcessing,
-  onClick,
-  onDragOver,
-  onDragLeave,
-  onDrop,
-  onFileSelected,
-  fileInputRef,
-  maxLabel,
-}: {
-  isDragging: boolean;
-  isProcessing: boolean;
-  onClick: () => void;
-  onDragOver: (e: React.DragEvent) => void;
-  onDragLeave: (e: React.DragEvent) => void;
-  onDrop: (e: React.DragEvent) => void;
-  onFileSelected: (file: File) => void;
-  fileInputRef: React.RefObject<HTMLInputElement | null>;
-  maxLabel: string;
-}) {
-  return (
-    <button
-      type="button"
-      className={cn(
-        "mt-4 flex w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-8 text-center transition-all",
-        isDragging
-          ? "border-primary bg-primary/5"
-          : "border-muted-foreground/25 hover:border-muted-foreground/50",
-        isProcessing && "pointer-events-none opacity-60",
-      )}
-      onClick={onClick}
-      onDragOver={onDragOver}
-      onDragLeave={onDragLeave}
-      onDrop={onDrop}
-    >
-      {isProcessing ? (
-        <Loader2 className="size-8 animate-spin text-muted-foreground" />
-      ) : isDragging ? (
-        <Upload className="size-8 text-primary" />
-      ) : (
-        <Upload className="size-8 text-muted-foreground" />
-      )}
-      <div>
-        <p className="text-sm font-medium">
-          {isProcessing ? "Processing…" : "Drop a file here or click to browse"}
-        </p>
-        <p className="mt-0.5 text-xs text-muted-foreground">
-          Images up to {maxLabel}
-        </p>
-      </div>
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) onFileSelected(file);
-          // Reset so the same file can be re-selected.
-          e.target.value = "";
-        }}
-        className="hidden"
-      />
-    </button>
+      </SheetContent>
+    </Sheet>
   );
 }
 

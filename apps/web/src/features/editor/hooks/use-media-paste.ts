@@ -5,6 +5,11 @@ import type { Id } from "@wryte/backend/_generated/dataModel";
 import { useImageCompression } from "@wryte/logic/hooks/use-image-compression";
 import { useUploadLimit } from "@wryte/logic/hooks/use-upload-limit";
 import { useWatermarkRemoval } from "@wryte/logic/hooks/use-watermark-removal";
+import {
+  BATCH_UPLOAD_CONCURRENCY,
+  MAX_BATCH_IMAGES,
+  runUploadPool,
+} from "@wryte/logic/lib/batch-image-upload";
 import { describeSavings } from "@wryte/logic/lib/image-compression/index";
 import { formatMb } from "@wryte/logic/lib/upload-limits";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
@@ -175,7 +180,15 @@ export function useMediaPaste({
       );
       if (mediaFiles.length > 0) {
         event.preventDefault();
-        for (const file of mediaFiles) void uploadFile(file);
+        const batch = mediaFiles.slice(0, MAX_BATCH_IMAGES);
+        if (mediaFiles.length > MAX_BATCH_IMAGES) {
+          toast.error(`Only ${MAX_BATCH_IMAGES} files can upload at once`);
+        }
+        void runUploadPool({
+          items: batch,
+          worker: uploadFile,
+          concurrency: BATCH_UPLOAD_CONCURRENCY,
+        });
         return;
       }
 
@@ -213,7 +226,15 @@ export function useMediaPaste({
         toast.error("Only image and video files can be dropped here");
         return;
       }
-      for (const file of mediaFiles) void uploadFile(file);
+      const batch = mediaFiles.slice(0, MAX_BATCH_IMAGES);
+      if (mediaFiles.length > MAX_BATCH_IMAGES) {
+        toast.error(`Only ${MAX_BATCH_IMAGES} files can upload at once`);
+      }
+      void runUploadPool({
+        items: batch,
+        worker: uploadFile,
+        concurrency: BATCH_UPLOAD_CONCURRENCY,
+      });
     }
 
     textarea.addEventListener("paste", handlePaste);

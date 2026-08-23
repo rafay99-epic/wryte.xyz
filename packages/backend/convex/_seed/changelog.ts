@@ -1801,6 +1801,29 @@ Adding a storage backend is now a two-file change internally \u2014 a registry e
 - Shared loading skeletons provide predictable fallback UI across authenticated pages and subpages.
 `,
   },
+  {
+    title: "Batch image uploads with a focused review tray",
+    slug: "batch-image-uploads-with-review-tray",
+    description:
+      "Upload up to 10 images at once from the gallery or editor, with provider selection, visible progress, and per-file recovery.",
+    version: "1.6.4",
+    build: "unreleased",
+    publishedAt: Date.parse("2026-08-24T03:38:07+05:00"),
+    content: `## What's new
+
+- **Upload up to 10 images at once.** Select files together or drag them into the media gallery, then review the full batch before it starts.
+- **Keep the gallery visible.** A focused right-side tray replaces the blocking dialog, so the media grid remains in context while you review files and follow progress.
+- **Choose the destination.** When several storage providers are connected, pick GitHub, Cloudinary, UploadThing, or Cloudflare R2 before uploading.
+- **Insert batches from the editor.** Multi-file selection, paste, and drop flows use the same limits and preserve the selected image order.
+
+## Reliability
+
+- Uploads run two at a time to keep provider rate limits predictable.
+- Every image reports its compression, queue, upload, success, or failure state independently.
+- Failed files can be retried without uploading successful files again, and stopping the queue does not discard completed work.
+- Unsupported files, oversized images, and batches over the 10-image limit receive clear, actionable errors before upload.
+`,
+  },
 ];
 
 const seedResult = v.object({
