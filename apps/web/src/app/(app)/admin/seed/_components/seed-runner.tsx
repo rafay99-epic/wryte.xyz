@@ -8,7 +8,6 @@ import {
   CheckCircle2,
   Database,
   Lightbulb,
-  Newspaper,
   Play,
   ShieldAlert,
 } from "lucide-react";
@@ -22,7 +21,7 @@ type SeedResult = {
   details: string[];
 };
 
-type SeedKey = "changelog" | "featureRequests" | "writingStats";
+type SeedKey = "featureRequests" | "writingStats";
 
 type ExternalAnalyticsMigrationResult = {
   deletedTargets: number;
@@ -35,18 +34,10 @@ const SEEDS: {
   key: SeedKey;
   title: string;
   description: string;
-  icon: typeof Newspaper;
+  icon: typeof Lightbulb;
   accent: string;
   hasEmailInput?: boolean;
 }[] = [
-  {
-    key: "changelog",
-    title: "Changelog",
-    description:
-      "Backfills the full date-based changelog history. Re-running upserts: existing entries are updated in place (and any stale version label is cleared), so it doubles as the migration to the version-free structure.",
-    icon: Newspaper,
-    accent: "text-amber-500",
-  },
   {
     key: "featureRequests",
     title: "Feature requests",
@@ -70,7 +61,6 @@ export function SeedRunner() {
   const runExternalAnalyticsMigration = useAction(
     api.maintenance.retireExternalAnalytics.run,
   );
-  const seedChangelog = useAction(api._seed.changelog.seed);
   const seedFeatureRequests = useAction(api._seed.featureRequests.seed);
   const seedWritingStats = useAction(api._seed.writingStats.seed);
 
@@ -126,9 +116,7 @@ export function SeedRunner() {
       setRunning(key);
       try {
         let result: SeedResult;
-        if (key === "changelog") {
-          result = await seedChangelog();
-        } else if (key === "featureRequests") {
+        if (key === "featureRequests") {
           result = await seedFeatureRequests();
         } else {
           const email = emailRef.current?.value.trim() ?? "";
@@ -136,11 +124,7 @@ export function SeedRunner() {
         }
         setResults((prev) => ({ ...prev, [key]: result }));
         const name =
-          key === "changelog"
-            ? "Changelog"
-            : key === "featureRequests"
-              ? "Feature requests"
-              : "Writing analytics";
+          key === "featureRequests" ? "Feature requests" : "Writing analytics";
         const parts = [`${String(result.inserted)} inserted`];
         if (result.updated) parts.push(`${String(result.updated)} updated`);
         if (result.skipped) parts.push(`${String(result.skipped)} skipped`);
@@ -153,7 +137,7 @@ export function SeedRunner() {
         setRunning(null);
       }
     },
-    [running, seedChangelog, seedFeatureRequests, seedWritingStats],
+    [running, seedFeatureRequests, seedWritingStats],
   );
 
   return (

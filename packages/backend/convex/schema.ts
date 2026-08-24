@@ -1176,42 +1176,6 @@ export default defineSchema({
     .index("by_user_and_request", ["clerkUserId", "featureRequestId"]),
 
   /**
-   * Changelog entries — public release notes surfaced on the marketing
-   * site. Authored by admins (gated by `publicMetadata.role === "admin"`
-   * via the Clerk Backend SDK in `convex/integrations/clerk.ts`) and
-   * rendered server-side with PPR so the marketing shell stays cached at
-   * the edge while the list streams in from Convex per request.
-   *
-   * `version` is the human-readable release tag (e.g. "0.5.2") and
-   * `build` is the build/commit identifier — both are free-form strings
-   * because we don't enforce a versioning scheme. `publishedAt` is
-   * optional so drafts can live in the admin UI without leaking to the
-   * public list — the `by_publishedAt` index doubles as the public-only
-   * filter (range over non-null values).
-   */
-  changelog: defineTable({
-    title: v.string(),
-    slug: v.string(),
-    description: v.string(),
-    content: v.string(),
-    // Changelog is date-based (entries are headed by `publishedAt`). `version`
-    // is an optional cosmetic milestone label — most entries omit it. `build`
-    // is the git SHA kept for traceability. Neither drives update detection,
-    // which runs on the deployed SHA (see src/hooks/use-version-check.ts).
-    version: v.optional(v.string()),
-    build: v.string(),
-    // Which surface the entry describes. Optional so every pre-existing entry
-    // stays valid; a missing value is treated as "website" everywhere.
-    category: v.optional(v.union(v.literal("website"), v.literal("desktop"))),
-    publishedAt: v.optional(v.number()),
-    authorClerkUserId: v.string(),
-    createdAt: v.number(),
-    updatedAt: v.number(),
-  })
-    .index("by_slug", ["slug"])
-    .index("by_publishedAt", ["publishedAt"]),
-
-  /**
    * Per-stream ownership record so `getStreamBody` can reject reads from
    * users who weren't the one who started the stream. The persistent-text-
    * streaming component's `streams` table has no owner column, so we keep

@@ -1,4 +1,3 @@
-import { api } from "@wryte/backend/_generated/api";
 import {
   absoluteUrl,
   SITE_AUTHOR,
@@ -7,7 +6,7 @@ import {
   SITE_TITLE,
   SITE_URL,
 } from "@wryte/logic/lib/seo";
-import { ConvexHttpClient } from "convex/browser";
+import { readChangelogEntries } from "@/features/changelog/lib/changelog-entries";
 
 type FeedEntry = {
   slug: string;
@@ -43,14 +42,15 @@ function renderItem(entry: FeedEntry): string {
   ].join("\n");
 }
 
-export async function GET(): Promise<Response> {
-  const convexUrl = process.env["NEXT_PUBLIC_CONVEX_URL"];
-  if (!convexUrl) {
-    return new Response("Convex URL not configured", { status: 500 });
-  }
-
-  const client = new ConvexHttpClient(convexUrl);
-  const entries = await client.query(api.cms.changelog.listForFeed, {});
+export function GET(): Response {
+  const entries: FeedEntry[] = readChangelogEntries()
+    .slice(0, 50)
+    .map((entry) => ({
+      slug: entry.slug,
+      title: entry.title,
+      description: entry.description,
+      publishedAt: entry.publishedAt,
+    }));
 
   const latest = entries[0]?.publishedAt;
   const lastBuildDate = latest

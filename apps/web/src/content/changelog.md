@@ -1,0 +1,1787 @@
+# Wryte changelog
+
+Release notes for Wryte, newest first. Each entry below the header is
+wrapped in an HTML comment carrying its metadata (title, date, category,
+build SHA, slug, description); the markdown after the comment is the
+entry body rendered on /changelog. Append new entries at the top —
+`bun run changelog:new` does this for you.
+
+<!-- changelog-entry
+slug: mcp-drafts-animations-and-a-static-changelog
+title: MCP drafts and animations tools, and a static changelog
+date: 2026-08-25
+category: website
+build: unreleased
+version: 1.6.5
+description: Agents can now write draft versions and upload animation components through the MCP server, and the changelog moved to a static markdown file.
+-->
+## What's new
+
+- **Draft tools for agents.** Thirteen new MCP tools cover the full draft loop — write a draft version, edit it, promote it to the main body — plus animation management, so an agent can upload a React component a post embeds.
+- **Static changelog.** The changelog is now a single markdown file rendered at build time instead of database rows. Same page, same feed, faster loads.
+
+## Fixes
+
+- The MCP frontmatter schema resource now returns parsed fields with required-field and default hints, so agents fill required frontmatter on the first create instead of shipping empty fields.
+
+<!-- changelog-entry
+slug: batch-image-uploads-with-review-tray
+title: Batch image uploads with a focused review tray
+date: 2026-08-23
+category: website
+build: unreleased
+version: 1.6.4
+description: Upload up to 10 images at once from the gallery or editor, with provider selection, visible progress, and per-file recovery.
+-->
+## What's new
+
+- **Upload up to 10 images at once.** Select files together or drag them into the media gallery, then review the full batch before it starts.
+- **Keep the gallery visible.** A focused right-side tray replaces the blocking dialog, so the media grid remains in context while you review files and follow progress.
+- **Choose the destination.** When several storage providers are connected, pick GitHub, Cloudinary, UploadThing, or Cloudflare R2 before uploading.
+- **Insert batches from the editor.** Multi-file selection, paste, and drop flows use the same limits and preserve the selected image order.
+
+## Reliability
+
+- Uploads run two at a time to keep provider rate limits predictable.
+- Every image reports its compression, queue, upload, success, or failure state independently.
+- Failed files can be retried without uploading successful files again, and stopping the queue does not discard completed work.
+- Unsupported files, oversized images, and batches over the 10-image limit receive clear, actionable errors before upload.
+
+<!-- changelog-entry
+slug: nextjs-16-3-instant-navigation-and-rendering-hardening
+title: Next.js 16.3 instant navigation and rendering hardening
+date: 2026-08-08
+category: website
+build: unreleased
+version: 1.6.3
+description: Upgrade Wryte's application shell for Next.js 16.3 with partial prefetching, route-wide streaming boundaries, and deterministic hydration across authenticated, project, admin, and marketing pages.
+-->
+## What's new
+
+- **Next.js 16.3 instant navigation.** Cache Components and Partial Prefetching now keep reusable route shells ready while request-specific content streams into place.
+- **Route-wide streaming boundaries.** Project dashboards, articles, calendars, media, animations, settings, trash, document creation, sync conflicts, the editor, draft previews, and admin editing resolve URL parameters beneath explicit Suspense boundaries.
+- **Responsive application chrome.** Sidebar, header, focus-mode routing, and authentication states remain interactive while route-specific content loads.
+
+## Fixes
+
+- **Hydration is deterministic across platforms.** Keyboard shortcuts no longer render `Ctrl` on the server and `⌘` on macOS during the first client render.
+- **Admin navigation no longer blocks on Clerk.** Request-specific authorization stays behind a streaming boundary, preserving the prefetched admin shell without exposing protected content.
+- **Marketing pages prerender cleanly.** The shared footer no longer reads the current clock during rendering, removing the unstable `new Date()` insight from documentation and other static pages.
+- Removed incompatible route runtime configuration and migrated the request boundary to Next.js 16's Node.js `proxy.ts` convention.
+
+## Reliability
+
+- Dynamic URL data, client navigation hooks, and fresh server data now sit behind the boundaries required by Cache Components instead of opting routes out with `instant = false`.
+- Shared loading skeletons provide predictable fallback UI across authenticated pages and subpages.
+
+<!-- changelog-entry
+slug: retire-external-analytics
+title: Retire external analytics and clean up provider data
+date: 2026-07-27
+category: website
+build: unreleased
+version: 1.6.2
+description: Remove the retired Plausible and Umami project integration, with an admin-run cleanup for stored targets, snapshots, and provider secrets.
+-->
+## What's new
+
+- **Plausible and Umami are retired.** The project Analytics page, settings connection flow, provider APIs, share-link dashboard, and pageview column are gone.
+- **Legacy provider data can be removed safely.** Admins can run the cleanup from **Admin → Seed data**. It drains the old targets and snapshots in batches and queues deletion of stored provider API secrets.
+
+## What stays
+
+- Vercel Analytics continues tracking website visitors.
+- Writing streaks, daily and weekly goals, dashboards, editor progress, and all internal Convex writing stats are unchanged.
+
+<!-- changelog-entry
+slug: mcp-setup-polish-and-client-quickstarts
+title: MCP setup polish and client quickstarts
+date: 2026-07-26
+category: website
+build: unreleased
+version: 1.6.1
+description: A clearer MCP setup experience with categorized desktop and CLI clients, one-click setup actions, and theme-aware client icons.
+-->
+## What's new
+
+- **Choose your client faster.** MCP setup is organized into desktop apps, command-line tools, and a generic client option so the right path is easy to find.
+- **Use quick setup actions.** Copy controls and supported one-click links make connecting Claude, Codex, and Cursor faster without exposing unnecessary configuration text.
+- **Keep the UI in theme.** Client logos and action icons now use the app accent and adapt cleanly to light and dark mode.
+
+## Fixes
+
+- Removed nested card layouts and reduced setup copy so the MCP settings panel is easier to scan at a wider layout.
+- Added clearer documentation for desktop and CLI setup paths, including Codex and Claude.
+
+<!-- changelog-entry
+slug: command-palette-search-across-the-workspace
+title: Command palette search across the workspace
+date: 2026-07-26
+category: website
+build: 2b5ab98
+version: 1.6.0
+description: Search article bodies, settings panes, projects, and commands from ⌘K, then land on the exact document or settings panel without a distracting transition.
+-->
+## What's new
+
+- **Search article bodies.** The command palette now finds text inside every article you can access, not just titles, slugs, tags, and excerpts.
+- **Jump straight to settings panes.** Account and project settings are indexed as searchable commands, including deep links such as Media, Shortcuts, Frontmatter, and AI.
+- **Search across the workspace.** Projects, articles, body matches, settings, and actions appear in one focused ⌘K flow with fuzzy ranking and highlighted matches.
+
+## Fixes
+
+- **Selection transitions are stable.** Pressing Enter or clicking a result closes the palette completely before navigation begins, removing the white flash and preventing the old screen from competing with the destination during the transition.
+- Body search stays bounded and responsive with a short debounce, a minimum search length, and capped results.
+
+## Under the hood
+
+- Metadata search remains client-side and warm after the first palette open.
+- Article body search uses a dedicated Convex full-text index, so the normal document catalog never loads full bodies.
+- Settings commands are derived from the same tab registries rendered by the settings pages, keeping labels, keywords, and deep links in sync.
+
+<!-- changelog-entry
+slug: cloudflare-r2-and-multiple-storage-providers
+title: Bring your own storage — Cloudflare R2, and all of them at once
+date: 2026-07-25
+category: website
+build: dd24348
+version: 1.5.0
+description: Add Cloudflare R2 alongside GitHub, UploadThing and Cloudinary — connect as many as you like, pick which one receives uploads, and browse them all in one grid.
+-->
+## Cloudflare R2
+
+**Cloudflare R2** joins GitHub, UploadThing and Cloudinary as a place your media can live. It is the cheapest of the four at scale — 10 GB free, then $0.015/GB-month, and **no egress charges at all**, so serving images costs nothing however much traffic a post gets.
+
+Connect it in **Settings → Media** with an R2 API token (Object Read & Write), your bucket name, and the bucket's public URL.
+
+That last field matters: R2 buckets are private by default, and the S3 endpoint Cloudflare shows next to your API tokens only answers *signed* requests. An image stored against it uploads fine and then fails to load for every reader. Wryte rejects that URL when you paste it and points you at the two that work — a custom domain, or the bucket's r2.dev subdomain.
+
+## Several providers at once
+
+A project is no longer limited to one storage backend. Connect all four if you want to: **one is the default that receives uploads, and every connected provider stays browsable and deletable.**
+
+Settings is now one row per provider. The radio button *is* the default — setting it is one click on the same row that connects the provider. Providers you have not connected can't be made the default, and the current default can't be disconnected out from under your uploads.
+
+## One library, four buckets
+
+The media library opens on **All**, merging every connected provider into a single grid with a small icon in each corner showing where that file lives.
+
+The provider tabs are **filters over what is already loaded**, not fetches — switching between them costs nothing. Listings load one provider at a time, a page at a time, rather than firing off a request per bucket the moment the page opens.
+
+If one provider fails — an expired key, an outage — it now says so in place and **the rest of your media still loads**. Previously a single bad credential emptied the whole page.
+
+## Switch destination while writing
+
+The editor's image picker, video picker and media drawer all get the same provider switcher. Your default is preselected, and you can send a single upload somewhere else without leaving the editor or changing any setting. Only connected providers appear, so there is no way to pick one that would fail.
+
+## Credentials
+
+Editing one field no longer means retyping the rest. Bucket names, account IDs and cloud names are filled in for you; secrets stay blank and mean "unchanged", and the server merges your edit into what is already stored.
+
+Stored secrets are **never sent to the browser**, not even behind a reveal toggle. Two fields that were previously treated as public metadata — Cloudinary's API key and R2's access key ID — are now handled as the credentials they are. Non-secret settings that used to be mirrored into the database in plain text have moved into the vault as well, so a credential now exists in exactly one place.
+
+## Fixes
+
+- **Cloudinary uploads had unreadable names** like `quzsyj0cloja0zzh3ggq` and showed no thumbnail. Uploads now keep your filename, and existing files display correctly too.
+- **Media cards were unusable on touch.** Copy URL, open and delete lived behind a hover state, so on a phone those actions did not exist. The library is properly laid out for small screens now.
+- **Provider errors are recorded properly.** Failures were being logged as Wryte's own wrapper rather than what the provider actually said, which made "why did this 403?" unanswerable after the fact.
+
+## For the curious
+
+Adding a storage backend is now a two-file change internally — a registry entry and one adapter. The settings form, the setup wizard, the provider tabs, the icons and the empty states all read from that entry, so the fifth provider will not need any of them touched.
+
+<!-- changelog-entry
+slug: mcp-server-connect-a-coding-agent-to-wryte
+title: MCP server — connect a coding agent to Wryte
+date: 2026-07-25
+category: website
+build: c468aaf
+version: 1.4.0
+description: Claude Code, Cursor, or anything that speaks MCP can now read your posts, research a topic, draft, schedule and publish — working as you, over OAuth, with no API token anywhere.
+-->
+## What's new
+
+Wryte now ships a **Model Context Protocol server**, so a coding agent can work inside your projects on your behalf. The loop it was built for:
+
+> Look at my existing posts, research this topic, file what you find, then write me a first draft.
+
+Add it to your agent in one command — the exact URL is in **Settings → MCP Server**, with a copy button:
+
+```bash
+claude mcp add --transport http wryte https://<your-deployment>.convex.site/mcp
+```
+
+Then run `/mcp`, choose **Authenticate**, and approve in the browser. That's it.
+
+## No API tokens
+
+Authentication is **OAuth 2.1 with PKCE**, brokered by Clerk. Your agent registers itself, opens a browser once, and holds a short-lived token it refreshes on its own. Nothing is written to `.mcp.json`, so there is no secret to accidentally commit.
+
+If a machine is ever compromised you revoke **that one client** from the Clerk dashboard — your laptop keeps working.
+
+## You choose what agents can do
+
+Five capabilities, managed in **Settings → MCP Server**:
+
+- **Read** and **Write** are on by default — read-your-posts-then-draft is one intent, and an agent that stops mid-task for a second approval is worse than one scoped correctly up front.
+- **Publish**, **Media** and **Trash** stay off until you turn them on, because they have effects outside Wryte: commits land in your GitHub repo, uploads spend your storage provider's quota, and deletion is deletion.
+
+Changes apply immediately — no reconnect needed. An agent never even *sees* a tool it can't call, so it won't try one and fail.
+
+## Nothing irreversible is reachable
+
+At no capability can an agent permanently delete a document, delete a project, delete your account, or touch stored credentials — GitHub tokens, AI keys, storage secrets. The worst it can do is move something to the trash, which you can restore.
+
+## 21 tools
+
+Projects, documents (list, search, get, create, update, history, backlinks), research notes, the editorial calendar, scheduling, GitHub publishing, media upload, and writing stats.
+
+Agents also get read-only **resources**, including your project's frontmatter contract and its valid board statuses — so drafts come back valid the first time instead of guess, reject, retry.
+
+## Docs
+
+Full documentation is at [/docs](/docs): the OAuth flow, every capability, a generated reference for all 21 tools, the rate limits, and every error message with what it means.
+
+## Good to know
+
+- Rate limits are per account, not per machine — connecting a second agent doesn't buy extra quota.
+- Every tool call is recorded in an audit log for 7 days. Document bodies are redacted from it.
+- Agents obey exactly the same ownership checks, quotas and rate limits as the web app, because they call the same code.
+
+<!-- changelog-entry
+slug: file-import-bulk-content-animation-importer
+title: File import — bulk content and animation importer
+date: 2026-07-22
+category: website
+build: 324787d
+description: Drag-and-drop .md, .mdx, and .tsx files into a project sidebar. Content files parse frontmatter and create documents; animation files become components — all in one go.
+-->
+## Import panel (sidebar sheet)
+
+You no longer need to create documents one at a time. Open the Import panel from any project page and drag in a mix of files:
+
+- **`.md` / `.mdx` content files** — frontmatter (YAML tags, keywords, author, dates) is parsed automatically and merged with the project schema. The body is written to Convex without the frontmatter block.
+- **`.tsx` animation files** — the default export name is extracted and each file becomes a project animation. Name conflicts are surfaced inline with three options: Rename, Replace, or Skip.
+
+All files show live status (pending → imported or error) and animation files have an inline preview toggle so you can verify the component renders before importing.
+
+## Cost-optimised name index
+
+Checking animation name collisions used to pull every animation record (including the full `~100KB` source body). A new `animation_names` table stores only `{projectId, name}` pairs (~50 bytes each). A one-click migration in the admin panel (`/admin/seed` → "Animation names table") backfills existing data.
+
+## Settings toggle
+
+File import is off by default. Turn it on per-project in Settings → Content → File import.
+
+<!-- changelog-entry
+slug: electron-dev-prod-isolation-logs-performance
+title: Desktop dev/prod separation, local logs, and silky-smooth performance
+date: 2026-07-20
+category: desktop
+build: fc472cc
+version: 0.30.0
+description: The Electron desktop app now runs independently for dev and production builds, writes structured logs to ~/.wryte, and eliminates scroll jank with a rewritten startup pipeline.
+-->
+## What's new
+
+- **Dev and prod now live apart.** `Wryte Dev` (dev flavor) and `Wryte` (production) have separate macOS app identities, separate user data directories, and independent build configs. Run `bun desktop:dev` for the dev flavor alongside your installed production app — they never share state, auto-updates, or window positions. Nuke the dev version anytime; production is untouched.
+- **Local logs at ~/.wryte (or ~/.wryteDev).** The Electron shell now writes structured logs to your home directory — three rotating files (app.log, error.log, crash.log) that capture startup, worker events, page loads, connectivity changes, renderer crashes, unhandled exceptions, and renderer log forwarding via `wryteDesktop.log()`. Each file trims itself at 1 MB.
+- **No more scroll jank.** The initial page load no longer blocks on a connectivity check (loads immediately, checks in parallel), spellcheck initialisation no longer competes with first paint, a deprecated `-webkit-overflow-scrolling: touch` CSS rule that forced compositing layers on every element was removed, background throttling is returned to its default so the compositor pipeline can rest, and the `enable-zero-copy` GPU flag (known to cause macOS stalls) was removed.
+
+## Good to know
+
+- The dev flavor (`Wryte Dev`) never falls back to `https://wryte.xyz` — it sticks to localhost even when no dev server is running.
+- The production app ships as before; the dev build config lives in `electron-builder.config.js` and is gated on `WRYTE_FLAVOR=dev`.
+- Log files are human-readable timestamps with a `[level]` prefix — they do not rotate by date, only by size.
+
+<!-- changelog-entry
+slug: public-writing-profile
+title: Your public writing profile — wryte.xyz/@you
+date: 2026-07-20
+category: website
+build: 236a95a
+version: 0.29.0
+description: One shareable page that shows who you are and everything you've published, built automatically from your Wryte data — with a private preview before you go live.
+-->
+## What's new
+
+- **A profile at wryte.xyz/@you.** A clean public page with your photo, name, and short bio, plus a list of everything you've published — each post linking to its real URL on your own site. It updates itself as you publish; there's nothing to maintain.
+- **Your handle is your Clerk username.** Change it in your account and your profile URL follows. Set your bio, social links, and a "Follow" link (your RSS or newsletter) in Settings → Profile.
+- **Show your work.** Opt in to display your writing streak and heatmap, a topics cloud pulled from your tags, a post + word count, and a **featured post** you pin to the top (searchable picker, built for hundreds of posts).
+- **Make it yours.** Pick one of six accent presets or open the color wheel for any custom color — it recolors the whole page. Light and dark mode both supported, with a theme toggle right on the page.
+- **Preview before you publish.** Your profile is private by default. Preview it yourself — or copy a secret preview link to show someone — while it stays hidden from everyone else. Flip "Make public" when you're ready.
+- **Looks good when shared.** Every profile link generates a live share card (name, handle, post count, streak) for Reddit, X, and the rest — rendered on the fly, always current.
+
+## Good to know
+
+- Private profiles are invisible to the public and to search engines; only people with your preview link can see them.
+- Only published posts appear, and only ones whose project has a Site URL set (so every link actually works).
+- Nothing is public until you set a username and turn the profile on.
+
+<!-- changelog-entry
+slug: analytics-publish-diff-seo-metadata
+title: Know your numbers: analytics, publish diffs, and smarter metadata
+date: 2026-07-20
+category: website
+build: 3e3ced2
+version: 0.28.0
+description: See pageviews without leaving Wryte (Plausible/Umami, free share links supported), compare any two publishes line by line, and get SEO-sized AI metadata suggestions.
+-->
+## What's new
+
+- **Analytics, inside Wryte.** A new Analytics page in your project sidebar shows how your published posts perform. Connect Plausible or Umami two ways: paste your dashboard's **share link** (free on every plan — Wryte embeds the live dashboard, or opens it in a tab if the provider forbids embedding), or an **API key** (provider paid tiers; self-hosted is free) which unlocks a per-post views column right in your content table plus 30-day totals and a top-pages chart.
+- **Guided setup, off by default.** One enable switch, then a three-step flow: pick your provider, pick free-share-link or API mode (each explained), follow the numbered steps for exactly where to click in Plausible/Umami. Connecting validates everything first — bad links and disabled shares fail with a message that says what to fix, not a blank screen.
+- **See what a publish changed.** Every entry in the History panel's Publishes tab now has a Diff button: green is what that publish added, red what it removed, frontmatter changes shown separately. Restore lives inside the diff — you see exactly what rolling back changes before you do it.
+- **AI metadata that fits.** Frontmatter suggestions now respect SEO limits — titles ≤ 60 characters, descriptions 140–160 — with live character hints on every suggestion, a regenerate button per field, and tag suggestions that reuse your site's existing tags instead of inventing near-duplicates like nextjs vs next-js.
+
+## Good to know
+
+- Analytics costs you nothing when off, and API mode caches results for 15 minutes — your provider's rate limits are never in danger.
+- GA4 isn't supported: it has no paste-a-token auth, only OAuth/service accounts. Fathom may come later.
+- Views match posts by their published URL path; posts with no recorded traffic show a dash, not a zero.
+
+<!-- changelog-entry
+slug: syndication-devto-hashnode
+title: Write here, appear everywhere: cross-posting to dev.to and Hashnode
+date: 2026-07-17
+category: website
+build: 512cb5a
+version: 0.27.0
+description: Publish once and mirror the article to dev.to and Hashnode with a canonical link back to your site — your repo stays the source of truth.
+-->
+## What's new
+
+- **Cross-posting.** Publishing to GitHub can now also mirror the article to dev.to and Hashnode. Every cross-post carries a canonical link back to your site, so search engines always credit the original. Re-publishing updates the remote article instead of creating a duplicate.
+- **Your tokens, your accounts.** Connect with your own dev.to API key or Hashnode Personal Access Token in the new Settings → Syndication tab — stored encrypted in the same vault as your AI keys, never in plain text.
+- **Off until you say so.** Everything defaults to off: a project-level "Syndicate on publish" toggle, plus a per-platform Active switch that stays off even after connecting a token. Nothing posts by surprise.
+- **Test without publishing.** A "Send Test Post" button pushes a sample draft to dev.to through the full pipeline — no commit to your repo, invisible in dev.to feeds, delete it from your dashboard when done.
+- **Made-for-the-platform output.** Bodies are cleaned before they leave: site-relative images and links become absolute, stray frontmatter is stripped, dev.to Liquid syntax is neutralized, and tags are normalized to each platform's rules (dev.to: alphanumeric, max 4).
+- **Status where you publish.** The publish dialog shows a per-platform row — posted with a link to the live cross-post, or the platform's exact error message with a one-click Retry.
+
+## Good to know
+
+- **Hashnode is Beta.** Hashnode put its entire API behind the publication Pro plan in May 2026, so cross-posting there only works for Pro publications — the connect card explains everything, and errors distinguish "bad token" from "publication needs Pro".
+- Transient failures retry automatically with backoff (rate limits honor the platform's Retry-After); a rejected token flips the credential to invalid in Settings instead of failing silently on every publish.
+- Unpublishing in Wryte never deletes remote posts. Medium isn't supported — it discontinued its write API; use Medium's own import-by-URL tool if you need it.
+
+<!-- changelog-entry
+slug: settings-redesign-flat-save-bar
+title: Settings, redesigned: calmer, faster, and safe to wander
+date: 2026-07-17
+category: website
+build: 41fd3b8
+version: 0.26.0
+description: A flat, scannable settings surface with collapsible groups, one consistent save bar, search, mobile navigation, and guardrails against losing unsaved edits.
+-->
+## What's new
+
+- **A calmer settings surface.** The wall of boxed cards is gone — settings are now flat, hairline-divided rows inside collapsible groups whose headers show the current value even when closed. Groups open with a smooth animation, and the content column is wider.
+- **One way to save.** A save bar slides up whenever a tab has unsaved changes and disappears once you've saved — no more hunting for the right one of four Save buttons. Instant actions (Connect, Test, Rotate) keep their own buttons on purpose.
+- **Read less, learn more.** Helper text is down to one short line per setting; the full explanation now lives behind a small ⓘ next to each label.
+- **Find a setting.** Type in the search box above the tabs — "badge", "cloudinary", "timezone" — and jump straight to the right tab.
+- **Settings on your phone.** The tab rail becomes a swipeable pill bar on small screens.
+
+## Fixes
+
+- Switching settings tabs no longer silently discards unsaved edits — you're asked first.
+- Switching tabs now starts at the top of the new tab instead of wherever you'd scrolled.
+- Every destructive action (removing keys or credentials, clearing schema defaults) now asks with the same styled confirmation dialog — two of them previously asked nothing at all.
+
+<!-- changelog-entry
+slug: growth-pack-calendar-goals-badge
+title: Growth pack: cross-project calendar, weekly goals, and a README badge
+date: 2026-07-17
+category: website
+build: 3fb3956
+version: 0.25.0
+description: See your whole writing cadence on one calendar, set a weekly word goal beside the daily one, put a Wryte badge in your README, and shared draft previews got a proper face.
+-->
+## What's new
+
+- **Calendar, across every project.** A new Calendar entry in the sidebar shows all your published and scheduled posts on one month grid — per-project colors, filled dots for published, rings for scheduled, and a day panel that jumps straight to the editor. The per-project calendar (with drag-to-reschedule) is unchanged.
+- **Weekly word goal.** Next to your daily goal there's now a rolling 7-day target with its own progress bar. Computed from activity you're already tracking — nothing new to configure beyond picking a number.
+- **Streak on the project dashboard.** Your writing streak now shows where the writing happens, not just on the home dashboard.
+- **README badge.** Settings → Publishing has a copy-paste snippet for a "published with wryte" badge — one line in your repo's README.
+- **Shared previews got a face.** Draft preview links now carry the Wryte header and a proper footer — readers finally know what made the page. Preview links stay unlisted and reveal nothing about you beyond what you share.
+
+<!-- changelog-entry
+slug: pwa-seo-checks-cost-fixes
+title: Install Wryte on your phone, SEO checks at publish, and a leaner backend
+date: 2026-07-17
+category: website
+build: bca4f9b
+version: 0.24.0
+description: Wryte is now an installable PWA with an offline fallback, the publish checklist gained SEO rows, and a round of backend fixes cut database bandwidth substantially.
+-->
+## What's new
+
+- **Install Wryte like an app.** Wryte is now a full PWA: install it from your browser (Android, desktop, and iOS via Safari's share sheet) and it opens standalone from your home screen. A lightweight service worker serves an on-brand offline page when the network drops and caches static assets for faster loads — your content and live sync are never cached or intercepted.
+- **SEO checks in the publish dialog.** The pre-publish checklist now reviews your post the way a search engine will: SEO title length, meta description presence and size (with the 80–165 character sweet spot), and tags/keywords. All checks run instantly and offline; the AI frontmatter assistant — which already writes SEO-tuned titles, descriptions, and long-tail keywords with any of the supported providers — fills the gaps on request.
+
+## Fixes
+
+- **Editor bandwidth, round two.** Autosave no longer echoes the full document body back to the app header and draft tab bar on every tick — they now subscribe to metadata only, converging on the same pattern the drafts system already used. The editor keeps its live subscription so a document open on two devices still stays in sync.
+- **AI streaming writes ~10× fewer chunks.** Responses are buffered and flushed by size instead of on every sentence or comma, which also makes streamed suggestions dramatically cheaper to read back.
+- **Deployment verification history is now capped** at the newest 20 entries per document and cleaned up when a document is deleted.
+
+<!-- changelog-entry
+slug: commit-attribution-verified-commits
+title: Commit attribution and verified commits
+date: 2026-07-16
+category: website
+build: b09a9a9
+version: 0.23.0
+description: Publish commits can now credit Wryte with a customizable attribution line, and optionally ship as wryte-xyz[bot] with GitHub's Verified badge — you stay the author.
+-->
+## What's new
+
+- **"Published with Wryte" attribution.** Publish commits now end with a small attribution line linking to wryte.xyz. On by default, one click off in Settings → Publishing, and the publish dialog always previews the exact line before you commit.
+- **Custom attribution phrase.** Replace the default text with your own — `{{title}}` and `{{filename}}` variables supported. The link is appended automatically, and the phrase is validated server-side so nothing malformed ever reaches your git history.
+- **Verified commits (opt-in).** Install the [wryte-xyz GitHub App](https://github.com/apps/wryte-xyz) on your repo and enable the toggle: publishes are committed by `wryte-xyz[bot]` with GitHub's **Verified** badge while you remain the git author — your avatar and contribution graph stay intact. If the App isn't installed, publishing silently falls back to your own token.
+- **Commit message templates now actually work.** The template setting (`docs: publish {{filename}}`) existed but was never applied — it now drives the default commit message in both single and bulk publishes, with `{{title}}`, `{{slug}}`, `{{filename}}`, and `{{date}}` variables.
+
+## Fixes
+
+- The deployment-verification toggle now correctly reflects its saved state after a reload.
+
+<!-- changelog-entry
+slug: desktop-1-0-8-system-tray-and-wake-reconnect
+title: System tray, wake-up reconnect, and spell check
+date: 2026-07-16
+category: desktop
+build: 5913553
+version: 1.0.8
+description: Wryte now lives in your system tray — closing the window keeps it running — plus instant reconnect after sleep and native spell check in the editor.
+-->
+## What's new
+
+- **System tray.** Wryte now sits in your tray/menu bar. Closing the window hides the app instead of quitting — click the tray icon to bring it right back, or quit for real from the tray menu (Cmd+Q still works too).
+- **Instant reconnect after sleep.** Waking your machine now triggers an immediate connectivity check instead of waiting for the next scheduled one — no more brief "offline" flash when everything is actually fine.
+- **Native spell check.** The editor now uses your OS spell checker, with squiggles where you'd expect them.
+
+## Fixes
+
+- Quitting from the tray menu, Cmd+Q, and update restarts all close the app cleanly — hide-to-tray can't swallow a real quit.
+- A missing tray icon now falls back to normal window-close behavior instead of an invisible tray.
+
+<!-- changelog-entry
+slug: deployment-verification-email-alerts
+title: Deployment verification: know when a post didn't go live
+date: 2026-07-16
+category: website
+build: 823893e
+version: 0.22.0
+description: Opt-in monitoring that confirms your site actually rebuilt after each publish — and emails you when the commit landed but the deployment failed.
+-->
+## What's new
+
+A publish is only half the job — your post isn't live until your site rebuilds. If the build fails, the commit sits on GitHub while your readers see nothing. Wryte can now catch that.
+
+- **Committed-but-not-deployed alerts.** After each publish, Wryte verifies the deployment and emails you if it never went live — with links to the commit and, where available, the build logs.
+- **Works with any host, zero setup.** With just a site URL configured, new posts are verified by checking their public URL after publishing. Vercel, Netlify, Cloudflare Pages — anything.
+- **Vercel integration for exact build status.** Connect a Vercel API token (stored encrypted, never in the database) to get precise build states, failure detection on post updates too, and direct links to the failing build's logs. Skipped builds from back-to-back commits are handled correctly.
+- **Off by default.** Enable it per project in Settings → Publishing → Deployment Verification.
+- **At most one email per publish.** No alert storms — a publish either resolves quietly or notifies you exactly once.
+
+<!-- changelog-entry
+slug: desktop-1-0-7-offline-resilience-and-launch-fixes
+title: Offline resilience and launch fixes
+date: 2026-07-15
+category: desktop
+build: a1777a7
+version: 1.0.7
+description: Offline page retry now works, refresh while offline shows the offline page, macOS launch warning gone, and a CSP header that froze the app on launch is removed.
+-->
+## Fixes
+
+- **App no longer freezes on launch.** Removed the Content-Security-Policy header that blocked the Next.js HMR WebSocket (`ws://`) and Convex connections — the app would render the menu bar then hang.
+- **Offline page retry actually works.** The inline script was blocked by the page's own CSP (`default-src 'none'` with no `script-src`), so the click handler never attached. Fixed by adding `script-src 'unsafe-inline'` to the offline page CSP.
+- **Retry now re-checks connectivity.** `window.location.reload()` only reloaded the offline page file — never re-ran the connectivity check. Replaced with an IPC call to the main process that re-checks and navigates to the app URL when back online.
+- **Refresh while offline shows the offline page.** The menu's reload action now routes through the connectivity check instead of calling `webContents.reload()` directly, so pressing `Cmd+R` while disconnected shows the offline page instead of hanging.
+- **macOS "Window move completed without beginning" warning fixed.** Added `trafficLightPosition` to the BrowserWindow config — a known Electron + `hiddenInset` issue on macOS 15+.
+
+<!-- changelog-entry
+slug: desktop-app-landing-page-section
+title: Desktop app landing page section
+date: 2026-07-15
+category: website
+build: afb6d81
+description: New landing page section showcasing the Electron desktop app with Homebrew install.
+-->
+## What's new
+
+- New "Desktop App" section on the landing page with Homebrew install command.
+- Desktop nav item in the marketing navbar.
+- Section matches the brand amber aesthetic, mobile-optimized.
+
+<!-- changelog-entry
+slug: desktop-1-0-6-launch-and-title-bar
+title: Smoother launch and a draggable header
+date: 2026-07-15
+category: desktop
+build: ae99e8f
+version: 1.0.6
+description: A loading screen so launch never shows a blank window, a header you can grab to move the window, and background work that no longer gets throttled.
+-->
+## What's new
+
+- **A real loading screen.** Launch now shows the Wryte mark and a spinner instantly and holds it until the app has painted — no more blank window during the initial load.
+- **A header you can grab.** On macOS the window is frameless and the app's own header doubles as the title bar — the traffic-light buttons get their own space instead of overlapping the logo, and you can drag the header to move the window, including between monitors.
+- **No background throttling.** Autosave and AI streaming keep running at full speed even when the window isn't focused.
+
+<!-- changelog-entry
+slug: desktop-1-0-5-updates-you-can-watch
+title: Updates you can watch
+date: 2026-07-15
+category: desktop
+build: 8c59ed1
+version: 1.0.5
+description: The in-app updater now shows real progress — checking, downloading with a live progress bar, then a one-click Restart & Install.
+-->
+## What's new
+
+- **A visible update flow.** Check for Updates now opens a small window that walks the whole thing: checking → downloading (with a live progress bar and size) → **Restart & Install**, then the app relaunches into the new version.
+- **Quiet in the background.** Automatic checks stay out of your way and only surface the window once an update has finished downloading and is ready to install.
+- **Diagnosable.** Update activity is written to an `updater.log` in the app's data folder, so a stuck update leaves a trail instead of failing silently.
+
+## Note for macOS
+
+- The mac build is ad-hoc signed, so in-app install can be blocked by macOS's update signature checks. If an update won't apply, `brew upgrade --cask wryte` always works.
+
+<!-- changelog-entry
+slug: desktop-1-0-4-window-memory-zoom-about
+title: Window memory, zoom, and a branded About
+date: 2026-07-15
+category: desktop
+build: aeefd03
+version: 1.0.4
+description: Desktop quality-of-life: the app reopens exactly where you left it, text zoom that sticks, and a proper About window with project and license info.
+-->
+## What's new
+
+- **Window memory.** Size, position, and maximized state persist across launches — reopen right where you left off (and never off-screen if you unplug a monitor).
+- **Back & forward.** Move through your history with `Cmd [` / `Cmd ]`, a trackpad swipe, or your mouse's side buttons.
+- **Zoom controls.** `Cmd +` / `Cmd −` / `Cmd 0` scale the interface, and your zoom level is remembered.
+- **Branded About window.** Company (Syntax Lab Technology), author (Abdul Rafay), the GitHub repo, and the MIT / open-source status — reachable from the app menu.
+- **Real app menu.** About, Check for Updates, GitHub / Report an Issue, plus the standard editing and view shortcuts.
+
+## Fixes
+
+- Smoother scrolling — the macOS rubber-band overscroll that made a wrapped web app feel off is gone.
+
+<!-- changelog-entry
+slug: desktop-1-0-0-wryte-for-desktop
+title: Wryte for desktop
+date: 2026-07-14
+category: desktop
+build: 6527eb2
+version: 1.0.0
+description: Wryte is now a native macOS desktop app — the full workspace in its own window, with automatic updates and a one-command Homebrew install.
+-->
+## What's new
+
+- **Native desktop app.** The whole Wryte workspace in a dedicated window, backed by the same Convex-cloud data — sign in once and everything syncs.
+- **Automatic updates.** New versions download in the background; you get a plain "Update ready — Restart now / Later" prompt instead of a silent swap.
+- **Install with Homebrew.** `brew install --cask rafay99-epic/apps/wryte` — opens cleanly, no Gatekeeper detours.
+- **Locked-down shell.** Sandboxed with context isolation; device permissions (camera, mic, location) are denied by default, external links open in your browser.
+
+<!-- changelog-entry
+slug: social-announcements-via-buffer
+title: Social announcements that actually announce
+date: 2026-07-11
+category: website
+build: af2492a
+description: Upload-Post is out, Buffer is in: reliable auto-announcements on publish, a channel picker that mirrors what you've actually connected, correct framework-aware post URLs, and fully automated announcement text.
+-->
+## What's new
+
+- **Buffer powers social announcements now.** Upload-Post's flaky API is gone. Connect your social accounts in Buffer, paste one API key (stored encrypted in the vault, per project — every user brings their own), and publishing announces automatically. Verification is honest: the key is checked by listing your real connected channels.
+- **A channel picker that can't lie.** Settings shows exactly the channels connected to your Buffer account — X, LinkedIn, Threads, Instagram, YouTube, and more — as toggles. Connect a new platform in Buffer, hit Test Connection, and it appears. Announcements only go to channels you've enabled, and one failing channel never blocks the others.
+- **Announcement links finally point at the post.** URLs were built as `site.com/slug`, skipping the blog path entirely. They're now framework-aware (`/blog/` for Astro/Next.js, `/posts/` for Hugo) with a per-project **Post URL Path** override and a live preview in settings.
+- **No more template fiddling.** The announcement text is composed automatically from the live title and URL at publish time. Want a custom message? Type one in the publish or schedule dialog — and if you forget to include the link, it's appended for you. The preview always shows exactly what will be posted.
+
+## Migration
+
+- Projects still on Upload-Post keep their "post on publish" setting, and publishing never breaks — announcements simply pause with a clear reconnect prompt in Settings → Social until a Buffer key is added. A one-click cleanup removes the old credentials (vault entry included).
+
+<!-- changelog-entry
+slug: command-palette-worth-the-shortcut
+title: A command palette worth the shortcut
+date: 2026-07-11
+category: website
+build: c2e2216
+description: ⌘K got the Raycast treatment: fuzzy search across every article in every project, instant project switching, smarter commands — and typing in it never costs a server call.
+-->
+## What's new
+
+- **Search everything, not just recents.** The palette used to list your 20 most recent articles and match them by exact substring. It now searches every article across every project — titles, slugs, tags, and project names — with real fuzzy matching: \"nart\" finds *New Article*, a half-remembered slug finds its post, and matched characters are highlighted so you can see why a result ranked.
+- **One ranked list, Raycast style.** Typing collapses the categories into a single relevance-ranked list — commands, projects, and articles compete on match quality, with a freshness boost so newer articles win ties. Idle, you still get tidy groups: actions, navigation, projects, and your ten most recent articles.
+- **Commands answer to synonyms.** \"kanban\" finds *Switch Layout*, \"night\" finds the dark theme, \"hide panel\" finds the sidebar toggle. Article rows show their project and status so cross-project results stay unambiguous.
+- **Deep search when titles aren't enough.** The last row hands your query to the current project's full-text content search — one Enter and you're on the articles page with the search pre-filled.
+
+## Under the hood
+
+- Keystrokes never touch the server. One metadata-only catalog query (titles, slugs, tags — never bodies, ~100 bytes a row) feeds an in-memory fuzzy index; all matching is client-side.
+- The palette's subscriptions are now lazy: nothing loads until the first ⌘K, then stays warm for instant reopens. Previously it subscribed two queries permanently from the app shell even if you never opened it.
+- No new search indexes, crons, writes, or storage — the whole feature is one read-only query and a 120-line dependency-free fuzzy matcher.
+
+<!-- changelog-entry
+slug: board-renames-that-behave
+title: Board renames that behave
+date: 2026-07-11
+category: website
+build: 9a68341
+description: Renaming a card on the board no longer tears the card apart mid-typing, the cancel button actually cancels, and a sweep of the surrounding code fixed a handful of races before anyone hit them.
+-->
+## What's fixed
+
+- **Renaming a board card no longer fights drag-and-drop.** The card stayed a drag handle while its rename input was open, so selecting text in the input started dragging the whole card — cards visually tore apart mid-typing, and the drag's focus loss could save half-typed titles. Cards now stop being draggable the moment a rename or tag edit opens, and the hover preview stays out of the way while you type.
+- **Cancel means cancel.** Clicking ✗ on a rename blurred the input first, and the blur saved your edit before the cancel could run. Same story for removing a tag chip — it kicked off the editor's close timer mid-edit. Both now keep focus where it belongs and do what the button says.
+- **No more double-saves.** Confirming a rename with Enter while the save was already in flight could fire the mutation twice; a guard now makes the second call a no-op.
+- **Double-click-to-edit lands more precisely.** The jump now resolves against the exact content the preview rendered (not the store's slightly-newer text), and malformed source-line stamps fall back to word search instead of silently jumping to the top of the document.
+
+<!-- changelog-entry
+slug: split-view-that-keeps-up
+title: A split view that keeps up
+date: 2026-07-11
+category: website
+build: d5282c8
+description: The editor's split view now follows your caret as you write, the preview scrolls in lockstep in both directions without judder, and double-clicking anywhere in reading mode drops you into the editor at that exact spot.
+-->
+## What's new
+
+- **The preview follows your writing.** Typing in split view now keeps both panes on the caret: the editor nudges itself so the caret never slips off screen, and the preview scrolls to the exact rendered block you're editing — matched by source line, not a scroll-ratio guess. Hit Enter at the bottom of a long draft and the new line is right there on both sides.
+- **Double-click to edit.** In reading mode, double-click any paragraph, heading, or list item and you land in the editor with the caret on that exact word — no more switching modes and scrolling back down by hand. In split view it jumps the caret in the editing pane without leaving the layout.
+- **No more preview judder.** The preview used to re-parse the whole document on every keystroke, fighting your typing for the main thread. Rendering is now deferred and memoized, so keystrokes stay instant and the preview catches up the moment you pause.
+
+## Under the hood
+
+- Scroll sync got an ownership model: whichever pane you're actually using drives the other, and the echo events that used to make the panes fight each other are ignored outright.
+- Every rendered block carries its markdown source line (a tiny remark plugin), which powers both the caret-follow and double-click-to-edit. MDX previews compile positions away, so they fall back to word search and ratio sync.
+- All client-side — zero new Convex functions, queries, or subscriptions.
+
+<!-- changelog-entry
+slug: seo-link-intelligence
+title: SEO & link intelligence
+date: 2026-07-10
+category: website
+build: e181274
+description: See exactly how your post will look on Google and social cards while you edit the frontmatter, get one-click suggestions to interlink your articles, and a stale-content radar that tells you which published posts deserve a refresh.
+-->
+## What's new
+
+- **Search preview.** A new section at the bottom of the frontmatter panel renders a live Google result and social card from your title, description, image, and slug — with honest pixel-width warnings when Google would truncate your title (~600px) or description (~920px), and nudges when a description or site URL is missing. Everything updates as you type.
+- **Link suggestions.** The research panel now spots unlinked mentions of your other articles ("mentioned as …") and links them with one click — the mention becomes a \[\[wiki link\]\] in place, feeding the backlinks graph. Code blocks, existing links, and articles you already link to are never suggested.
+- **Stale-content radar.** The project overview lists published articles untouched for 6+ months, oldest first, each one click from the editor — prose quality was covered by the readability lens; this closes the loop on keeping content fresh.
+
+## Under the hood
+
+- The search preview and suggestion scanning are pure client-side (canvas text measurement, style-lint's offset-preserving masking) — the entire feature adds ONE metadata query per research-panel open and one bounded query while the project overview is on screen. No crons, no new subscriptions, no hot-path reads.
+
+<!-- changelog-entry
+slug: calendar-dashboard-view-unschedule
+title: Calendar view in the articles dashboard
+date: 2026-07-10
+category: website
+build: fc2e00e
+description: The content calendar is now a third view mode right next to Table and Board — and scheduling finally has its inverse: drag a scheduled article onto the unscheduled panel to cancel it.
+-->
+## What's new
+
+- **Calendar, Table, Board — one switcher.** The month calendar now lives inside the articles dashboard as a third view mode, remembered per project, with the layout keyboard shortcut cycling through all three. The dedicated calendar page in the sidebar still works — both render the same surface.
+- **Drag to unschedule.** Dragging a scheduled article onto the Unscheduled panel cancels its schedule and returns it to drafts — the missing inverse of dragging an article onto a date.
+
+## Under the hood
+
+- The calendar's queries are mounted only while the calendar is visible, so Table and Board users pay zero additional reads.
+- Month navigation and view-mode buttons gained proper accessibility labels, and a new self-cleaning Playwright spec covers view switching, month navigation, and preference persistence.
+- A public `.plan/` roadmap folder now tracks what's next: SEO & link intelligence, cross-posting, and reviewer comments on share links.
+
+<!-- changelog-entry
+slug: instant-draft-switching-compare-promote
+title: Instant draft switching & compare any two versions
+date: 2026-07-09
+category: website
+build: b69e3e2
+description: Draft tabs now switch instantly — no lag, no flicker, no content bleeding between versions. The compare view diffs any draft against any other (or Main) and can promote either side, and a backend hardening pass closed a frontmatter data-loss bug.
+-->
+## What's new
+
+- **Instant draft switching.** Every draft you've opened, edited, or created this session renders immediately when you return to it, and empty drafts open instantly even on first visit. When a switch genuinely has to wait, the editor fades softly instead of snapping — fast switches show no transition at all.
+- **Compare any two versions.** The compare view now diffs any draft against any other draft or Main (not just draft-vs-Main), and either side can be **promoted to Main** right from the comparison.
+- **Honest switch feedback.** The target tab shows a spinner during a slow switch, typing is locked for the in-flight moment so keystrokes can't land in the wrong draft, and a failed switch keeps you where you were with a clear error instead of showing one version's text under another's tab.
+
+## Fixes
+
+- **Draft content no longer leaks between tabs.** Switching from a draft with fresh edits to a new or empty draft used to carry the old text on screen — and could then autosave it into the wrong draft. Fixed at the root (the editor now force-syncs whenever a different version loads).
+- **Promoting a draft preserves your unsaved edits** on whatever tab you're on, and no longer silently wipes Main's frontmatter when the draft carries none.
+- **No more sideways jump** when switching between a scrolling draft and an empty one — the scrollbar's 4px gutter is now always reserved.
+
+## Under the hood
+
+- The switch cache revalidates in the background at most once per draft per 30s window, so rapid tab browsing costs **fewer** Convex function calls than before; creating a blank draft now costs zero content reads.
+- Backend hardening: promote now respects the sync-conflict lock like every other main-body write, the 50-drafts-per-article cap is actually enforced, the AI-synthesis draft path got the same size caps as the interactive one, stale content pointers self-heal permanently, and draft deletion no longer pays a full-body read.
+- Two new Playwright specs pin all of this down: a draft-state isolation regression (switches, creates, reloads) and promote-from-compare.
+
+<!-- changelog-entry
+slug: backlinks-what-links-here
+title: Backlinks — see what links here
+date: 2026-07-04
+category: website
+build: a9c6200
+description: Wiki links now work in both directions: the research panel shows every document that links to the one you're editing, turning your content library into a connected graph.
+-->
+## What's new
+
+- **"Linked from" in the research panel.** Open the research panel on any document and see every post that references it via `[[wiki links]]`, with status badges — click one to jump straight into that document. Great for building series and keeping internal links healthy alongside the pre-publish checklist's unresolved-link warnings.
+
+## Under the hood
+
+- New `document_links` edge table, maintained **only on the flush path** (manual save, promote, restore, conflict resolution) — the 3-second autosave never parses links or writes edges, keeping the hot path exactly as cheap as the bandwidth overhaul left it.
+- The backlinks list is a bounded query subscribed only while the research panel is open; link rows cascade-delete with their documents.
+- A one-time, idempotent CLI backfill populates edges for existing content: `bunx convex run cms/documents:_backfillDocumentLinks '{}'` after deploying.
+
+<!-- changelog-entry
+slug: writing-sprints-typewriter-focus
+title: Writing sprints & typewriter focus
+date: 2026-07-04
+category: website
+build: 15f198e
+description: A sprint timer with a word target and live WPM in a floating HUD, plus typewriter scrolling that keeps the caret line centered while focus mode is on. Entirely client-side — a 25-minute sprint costs zero database traffic.
+-->
+## What's new
+
+- **Writing sprints.** Pick a word target (250/500/750 or custom) and a duration (15/25/45 min or custom) from the new Sprint control in the editor toolbar. A floating pill shows time remaining, words written this sprint, live WPM, and progress — with pause/resume, a celebratory finish when you hit the target, and a `⌘⇧U` shortcut.
+- **Session stats** — words and WPM since you opened the editor, always visible in the sprint popover.
+- **Typewriter scrolling.** With focus mode on, the line you're typing stays vertically centered — smooth, and it steps aside the moment you scroll manually. Toggleable and remembered per browser.
+
+## Under the hood
+
+- Sprint state lives entirely in the editor store; the once-a-second tick is a local render counter that never touches the dirty flag, so it can never wake the autosave. Words still reach your streaks and goals through the existing save path — a sprint adds zero reads and zero writes.
+- Five duplicated word-count implementations across the app were consolidated into one shared `src/lib/word-count.ts`.
+
+<!-- changelog-entry
+slug: style-lint-readability-lens
+title: Hemingway-style writing lint
+date: 2026-07-04
+category: website
+build: 17b63ec
+description: The readability lens grew a Style section: passive voice, adverb density, sentence-length monotony, weasel words, and clichés — each with click-to-jump excerpts and its own toggle. Pure client-side, zero backend cost.
+-->
+## What's new
+
+- **Five style checks in the readability lens**: passive voice, adverb density (with a whitelist so *family* and *only* don't count), runs of same-length sentences that read monotonously, weasel words (*very, really, quite, basically…*), and ~44 common clichés.
+- **Click an excerpt to jump to it** — same interaction as the outline panel — fix it, and the finding disappears on the next pass.
+- **Per-check toggles**, persisted locally, so you can silence the checks you disagree with.
+
+## Under the hood
+
+- One pure module (`style-lint.ts`) masks code blocks, frontmatter, and URLs before analysis, reuses the lens's existing sentence segmentation, and runs debounced only while the panel is open. Zero Convex reads or writes.
+
+<!-- changelog-entry
+slug: pre-publish-checklist
+title: A pre-publish checklist
+date: 2026-07-04
+category: website
+build: 0a51a02
+description: The publish dialog now runs six instant quality checks before your post ships to GitHub — frontmatter validity, missing image alt text, unresolved internal links, leftover TODO markers, structure sanity, and reading time. Warnings never block publishing.
+-->
+## What's new
+
+- **A checklist in the publish dialog.** The moment you open Publish, six checks run against your post: frontmatter parses and matches the project schema, every image has alt text, every `[[internal link]]` resolves to a real document, no TODO/FIXME or merge-conflict markers were left behind, the structure makes sense (one H1, not suspiciously thin), plus word count and reading time. Warnings are informational — you can always publish anyway.
+- **Check external links on demand.** A button runs the existing link checker against the post when you ask for it (it stays manual because the checker is rate-limited).
+
+## Under the hood
+
+- All checks are pure client-side functions over the content already in the editor; the only network cost is one bounded metadata query to resolve internal links when the dialog opens. The schedule dialog was deliberately left out — it can open from the board where the editor's content isn't loaded, which would have produced stale results.
+
+<!-- changelog-entry
+slug: draft-compare-side-by-side
+title: Compare your drafts side by side
+date: 2026-07-04
+category: website
+build: 3a53b82
+description: Every draft tab now has "Compare with Main" — a full-width side-by-side diff with a selector on each side, so you can finally see how two versions of a post differ before promoting one. Shipped alongside a full Playwright end-to-end test suite.
+-->
+## What's new
+
+- **Compare with Main.** Open any draft tab's menu and pick *Compare with Main* to get a split diff of the two versions — additions and removals highlighted line by line, word counts in the titles, and a selector on each side so you can compare Main against any draft, or two drafts against each other. Unsaved keystrokes are flushed first, so the diff always reflects what you see.
+
+## Under the hood
+
+- The diff renderer was extracted from the sync-conflicts page into a shared `MarkdownDiffViewer`, which the conflict page now consumes too (~80 lines lighter).
+- Content is fetched one-shot when the sheet opens or a selector changes — no live subscriptions, no new backend functions, nothing on the autosave hot path.
+- This release also added the project's end-to-end test harness: Playwright with automated Clerk sign-in and a smoke suite covering marketing, auth, the dashboard, editor autosave, the outline panel, version history, and the draft-tab lifecycle. Run it with `bun run test:e2e`.
+
+<!-- changelog-entry
+slug: spring-cleaning-legacy-fields-and-migrations-removed
+title: Spring cleaning — legacy fields, migrations, and dead code removed
+date: 2026-07-04
+category: website
+build: 502f810
+description: With the bandwidth-overhaul migrations confirmed complete in production, the entire compatibility layer is gone: legacy inline content fields, every fallback read, all completed one-shot migrations and their admin page, the temporary test bench, and older dead surfaces like the plaintext GitHub token and Convex-storage media era.
+-->
+## What's new
+
+- **The codebase is 2,400+ lines lighter.** The widen→migrate→narrow rollout of the content side-table split completed in production, so the safety scaffolding came out: no legacy fields, no fallback branches, no dead migrations waiting to confuse future work.
+
+## Under the hood
+
+- Schema narrowed: dropped `documents.content`, `document_drafts.contentSnapshot`/`titleSnapshot`, `document_snapshots.content`, and `publish_history.contentSnapshot` — verified against both deployments' inferred schemas (zero rows carried any of them) before removal, since Convex validates existing documents at deploy time.
+- Every legacy fallback read removed. One deliberate behavior change: rolling back to a publish whose content row is missing now throws a clear error instead of silently restoring an empty article.
+- All completed one-shot migrations retired — the six bandwidth migrations, the document-body backfill, plus the older AI-model, analytics, and frontmatter-repair backfills — together with the entire `/admin/migrations` page and its sidebar link.
+- Older dead surfaces swept out after data verification: the legacy plaintext `users.githubAccessToken` (vault-only now) and its lazy migration, the Convex-storage `convex_legacy` media era (provider literal, six deprecated fields, `by_storageId` index, and legacy rate limits), the `"external"` media-storage mode alias, and the schema-repair notice machinery.
+- The temporary cost-optimization test bench and workload seeder were deleted from `/admin/seed`.
+
+<!-- changelog-entry
+slug: dependency-security-patches-ws-hono-jsyaml
+title: Dependency security patches
+date: 2026-07-04
+category: website
+build: 8d91fe2
+description: Cleared every bun audit finding blocking deploys: patched ws, hono, protobufjs, @babel/core, and js-yaml across the dependency tree — all pinned within their current majors so nothing changes behavior.
+-->
+## Fixes
+
+- **All `bun audit` findings resolved** (2 high, 7 moderate, 1 low). Highlights: `ws` memory-exhaustion DoS, `hono` CORS wildcard-with-credentials reflection, `protobufjs` schema-derived property shadowing, `@babel/core` sourceMappingURL file read, and `js-yaml` quadratic-complexity merge-key DoS.
+
+## Under the hood
+
+- Transitive dependencies pinned via `overrides`, each within its current major (`ws ^8.21.0`, `hono ^4.12.25`, `protobufjs ^7.6.4`, `@babel/core ^7.29.7`) — no API surface changes.
+- `js-yaml` needed care: `gray-matter` (the frontmatter parser at the heart of the app) hard-requires the v3-only API, and Bun overrides are flat, so the whole tree is pinned to the patched final 3.x release. Every first-party call site uses only `load`/`dump`/`YAMLException` — identical across majors — and frontmatter parsing was smoke-tested.
+
+<!-- changelog-entry
+slug: database-bandwidth-overhaul-content-side-tables
+title: Database bandwidth overhaul — content side-tables everywhere
+date: 2026-07-04
+category: website
+build: e4cb56d
+description: Every stored version of your writing — drafts, snapshots, publish history — now keeps its body in a dedicated content table, so autosave and the always-open panels stop re-billing full article bodies. Measured locally: the draft list's per-autosave read set dropped 96%.
+-->
+## What's new
+
+- **Autosave got dramatically cheaper.** Convex bills every database read and write at the full size of the row involved, and re-runs any subscribed query whose data an autosave touches. Editing inside a draft tab used to re-bill *every* draft's full body every 3 seconds via the always-mounted tab bar; the main-document path paid a full-body read before every full-body write. Both are gone.
+- **Nothing saved twice for no reason.** The editor now skips the save entirely when your content is byte-identical to what's already persisted (typing and undoing back costs nothing), and a 30-second ceiling guarantees a save even during an uninterrupted typing streak.
+- **History panel loads only what you look at.** Snapshots and Publishes each subscribe only while their tab is selected, and the publish list ships commit metadata instead of up to 100 full article bodies per open.
+- **Deleting a document now really deletes it.** Permanent delete, Empty Trash, and the retention cron cascade through drafts, snapshots, sync conflicts, publish history, research notes, and share links — previously those rows were orphaned forever.
+
+## Why
+
+- Free-tier database bandwidth was getting demolished during heavy writing sessions. The biggest single cause was the classic Convex trap: article bodies living on rows that list queries subscribe to, so every keystroke batch re-billed whole libraries of text.
+
+## Under the hood
+
+- New 1:1 content side-tables mirroring `document_content`: `document_draft_content` (carries the draft's title so title edits ride the hot path), `document_snapshot_content`, and `publish_history_content` — each with cascade indexes. Metadata rows stay tiny; list subscriptions never touch bodies.
+- `documents.contentId` / `document_drafts.contentId` pointers let the hot save mutations `db.replace` the body row blind — a single N-byte write instead of read-then-patch (2N). New `documentDrafts.autosaveContent` writes ONLY the content row; `updateContent` became the flush path.
+- Snapshot dedup now compares an FNV-1a `contentHash` on the metadata row instead of reading the previous body; the on-insert prune scans metadata only. Publish history is capped at the newest 50 per document.
+- Resolved sync conflicts are stripped of their two full-content snapshots (audit metadata stays); the per-tick conflict guard reads only open conflicts via a new `by_documentId_unresolved` index. `getBySlug` swapped a 2,000-row scan for a `by_projectId_and_slug` index.
+- Six idempotent, chunked, resumable admin migrations drained all existing data into the new shape, verified by a seeded before/after test bench: draft-list read set 48.5&nbsp;KB → 1.8&nbsp;KB (−96%), snapshot list −96%, publish list −93%, with all 14 post-migration invariants passing.
+
+<!-- changelog-entry
+slug: automatic-versioning-and-date-based-changelog
+title: Automatic versioning & a date-based changelog
+date: 2026-06-14
+category: website
+build: 33a00ab
+description: Wryte no longer has a hand-typed version number — the deployed git commit SHA is the release identity, so update detection is fully automatic and can't be forgotten. The changelog is now organized by date and stamped with the build that shipped it.
+-->
+## What's new
+
+- **Automatic versioning.** There's no version number to bump by hand anymore. The deployed git commit SHA is the release identity, and the "new version available" prompt compares the build your tab loaded against the one that's live — so every deploy is detected automatically, and a release can never ship without the version being updated.
+- **Date-based changelog.** Releases are now organized by date and tagged with the build (commit SHA) that shipped them, instead of a semver label. An optional milestone label (e.g. `1.0`) is still supported for the rare release you want to name.
+
+## Why
+
+- The old flow required hand-bumping `package.json` *and* writing a version-numbered changelog entry on every release — a manual step that was easy to forget (and was, for several commits in a row). Tying update detection to the commit SHA makes it automatic and reliable, the way continuously-deployed apps actually ship: the SHA is the version, and the human-facing label is optional.
+
+## Under the hood
+
+- `use-version-check` now compares the deployed build SHA (`app_version.build`) against the client's `NEXT_PUBLIC_BUILD_SHA` rather than the semver string; `package.json` version is demoted to a cosmetic label that's allowed to go stale.
+- The changelog `version` field is optional end-to-end — schema, create/update mutations, admin form, public page, and RSS — and entries are keyed on `publishedAt` + `build`.
+- The changelog seed is now an idempotent **upsert migration**: re-running it reconciles already-imported rows to the version-free structure (clearing any stale label) instead of skipping them.
+- The admin "New entry" form auto-fills the build SHA from the live deploy, and the `changelog:new` CLI no longer prompts for a version or touches `package.json`.
+
+<!-- changelog-entry
+slug: landing-page-v2-diff-hero-and-product-canvas
+title: A redesigned landing page
+date: 2026-06-14
+category: website
+build: 33a00ab
+description: A brand-new landing page built around what makes Wryte different — your content is real diffs in your own Git repo. Diff-driven hero, a live commit ticker, parallax product canvas, and an honest CMS comparison.
+-->
+## What's new
+
+- **A new landing page**, designed around the one thing that sets Wryte apart: your writing lives as real diffs in your own Git repo. It leads with a diff — not a screenshot.
+  - **Diff-driven hero** with an animated unified-diff card.
+  - **Commit ticker** — a marquee of git commits scrolling beneath the fold.
+  - **Product canvas** — editor and board sections that tilt in 3D parallax as you move.
+  - **Connected-flow** section that walks through how capture → board → AI → publish fit together.
+  - **Honest CMS comparison** — a readable matrix versus Payload, TinaCMS, Sanity, and Contentful, framed as a diff narrative rather than a feature checklist.
+  - **Diff-themed call to action** to close.
+
+## Under the hood
+
+- The redesign lives in `features/marketing/components` with its constants in `features/marketing/constants`, reusing the shared navbar, footer, page background, and magnetic button. The old landing sections (hero, marquee, statement, editor, board, features, workflow, CTA) and their private dependencies were removed.
+
+<!-- changelog-entry
+slug: v0-20-0-document-body-split-and-board-selection
+title: Leaner data path, smarter board selection & social fixes
+date: 2026-06-14
+category: website
+build: 33a00ab
+description: The big one: writing no longer re-reads every article in your project, cutting DB bandwidth dramatically. Plus a Notion-style board selection mode and social template variables that actually resolve in custom text.
+-->
+## Performance
+
+- **Writing no longer re-reads your whole project.** The heavy article body now lives in its own `document_content` table, separated from the lightweight metadata (title, status, excerpt, word count) that the board, sidebar, calendar, and lists subscribe to. Those hot paths used to pay to read *every* article body in the project on each reactive invalidation — a single autosave could re-read up to 500 full bodies. Now they read metadata only.
+- **Autosave writes only the body.** The periodic 3-second autosave touches the `document_content` row alone and leaves the always-mounted sidebar/board subscriptions untouched, so typing no longer invalidates the project's metadata. The full metadata refresh (word count, `updatedAt`) fires once on manual save and when you leave the editor, so lists still reflect the final state. Per-save cost during a writing session drops from ~500 metadata rows + body to a single body write.
+- **No behavior change** — the editor, AI synthesis, drafts, frontmatter, preview, and GitHub publish all join the body back transparently. This is the bandwidth fix the whole project has been building toward.
+
+## What's new
+
+- **Notion-style board selection.** Once any card is selected, plain clicks toggle selection instead of opening the document, so you can never accidentally open a post mid-selection. Modifier-click (`Cmd`/`Ctrl`/`Shift`) anywhere on a card toggles it — no need to hit the small checkbox — and the checkbox hit target is now larger. Opening a document clears the active selection, so returning to the board never leaves stale cards selected.
+
+## Fixes
+
+- **Social template variables now resolve in custom text.** `{{title}}` and `{{url}}` typed into a *custom* announcement message are now substituted at publish time, for both publish-now and scheduled flows. Previously substitution only ran on the default template, so a `{{url}}` in custom text went out verbatim (or got dropped) and had to be pasted in by hand. Scheduled posts resolve the title and URL as they exist when the post actually goes out.
+- **Polished announcement UI** — the Social Announcement section is now a flat layout with labeled variable-insert chips, a live resolved preview, and a clear "Will publish on" callout.
+
+## Under the hood
+
+- New `document_content` table (`by_documentId`/`by_projectId`/`by_userId`), with `documents.content` made optional and `documents.excerpt` denormalized for list views. A single `cms/_lib/documentContent.ts` helper owns every read/write/delete/excerpt path, with a legacy-inline fallback for the backfill window.
+- Body rows cascade-delete on trash purge, project wipe, and account self-destruct. A resumable `_backfillDocumentContent` migration (body-size-safe batches of 25) is driven to completion from `/admin/migrations` → "Migrate document bodies," reporting an accurate migrated count.
+- Autosave split into `onSave` (body-only) and `onFlush` (full metadata refresh); shared social-template helpers extracted to `src/lib/social-template.ts` mirroring the server's `renderPostTemplate`.
+
+<!-- changelog-entry
+slug: v0-19-0-share-previews-and-tools
+title: Share previews, project tools & planning upgrades
+date: 2026-06-11
+category: website
+build: 2b6616e
+description: Share read-only draft previews with anyone, export your whole project as markdown, hunt down dead links, capture ideas, drag posts across the calendar, and watch your writing streak fill in a heatmap.
+-->
+## What's new
+
+- **Shareable draft previews** — a new Share button in the editor header creates a read-only preview link on your app's own URL (`/preview/…`). Anyone with the link sees the latest saved draft — no account needed — and you can revoke it at any time. Preview pages are hidden from search engines.
+- **Project export** — Settings → Tools → "Export all articles" downloads your entire project as a zip of markdown files with YAML frontmatter. Your content is never locked in.
+- **Link checker** — also in Tools: one click probes every external link across your articles and reports the dead ones, with jump-links to the affected posts. Strictly on-demand — it never runs in the background.
+- **Idea inbox** — capture post ideas on the project overview with a single keystroke, and convert one into a ready-to-write draft (slug + frontmatter included) when its time comes.
+- **Instant calendar rescheduling** — drag an already-scheduled post to another day and it reschedules immediately, keeping its publish time. The time picker now only appears when it's actually needed.
+- **Writing heatmap** — a GitHub-style activity grid on the dashboard. Activity history now spans 12 weeks (up from 30 days), so the heatmap fills in as you write.
+
+## Under the hood
+
+- New `share_links` and `ideas` tables, both wired into project-deletion cleanup; preview pages resolve tokens through a single public query.
+- Export walks documents in pages of 50 via one-shot queries and zips client-side — nothing reactive, only paid on click.
+- The link checker is a single rate-limited action with a bounded worker pool (8 parallel probes, HEAD-with-GET-fallback, private hosts skipped, 150-link cap reported rather than silently truncated).
+
+<!-- changelog-entry
+slug: v0-18-0-snapshots-selection-toolbar
+title: Version snapshots, selection toolbar & writing insights
+date: 2026-06-11
+category: website
+build: c6e4d13
+description: Your drafts now have a real safety net — automatic version snapshots with diff and restore — plus a floating selection toolbar with one-click AI actions, internal [[ links, SEO checks, typewriter focus mode, and session writing stats.
+-->
+## What's new
+
+- **Version snapshots** — the editor automatically snapshots your draft on every manual save (Ctrl+S) and every 10 minutes of active writing. The History panel's new **Snapshots** tab shows them all with a line-by-line **diff** of what restoring would change and **one-click restore** — and restoring snapshots your current draft first, so even a restore is reversible. A bad AI rewrite or accidental deletion is no longer permanent.
+- **Selection toolbar** — select text and a floating toolbar appears: Bold, Italic, Link, plus one-click AI actions (**Improve, Shorten, Expand, Fix grammar**) that run instantly through inline AI. On by default; toggle it in Project Settings → Editor.
+- **Internal links** — type `[[` to link to another post in the project. Browse loads a few documents at a time as you scroll, and typing searches every post by title server-side.
+- **Structure & SEO checks** — the readability panel now flags multiple H1s, heading-level jumps, images missing alt text, very long paragraphs, and link-less long posts. Click any issue to jump to it.
+- **Typewriter focus mode** — in focus mode the caret line stays vertically centered while you type, and everything outside the current paragraph gently dims.
+- **Session writing stats** — the word count shows the words you've added this session; hover it for today's total, your daily goal, and your writing streak.
+
+## Under the hood
+
+- New `document_snapshots` table (content-deduped, capped at 30 per document, pruned automatically) with rate-limited create/restore mutations.
+- New `search_title` search index on documents powering the `[[` menu's typeahead; browsing uses a lean paginated query so large projects never ship their full document list at once.
+- Snapshots, the selection toolbar toggle, and the editor-stats query all follow the function-budget rules: deduped writes, queries gated on visible UI, no per-keystroke calls.
+
+<!-- changelog-entry
+slug: v0-17-0-editor-workflow
+title: Faster writing: paste uploads, smart lists, find & replace
+date: 2026-06-11
+category: website
+build: b1c241e
+description: A batch of editor workflow upgrades — paste or drop media to upload, lists that continue themselves, find & replace, a document outline, media slash commands, and a decluttered toolbar.
+-->
+## What's new
+
+- **Paste & drop to upload** — paste a screenshot (or drop an image/video file) straight into the editor. It uploads through your project's media provider and inserts the markup at the cursor, with a placeholder while the upload runs. Images respect your compression settings.
+- **Smart lists** — Enter continues bullets, numbered lists (auto-incrementing), checkboxes, and quotes; Enter on an empty item exits the list; Tab / Shift+Tab indent and outdent list lines.
+- **Paste a link onto text** — select a word, paste a URL, get a markdown link.
+- **Find & replace** — `Ctrl/Cmd+F` opens a floating bar with live match count, next/previous, case toggle, replace one, or replace all.
+- **Outline panel** — the heading tree of your draft in a side panel; click any heading to jump there.
+- **`/image` and `/video` slash commands** — both open the full insert dialog (library / URL / upload) right at the caret, and they work in focus mode too.
+- **Decluttered toolbar** — lists, quote, divider, code, link, image, and video moved into a single Insert menu; the side-panel toggles became compact icon buttons. Everything is still one click away, with a lot less noise.
+
+<!-- changelog-entry
+slug: v0-16-0-video-embeds
+title: Video embeds
+date: 2026-06-11
+category: website
+build: 6f3f8b1
+description: Embed videos in your posts — pick from the media library, paste a hosted URL, or upload through your project's media provider, with playback right in the preview.
+-->
+## What's new
+
+- **Video embeds** — a new Video button in the editor toolbar (next to Image) opens a dialog with three ways in: pick a video from your project's media library, paste a hosted URL (UploadThing, Cloudinary, anywhere), or upload one through the project's configured media provider. Inserts a portable `<video>` tag that GitHub and most static-site renderers understand.
+- **`/video` slash command** — type `/video` to drop an embed skeleton at the cursor.
+- **Playback in preview** — both the Markdown and MDX previews now render embedded videos with controls, styled to match preview images.
+- **Video uploads** — `mp4`, `webm`, `mov`, and `ogg` files are accepted by the upload pipeline (up to the project upload limit; host larger files externally and embed by URL).
+
+## Under the hood
+
+- The Markdown preview now parses raw HTML (via `rehype-raw`) and sanitizes it — `<video>` is whitelisted with `src` restricted to http/https, and scripts or unknown tags are still stripped.
+
+<!-- changelog-entry
+slug: v0-15-1-performance-tier-1
+title: Performance: lighter editor, leaner data
+date: 2026-06-09
+category: website
+build: 9db054d
+description: First performance pass — the editor ships less JavaScript up front and the content board stops shuttling full article bodies over the wire, so the app loads faster and stays smoother.
+-->
+## Performance
+
+- **Smaller editor load** — the Markdown preview, MDX preview, and the diff viewer (sync-conflicts page) now load on demand instead of up front, trimming a large chunk of JavaScript from the initial editor bundle. You'll briefly see "Loading preview…" the first time you open preview or split mode.
+- **Leaner board & lists** — the document list no longer ships full article bodies to the board, sidebar, and header on every keystroke; it sends only what those views render (title, status, a short excerpt, word count). Recent-document lists are trimmed the same way — less data over the wire, less work on every save.
+- **Fewer wasted re-renders** — the board's tag-filter bar now subscribes to only the state it actually uses.
+- **Tighter bundles** — per-module imports enabled for `framer-motion` so only the animation code actually used ships to the browser.
+
+No behavior changes — everything works exactly as before, just lighter and faster.
+
+<!-- changelog-entry
+slug: v0-15-0-snippets
+title: Snippets: reusable text blocks
+date: 2026-06-09
+category: website
+build: 620c4e2
+description: Save reusable blocks per project — sign-offs, bios, CTAs, disclaimers — and paste any of them straight from the editor's / menu under a searchable Snippets submenu. Opt-in, scales to thousands per project.
+-->
+## What's new
+
+### Snippets
+- Define **named, reusable text blocks** per project — sign-offs, bios, CTAs, disclaimers, recurring endings — and stop retyping them.
+- In the editor, open **`/`** → **Snippets ▸**, type to find one (e.g. `exit`), and its text is pasted at the cursor. Arrow/Enter to pick, ArrowLeft/Backspace/Esc to back out.
+- Manage them in **Project Settings → Editor**: create, edit, and delete with live character counters, all from plain name + content fields (no JSON, ever).
+
+### Built to scale, cheap to run
+- Snippets live in their own searchable, paginated table, so a project can hold **thousands** without slowing anything down — the `/` menu searches as you type and shows the top matches.
+- Has its own **on/off toggle** (off by default), independent of the readability and slash-command toggles.
+
+## Fixes
+- **Board scrolling** — the content board now scrolls naturally in every direction: vertical gestures scroll up/down and horizontal gestures (trackpad swipe, the bottom scrollbar, or Shift+wheel) scroll the board sideways. A previous build redirected vertical scrolling into horizontal, which broke up/down scrolling on trackpads.
+
+## Under the hood
+- The snippet search query is gated so it only runs while the Snippets submenu is open (and is debounced) — a denormalized per-project count decides the submenu's visibility, so normal editing fires **zero extra queries**.
+- New standalone `convex/cms/snippets.ts` module (paginated list, full-text search, rate-limited create/update/remove) with a dedicated `snippets` table and `search_name` index.
+
+<!-- changelog-entry
+slug: v0-14-0-readability-and-slash-commands
+title: Editor: readability lens & slash commands
+date: 2026-06-09
+category: website
+build: 88204db
+description: Two opt-in writing aids — a Hemingway-style readability panel and a Notion-style slash (/) command menu — plus a board horizontal-scroll fix. Both editor features are off by default to keep the editor fast.
+-->
+## What's new
+
+### Readability lens
+- A toggleable side panel showing a **reading-ease score**, grade level, word/sentence stats, and a clickable list of **long, passive, and adverb-heavy sentences** to tighten — click one to jump straight to it in the editor.
+- Pure, client-side analysis (Flesch reading ease + Flesch–Kincaid grade) — **no AI cost**. Debounced, and offloaded to a Web Worker on large documents so typing never stutters.
+
+### Slash commands
+- Type **`/`** at the start of a line for a Notion-style menu to insert headings, lists, quotes, code blocks, dividers, tables, and links — plus an **"Ask AI to write…"** action that opens the inline-AI flow at the cursor.
+- Caret-anchored popover with keyboard navigation, smart filtering, and a light open/close animation.
+
+### Editor settings
+- New **Editor** tab in Project Settings to toggle each feature. **Both default off** — when disabled, nothing mounts and no listeners attach, so the editor stays exactly as fast as before.
+
+## Fixes
+- **Board horizontal scroll** — the kanban board now scrolls sideways with a normal mouse wheel (hover the board and scroll), so the rightmost columns are reachable when the sidebar is open. Individual columns still scroll vertically.
+
+## Under the hood
+- New modular editor lib (`src/features/editor/lib/{readability,slash,caret}`) with framework-free analysis, a textarea caret-measurement utility, and a self-contained slash-command registry.
+- The slash menu renders through a portal to dodge transformed-ancestor `position: fixed` issues; a single `min-w-0` on the app shell lets inner overflow regions scroll correctly.
+
+<!-- changelog-entry
+slug: v0-13-0-groq-and-layered-rate-limits
+title: Groq AI provider & layered rate limiting
+date: 2026-06-09
+category: website
+build: 86d0201
+description: Bring your own Groq key for blazing-fast Llama 3.3 70B and GPT-OSS models, plus a three-layer rate-limit system (per-user, per-provider, and a deployment-wide cap) that keeps the backend safe under load.
+-->
+## What's new
+
+- **Groq support** — add your own [Groq](https://console.groq.com/keys) key in Settings → AI for fast LPU inference, alongside Anthropic, OpenAI, OpenRouter, and Google Gemini.
+- **Groq models** — **Llama 3.3 70B** (default, best for content writing), **GPT-OSS 120B**, and **GPT-OSS 20B**, all production models with 131K context.
+- Bring-your-own-key as usual — the key is stored encrypted in WorkOS Vault and every call runs server-side.
+
+## Performance & scale
+
+- **Three-layer AI rate limiting** keeps the backend safe as call volume grows:
+  - **Per-user** limits (already in place) cap how fast any one user can start enhancements.
+  - **Per-provider** caps — one shared bucket per provider, so a spike on one provider can't starve the others.
+  - A **deployment-wide global cap** as a load-shedding backstop against thundering-herd spikes.
+- All caps are generous safety valves, not throughput ceilings, and tune from a single config file.
+
+## Under the hood
+
+- Groq needed **no new backend code** — it's OpenAI-compatible, so it slots into the provider registry as a config-only entry (base URL + models) reusing the existing OpenAI adapter and SDK. No new dependency.
+- The per-provider rate limit is a single config entry keyed by provider id, so it already covers every current and future provider with no per-provider duplication.
+
+<!-- changelog-entry
+slug: v0-12-0-google-gemini-provider
+title: Google Gemini AI provider
+date: 2026-06-09
+category: website
+build: 5e22f4d
+description: Bring your own Google Gemini key alongside Anthropic, OpenAI, and OpenRouter — with Gemini 3.5 Flash and 2.5 Flash, ideal for content writing.
+-->
+## What's new
+
+- **Google Gemini support** — add your own [Google AI Studio](https://aistudio.google.com/apikey) key in Settings → AI and enhance with Gemini, alongside the existing Anthropic, OpenAI, and OpenRouter providers.
+- **Flash models** — **Gemini 3.5 Flash** (default) and **Gemini 2.5 Flash**, both tuned for fast, high-volume content writing.
+- Bring-your-own-key as usual — the key is stored encrypted in WorkOS Vault and the Gemini call runs entirely server-side; it never touches the browser.
+
+## Under the hood
+
+- First provider to use the new `gemini-native` kind in the provider registry — added via a single registry entry plus one streaming adapter (`@google/genai` `generateContentStream`) and a free key-verification ping. No schema migration; the validator widened automatically.
+
+<!-- changelog-entry
+slug: v0-11-0-ai-provider-registry
+title: AI provider registry & scalable stream cleanup
+date: 2026-06-08
+category: website
+build: 0d7b6f1
+description: The AI provider concept is now a single source of truth — adding a provider is a one-file config change. Stale model ids are corrected to current models, a one-time migration upgrades existing projects, and AI stream bookkeeping is drained by a budget-aware daily cron.
+-->
+## What's new
+
+- **Single source of truth for AI providers** — provider id, label, models, base URL, and key/dashboard metadata all live in one registry (`convex/ai/_lib/providers.ts`). The Convex validators, schema, credential lifecycle, and settings UI all derive from it, replacing a provider union that was duplicated across seven files.
+- **Adding a provider is now a one-file change** — for any OpenAI-compatible provider (Groq, DeepSeek, Together, Ollama, …) it's a single registry entry with a base URL and model list; no new backend code. A compile-time assertion fails the type-check if the provider list and the Convex validator ever drift apart.
+- **Current model ids** — the model picker now offers real, current models (Claude Opus 4.8 / Sonnet 4.6 / Haiku 4.5, the GPT-4.1 family, and live OpenRouter free models) instead of stale or invented ids.
+
+## Existing projects
+
+- **One-time AI model upgrade** (`/admin/migrations` → "Upgrade AI models") rewrites every project's saved model to a current, valid id for its provider — fixing projects pinned to soon-retired ids (e.g. `claude-sonnet-4-20250514`) while preserving the chosen tier (Opus→Opus, Sonnet→Sonnet, Haiku→Haiku). Paginated, self-scheduling, and idempotent.
+
+## Performance & scale
+
+- **AI stream ownership rows are now garbage-collected** — a daily, self-draining cron clears `ai_stream_owners` bookkeeping (which previously only disappeared on project/user deletion), so the table stays bounded under heavy use at scale. The cleanup batches and re-schedules itself, so its function-call cost tracks the real backlog rather than wall-clock — consistent with the streaming component's 24h GC.
+
+## Under the hood
+
+- New `convex/ai/_lib/providers.ts` registry (`PROVIDER_IDS`, `providerValidator`, `getProvider`, `ALL_PROVIDERS`); `src/types/ai.ts` is now a thin re-export so the `@/types/ai` import path is unchanged.
+- `streamByProvider` and `runProviderPing` branch on a registry `kind` (anthropic-native vs openai-compatible) and read base URL/headers from the entry — OpenRouter is just an openai-compatible entry, not a special case.
+- Removed duplicated provider unions and the copy-pasted brand-mark components from the settings UI; bring-your-own-key and WorkOS Vault storage are unchanged.
+- Added a `by_createdAt` index on `ai_stream_owners` plus `ai/aiStreams.ts:_cleanupOwners`.
+
+<!-- changelog-entry
+slug: v0-10-0-framework-aware-frontmatter
+title: Framework-aware frontmatter detection & validation
+date: 2026-06-08
+category: website
+build: c0c1e16
+description: Schema detection now reads each framework's real config (Astro, Hugo, Next/Contentlayer, Jekyll), a publish-time guard keeps list fields valid so builds never break, the editor validates frontmatter before publish, and existing projects self-repair with an in-app notice.
+-->
+## What's new
+
+- **Framework-aware schema detection** — connecting a repo now identifies the framework (Astro, Hugo, Next.js/Contentlayer, Jekyll, Gatsby, Eleventy, SvelteKit) and reads its *authoritative* config as the source of truth: Astro's Zod content schema, Contentlayer `fields`, Hugo taxonomies + archetypes, and Jekyll `defaults`.
+- **Multi-file sampling** — detection samples many posts and types each field by majority vote instead of trusting a single file, so one unusual post can't poison the schema.
+- **Inline pre-publish validation** — the editor's Frontmatter panel shows a live "Ready / warnings / issues" badge and flags problems (missing required fields, invalid dates, out-of-range `select` values, malformed URLs) *before* you publish — no more discovering a broken build minutes later.
+- **TOML frontmatter** — Hugo and other `+++`-fenced sites now publish real TOML frontmatter (the previously-declared format option is now implemented).
+- **Re-detect from repo** — a button in Project Settings → Frontmatter re-runs framework-aware detection on demand and refreshes the schema, framework, and format.
+
+## Fixes
+
+- **List fields can no longer break builds.** A publish-time guard guarantees `tags`, `keywords`, `categories`, `topics`, `authors`, and `aliases` always serialize as YAML/TOML arrays — even if the stored schema mistyped them — fixing failures like Astro's `Expected array, received string`.
+- **Empty lists** now serialize as `[]` instead of a bare key that parses back as `null`.
+- **Re-publishing preserves the original date** — fixing or re-shipping an old post no longer stamps it with today's date (first publishes and scheduled posts still stamp as expected).
+
+## Existing projects
+
+- **One-time repair migration** (`/admin/migrations` → "Repair frontmatter schemas") fixes every existing project's stored schema, paginated and idempotent.
+- **In-app notice** — each repaired project shows a dismissible banner so owners know their schema was updated, with a deep link straight to the Frontmatter settings.
+
+## Performance & scale
+
+- Detection enumerates a repo with a **single recursive Git Trees call** (instead of walking directories) and fetches a bounded, parallel sample of files — each request uses the caller's own GitHub token, so there's no shared rate-limit bottleneck.
+- The publish-time array guard is pure and in-memory: zero extra database reads or writes on the publish path.
+
+<!-- changelog-entry
+slug: v0-9-0-writing-analytics-goals-and-streaks
+title: Writing analytics, goals & streaks
+date: 2026-05-23
+category: website
+build: d3b1b87
+description: Account-wide writing streaks, daily word goals with confetti celebration, per-project dashboards, 30-day activity chart, and a full dashboard refactor.
+-->
+## What's new
+
+- **Writing streaks** — consecutive-day tracking with flame icon color escalation (amber → orange → red) and milestone callouts at 7, 14, 30, 60, 100, and 365 days.
+- **Daily word goals** — set a target from presets (250/500/1k/2k) or a custom value. Progress bar color shifts from amber → blue → emerald as you approach the goal.
+- **Goal celebration** — confetti burst and shimmer animation when you hit your daily word target. The progress bar glows, the icon swaps to a party popper, and "Goal reached!" appears.
+- **30-day activity chart** — bar chart showing daily word output. When a goal is set, bars that met the target turn emerald with a dot above, a dashed goal line appears, and an "X/30 goals met" counter is shown.
+- **Per-project dashboard** — entering a project now lands on an overview page with project-scoped status counts, total word count, status distribution bar, recent activity, upcoming scheduled posts, and keyboard shortcuts. The articles board moves to a dedicated "Articles" tab.
+- **Project status distribution** — horizontal stacked bar chart showing the breakdown of draft/review/ready/scheduled/published articles, with hover highlighting and a legend.
+- **Upcoming scheduled posts** — next 5 scheduled articles shown on both the workspace and project dashboards with purple indicators and relative timestamps.
+- **Per-project mini stats** in the workspace dashboard sidebar — each project shows article count and total words.
+
+## Performance
+
+- **Dashboard no longer scans all documents** — the old `listAllForUser` query (up to 1,000 docs) is replaced by `getDashboardStats`, which reads ~5 small precomputed rows. Status counts, word totals, and streaks are denormalized on write.
+- **Stats update asynchronously** — word count deltas and status changes fire via `ctx.scheduler.runAfter(0, ...)` so the document save path stays fast (1 read + 1 write) with zero inline overhead.
+- **Bulk delete batches status changes** — soft-deleting N documents fires one `scheduleStatusChange` per status type with a count, not N individual mutations.
+
+## Architecture
+
+- **New tables**: `writing_stats` (one row per user) and `project_stats` (one row per project) — isolated from write-hot `projects` and `users` tables to avoid OCC contention.
+- **Reusable dashboard components** — `StatPill`, `ActivityChart`, `RecentDocsList`, `ShortcutsPanel`, `WritingStreak`, `TodaysProgress`, and `UpcomingSchedule` are shared between workspace and project dashboards.
+- **Hooks extract data fetching** — `useDashboardStats` and `useProjectDashboard` keep pages thin and logic testable.
+- **Cascade cleanup** — project deletion subtracts word counts from `writing_stats` and deletes `project_stats`; account self-destruct wipes both tables.
+- **Backfill mutations** — `_backfillWordCounts`, `_backfillProjectStats`, and `_backfillWritingStats` handle existing data migration.
+- **Daily maintenance cron** prunes `recentActivity` arrays to 30 days.
+
+## Routing
+
+- `/projects/[id]` now shows the project dashboard overview.
+- `/projects/[id]/articles` shows the articles board (previously at root).
+- Sidebar adds "Overview" as the first project nav item.
+
+<!-- changelog-entry
+slug: v0-8-0-security-and-reliability-audit
+title: Security & reliability audit
+date: 2026-05-23
+category: website
+build: 7272349
+description: 38 audit findings resolved across backend, frontend, and supply chain — vault hardening, AI stream ownership, project cascade, qs CVE patch.
+-->
+## Security
+
+- **GitHub OAuth token no longer crosses the network boundary** — `/api/github/token` now reports connection status only; every GitHub call resolves the token server-side. One XSS or extension would have captured the full `repo`-scoped token before.
+- **AI streams are now ownership-checked** — a new `ai_stream_owners` table binds each `streamId` to its creator, and `getStreamBody` rejects reads from anyone else. Previously any signed-in user with a stream id could subscribe to another tenant's AI output.
+- **Credential rotation is verify-first** — saving a new AI/media/social key verifies it before destroying the old vault entry. A typo no longer locks users out of their provider.
+- **Project deletion is now a real cascade** — `projects.remove` is a chunked action that cleans up documents, drafts, research, media, three flavours of credential (with vault entries), scheduled-publish workflows, and every other project-scoped table.
+- **Filename path-traversal closed** — uploads reject `..`, NUL, path separators, and oversize names before they reach any provider.
+- **Anonymous `appVersion.stamp` closed** — gated by `VERSION_STAMP_SECRET`; anyone hitting the Convex URL could previously trigger a "new version" toast on every connected client.
+- **Marketing support form hardened** — rate-limited (5/hr) with length caps and an email regex; was previously an open spam vector with no validation.
+- **SVG uploads removed** from `ALLOWED_MIME` — SVG can contain `<script>` and execute in the hosting origin.
+- **`qs` DoS patched** — pinned to 6.15.2 to clear GHSA-q8mj-m7cp-5q26 pulled in through Express.
+
+## Reliability
+
+- **Autosave race guard** — concurrent saves can no longer mark a stale snapshot as saved.
+- **Frontmatter editor debounced** — saves coalesce after 500ms of idle typing instead of firing one Convex mutation per keystroke.
+- **Document queries paginate trash-aware** — list/getBySlug/listForCalendar use `by_projectId_and_trashedAt` so active docs aren't hidden behind a window full of trash.
+- **Workflow rotation preserves prior status** — failed rotations no longer promote previously-invalid credentials to "active".
+- **`getGithubToken` fails closed** — transient WorkOS Vault and Clerk errors propagate so the workflow's retry policy can engage instead of silently using a stale legacy token.
+- **Documents.update locked down** — rejects `status: "scheduled"/"published"` and direct `scheduledAt` writes that previously bypassed the scheduling workflow. Adds a 500KB byte-aware content cap.
+- **`_backfillGithubSyncedAt` chunked** — switched to the self-scheduling pattern so large deployments don't risk per-transaction limits mid-backfill.
+
+## UX
+
+- **Pagination reset fixed** — changing filters/search/view no longer strands users on an empty page.
+- **Frontmatter reactive refresh** no longer wipes unsaved local edits when another tab saves the same project.
+- **Markdown editor desync fixed** — AI applies no longer get overwritten by a stale user keystroke.
+- **Inline AI bails on content shift** instead of silently replacing the wrong paragraph via `indexOf` fallback.
+- **Version-available toast retriggers** for a second deploy in the same session.
+- **Board view re-renders only on relevant store changes** (`useShallow` selector).
+
+## Under the hood
+
+- 38 audit findings closed across 4 commits + 1 self-review followup commit; lint and type-check are clean.
+- New `ai_stream_owners` table with `by_streamId`/`by_userId_and_createdAt`/`by_projectId` indexes, drained by both project delete and account self-destruct.
+- `_wipeProjectChunk` mirrors `selfDestruct._wipeChunk`'s budget accounting so a project with thousands of rows fans out across chunks instead of blowing a single transaction.
+- `_deleteProjectRow` is idempotent — retried delete passes are no-ops.
+- Frontmatter MDX/JS parsing uses JSON5 instead of `new Function`; the MDX preview's trust boundary is documented in source.
+- Project-local `bunfig.toml` lowers `minimumReleaseAge` to 5 days to admit the qs patch ahead of the global gate.
+
+<!-- changelog-entry
+slug: v0-7-5-paginated-feature-requests
+title: Paginated public feature requests
+date: 2026-05-20
+category: website
+build: 628f48e
+description: The public feature requests board now uses cursor-based pagination instead of loading all entries at once.
+-->
+## What's new
+
+- **Paginated feature requests** — the public board at `/feature-requests` now loads 15 items at a time with a "Load more" button, matching the changelog pagination pattern. Reduces initial payload and keeps the page fast as the board grows.
+- **Platform list cleanup** — removed 5 platforms (TikTok, Instagram, YouTube, Pinterest, Google Business) from the Upload-Post integration that don't support text-only posting per the API docs.
+
+## Under the hood
+
+- Converted the `list` query in `convex/support/featureRequests.ts` from `.take(200)` to Convex cursor-based `.paginate()`.
+- Frontend switched from `useQuery` to `usePaginatedQuery` with loading states for first page and subsequent pages.
+
+<!-- changelog-entry
+slug: v0-7-4-social-posting-and-settings-refactor
+title: Social media cross-posting and settings refactor
+date: 2026-05-20
+category: website
+build: 38b7ee5
+description: Auto-announce new blog posts to X, LinkedIn, Bluesky, Threads, Facebook, and Reddit via Upload-Post. Account and project settings pages refactored into modular components.
+-->
+## What's new
+
+### Social media cross-posting
+- **Auto-announce on publish** — when you publish a post to GitHub, Wryte can automatically announce it on X, LinkedIn, Bluesky, Threads, Facebook, and Reddit via Upload-Post integration.
+- **Social settings tab** — configure your Upload-Post API key, select platforms, set your username, and customize the post template with `{{title}}` and `{{url}}` variables.
+- **Post template editor** — shared `SocialPostField` component with info tooltip, variable insert buttons, and character counter across settings, publish dialog, and schedule dialog.
+- **Send test post** — verify the integration end-to-end by sending a dummy post to all selected platforms.
+- **Reddit subreddit support** — required subreddit field appears when Reddit is selected, with auto-detection of `r/` prefix and trailing slashes.
+- **Platform validation** — only platforms supported by Upload-Post's text API are shown (removed TikTok, Instagram, YouTube, Pinterest, Google Business which require images/video).
+- **Scheduled publish support** — social posts fire for both instant and scheduled publishes.
+
+### Settings refactor
+- **Project settings** — the 3800-line monolith is now a thin shell composing 9 section components (General, GitHub, Content, Publishing, Frontmatter, Media, AI, Social, Danger Zone), each backed by a colocated hook.
+- **Account settings** — the 1400-line page is now a thin shell composing 7 tab components (Account, Appearance, Media, Shortcuts, Support, Self-destruct), each with colocated hooks.
+
+## Under the hood
+
+- Added `socialCredentials` table with vault-backed key storage, status tracking, and public config for username/platforms/template/subreddit.
+- Added `socialPostOnPublish` toggle to the projects schema.
+- Fire-and-forget `announcePublish` internal action — errors are logged but never block the publish flow.
+- Six new rate limits for social credential and post operations.
+
+<!-- changelog-entry
+slug: v0-7-3-ai-prompt-templates
+title: Per-project AI prompt templates
+date: 2026-05-20
+category: website
+build: d2389be
+description: Save reusable AI prompts per project and one-click apply them. All AI flows — enhance, inline, and final draft — now use customizable system prompts instead of hardcoded ones.
+-->
+## What's new
+
+- **AI prompt templates** — save reusable AI instructions per project in Settings → AI Enhancement → Prompt Templates. Templates appear as one-click pills in the inline AI popover (Mod+J) for zero-typing transforms.
+- **Customizable system prompts** — the AI Enhancement panel now shows an editable system prompt with template presets. Pick a template or write your own — the AI uses exactly what you give it.
+- **All AI flows updated** — enhance, inline transform, and final draft all accept custom system prompts. The hardcoded prompts are now editable defaults that ship with every project.
+- **Default templates** — new projects come with six defaults: Enhance, Inline transform, Final draft, Simplify, Make concise, and Fix grammar. All match the previously hardcoded system prompts.
+- **MDX-aware custom prompts** — MDX projects automatically get the JSX preservation addendum appended to custom prompts, so components are never mangled.
+
+## Under the hood
+
+- Added `aiPromptTemplates` field to projects schema (JSON-stringified array, same pattern as `boardColumns`).
+- Added `convex/ai/promptTemplates.ts` with `getTemplates` query and `addTemplate`, `updateTemplates`, `removeTemplate` mutations.
+- Three new rate limits for template operations.
+- Threaded `systemPrompt` through `createEnhanceStream`, `createInlineEnhanceStream`, and `createFinalDraftStream` mutations and their corresponding actions.
+
+<!-- changelog-entry
+slug: v0-7-2-atomic-deploys-version-notifications
+title: Atomic deploys & version notifications
+date: 2026-05-20
+category: website
+build: 4166076
+description: Frontend and backend now deploy atomically through Vercel. Connected clients get a real-time toast when a new version is available.
+-->
+## What's new
+
+- **Atomic FE+BE deploys** — the Vercel build now runs `convex deploy` before `next build`, so frontend and backend deploy together. Reverting a Vercel deployment rolls back both. The separate `convex-deploy.yml` GitHub Action has been retired.
+- **Version update notification** — when a new version is deployed, every connected client receives a persistent toast via Convex's real-time websocket (zero polling). Clicking "Update now" refreshes the page to load the latest build.
+- **Version stamp** — a post-deploy script writes the current version and build SHA into the `app_version` table using `ConvexHttpClient`, so the notification system knows what's live.
+
+## Under the hood
+
+- Added `app_version` Convex table (singleton row: version, build, deployedAt).
+- Added `stamp-version.ts` script that runs after `convex deploy` during Vercel builds.
+- Added `useVersionCheck` hook that subscribes to the deployed version and compares against the build-time `APP_VERSION`.
+- CI now runs `bunx next build` directly instead of the deploy-aware build command.
+
+<!-- changelog-entry
+slug: v0-7-0-mdx-file-format-support
+title: MDX file format support
+date: 2026-05-20
+category: website
+build: 12c0177
+description: Projects can now use MDX as their content format — live React component rendering in the editor preview, MDX-aware AI prompts, and correct .mdx extensions in GitHub publishes.
+-->
+## What's new
+
+- **MDX content format** — projects can now choose between Markdown (`.md`) and MDX (`.mdx`) in Content settings. The setting controls file extensions in GitHub publishes, file path previews, and editor behavior.
+- **Live React preview** — the MDX editor preview compiles and renders React components in real time. Define components with `export function`, use hooks like `useState` and `useEffect`, and see interactive UI directly in the preview pane.
+- **Unknown component placeholders** — JSX tags that reference undefined components render as styled placeholder blocks instead of crashing the preview.
+- **MDX-aware AI** — enhancement and final-draft prompts now preserve JSX/MDX syntax when the project uses MDX format.
+
+## Fixes
+
+- **GitHub publish format change** — changing a project's content format no longer causes 422 errors. Old-extension files are cleaned up automatically on publish.
+- **Bulk publish orphan cleanup** — switching from `.md` to `.mdx` (or vice versa) deletes the old-extension file in the same commit.
+- **Content Format selector** — fixed dropdown alignment and width in project settings.
+
+<!-- changelog-entry
+slug: v0-6-3-editor-undo-redo-fix
+title: Editor undo/redo fix
+date: 2026-05-19
+category: website
+build: 907c5e5
+description: Fixed Cmd+Z / Ctrl+Z undo and redo not working in the markdown editor by preserving the browser's native undo stack.
+-->
+## Fixes
+
+- **Undo/redo restored** — `Cmd+Z` / `Ctrl+Z` and `Cmd+Shift+Z` / `Ctrl+Y` now work correctly in the editor. The store-to-textarea sync effect was overwriting `textarea.value` on every content change, which destroyed the browser's native undo stack. Internal (typed) changes now skip the sync, preserving undo history.
+- **`replaceContent` preserves undo** — the `replaceContent` helper (used by AI features) now uses `setRangeText` instead of direct `.value` assignment, keeping the undo chain intact after AI rewrites.
+
+<!-- changelog-entry
+slug: v0-6-2-convex-query-safety-audit
+title: Convex query safety audit
+date: 2026-05-19
+category: website
+build: 76b9a1e
+description: Replaced every unbounded .collect() across the Convex backend with bounded .take(n) calls to prevent runaway reads as tables grow.
+-->
+## Under the hood
+
+- **Bounded all database queries** — every `.collect()` call across the Convex backend has been replaced with `.take(n)` using limits appropriate to each table's expected cardinality. Affected files: `documents.ts`, `projects.ts`, `documentDrafts.ts`, `documentResearch.ts`, `conflicts.ts`, `boardColumns.ts`, `trash.ts`, `scheduling.ts`, `credentialsDb.ts`, and `selfDestruct.ts`.
+- **No functional changes** — queries return the same results for any realistic dataset; the bounds simply prevent runaway reads if a table grows unexpectedly.
+
+<!-- changelog-entry
+slug: v0-6-1-changelog-pagination-and-dialog-fix
+title: Changelog pagination, footer, and dialog fix
+date: 2026-05-19
+category: website
+build: e6d3814
+description: Paginated changelog on both backend and frontend, added the marketing footer to the changelog page, and fixed text overflow in the new article dialog.
+-->
+## What's new
+
+- **Changelog pagination** — the public changelog page now uses cursor-based pagination via Convex's `usePaginatedQuery`, with a "Load older releases" button instead of dumping every entry at once.
+- **Changelog footer** — the `/changelog` page now includes the same marketing footer (brand, links, version label) used across the rest of the site.
+- **Shared marketing footer** — extracted the duplicated footer markup into a reusable `MarketingFooter` component in `src/components/layout/`.
+
+## Fixes
+
+- **Dialog text overflow** — long slugs and file paths in the "New article" dialog (and the full-page `/articles/new` form) now truncate correctly instead of overflowing the container.
+
+<!-- changelog-entry
+slug: v0-6-0-drafts-tabs-and-research-panel
+title: Drafts as editor tabs, research panel, and hook colocation
+date: 2026-05-19
+category: website
+build: 0d507b9
+description: Open multiple drafts as tabs in the editor with a built-in research panel, surface AI errors inline, and a structural refactor that colocates hooks with the features that own them.
+-->
+## What's new
+
+### Editor
+- **Drafts as tabs** — open multiple drafts side-by-side in the editor with a tab bar instead of swapping documents one at a time.
+- **Research panel** — a dockable panel for quick lookups while you write, so reference material stays one click away.
+- **Inline AI error messages** — failures from AI features surface in-place in the editor instead of disappearing into the console.
+
+### Dashboard
+- **Shared tag colors** — board cards, table rows, and the tag editor popover all pull from the same palette, so a tag looks identical everywhere.
+
+## Fixes
+
+- Blog editor resolves media paths correctly when posts reference assets outside the default folder.
+- Version and build numbers in app footers auto-update from the build environment instead of going stale.
+- Board view no longer logs an `'Escape' is already registered` warning when its keyboard nav mounts alongside the global app hotkeys.
+
+## Under the hood
+
+- **Hook colocation** — feature-specific hooks now live in `hooks/` folders inside their feature directory (`src/features/editor/hooks/`, `src/features/content-dashboard/hooks/`, `src/components/layout/hooks/`). `src/hooks/` is reserved for genuinely shared hooks used by multiple unrelated features.
+- **Changelog authoring CLI** — `bun run changelog:new` walks you through a new entry, auto-fills the build SHA and slug, and bumps `package.json` so the next release does not ship with stale version metadata.
+
+<!-- changelog-entry
+slug: v0-5-3-feature-requests-and-hardening
+title: Feature request board and production readiness
+date: 2026-05-16
+category: website
+build: 73
+description: A public feature request board with Clerk-gated upvoting, admin moderation, and a final round of refactor work to bring the new admin surface up to the rest of the codebase.
+-->
+## What's new
+
+### Public feature requests
+- **Board at `/feature-requests`** — status-filter tabs (All / Open / Planned / In progress / Shipped), submission dialog, and a chunky upvote button per card.
+- **Auth-gated submission and voting** — signed-in users only, so we can track votes per user and prevent double-voting.
+- **Live updates** via Convex subscriptions — vote counts shift in real time as others vote.
+
+### Admin moderation
+- **Status moderation** — admins flip each request through its lifecycle from a dropdown that updates optimistically.
+- **Delete with cascade** — removing a request also cleans up its upvote rows.
+
+### Seeding from the UI
+- **Seed admin page** (`/admin/seed`) — one-click buttons run the changelog and feature-request seeds without dropping to the CLI. Rate-limited and admin-gated.
+
+### Production hardening
+- **Shared admin gate** — `convex/_lib/admin.ts` replaces four copies of the same role-check helper.
+- **Rate limits** for every new admin and public mutation, registered in `_lib/rateLimits.ts` alongside the rest.
+- **Convex folder structure** — feature requests live under `support/` (alongside support tickets), and one-shot seed scripts moved to `convex/_seed/` to match the existing underscore-prefixed special folders.
+
+<!-- changelog-entry
+slug: v0-5-2-changelog-admin
+title: Public changelog and admin authoring
+date: 2026-05-16
+category: website
+build: 73
+description: A public changelog page powered by an admin-only authoring surface, with markdown rendering and role-gated access via Clerk.
+-->
+## What's new
+
+- **Public changelog** at `/changelog` — ISR-cached at the CDN, regenerated every 60s, with sanitised markdown rendering.
+- **Admin authoring** under `/admin/changelog` — list view, dedicated create page, and per-entry edit page, all gated by Clerk's `publicMetadata.role === "admin"`.
+- **Admin sidebar section** that only appears for admin users, with quick links to list, create, and manage.
+- **Draft vs published** lifecycle — entries stay hidden until you check the publish box.
+- Slugs auto-derive from titles but are editable; unique-slug enforcement at the database level.
+
+<!-- changelog-entry
+slug: v0-5-1-open-source
+title: Open source under MIT
+date: 2026-05-15
+category: website
+build: 2b7b7af
+description: Wryte is now open source under MIT. New README, contributing guide, OG image, and a polished marketing surface.
+-->
+## What's new
+
+- **Open sourced under MIT** — the full Wryte codebase is now public.
+- **New README + contributing guide** so newcomers can get a local dev environment running quickly.
+- **OG image refresh** — link previews on social platforms now show the new brand artwork.
+
+## Fixes
+
+- Twitter image route defines its runtime directly instead of re-exporting it, removing a Next.js build warning.
+
+<!-- changelog-entry
+slug: v0-5-0-production-and-marketing
+title: Production hardening, support tickets, and marketing surface
+date: 2026-05-15
+category: website
+build: e12803e
+description: Production-readiness hardening, end-to-end support tickets, fresh marketing pages, and a long list of editor + board improvements.
+-->
+## What's new
+
+### Production hardening
+- Every query is now bounded (`take(n)` or paginate, no naked `collect()`).
+- Denormalized counters where read-amplification was hurting (document counts per project, vote counts, etc.).
+- Stricter input validation across every mutation, plus consistent error envelopes the client can render as friendly toasts.
+
+### Support
+- **Support tickets** end-to-end — submit from the dashboard or the marketing contact form, with a normalized status workflow (`open → in_progress → resolved → closed`).
+
+### Marketing
+- **Contact page** for anonymous outreach.
+- **How it works** page walks through the editor → publish loop.
+- **Landing polish** — typography, spacing, animation tightening across every section.
+- **Footer credits** with live version, build hash, and company attribution.
+
+### Editor & board
+- Refactored board hooks to fix drag, hover, and checkbox edge cases.
+- Dependencies upgraded across the stack.
+
+<!-- changelog-entry
+slug: v0-4-4-ai-schema-and-sync
+title: AI schema-aware suggestions and sync conflict resolution
+date: 2026-05-15
+category: website
+build: c9ec78b
+description: AI frontmatter suggestions respect your project schema, and bulk imports now detect and resolve sync conflicts before overwriting work.
+-->
+## What's new
+
+### AI
+- **Schema-driven frontmatter suggestions** — the AI assistant respects each project's frontmatter schema and skips fields it shouldn't touch (images, dates, draft flag).
+
+### Sync & lifecycle
+- **Diff-before-enqueue** — bulk imports skip files that haven't changed in GitHub since the last sync, cutting noise.
+- **Sync conflict UI** — when GitHub and Convex have both edited a file since the last sync, we surface a three-way resolver (use GitHub / keep Convex / merge).
+- **Soft-delete trash** — deleted documents linger in a per-project trash with configurable retention, instead of vanishing forever.
+
+<!-- changelog-entry
+slug: v0-4-3-frontend-refactor-and-frontmatter
+title: Front-end refactor, GitHub branch picker, and frontmatter polish
+date: 2026-05-14
+category: website
+build: 184914c
+description: Eight phases of front-end refactoring, a smarter GitHub repo connector with branch picker, and a long list of frontmatter editor improvements.
+-->
+## What's new
+
+### Front-end refactor
+- Eight-phase refactor across types, shared primitives, hooks (`use-bulk-import`, `use-bulk-delete`, `use-pending-deletes`), feature folders, page thinning, layout, and marketing — pages are now thin wrappers around feature modules.
+
+### GitHub integration
+- **Branch picker** with auto-detection when connecting a repo.
+- **Write-failure diagnostics** that tell you exactly which scope is missing on your token.
+
+### Project settings
+- New `defaultAuthorAvatar` setting injected into frontmatter for new posts.
+- Custom commit message templates, filename patterns, and default draft state per project.
+
+### Frontmatter editor
+- **Pretty labels** with smart capitalisation.
+- **Chip input** for array fields (tags, categories).
+- **Auto-injection** of `pubDate` and `draft` flag using your project's frontmatter schema.
+- **Image-name fallback** when no alt text is provided.
+- **Visual density pass** — bigger labels, fewer columns, more spacing.
+
+### Schema editor
+- **YAML mode** that mirrors the exact frontmatter format your posts will render with.
+- **Clear default values** button for projects whose schema picked up sampled values during detection.
+
+## Fixes
+
+- Author defaults pull from project config instead of leaking per-post values into the schema.
+- Frontmatter detection stops copying sampled post values into schema defaults.
+- `inferFieldType` now prefers image-name hints over URL-based detection.
+- Sidebar **Back button** in the editor steps editor → project → dashboard (matches mental model).
+- Scheduling: guarded against an `onComplete` race when cancelling a scheduled publish.
+
+<!-- changelog-entry
+slug: v0-4-2-backend-refactor
+title: Domain-organised Convex backend
+date: 2026-05-13
+category: website
+build: 97b8664
+description: Convex functions now live under clear domain folders (cms, media, ai, integrations, account) with end-to-end type safety from schema to client.
+-->
+## What's new
+
+- **Domain-organised Convex backend** — `cms/`, `media/`, `ai/`, `integrations/`, `account/`, `support/`, `workflows/`. Shared helpers live under `_lib/` and workpools under `_pools/`.
+- **End-to-end type safety** — every server function has explicit return types so the client gets full inference without `any` leaks.
+- CI now triggers a Convex deploy whenever `package.json`, `bun.lock`, or patches change.
+
+## Fixes
+
+- Persistent-text-streaming cleanup cron throttled from once-a-minute to once-a-day, eliminating an avoidable load spike.
+
+<!-- changelog-entry
+slug: v0-4-1-compression-oauth-analytics
+title: Image compression, Clerk OAuth, and analytics
+date: 2026-05-13
+category: website
+build: e367f99
+description: Client-side image compression before upload, server-side Clerk OAuth for GitHub, timezone-aware scheduling, and Vercel Web Analytics.
+-->
+## What's new
+
+- **Client-side image compression** before upload — smaller commits, faster Vercel/Netlify builds. Per-project and per-account overrides for compression quality.
+- **Server-side Clerk OAuth for GitHub** — scheduled publishes now mint a fresh GitHub token at fire time, so jobs scheduled weeks ahead don't fail on expired sessions.
+- **Timezone-aware scheduling** — pick the date in your timezone, store it as UTC, render it in the viewer's timezone.
+- **Autosave** for the editor with a manual-save fallback per project preference.
+- **Dedicated `/articles/new` page** plus a matching in-project dialog for fast capture.
+- **Vercel Web Analytics** wired up across the app.
+
+## Fixes
+
+- Dropped the AVIF/WASM codec path that was causing slow Convex round-trips on large images.
+- Media library polish — better empty states, fewer redundant Convex calls.
+
+<!-- changelog-entry
+slug: v0-4-0-providers-and-byok
+title: Per-project media providers and BYOK keys
+date: 2026-05-13
+category: website
+build: 4881c67
+description: Plug your own UploadThing or Cloudinary into each project, bring your own AI provider keys, and reset accounts cleanly via self-destruct.
+-->
+## What's new
+
+### Media providers
+- **Per-project media storage** — choose between GitHub-committed binaries, UploadThing, or Cloudinary for each project.
+- **WorkOS Vault-backed credentials** — provider API keys are encrypted at rest, never round-trip to the client, and rotate with one click.
+- Status indicators per credential (active / verifying / invalid / rotating) so misconfigured projects surface immediately.
+
+### AI keys
+- **Bring Your Own Key (BYOK)** for Anthropic, OpenAI, and OpenRouter. We never proxy your AI usage — keys go straight to the provider from a Convex action.
+- UI gates AI features behind a configured key with a clear "Set up" CTA when missing.
+
+### Account
+- **Self-destruct** — reset your entire account (projects, documents, credentials, vault entries) in one confirmed action.
+- New product logo assets across the app.
+
+<!-- changelog-entry
+slug: v0-3-1-favorites
+title: Project favorites
+date: 2026-04-11
+category: website
+build: 83e2f5f
+description: Star your most-used projects to keep them at the top of the sidebar.
+-->
+## What's new
+
+- **Favorites** — star a project and it floats to the top of the sidebar under a dedicated section.
+- Sidebar now shows favorites and the rest of your workspaces separately.
+
+<!-- changelog-entry
+slug: v0-3-0-storage-and-rate-limits
+title: File storage and rate limiting
+date: 2026-04-10
+category: website
+build: 3a5a659
+description: First-class file storage for media, application-wide rate limiting on every mutation, and a redesigned publish flow.
+-->
+## What's new
+
+- **File storage** via Convex — upload images and assets directly from the editor.
+- **Rate limiting** on every mutation across the app, with named buckets per operation so editor auto-save stays snappy while destructive ops are tightly capped.
+- **New publish dialog** — preview the rendered frontmatter and commit message before pushing to GitHub.
+
+## Fixes
+
+- Publish race conditions when clicking quickly are now serialized server-side.
+
+<!-- changelog-entry
+slug: v0-2-1-dashboard-and-history
+title: Dashboard redesign, history, and import improvements
+date: 2026-04-09
+category: website
+build: 61a326d
+description: New dashboard with better search, document history for every project, and multi-select for bulk GitHub imports.
+-->
+## What's new
+
+- **Redesigned dashboard** — quick stats, recent activity, and faster search across every project.
+- **Document history** — every save snapshots, so you can scroll back through revisions.
+- **Multi-select GitHub import** — pull in a batch of existing posts in one click.
+- **Cleaner top nav** with project-aware breadcrumbs.
+
+## Fixes
+
+- Middleware no longer redirects signed-in users away from the landing page.
+- Nav bar layout stays stable on narrow viewports.
+
+<!-- changelog-entry
+slug: v0-2-0-scheduling-and-ai
+title: Scheduled publishing and AI rewrite
+date: 2026-04-08
+category: website
+build: 545a551
+description: Schedule posts for the future, and pull in AI assistance for rewriting and enhancing your prose without leaving the editor.
+-->
+## What's new
+
+- **Scheduled publishing** — pick a date/time and Wryte commits to GitHub for you when the moment arrives.
+- **AI features** — rewrite, summarise, and expand selections inline using Anthropic models.
+- **Settings UI refresh** — clearer sections, less scrolling.
+
+## Fixes
+
+- Action errors no longer swallow stack traces during local dev.
+- Biome and dependency versions brought current.
+
+<!-- changelog-entry
+slug: v0-1-1-board-and-command-palette
+title: Board, settings panel, and command palette
+date: 2026-04-07
+category: website
+build: 9b7074d
+description: First polished iteration after the MVP — drag-and-drop board, settings surface, and the command palette every page now uses.
+-->
+## What's new
+
+- **Kanban board** for moving posts through draft → published columns.
+- **Settings panel** for project and account configuration.
+- **Command palette** (`Cmd+K`) — jump to any document, project, or action.
+- **Smarter frontmatter detection** when importing existing posts.
+
+## Fixes
+
+- GitHub sync now correctly handles paths with spaces and unicode.
+

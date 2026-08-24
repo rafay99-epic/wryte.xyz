@@ -25,7 +25,6 @@ import type * as _lib_quotas from "../_lib/quotas.js";
 import type * as _lib_rateLimits from "../_lib/rateLimits.js";
 import type * as _lib_wordCount from "../_lib/wordCount.js";
 import type * as _pools_import from "../_pools/import.js";
-import type * as _seed_changelog from "../_seed/changelog.js";
 import type * as _seed_featureRequests from "../_seed/featureRequests.js";
 import type * as _seed_writingStats from "../_seed/writingStats.js";
 import type * as account_selfDestruct from "../account/selfDestruct.js";
@@ -45,7 +44,6 @@ import type * as cms__lib_purgeDocumentArtifacts from "../cms/_lib/purgeDocument
 import type * as cms_animations from "../cms/animations.js";
 import type * as cms_appVersion from "../cms/appVersion.js";
 import type * as cms_boardColumns from "../cms/boardColumns.js";
-import type * as cms_changelog from "../cms/changelog.js";
 import type * as cms_conflicts from "../cms/conflicts.js";
 import type * as cms_documentDrafts from "../cms/documentDrafts.js";
 import type * as cms_documentResearch from "../cms/documentResearch.js";
@@ -140,7 +138,6 @@ declare const fullApi: ApiFromModules<{
   "_lib/rateLimits": typeof _lib_rateLimits;
   "_lib/wordCount": typeof _lib_wordCount;
   "_pools/import": typeof _pools_import;
-  "_seed/changelog": typeof _seed_changelog;
   "_seed/featureRequests": typeof _seed_featureRequests;
   "_seed/writingStats": typeof _seed_writingStats;
   "account/selfDestruct": typeof account_selfDestruct;
@@ -160,7 +157,6 @@ declare const fullApi: ApiFromModules<{
   "cms/animations": typeof cms_animations;
   "cms/appVersion": typeof cms_appVersion;
   "cms/boardColumns": typeof cms_boardColumns;
-  "cms/changelog": typeof cms_changelog;
   "cms/conflicts": typeof cms_conflicts;
   "cms/documentDrafts": typeof cms_documentDrafts;
   "cms/documentResearch": typeof cms_documentResearch;
