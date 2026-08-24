@@ -7,6 +7,19 @@ entry body rendered on /changelog. Append new entries at the top —
 `bun run changelog:new` does this for you.
 
 <!-- changelog-entry
+slug: search-preview-auto-expands-on-seo-issues
+title: Search preview auto-expands on SEO issues
+date: 2026-08-25
+category: website
+build: unreleased
+version: 1.6.6
+description: The search preview now opens on its own when the frontmatter has SEO warnings, and re-opens if issues appear while editing.
+-->
+## Fixes
+
+- **Search preview opens itself when something is wrong.** If the title or description is missing or too long, the Google and social card preview expands automatically instead of hiding behind a collapsed section — and re-opens if an issue appears while you edit. Collapsing it by hand still sticks.
+
+<!-- changelog-entry
 slug: mcp-drafts-animations-and-a-static-changelog
 title: MCP drafts and animations tools, and a static changelog
 date: 2026-08-25

@@ -12,7 +12,7 @@
     },
     "apps/desktop": {
       "name": "@wryte/desktop",
-      "version": "1.6.3",
+      "version": "1.6.6",
       "dependencies": {
         "electron-updater": "^6.8.9",
       },
@@ -23,7 +23,7 @@
     },
     "apps/web": {
       "name": "@wryte/web",
-      "version": "1.6.3",
+      "version": "1.6.6",
       "dependencies": {
         "@clerk/backend": "^3.11.7",
         "@clerk/nextjs": "^7.5.20",
@@ -80,7 +80,7 @@
     },
     "packages/backend": {
       "name": "@wryte/backend",
-      "version": "1.6.3",
+      "version": "1.6.6",
       "dependencies": {
         "@anthropic-ai/sdk": "^0.110.0",
         "@clerk/backend": "^3.11.7",
@@ -111,7 +111,7 @@
     },
     "packages/logic": {
       "name": "@wryte/logic",
-      "version": "1.6.3",
+      "version": "1.6.6",
       "dependencies": {
         "@clerk/nextjs": "^7.5.20",
         "@pilio/gemini-watermark-remover": "^1.0.30",
@@ -135,7 +135,7 @@
     },
     "packages/ui": {
       "name": "@wryte/ui",
-      "version": "1.6.3",
+      "version": "1.6.6",
       "dependencies": {
         "@base-ui/react": "^1.6.0",
         "@wryte/logic": "workspace:*",

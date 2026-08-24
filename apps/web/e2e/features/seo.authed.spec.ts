@@ -17,9 +17,15 @@ test.describe("authenticated SEO & link intelligence", () => {
 
     // Expand the frontmatter panel, then the preview section inside it.
     await page.getByRole("button", { name: /Frontmatter/ }).click();
-    await page.getByRole("button", { name: /Search preview/ }).click();
 
     const preview = page.getByTestId("search-preview");
+    const toggle = page.getByRole("button", { name: /Search preview/ });
+
+    // Preview auto-expands when the frontmatter has SEO warnings (e.g. no
+    // description); only click the toggle when it starts collapsed.
+    if (!(await preview.isVisible())) {
+      await toggle.click();
+    }
     await expect(preview).toBeVisible({ timeout: 15_000 });
     await expect(preview.getByText("Google", { exact: true })).toBeVisible();
     await expect(
