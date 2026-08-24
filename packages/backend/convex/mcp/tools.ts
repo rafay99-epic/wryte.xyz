@@ -166,7 +166,7 @@ export const tools: McpToolRegistration[] = [
   defineMcpMutation({
     name: "wryte_documents_create",
     description:
-      "Create a document. Read the project's frontmatter-schema resource first so the frontmatter validates.",
+      "Create a document. Read the project's frontmatter-schema resource first and pass a complete frontmatter including all required fields.",
     fn: internal.mcp.handlers.documents.create,
     args: {
       caller: mcpCallerValidator,
@@ -211,6 +211,169 @@ export const tools: McpToolRegistration[] = [
     // Soft delete is the only deletion an agent can perform. `permanentDelete`
     // and `emptyTrash` are absent from this catalog on purpose.
     metadata: meta({ scopes: [SCOPES.trash] }),
+  }),
+
+  /* ---------------------------------------------------------------- */
+  /*  Document drafts — versioned alternates, promoted with promote   */
+  /* ---------------------------------------------------------------- */
+
+  defineMcpQuery({
+    name: "wryte_drafts_list",
+    description:
+      "List a document's draft versions (metadata only, newest last).",
+    fn: internal.mcp.handlers.drafts.list,
+    args: { caller: mcpCallerValidator, documentId: v.id("documents") },
+    identityArg: "caller",
+    metadata: READ,
+  }),
+
+  defineMcpQuery({
+    name: "wryte_drafts_get",
+    description: "Get one draft with its title and body.",
+    fn: internal.mcp.handlers.drafts.get,
+    args: { caller: mcpCallerValidator, draftId: v.id("document_drafts") },
+    identityArg: "caller",
+    metadata: READ,
+  }),
+
+  defineMcpMutation({
+    name: "wryte_drafts_create",
+    description:
+      "Create an empty draft tab for a document, optionally copying the main body (copyFromMain).",
+    fn: internal.mcp.handlers.drafts.create,
+    args: {
+      caller: mcpCallerValidator,
+      documentId: v.id("documents"),
+      label: v.optional(v.string()),
+      copyFromMain: v.optional(v.boolean()),
+    },
+    identityArg: "caller",
+    metadata: WRITE,
+  }),
+
+  defineMcpMutation({
+    name: "wryte_drafts_snapshot",
+    description:
+      "Write a full draft version (label, title, body, optional frontmatter snapshot and summary) in one call. Use this to save a complete alternate version of a document.",
+    fn: internal.mcp.handlers.drafts.createSnapshot,
+    args: {
+      caller: mcpCallerValidator,
+      documentId: v.id("documents"),
+      label: v.string(),
+      title: v.string(),
+      content: v.string(),
+      frontmatter: v.optional(v.string()),
+      summary: v.optional(v.string()),
+    },
+    identityArg: "caller",
+    metadata: WRITE_BODY,
+  }),
+
+  defineMcpMutation({
+    name: "wryte_drafts_update_content",
+    description: "Update a draft's title and/or body.",
+    fn: internal.mcp.handlers.drafts.updateContent,
+    args: {
+      caller: mcpCallerValidator,
+      draftId: v.id("document_drafts"),
+      title: v.optional(v.string()),
+      content: v.optional(v.string()),
+    },
+    identityArg: "caller",
+    metadata: WRITE_BODY,
+  }),
+
+  defineMcpMutation({
+    name: "wryte_drafts_promote",
+    description:
+      "Promote a draft to be the document's main title, body and frontmatter.",
+    fn: internal.mcp.handlers.drafts.promote,
+    args: { caller: mcpCallerValidator, draftId: v.id("document_drafts") },
+    identityArg: "caller",
+    metadata: WRITE,
+  }),
+
+  defineMcpMutation({
+    name: "wryte_drafts_remove",
+    description: "Delete a draft version. The main document is untouched.",
+    fn: internal.mcp.handlers.drafts.remove,
+    args: { caller: mcpCallerValidator, draftId: v.id("document_drafts") },
+    identityArg: "caller",
+    metadata: WRITE,
+  }),
+
+  /* ---------------------------------------------------------------- */
+  /*  Animations — per-project React components posts can embed       */
+  /* ---------------------------------------------------------------- */
+
+  defineMcpQuery({
+    name: "wryte_animations_list",
+    description: "List a project's animation components with their source.",
+    fn: internal.mcp.handlers.animations.list,
+    args: { caller: mcpCallerValidator, projectId: v.id("projects") },
+    identityArg: "caller",
+    metadata: READ,
+  }),
+
+  defineMcpQuery({
+    name: "wryte_animations_get_source",
+    description: "Get one animation's React source by id.",
+    fn: internal.mcp.handlers.animations.getSource,
+    args: { caller: mcpCallerValidator, animationId: v.id("animations") },
+    identityArg: "caller",
+    metadata: READ,
+  }),
+
+  defineMcpMutation({
+    name: "wryte_animations_create",
+    description:
+      "Create an animation component (PascalCase name + React TSX source) a post can embed as <Name />. Fails if the name exists — use wryte_animations_replace_by_name to overwrite.",
+    fn: internal.mcp.handlers.animations.create,
+    args: {
+      caller: mcpCallerValidator,
+      projectId: v.id("projects"),
+      name: v.string(),
+      source: v.string(),
+    },
+    identityArg: "caller",
+    metadata: meta({ scopes: [SCOPES.write], auditArgs: false }),
+  }),
+
+  defineMcpMutation({
+    name: "wryte_animations_update",
+    description: "Replace an animation's source by id. Names are immutable.",
+    fn: internal.mcp.handlers.animations.update,
+    args: {
+      caller: mcpCallerValidator,
+      animationId: v.id("animations"),
+      source: v.string(),
+    },
+    identityArg: "caller",
+    metadata: meta({ scopes: [SCOPES.write], auditArgs: false }),
+  }),
+
+  defineMcpMutation({
+    name: "wryte_animations_replace_by_name",
+    description:
+      "Overwrite an animation's source by project + name. Use this for repeat uploads of an existing component.",
+    fn: internal.mcp.handlers.animations.replaceByName,
+    args: {
+      caller: mcpCallerValidator,
+      projectId: v.id("projects"),
+      name: v.string(),
+      source: v.string(),
+    },
+    identityArg: "caller",
+    metadata: meta({ scopes: [SCOPES.write], auditArgs: false }),
+  }),
+
+  defineMcpMutation({
+    name: "wryte_animations_remove",
+    description: "Delete an animation component.",
+    fn: internal.mcp.handlers.animations.remove,
+    args: { caller: mcpCallerValidator, animationId: v.id("animations") },
+    identityArg: "caller",
+    metadata: WRITE,
   }),
 
   /* ---------------------------------------------------------------- */

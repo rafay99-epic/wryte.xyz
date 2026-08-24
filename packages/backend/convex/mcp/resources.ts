@@ -74,6 +74,13 @@ export const resourceTemplates: McpResourceTemplateProvider[] = [
    * whose frontmatter doesn't match it is rejected on write. Exposing the
    * schema means the model writes valid frontmatter the first time instead of
    * discovering the rules through failed mutations.
+   *
+   * The schema is stored on the project row as a JSON string of
+   * `FrontmatterField[]` (see `@wryte/logic/types/frontmatter` — the backend
+   * cannot import that package, so the minimal shape is restated here). It is
+   * parsed before returning: an agent that has to parse a JSON-in-JSON string
+   * tends to skip the resource entirely and guess the frontmatter, which is
+   * exactly the failure this resource exists to prevent.
    */
   defineMcpResourceTemplate({
     uriTemplate: "wryte://project/{projectId}/frontmatter-schema",
@@ -87,16 +94,62 @@ export const resourceTemplates: McpResourceTemplateProvider[] = [
       if (!projectId) return null;
       const project = await ctx.runQuery(api.cms.projects.get, { projectId });
       if (!project) return null;
+
+      // Minimal mirror of `FrontmatterField` — only what an agent needs.
+      type SchemaField = {
+        name: string;
+        type: string;
+        required: boolean;
+        defaultValue: string;
+        options: string;
+        description?: string;
+        hidden?: boolean;
+      };
+
+      let fields: SchemaField[] = [];
+      let parseError: string | null = null;
+      if (project.frontmatterSchema) {
+        try {
+          const parsed: unknown = JSON.parse(project.frontmatterSchema);
+          if (Array.isArray(parsed)) fields = parsed as SchemaField[];
+        } catch (e) {
+          parseError = e instanceof Error ? e.message : String(e);
+        }
+      }
+
+      const requiredFields = fields
+        .filter((f) => f.required && !f.hidden)
+        .map((f) => f.name);
+
+      // Per-field fill guidance. `defaultValue` is the field's configured
+      // pre-populated value; empty defaults for date/datetime fields mean
+      // "use today's date". Everything else empty means the agent invents
+      // the value from the document content.
+      const defaults: Record<string, string> = {};
+      for (const field of fields) {
+        if (field.defaultValue) {
+          defaults[field.name] = field.defaultValue;
+        } else if (field.type === "date" || field.type === "datetime") {
+          defaults[field.name] =
+            field.type === "date"
+              ? "today's date (YYYY-MM-DD)"
+              : "today's date-time (ISO 8601)";
+        }
+      }
+
       return jsonPart(uri, {
         projectId: project._id,
-        // Stored as a JSON string on the project row. Passed through as-is:
-        // re-parsing here would just risk a second interpretation of a
-        // contract the write path already validates.
+        // Raw string preserved for clients that want the exact contract.
         frontmatterSchema: project.frontmatterSchema ?? null,
+        fields,
+        requiredFields,
+        defaults,
         contentPath: project.contentPath ?? null,
-        note: project.frontmatterSchema
-          ? "Frontmatter must satisfy this schema or the write is rejected."
-          : "No schema configured — frontmatter is free-form for this project.",
+        note: fields.length
+          ? "Frontmatter must include every required field. Build it as a YAML/JSON object keyed by field name and pass it as the `frontmatter` string on create/update."
+          : parseError
+            ? `No usable schema — the stored schema failed to parse (${parseError}). Frontmatter is free-form for this project.`
+            : "No schema configured — frontmatter is free-form for this project.",
       });
     },
   }),

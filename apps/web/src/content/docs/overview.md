@@ -83,7 +83,7 @@ and deletion is deletion.
 
 ## Design notes worth knowing
 
-- **21 tools, deliberately.** An earlier cut had 48. Every tool description sits
+- **34 tools, deliberately.** An earlier cut had 48. Every tool description sits
   in the model's context on every turn, and near-duplicate tools make models pick
   wrong and retry. Fewer, better-shaped tools cost less and work better.
 - **Nothing irreversible is reachable.** No permanent delete, no project delete,
