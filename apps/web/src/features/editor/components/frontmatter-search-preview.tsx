@@ -3,7 +3,7 @@
 import { cn } from "@wryte/logic/lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
 import { AlertTriangle, ChevronRight, Globe, ImageOff } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   buildDisplayUrl,
   checkDescription,
@@ -31,8 +31,6 @@ export function FrontmatterSearchPreview({
   slug,
   siteUrl,
 }: FrontmatterSearchPreviewProps) {
-  const [open, setOpen] = useState(false);
-
   const title =
     (typeof values["title"] === "string" && values["title"].trim()) ||
     fallbackTitle ||
@@ -57,6 +55,14 @@ export function FrontmatterSearchPreview({
     (titleCheck.truncated ? 1 : 0) +
     (descriptionCheck.truncated ? 1 : 0) +
     (description ? 0 : 1);
+
+  const [open, setOpen] = useState(warningCount > 0);
+  const prevWarnings = useRef(warningCount);
+
+  useEffect(() => {
+    if (warningCount > 0 && prevWarnings.current === 0) setOpen(true);
+    prevWarnings.current = warningCount;
+  }, [warningCount]);
 
   return (
     <div className="border-t border-border/30">
