@@ -24,7 +24,7 @@ const config = {
   extraMetadata: process.env.WRYTE_VERSION
     ? { version: process.env.WRYTE_VERSION }
     : undefined,
-  files: ["main.cjs", "src/**", "assets/**"],
+  files: ["main.cjs", "src/**", "assets/**", "dist/renderer/**"],
   npmRebuild: false,
   afterPack: "afterpack-sign.cjs",
   directories: {

@@ -57,22 +57,48 @@ function probe(port) {
   });
 }
 
-/** Dev → first live local port; packaged → production. `WRYTE_DESKTOP_URL` overrides. */
+/** Packaged native renderer entry (built by `vite build`). */
+function packagedRendererUrl() {
+  const rendererIndex = path.join(
+    __dirname,
+    "..",
+    "..",
+    "dist",
+    "renderer",
+    "index.html",
+  );
+  if (!require("node:fs").existsSync(rendererIndex)) return null;
+  return require("node:url").pathToFileURL(rendererIndex).href;
+}
+
+/**
+ * Native renderer first: dev → Vite dev server on RENDERER_DEV_PORT,
+ * packaged → bundled renderer build. Falls back to probing the Next dev
+ * server / production site only when the renderer isn't available.
+ * `WRYTE_DESKTOP_URL` overrides everything.
+ */
 async function resolveAppUrl() {
   if (process.env.WRYTE_DESKTOP_URL) return process.env.WRYTE_DESKTOP_URL;
 
-  // Dev flavor or unpackaged: probe local dev servers.
+  // Dev flavor or unpackaged: probe the renderer dev server, then Next.
   if (config.isDevFlavor || !app.isPackaged) {
+    if (await probe(config.RENDERER_DEV_PORT)) {
+      return `http://localhost:${config.RENDERER_DEV_PORT}`;
+    }
     for (const port of config.DEV_PORTS) {
       if (await probe(port)) return `http://localhost:${port}`;
     }
   }
 
-  // Dev flavor with no server running: return the first dev port anyway.
+  // Dev flavor with no server running: return the renderer dev port anyway.
   // The did-fail-load handler will retry, then show the offline page.
   if (config.isDevFlavor) {
-    return `http://localhost:${config.DEV_PORTS[0]}`;
+    return `http://localhost:${config.RENDERER_DEV_PORT}`;
   }
+
+  // Packaged: load the bundled renderer build.
+  const local = packagedRendererUrl();
+  if (local) return local;
 
   return config.PROD_URL;
 }
@@ -301,6 +327,12 @@ function loadAppOrOffline(appUrl) {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.loadURL(appUrl);
   }
+
+  // The native renderer (local dev server or bundled build) loads from disk
+  // and degrades gracefully on its own via Convex's connection state, so the
+  // offline-page gate only applies to remote URLs.
+  const isRemote = /^https?:\/\//.test(appUrl) && !appUrl.includes("localhost");
+  if (!isRemote) return;
 
   // Check connectivity in parallel (non-blocking).
   checkConnectivity().then((online) => {

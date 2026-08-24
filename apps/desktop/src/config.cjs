@@ -9,6 +9,8 @@ module.exports = {
   APP_ID: isDevFlavor ? "xyz.wryte.desktop.dev" : "xyz.wryte.desktop",
   LOG_DIR: isDevFlavor ? ".wryteDev" : ".wryte",
   DEV_PORTS: [3000, 3001, 3002],
+  // Port the native renderer Vite dev server listens on (strict port).
+  RENDERER_DEV_PORT: 5180,
   PROD_URL: "https://wryte.xyz",
   REPO_URL: "https://github.com/rafay99-epic/wryte.xyz",
   MAX_LOAD_RETRIES: 5,
