@@ -12,10 +12,9 @@ import "@fontsource/jetbrains-mono/700.css";
 import "@/app/globals.css";
 import "./desktop.css";
 
-import { HashRouter } from "react-router";
+import { RouterProvider } from "react-router";
+import { router } from "./routes";
 import { LoadingScreen } from "./loading-screen";
-import { AppProviders } from "./providers/app-providers";
-import { AppRoutes } from "./routes";
 
 const container = document.getElementById("root");
 if (!container) {
@@ -24,12 +23,8 @@ if (!container) {
 
 createRoot(container).render(
   <StrictMode>
-    <HashRouter>
-      <AppProviders>
-        <Suspense fallback={<LoadingScreen />}>
-          <AppRoutes />
-        </Suspense>
-      </AppProviders>
-    </HashRouter>
+    <Suspense fallback={<LoadingScreen />}>
+      <RouterProvider router={router} />
+    </Suspense>
   </StrictMode>,
 );

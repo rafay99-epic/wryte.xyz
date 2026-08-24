@@ -1,5 +1,11 @@
 import { lazy, type ReactNode, Suspense } from "react";
-import { Link, Navigate, Outlet, Route, Routes, useParams } from "react-router";
+import {
+  createHashRouter,
+  Link,
+  Navigate,
+  Outlet,
+  useParams,
+} from "react-router";
 import { BrandIcon } from "@/components/branding/brand-icon";
 import { AppPageSkeleton } from "@/components/feedback/skeletons/app-page-skeleton";
 import {
@@ -25,7 +31,13 @@ import { ProjectsListPage } from "@/features/projects-list/projects-list-page";
 import { ConflictPage } from "@/features/sync-conflicts/conflict-page";
 import { TrashPage } from "@/features/trash/trash-page";
 import { AppLayout } from "./layouts/app-layout";
+import { AppProviders } from "./providers/app-providers";
 import { useUser } from "./shims/clerk-nextjs";
+import {
+  AppErrorBoundary,
+  AppNotFound,
+  EditorErrorBoundary,
+} from "./error-boundary";
 
 // Admin pages reuse the Next page components directly (thin wrappers around
 // their _components); params are bridged from react-router.
@@ -47,76 +59,104 @@ const AdminLoading = lazy(() => import("@/app/(app)/admin/loading"));
 /**
  * Full route table — a one-to-one mirror of the web app's `(app)` route
  * group plus the auth screens. Paths are identical to the website; only the
- * routing runtime differs (react-router hash history inside Electron).
+ * routing runtime differs (react-router data router with hash history inside
+ * Electron, required so packaged file:// builds work).
+ *
+ * Error boundaries reuse the web app's error components; the editor route
+ * gets its editor-specific boundary, everything else under the shell shares
+ * the app-level one.
  */
-export function AppRoutes() {
+export const router = createHashRouter([
+  {
+    element: <AppProvidersRoute />,
+    errorElement: <AppErrorBoundary />,
+    children: [
+      { path: "/", element: <Navigate to="/dashboard" replace /> },
+
+      // Auth
+      { path: "/sign-in", element: <SignInScreen /> },
+      { path: "/sign-up", element: <SignUpScreen /> },
+
+      // Authenticated app shell
+      {
+        path: "/",
+        element: <AppLayout />,
+        children: [
+          { path: "dashboard", element: <DashboardPage /> },
+          { path: "calendar", element: <GlobalCalendarPage /> },
+          { path: "articles/new", element: <NewArticlePage /> },
+          { path: "settings", element: <AccountSettingsPage /> },
+
+          { path: "projects", element: <ProjectsListPage /> },
+          { path: "projects/new", element: <NewProjectPage /> },
+
+          {
+            path: "projects/:projectId",
+            element: <ProjectDashboardRoute />,
+          },
+          {
+            path: "projects/:projectId/articles",
+            element: <ProjectDetailRoute />,
+          },
+          {
+            path: "projects/:projectId/animations",
+            element: <AnimationGalleryRoute />,
+          },
+          {
+            path: "projects/:projectId/calendar",
+            element: <ProjectCalendarRoute />,
+          },
+          {
+            path: "projects/:projectId/documents/new",
+            element: <NewProjectDocumentRoute />,
+          },
+          {
+            path: "projects/:projectId/media",
+            element: <MediaLibraryRoute />,
+          },
+          {
+            path: "projects/:projectId/settings",
+            element: <ProjectSettingsRoute />,
+          },
+          { path: "projects/:projectId/trash", element: <TrashRoute /> },
+          {
+            path: "projects/:projectId/conflicts/:conflictId",
+            element: <ConflictRoute />,
+          },
+
+          {
+            path: "editor/:documentId",
+            element: <EditorRoute />,
+            errorElement: <EditorErrorBoundary />,
+          },
+
+          // Admin — gated client-side on Clerk publicMetadata.role
+          {
+            path: "admin",
+            element: <AdminGate />,
+            children: [
+              { index: true, element: <Navigate to="/admin/changelog" replace /> },
+              { path: "changelog", element: <AdminChangelogList /> },
+              { path: "changelog/new", element: <AdminChangelogNew /> },
+              { path: "changelog/:id", element: <AdminChangelogEditBridge /> },
+              { path: "feature-requests", element: <AdminFeatureRequests /> },
+              { path: "seed", element: <AdminSeed /> },
+            ],
+          },
+        ],
+      },
+
+      { path: "*", element: <AppNotFound /> },
+    ],
+  },
+]);
+
+/** Wraps the whole tree in the shared providers inside the data router. */
+function AppProvidersRoute() {
   return (
-    <Routes>
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
-
-      {/* Auth */}
-      <Route path="/sign-in" element={<SignInScreen />} />
-      <Route path="/sign-up" element={<SignUpScreen />} />
-
-      {/* Authenticated app shell */}
-      <Route element={<AppLayout />}>
-        <Route path="/dashboard" element={<DashboardPage />} />
-        <Route path="/calendar" element={<GlobalCalendarPage />} />
-        <Route path="/articles/new" element={<NewArticlePage />} />
-        <Route path="/settings" element={<AccountSettingsPage />} />
-
-        <Route path="/projects" element={<ProjectsListPage />} />
-        <Route path="/projects/new" element={<NewProjectPage />} />
-
-        <Route
-          path="/projects/:projectId"
-          element={<ProjectDashboardRoute />}
-        />
-        <Route
-          path="/projects/:projectId/articles"
-          element={<ProjectDetailRoute />}
-        />
-        <Route
-          path="/projects/:projectId/animations"
-          element={<AnimationGalleryRoute />}
-        />
-        <Route
-          path="/projects/:projectId/calendar"
-          element={<ProjectCalendarRoute />}
-        />
-        <Route
-          path="/projects/:projectId/documents/new"
-          element={<NewProjectDocumentRoute />}
-        />
-        <Route
-          path="/projects/:projectId/media"
-          element={<MediaLibraryRoute />}
-        />
-        <Route
-          path="/projects/:projectId/settings"
-          element={<ProjectSettingsRoute />}
-        />
-        <Route path="/projects/:projectId/trash" element={<TrashRoute />} />
-        <Route
-          path="/projects/:projectId/conflicts/:conflictId"
-          element={<ConflictRoute />}
-        />
-
-        <Route path="/editor/:documentId" element={<EditorRoute />} />
-
-        {/* Admin — gated client-side on Clerk publicMetadata.role */}
-        <Route path="/admin" element={<AdminGate />}>
-          <Route index element={<Navigate to="/admin/changelog" replace />} />
-          <Route path="changelog" element={<AdminChangelogList />} />
-          <Route path="changelog/new" element={<AdminChangelogNew />} />
-          <Route path="changelog/:id" element={<AdminChangelogEditBridge />} />
-          <Route path="feature-requests" element={<AdminFeatureRequests />} />
-          <Route path="seed" element={<AdminSeed />} />
-        </Route>
-      </Route>
-
-      <Route path="*" element={<NotFound />} />
-    </Routes>
+    <AppProviders>
+      <Outlet />
+    </AppProviders>
   );
 }
 
@@ -276,29 +316,12 @@ function AdminGate() {
 
   const role = (user?.publicMetadata as { role?: unknown } | null)?.role;
   if (!isSignedIn || role !== "admin") {
-    return <NotFound />;
+    return <AppNotFound />;
   }
 
   return (
     <Suspense fallback={<AdminLoading />}>
       <Outlet />
     </Suspense>
-  );
-}
-
-function NotFound() {
-  return (
-    <div className="flex h-full flex-col items-center justify-center gap-2 p-10 text-center">
-      <p className="font-mono text-[12px] uppercase tracking-wider text-muted-foreground">
-        404
-      </p>
-      <h1 className="text-xl font-semibold tracking-tight">Page not found</h1>
-      <Link
-        to="/dashboard"
-        className="mt-2 text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-      >
-        Back to dashboard
-      </Link>
-    </div>
   );
 }

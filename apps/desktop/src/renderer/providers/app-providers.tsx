@@ -2,6 +2,7 @@ import { convex } from "@wryte/logic/lib/convex";
 import { ConvexProviderWithClerk } from "convex/react-clerk";
 import { type ReactNode, useCallback } from "react";
 import { useNavigate } from "react-router";
+import { Toaster } from "@wryte/ui/sonner";
 import { DesktopChrome } from "@/components/layout/desktop-chrome";
 import { QueryProvider } from "@/components/providers/query-provider";
 import { ThemeProvider } from "@/components/providers/theme-provider";
@@ -47,6 +48,7 @@ export function AppProviders({ children }: { children: ReactNode }) {
           <ThemeProvider>
             <DesktopChrome />
             {children}
+            <Toaster />
           </ThemeProvider>
         </QueryProvider>
       </ConvexProviderWithClerk>
