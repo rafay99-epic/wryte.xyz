@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Suspense } from "react";
 import { MarketingFooter } from "@/components/layout/marketing-footer";
+import { readChangelogEntries } from "@/features/changelog/lib/changelog-entries";
 import { ChangelogList } from "./_components/changelog-list";
-import { ChangelogListSkeleton } from "./_components/changelog-list-skeleton";
 
 export const metadata: Metadata = {
   title: "Changelog",
@@ -11,6 +10,8 @@ export const metadata: Metadata = {
 };
 
 export default function ChangelogPage() {
+  const entries = readChangelogEntries();
+
   return (
     <div className="relative flex min-h-screen flex-col">
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -52,9 +53,7 @@ export default function ChangelogPage() {
           </p>
         </div>
 
-        <Suspense fallback={<ChangelogListSkeleton />}>
-          <ChangelogList />
-        </Suspense>
+        <ChangelogList entries={entries} />
       </main>
 
       <MarketingFooter />

@@ -61,8 +61,16 @@ async function ownedProjectForQuery(
 ): Promise<Doc<"projects"> | null> {
   const user = await getAuthedUserOrNull(ctx);
   if (!user) return null;
+  return await ownedProjectForUser(ctx, user._id, projectId);
+}
+
+async function ownedProjectForUser(
+  ctx: QueryCtx,
+  userId: Id<"users">,
+  projectId: Id<"projects">,
+): Promise<Doc<"projects"> | null> {
   const project = await ctx.db.get(projectId);
-  if (!project || project.userId !== user._id) return null;
+  if (!project || project.userId !== userId) return null;
   return project;
 }
 
@@ -71,6 +79,14 @@ async function requireOwnedProject(
   projectId: Id<"projects">,
 ): Promise<Doc<"projects">> {
   const user = await getCurrentUser(ctx);
+  return await requireOwnedProjectForUser(ctx, user, projectId);
+}
+
+async function requireOwnedProjectForUser(
+  ctx: MutationCtx,
+  user: Doc<"users">,
+  projectId: Id<"projects">,
+): Promise<Doc<"projects">> {
   const project = await ctx.db.get(projectId);
   if (!project) throw new Error("Project not found");
   if (project.userId !== user._id) {
@@ -179,6 +195,26 @@ export const listNames = query({
 /* ------------------------------------------------------------------ */
 
 /**
+ * `list`'s body with the actor passed in explicitly. Shared with the MCP
+ * handler, which has no `ctx.auth` under component dispatch — see
+ * `_lib/auth.ts → requireCaller`.
+ */
+export async function animationsListForUser(
+  ctx: QueryCtx,
+  userId: Id<"users">,
+  projectId: Id<"projects">,
+): Promise<AnimationView[]> {
+  const project = await ownedProjectForUser(ctx, userId, projectId);
+  if (!project) return [];
+  const rows = await ctx.db
+    .query("animations")
+    .withIndex("by_project", (q) => q.eq("projectId", projectId))
+    .order("desc")
+    .take(MAX_ANIMATIONS);
+  return rows.map(toView);
+}
+
+/**
  * Every animation in the project — bounded by MAX_ANIMATIONS, so a single
  * take covers the full set. Powers the editor preview's component map and
  * the author sheet's "existing animations" list.
@@ -196,6 +232,22 @@ export const list = query({
     return rows.map(toView);
   },
 });
+
+/**
+ * `getSource`'s body with the actor passed in explicitly (MCP twin — see
+ * `animationsListForUser`).
+ */
+export async function animationSourceForUser(
+  ctx: QueryCtx,
+  userId: Id<"users">,
+  animationId: Id<"animations">,
+): Promise<string | null> {
+  const row = await ctx.db.get(animationId);
+  if (!row) return null;
+  const project = await ownedProjectForUser(ctx, userId, row.projectId);
+  if (!project) return null;
+  return row.source;
+}
 
 /**
  * Fetch the full source for a single animation by ID.
@@ -325,81 +377,116 @@ export const internalListByProject = internalQuery({
 /*  Mutations                                                           */
 /* ------------------------------------------------------------------ */
 
+/**
+ * `create`'s body with the actor passed in explicitly. Shared with the MCP
+ * handler — rate-limit key comes from `user.tokenIdentifier` rather than
+ * `getRateLimitKey(ctx)`, which reads `ctx.auth` and returns the literal
+ * `"anonymous"` under component dispatch (see `documents.createDocumentForUser`).
+ */
+export async function createAnimationForUser(
+  ctx: MutationCtx,
+  user: Doc<"users">,
+  args: {
+    projectId: Id<"projects">;
+    name: string;
+    source: string;
+  },
+): Promise<AnimationView> {
+  await rateLimiter.limit(ctx, "animations:create", {
+    key: user.tokenIdentifier,
+    throws: true,
+  });
+
+  await requireOwnedProjectForUser(ctx, user, args.projectId);
+
+  const name = normalizeName(args.name);
+  const source = validateSource(args.source);
+
+  const existing = await ctx.db
+    .query("animations")
+    .withIndex("by_project_and_name", (q) =>
+      q.eq("projectId", args.projectId).eq("name", name),
+    )
+    .unique();
+  if (existing) {
+    throw new Error(
+      `An animation named "${name}" already exists in this project`,
+    );
+  }
+
+  // Bounded existence check for the cap — cheaper than a denormalized
+  // counter at this table's expected size.
+  const all = await ctx.db
+    .query("animations")
+    .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
+    .take(MAX_ANIMATIONS);
+  if (all.length >= MAX_ANIMATIONS) {
+    throw new Error(
+      `You've reached the limit of ${String(MAX_ANIMATIONS)} animations for this project.`,
+    );
+  }
+
+  const now = Date.now();
+  const animationId = await ctx.db.insert("animations", {
+    projectId: args.projectId,
+    name,
+    source,
+    updatedAt: now,
+  });
+
+  await insertNameRow(ctx, args.projectId, name);
+
+  return { _id: animationId, name, source, updatedAt: now };
+}
+
 export const create = mutation({
   args: {
     projectId: v.id("projects"),
     name: v.string(),
     source: v.string(),
   },
-  handler: async (ctx, args): Promise<AnimationView> => {
-    const key = await getRateLimitKey(ctx);
-    await rateLimiter.limit(ctx, "animations:create", { key, throws: true });
-
-    await requireOwnedProject(ctx, args.projectId);
-
-    const name = normalizeName(args.name);
-    const source = validateSource(args.source);
-
-    const existing = await ctx.db
-      .query("animations")
-      .withIndex("by_project_and_name", (q) =>
-        q.eq("projectId", args.projectId).eq("name", name),
-      )
-      .unique();
-    if (existing) {
-      throw new Error(
-        `An animation named "${name}" already exists in this project`,
-      );
-    }
-
-    // Bounded existence check for the cap — cheaper than a denormalized
-    // counter at this table's expected size.
-    const all = await ctx.db
-      .query("animations")
-      .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
-      .take(MAX_ANIMATIONS);
-    if (all.length >= MAX_ANIMATIONS) {
-      throw new Error(
-        `You've reached the limit of ${String(MAX_ANIMATIONS)} animations for this project.`,
-      );
-    }
-
-    const now = Date.now();
-    const animationId = await ctx.db.insert("animations", {
-      projectId: args.projectId,
-      name,
-      source,
-      updatedAt: now,
-    });
-
-    await insertNameRow(ctx, args.projectId, name);
-
-    return { _id: animationId, name, source, updatedAt: now };
-  },
+  handler: async (ctx, args): Promise<AnimationView> =>
+    await createAnimationForUser(ctx, await getCurrentUser(ctx), args),
 });
+
+/**
+ * `update`'s body with the actor passed in explicitly (MCP twin — see
+ * `createAnimationForUser` for the rate-limit key rationale).
+ */
+export async function updateAnimationForUser(
+  ctx: MutationCtx,
+  user: Doc<"users">,
+  args: {
+    animationId: Id<"animations">;
+    source: string;
+  },
+): Promise<null> {
+  await rateLimiter.limit(ctx, "animations:update", {
+    key: user.tokenIdentifier,
+    throws: true,
+  });
+
+  const animation = await ctx.db.get(args.animationId);
+  if (!animation) throw new Error("Animation not found");
+  await requireOwnedProjectForUser(ctx, user, animation.projectId);
+
+  // Name is deliberately immutable — it's the reference key inside every
+  // post body. Renaming would silently break `<OldName />` tags; delete
+  // and re-create instead.
+  await ctx.db.patch(args.animationId, {
+    source: validateSource(args.source),
+    updatedAt: Date.now(),
+  });
+  return null;
+}
 
 export const update = mutation({
   args: {
     animationId: v.id("animations"),
     source: v.string(),
   },
-  handler: async (ctx, args): Promise<null> => {
-    const key = await getRateLimitKey(ctx);
-    await rateLimiter.limit(ctx, "animations:update", { key, throws: true });
-
-    const animation = await ctx.db.get(args.animationId);
-    if (!animation) throw new Error("Animation not found");
-    await requireOwnedProject(ctx, animation.projectId);
-
-    // Name is deliberately immutable — it's the reference key inside every
-    // post body. Renaming would silently break `<OldName />` tags; delete
-    // and re-create instead.
-    await ctx.db.patch(args.animationId, {
-      source: validateSource(args.source),
-      updatedAt: Date.now(),
-    });
-    return null;
-  },
+  handler: async (ctx, args): Promise<null> =>
+    await updateAnimationForUser(ctx, await getCurrentUser(ctx), args),
 });
 
 /**
@@ -449,6 +536,44 @@ export const duplicate = mutation({
 });
 
 /**
+ * `replaceByName`'s body with the actor passed in explicitly (MCP twin — see
+ * `createAnimationForUser`). The idempotent upsert-by-name path an agent
+ * should use for repeat uploads of the same component.
+ */
+export async function replaceAnimationByNameForUser(
+  ctx: MutationCtx,
+  user: Doc<"users">,
+  args: {
+    projectId: Id<"projects">;
+    name: string;
+    source: string;
+  },
+): Promise<null> {
+  await rateLimiter.limit(ctx, "animations:update", {
+    key: user.tokenIdentifier,
+    throws: true,
+  });
+
+  await requireOwnedProjectForUser(ctx, user, args.projectId);
+
+  const row = await ctx.db
+    .query("animations")
+    .withIndex("by_project_and_name", (q) =>
+      q.eq("projectId", args.projectId).eq("name", normalizeName(args.name)),
+    )
+    .unique();
+  if (!row) {
+    throw new Error(`Animation "${args.name}" not found in this project`);
+  }
+
+  await ctx.db.patch(row._id, {
+    source: validateSource(args.source),
+    updatedAt: Date.now(),
+  });
+  return null;
+}
+
+/**
  * Replace an animation's source by project + name — avoids the client needing
  * the `_id`. Used by the import sheet's "Replace" conflict-resolution option.
  * The name row is unaffected (name and projectId didn't change).
@@ -459,42 +584,35 @@ export const replaceByName = mutation({
     name: v.string(),
     source: v.string(),
   },
-  handler: async (ctx, args): Promise<null> => {
-    const key = await getRateLimitKey(ctx);
-    await rateLimiter.limit(ctx, "animations:update", { key, throws: true });
-
-    await requireOwnedProject(ctx, args.projectId);
-
-    const row = await ctx.db
-      .query("animations")
-      .withIndex("by_project_and_name", (q) =>
-        q.eq("projectId", args.projectId).eq("name", normalizeName(args.name)),
-      )
-      .unique();
-    if (!row) {
-      throw new Error(`Animation "${args.name}" not found in this project`);
-    }
-
-    await ctx.db.patch(row._id, {
-      source: validateSource(args.source),
-      updatedAt: Date.now(),
-    });
-    return null;
-  },
+  handler: async (ctx, args): Promise<null> =>
+    await replaceAnimationByNameForUser(ctx, await getCurrentUser(ctx), args),
 });
+
+/**
+ * `remove`'s body with the actor passed in explicitly (MCP twin — see
+ * `createAnimationForUser` for the rate-limit key rationale).
+ */
+export async function removeAnimationForUser(
+  ctx: MutationCtx,
+  user: Doc<"users">,
+  args: { animationId: Id<"animations"> },
+): Promise<null> {
+  await rateLimiter.limit(ctx, "animations:remove", {
+    key: user.tokenIdentifier,
+    throws: true,
+  });
+
+  const animation = await ctx.db.get(args.animationId);
+  if (!animation) return null; // idempotent
+  await requireOwnedProjectForUser(ctx, user, animation.projectId);
+
+  await deleteNameRow(ctx, animation.projectId, animation.name);
+  await ctx.db.delete(args.animationId);
+  return null;
+}
 
 export const remove = mutation({
   args: { animationId: v.id("animations") },
-  handler: async (ctx, args): Promise<null> => {
-    const key = await getRateLimitKey(ctx);
-    await rateLimiter.limit(ctx, "animations:remove", { key, throws: true });
-
-    const animation = await ctx.db.get(args.animationId);
-    if (!animation) return null; // idempotent
-    await requireOwnedProject(ctx, animation.projectId);
-
-    await deleteNameRow(ctx, animation.projectId, animation.name);
-    await ctx.db.delete(args.animationId);
-    return null;
-  },
+  handler: async (ctx, args): Promise<null> =>
+    await removeAnimationForUser(ctx, await getCurrentUser(ctx), args),
 });

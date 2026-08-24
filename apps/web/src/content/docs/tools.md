@@ -1,6 +1,6 @@
 # Tool reference
 
-All 21 tools the Wryte MCP server exposes. Generated from `convex/mcp/tools.ts`.
+All 34 tools the Wryte MCP server exposes. Generated from `convex/mcp/tools.ts`.
 
 An agent only ever *sees* the tools its granted capabilities allow — the catalog is
 filtered per request, so a read-only connection lists neither publish nor media tools.
@@ -63,7 +63,7 @@ Publish history for a document, newest first.
 
 ### `wryte_documents_create`
 
-Create a document. Read the project's frontmatter-schema resource first so the frontmatter validates.
+Create a document. Read the project's frontmatter-schema resource first and pass a complete frontmatter including all required fields.
 
 - **Kind** — mutation
 - **Requires** — `wryte:write`
@@ -84,6 +84,114 @@ Move a document to the project trash. Recoverable with wryte_trash_restore.
 - **Kind** — mutation
 - **Requires** — `wryte:trash`
 - **Arguments** — `documentId`: id:documents 
+
+## Drafts
+
+### `wryte_drafts_list`
+
+List a document's draft versions (metadata only, newest last).
+
+- **Kind** — query
+- **Requires** — `wryte:read`
+- **Arguments** — `documentId`: id:documents 
+
+### `wryte_drafts_get`
+
+Get one draft with its title and body.
+
+- **Kind** — query
+- **Requires** — `wryte:read`
+- **Arguments** — `draftId`: id:document_drafts 
+
+### `wryte_drafts_create`
+
+Create an empty draft tab for a document, optionally copying the main body (copyFromMain).
+
+- **Kind** — mutation
+- **Requires** — `wryte:write`
+- **Arguments** — `documentId`: id:documents, `label`?: string, `copyFromMain`?: boolean
+
+### `wryte_drafts_snapshot`
+
+Write a full draft version (label, title, body, optional frontmatter snapshot and summary) in one call. Use this to save a complete alternate version of a document.
+
+- **Kind** — mutation
+- **Requires** — `wryte:write`
+- **Arguments** — `documentId`: id:documents, `label`: string, `title`: string, `content`: string, `frontmatter`?: string, `summary`?: string
+
+### `wryte_drafts_update_content`
+
+Update a draft's title and/or body.
+
+- **Kind** — mutation
+- **Requires** — `wryte:write`
+- **Arguments** — `draftId`: id:document_drafts, `title`?: string, `content`?: string
+
+### `wryte_drafts_promote`
+
+Promote a draft to be the document's main title, body and frontmatter.
+
+- **Kind** — mutation
+- **Requires** — `wryte:write`
+- **Arguments** — `draftId`: id:document_drafts 
+
+### `wryte_drafts_remove`
+
+Delete a draft version. The main document is untouched.
+
+- **Kind** — mutation
+- **Requires** — `wryte:write`
+- **Arguments** — `draftId`: id:document_drafts 
+
+## Animations
+
+### `wryte_animations_list`
+
+List a project's animation components with their source.
+
+- **Kind** — query
+- **Requires** — `wryte:read`
+- **Arguments** — `projectId`: id:projects 
+
+### `wryte_animations_get_source`
+
+Get one animation's React source by id.
+
+- **Kind** — query
+- **Requires** — `wryte:read`
+- **Arguments** — `animationId`: id:animations 
+
+### `wryte_animations_create`
+
+Create an animation component (PascalCase name + React TSX source) a post can embed as `<Name />`. Fails if the name exists — use wryte_animations_replace_by_name to overwrite.
+
+- **Kind** — mutation
+- **Requires** — `wryte:write`
+- **Arguments** — `projectId`: id:projects, `name`: string, `source`: string
+
+### `wryte_animations_update`
+
+Replace an animation's source by id. Names are immutable.
+
+- **Kind** — mutation
+- **Requires** — `wryte:write`
+- **Arguments** — `animationId`: id:animations, `source`: string
+
+### `wryte_animations_replace_by_name`
+
+Overwrite an animation's source by project + name. Use this for repeat uploads of an existing component.
+
+- **Kind** — mutation
+- **Requires** — `wryte:write`
+- **Arguments** — `projectId`: id:projects, `name`: string, `source`: string
+
+### `wryte_animations_remove`
+
+Delete an animation component.
+
+- **Kind** — mutation
+- **Requires** — `wryte:write`
+- **Arguments** — `animationId`: id:animations 
 
 ## Research
 

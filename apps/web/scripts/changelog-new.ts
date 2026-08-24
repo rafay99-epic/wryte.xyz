@@ -5,18 +5,14 @@
  *   bun run changelog:new
  *
  * Prompts for title and description, opens $EDITOR for the markdown body,
- * and appends the entry to `convex/_seed/changelog.ts`. The build SHA is
- * auto-filled via `git rev-parse --short HEAD` and `publishedAt` from now.
+ * and inserts the entry at the top of `src/content/changelog.md`. The build
+ * SHA is auto-filled via `git rev-parse --short HEAD` and the date from now.
  *
  * The changelog is date-based: entries carry NO hand-typed version number,
  * and this script does NOT bump `package.json`. Versioning is automatic —
  * the deployed git SHA is the release identity (see
- * `src/hooks/use-version-check.ts`). Add an optional milestone label by
- * hand to the generated entry only if you're marking something like a 1.0.
- *
- * After running, push to Convex with:
- *
- *   bunx convex run _seed/changelog:seed
+ * `src/hooks/use-version-check.ts`). Add an optional `version:` line to the
+ * generated entry by hand only if you're marking something like a 1.0.
  */
 import { execSync, spawnSync } from "node:child_process";
 import { readFileSync, unlinkSync, writeFileSync } from "node:fs";
@@ -25,31 +21,11 @@ import { join } from "node:path";
 import { stdin as input, stdout as output } from "node:process";
 import { createInterface } from "node:readline/promises";
 
-// This script runs from `apps/web` (via `bun run --filter @wryte/web`), but the
-// changelog seed lives in the backend workspace — the monorepo split moved it and
-// left the old single-package path behind.
-const SEED_FILE = join(
-  process.cwd(),
-  "..",
-  "..",
-  "packages",
-  "backend",
-  "convex",
-  "_seed",
-  "changelog.ts",
-);
+// This script runs from `apps/web` (via `bun run --filter @wryte/web`).
+const CHANGELOG_FILE = join(process.cwd(), "src", "content", "changelog.md");
 
-/**
- * Anchors the insertion point on the ENTRIES array's own closing bracket rather
- * than on whatever declaration happens to follow it. The previous anchor was the
- * literal text after the array, so inserting an unrelated const between the two
- * silently broke this script.
- */
-const ARRAY_DECLARATION = "const ENTRIES: SeedEntry[] = [";
-
-/** The array's closing bracket at column 0. Anchored separately from whatever
- *  declaration follows it, so adding a const after ENTRIES can't break this. */
-const ARRAY_TERMINATOR = "\n];\n";
+/** First entry marker — new entries insert directly above it. */
+const ENTRY_MARKER = "<!-- changelog-entry";
 
 const TEMPLATE = `## What's new
 
@@ -66,13 +42,6 @@ function slugify(title: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 60);
-}
-
-function escapeTemplateLiteral(content: string): string {
-  return content
-    .replace(/\\/g, "\\\\")
-    .replace(/`/g, "\\`")
-    .replace(/\$\{/g, "\\${");
 }
 
 function ask(
@@ -119,50 +88,41 @@ async function main(): Promise<void> {
     .toString()
     .trim();
   const slug = slugify(title);
-  const publishedAtIso = new Date().toISOString();
+  const date = new Date().toISOString().slice(0, 10);
 
-  const seedSource = readFileSync(SEED_FILE, "utf8");
-  if (seedSource.includes(`slug: "${slug}"`)) {
+  const source = readFileSync(CHANGELOG_FILE, "utf8");
+  if (source.includes(`slug: ${slug}\n`)) {
     console.error(`An entry with slug "${slug}" already exists.`);
     process.exit(1);
   }
-  const declAt = seedSource.indexOf(ARRAY_DECLARATION);
-  if (declAt === -1) {
-    console.error(`Could not locate "${ARRAY_DECLARATION}" in ${SEED_FILE}.`);
-    process.exit(1);
-  }
-  // The array's closing bracket on its own line, searched from the declaration.
-  // Bracket-counting would be wrong here: entry bodies are template literals
-  // containing markdown links, so the depth never balances. A column-0 `];` is
-  // unambiguous — entry content is always indented or inside a literal.
-  const insertAt = seedSource.indexOf(ARRAY_TERMINATOR, declAt);
+  const insertAt = source.indexOf(ENTRY_MARKER);
   if (insertAt === -1) {
-    console.error(`ENTRIES array in ${SEED_FILE} is not closed.`);
+    console.error(`No "${ENTRY_MARKER}" marker found in ${CHANGELOG_FILE}.`);
     process.exit(1);
   }
 
-  const entryLiteral = `  {
-    title: ${JSON.stringify(title)},
-    slug: ${JSON.stringify(slug)},
-    description: ${JSON.stringify(description)},
-    build: ${JSON.stringify(build)},
-    publishedAt: Date.parse("${publishedAtIso}"),
-    content: \`${escapeTemplateLiteral(content)}
-\`,
-  },
+  const entryBlock = `<!-- changelog-entry
+slug: ${slug}
+title: ${title}
+date: ${date}
+category: website
+build: ${build}
+description: ${description}
+-->
+${content}
+
 `;
 
-  const updatedSeed = `${seedSource.slice(0, insertAt + 1)}${entryLiteral}${seedSource.slice(insertAt + 1)}`;
-  writeFileSync(SEED_FILE, updatedSeed);
-  console.info(`Appended entry "${slug}" to ${SEED_FILE}.`);
+  const updated = `${source.slice(0, insertAt)}${entryBlock}${source.slice(insertAt)}`;
+  writeFileSync(CHANGELOG_FILE, updated);
+  console.info(`Inserted entry "${slug}" at the top of ${CHANGELOG_FILE}.`);
 
   console.info("\nNext steps:");
-  console.info("  1. Review the diff for convex/_seed/changelog.ts.");
+  console.info("  1. Review the diff for src/content/changelog.md.");
   console.info(
     "  2. (Optional) add a `version:` line to the entry to mark a milestone.",
   );
   console.info("  3. bun run format && bun run lint && bun run type");
-  console.info("  4. Push to Convex: bunx convex run _seed/changelog:seed");
 }
 
 main().catch((err: unknown) => {

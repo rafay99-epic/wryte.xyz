@@ -15,14 +15,12 @@ import {
   CalendarDays,
   Clapperboard,
   Database,
-  FilePlus,
   FileText,
   FolderOpen,
   ImageIcon,
   Layers,
   LayoutDashboard,
   Lightbulb,
-  Newspaper,
   Plus,
   Settings,
   Star,
@@ -171,17 +169,6 @@ export function AppSidebar() {
                       </span>
                     </div>
                     <div className="space-y-0.5">
-                      <NavLink
-                        href="/admin/changelog"
-                        icon={Newspaper}
-                        label="All changelogs"
-                        exact
-                      />
-                      <NavLink
-                        href="/admin/changelog/new"
-                        icon={FilePlus}
-                        label="Add new changelog"
-                      />
                       <NavLink
                         href="/admin/feature-requests"
                         icon={Lightbulb}

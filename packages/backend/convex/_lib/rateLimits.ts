@@ -747,27 +747,6 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
   },
 
   /* ------------------------------------------------------------------ */
-  /*  Changelog (admin-only)                                             */
-  /* ------------------------------------------------------------------ */
-
-  "changelog:create": {
-    kind: "fixed window",
-    rate: 30,
-    period: HOUR,
-  },
-  "changelog:update": {
-    kind: "token bucket",
-    rate: 60,
-    period: MINUTE,
-    capacity: 10,
-  },
-  "changelog:remove": {
-    kind: "fixed window",
-    rate: 10,
-    period: HOUR,
-  },
-
-  /* ------------------------------------------------------------------ */
   /*  Feature requests                                                   */
   /* ------------------------------------------------------------------ */
 

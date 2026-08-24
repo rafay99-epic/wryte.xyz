@@ -1,14 +1,9 @@
 "use client";
 
-import { api } from "@wryte/backend/_generated/api";
 import { cn } from "@wryte/logic/lib/utils";
-import { Button } from "@wryte/ui/button";
-import { usePaginatedQuery } from "convex/react";
-import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { ChangelogMarkdown } from "@/components/changelog/changelog-markdown";
-
-const PAGE_SIZE = 10;
+import type { ChangelogEntry } from "@/features/changelog/lib/changelog-entries";
 
 const TABS = [
   { label: "All", value: undefined },
@@ -16,15 +11,21 @@ const TABS = [
   { label: "Desktop app", value: "desktop" as const },
 ];
 
-export function ChangelogList() {
+/**
+ * Timeline of changelog entries. Entries come from the static
+ * `changelog.md` (read at build time and passed in as props) and are
+ * filtered client-side by the category tabs — the whole list ships at
+ * once, so there is no pagination control.
+ */
+export function ChangelogList({ entries }: { entries: ChangelogEntry[] }) {
   const [category, setCategory] = useState<"website" | "desktop" | undefined>(
     undefined,
   );
-  const { results, status, loadMore } = usePaginatedQuery(
-    api.cms.changelog.listPublished,
-    category ? { category } : {},
-    { initialNumItems: PAGE_SIZE },
-  );
+
+  const visible =
+    category === undefined
+      ? entries
+      : entries.filter((entry) => entry.category === category);
 
   const tabs = (
     <div className="flex flex-wrap gap-1.5">
@@ -49,11 +50,7 @@ export function ChangelogList() {
     </div>
   );
 
-  if (status === "LoadingFirstPage") {
-    return <div className="mb-12">{tabs}</div>;
-  }
-
-  if (results.length === 0) {
+  if (visible.length === 0) {
     return (
       <div className="space-y-10">
         {tabs}
@@ -70,16 +67,16 @@ export function ChangelogList() {
     <div className="space-y-12">
       {tabs}
       <ol className="relative space-y-20 border-l border-foreground/10 pl-8">
-        {results.map((entry) => (
-          <li key={entry._id} className="relative">
+        {visible.map((entry) => (
+          <li key={entry.slug} className="relative">
             <span className="absolute -left-[34px] top-2 size-3 rounded-full border-2 border-background bg-amber-500 shadow-[0_0_0_3px_rgba(245,158,11,0.15)]" />
 
             <div className="mb-3 flex flex-wrap items-center gap-3 text-[12px]">
               <time
-                dateTime={new Date(entry.publishedAt ?? 0).toISOString()}
+                dateTime={new Date(entry.publishedAt).toISOString()}
                 className="font-mono text-foreground/55"
               >
-                {new Date(entry.publishedAt ?? 0).toLocaleDateString("en-US", {
+                {new Date(entry.publishedAt).toLocaleDateString("en-US", {
                   year: "numeric",
                   month: "long",
                   day: "numeric",
@@ -118,25 +115,6 @@ export function ChangelogList() {
           </li>
         ))}
       </ol>
-
-      {status === "CanLoadMore" && (
-        <div className="flex justify-center">
-          <Button
-            variant="outline"
-            size="lg"
-            onClick={() => loadMore(PAGE_SIZE)}
-            className="gap-2 text-sm"
-          >
-            Load older releases
-          </Button>
-        </div>
-      )}
-
-      {status === "LoadingMore" && (
-        <div className="flex justify-center py-4">
-          <Loader2 className="size-5 animate-spin text-foreground/40" />
-        </div>
-      )}
     </div>
   );
 }
