@@ -26,7 +26,7 @@ export default defineConfig(({ mode }) => {
         "next/navigation": resolve(here, "src/renderer/shims/navigation.tsx"),
         "next/image": resolve(here, "src/renderer/shims/image.tsx"),
         "next/dynamic": resolve(here, "src/renderer/shims/dynamic.tsx"),
-        "@clerk/nextjs": resolve(here, "src/renderer/shims/clerk-nextjs.ts"),
+        "@clerk/nextjs": resolve(here, "src/renderer/shims/clerk-nextjs.tsx"),
       },
       dedupe: ["react", "react-dom"],
     },
