@@ -3,6 +3,7 @@
 // Logger must be initialised first — before any other module — so crash
 // handlers are in place from the very first tick.
 const path = require("node:path");
+const fs = require("node:fs");
 const os = require("node:os");
 const config = require("./src/config.cjs");
 const logger = require("./src/logger.cjs");
@@ -18,6 +19,8 @@ const {
   webContents,
   powerMonitor,
   nativeImage,
+  protocol,
+  net,
 } = require("electron");
 const { fork } = require("node:child_process");
 const state = require("./src/window/state.cjs");
@@ -35,6 +38,24 @@ logger.info(
 // ── Performance: V8 code caching ──────────────────────────────────────────
 // Pre-compile cached JS data so subsequent starts skip parse/compile.
 app.commandLine.appendSwitch("v8-cache-options", "code");
+
+// ── Custom app:// protocol ─────────────────────────────────────────────────
+// The packaged renderer is served over a standard, secure custom protocol
+// instead of file:// — a file:// origin is opaque (null), which breaks
+// Clerk (secure-context/cookie requirements) and absolute asset paths.
+// Must be registered before app ready.
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: "app",
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      stream: true,
+      codeCache: true,
+    },
+  },
+]);
 
 // ── Performance: GPU acceleration ──────────────────────────────────────────
 // Force GPU rasterization + zero-copy for smoother rendering.
@@ -161,6 +182,22 @@ if (!app.requestSingleInstanceLock()) {
 
   app.whenReady().then(async () => {
     logger.info("app ready");
+
+    // Serve the packaged renderer build over app:// (see registration above).
+    // Path traversal is bounded by resolving inside the renderer dist dir;
+    // unknown paths fall back to index.html (SPA routing).
+    const rendererRoot = path.join(__dirname, "dist", "renderer");
+    protocol.handle("app", (request) => {
+      const { pathname } = new URL(request.url);
+      const relative = decodeURIComponent(pathname).replace(/^\/+/, "");
+      const resolved = path.resolve(rendererRoot, relative);
+      const safe = resolved.startsWith(rendererRoot) ? resolved : rendererRoot;
+      const target =
+        fs.existsSync(safe) && !fs.statSync(safe).isDirectory()
+          ? safe
+          : path.join(rendererRoot, "index.html");
+      return net.fetch(`file://${target}`);
+    });
 
     const ALLOWED = new Set([
       "clipboard-read",

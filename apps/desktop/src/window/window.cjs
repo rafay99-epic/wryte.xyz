@@ -68,7 +68,9 @@ function packagedRendererUrl() {
     "index.html",
   );
   if (!require("node:fs").existsSync(rendererIndex)) return null;
-  return require("node:url").pathToFileURL(rendererIndex).href;
+  // Served by the app:// protocol handler (see main.cjs) — never file://,
+  // whose opaque origin breaks Clerk and absolute asset paths.
+  return "app://renderer/";
 }
 
 /**
