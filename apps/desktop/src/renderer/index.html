@@ -7,13 +7,13 @@
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
     />
     <!--
-      Broad by necessity (Clerk FAPI + Convex + user media all remote), still
-      blocks file:// and unknown scheme navigation. Tighten per-domain once
-      the Clerk FAPI host is pinned for production builds.
+      Broad by necessity (Clerk FAPI + Convex cloud/local + user media all
+      remote), still blocks file:// and unknown scheme navigation. ws:// is
+      required for the local Convex backend (convex dev --local).
     -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self' https: wss: data: blob: 'unsafe-inline' 'unsafe-eval'"
+      content="default-src 'self' https: wss: ws: data: blob: 'unsafe-inline' 'unsafe-eval'"
     />
     <title>Wryte</title>
   </head>
