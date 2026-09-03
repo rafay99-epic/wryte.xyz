@@ -27,9 +27,9 @@
     "desktop:dist": "bun run --filter @wryte/desktop dist"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.4.15",
-    "turbo": "^2.10.9",
-    "typescript": "^6.0.3"
+    "@biomejs/biome": "2.5.12",
+    "turbo": "^2.10.12",
+    "typescript": "^7.0.2"
   },
   "ignoreScripts": [
     "sharp",
