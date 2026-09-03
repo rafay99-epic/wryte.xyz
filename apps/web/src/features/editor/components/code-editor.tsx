@@ -2,7 +2,6 @@
 
 import type { AnimationLanguage } from "@wryte/backend/_lib/animationChecks";
 import { cn } from "@wryte/logic/lib/utils";
-import type { Element, Root, RootContent } from "hast";
 import javascript from "highlight.js/lib/languages/javascript";
 import typescript from "highlight.js/lib/languages/typescript";
 import { createLowlight } from "lowlight";
@@ -11,17 +10,24 @@ import { useMemo, useRef } from "react";
 
 const lowlight = createLowlight({ javascript, typescript });
 
+/* Derived from lowlight's own signature rather than a direct @types/hast
+ * dependency: two copies of that package at different patch versions produce
+ * two structurally identical but non-assignable `Root` types. */
+type HastRoot = ReturnType<typeof lowlight.highlight>;
+type HastElement = Extract<HastRoot["children"][number], { type: "element" }>;
+type HastNode = HastRoot["children"][number] | HastElement["children"][number];
+
 const TYPOGRAPHY =
   "font-mono text-xs leading-relaxed whitespace-pre-wrap break-words [tab-size:2]";
 const BOX = "px-2.5 py-2";
 
-function className(node: Element): string | undefined {
+function className(node: HastElement): string | undefined {
   const value = node.properties["className"];
   if (Array.isArray(value)) return value.join(" ");
   return typeof value === "string" ? value : undefined;
 }
 
-function render(nodes: readonly RootContent[], prefix: string): ReactNode[] {
+function render(nodes: readonly HastNode[], prefix: string): ReactNode[] {
   return nodes.map((node, index) => {
     const key = `${prefix}.${String(index)}`;
     if (node.type === "text") return node.value;
@@ -36,7 +42,7 @@ function render(nodes: readonly RootContent[], prefix: string): ReactNode[] {
 
 function highlight(source: string, language: AnimationLanguage): ReactNode[] {
   const grammar = language === "jsx" ? "javascript" : "typescript";
-  let tree: Root;
+  let tree: HastRoot;
   try {
     tree = lowlight.highlight(grammar, source);
   } catch {

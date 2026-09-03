@@ -623,7 +623,8 @@ code.hljs {
 }
 
 /* …but the interactive bits inside must stay clickable, not draggable. */
-.wryte-desktop-mac .desktop-titlebar
+.wryte-desktop-mac
+  .desktop-titlebar
   :is(
     a,
     button,
