@@ -42,6 +42,17 @@ const projectFields = {
   mediaPath: v.optional(v.string()),
   animationsPath: v.optional(v.string()),
   animationsEnabled: v.optional(v.boolean()),
+  animationLanguage: v.optional(v.union(v.literal("tsx"), v.literal("jsx"))),
+  animationChecks: v.optional(
+    v.object({
+      level: v.union(
+        v.literal("off"),
+        v.literal("contract"),
+        v.literal("strict"),
+      ),
+      blockPublish: v.boolean(),
+    }),
+  ),
   importEnabled: v.optional(v.boolean()),
   mediaStorageMode: v.optional(mediaProviderValidator),
   frontmatterSchema: v.optional(v.string()),
@@ -368,6 +379,19 @@ export const update = mutation({
     animationsPath: v.optional(v.string()),
     /** Explicit feature toggle — false wins over a configured path. */
     animationsEnabled: v.optional(v.boolean()),
+    /** Language animation sources are written in — absent = tsx. */
+    animationLanguage: v.optional(v.union(v.literal("tsx"), v.literal("jsx"))),
+    /** Static-analysis policy for animation sources — absent = off. */
+    animationChecks: v.optional(
+      v.object({
+        level: v.union(
+          v.literal("off"),
+          v.literal("contract"),
+          v.literal("strict"),
+        ),
+        blockPublish: v.boolean(),
+      }),
+    ),
     importEnabled: v.optional(v.boolean()),
     mediaStorageMode: v.optional(mediaProviderValidator),
     frontmatterSchema: v.optional(v.string()),

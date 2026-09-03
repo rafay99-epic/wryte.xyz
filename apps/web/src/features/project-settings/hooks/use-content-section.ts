@@ -1,11 +1,14 @@
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
+import type { AnimationLanguage } from "@wryte/backend/_lib/animationChecks";
 import type { ContentFormat } from "@wryte/logic/lib/content-format";
 import { getFileExtension } from "@wryte/logic/lib/content-format";
 import { useMutation } from "convex/react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import type { ProjectData } from "../types";
+import type { AnimationChecksPolicy, ProjectData } from "../types";
+
+const CHECKS_OFF: AnimationChecksPolicy = { level: "off", blockPublish: true };
 
 export function useContentSection({
   projectId,
@@ -36,6 +39,14 @@ export function useContentSection({
   const [animationsOn, setAnimationsOn] = useState(
     project.animationsEnabled ?? !!project.animationsPath,
   );
+  // Language animation sources are authored in — TypeScript by default.
+  const [animationLanguage, setAnimationLanguage] = useState<AnimationLanguage>(
+    project.animationLanguage ?? "tsx",
+  );
+  // Static-analysis policy for animation sources — off by default.
+  const [animationChecks, setAnimationChecks] = useState<AnimationChecksPolicy>(
+    project.animationChecks ?? CHECKS_OFF,
+  );
   // Import feature toggle — off by default (cost-saving).
   const [importOn, setImportOn] = useState(project.importEnabled ?? false);
   const [isSaving, setIsSaving] = useState(false);
@@ -49,6 +60,8 @@ export function useContentSection({
     );
     setAnimationsPath(project.animationsPath ?? "");
     setAnimationsOn(project.animationsEnabled ?? !!project.animationsPath);
+    setAnimationLanguage(project.animationLanguage ?? "tsx");
+    setAnimationChecks(project.animationChecks ?? CHECKS_OFF);
     setImportOn(project.importEnabled ?? false);
   }, [
     project.contentPath,
@@ -56,6 +69,8 @@ export function useContentSection({
     project.contentFormat,
     project.animationsPath,
     project.animationsEnabled,
+    project.animationLanguage,
+    project.animationChecks,
     project.importEnabled,
   ]);
 
@@ -67,6 +82,10 @@ export function useContentSection({
     contentFormat !== ((project.contentFormat as ContentFormat) ?? "md") ||
     animationsPath.trim() !== (project.animationsPath ?? "") ||
     animationsOn !== (project.animationsEnabled ?? !!project.animationsPath) ||
+    animationLanguage !== (project.animationLanguage ?? "tsx") ||
+    animationChecks.level !== (project.animationChecks?.level ?? "off") ||
+    animationChecks.blockPublish !==
+      (project.animationChecks?.blockPublish ?? true) ||
     importOn !== (project.importEnabled ?? false);
 
   const handleSave = useCallback(async () => {
@@ -80,6 +99,8 @@ export function useContentSection({
         // "" clears the field server-side (feature off).
         animationsPath: animationsPath.trim(),
         animationsEnabled: animationsOn,
+        animationLanguage,
+        animationChecks,
         importEnabled: importOn,
       });
       toast.success("Content structure saved");
@@ -94,6 +115,8 @@ export function useContentSection({
     contentFormat,
     animationsPath,
     animationsOn,
+    animationLanguage,
+    animationChecks,
     importOn,
     projectId,
     updateProject,
@@ -123,6 +146,10 @@ export function useContentSection({
     setAnimationsPath,
     animationsOn,
     setAnimationsOn,
+    animationLanguage,
+    setAnimationLanguage,
+    animationChecks,
+    setAnimationChecks,
     importOn,
     setImportOn,
     defaultPattern,

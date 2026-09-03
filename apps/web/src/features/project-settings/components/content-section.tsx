@@ -33,6 +33,10 @@ export function ContentSection({
     setAnimationsPath,
     animationsOn,
     setAnimationsOn,
+    animationLanguage,
+    setAnimationLanguage,
+    animationChecks,
+    setAnimationChecks,
     importOn,
     setImportOn,
     defaultPattern,
@@ -128,6 +132,58 @@ export function ContentSection({
                   className="font-mono text-sm"
                 />
               </FieldGroup>
+            )}
+            {animationsOn && (
+              <>
+                <ToggleRow
+                  title="Write animations in JavaScript"
+                  line="Publishes .jsx instead of .tsx, and turns off type checking"
+                  info="TypeScript is the default. Switch only if the target repo does not compile TypeScript. Existing animations are not rewritten; the change applies to the file extension used on the next publish."
+                  checked={animationLanguage === "jsx"}
+                  onCheckedChange={(useJs) =>
+                    setAnimationLanguage(useJs ? "jsx" : "tsx")
+                  }
+                />
+                <ToggleRow
+                  title="Check animations before publish"
+                  line="Catches browser code at import time, timers left running, unlabelled SVG"
+                  info="Your live preview strips TypeScript instead of checking it, so a component can render here and still fail the build in your repo. These rules run before anything is committed."
+                  checked={animationChecks.level !== "off"}
+                  onCheckedChange={(on) =>
+                    setAnimationChecks({
+                      ...animationChecks,
+                      level: on ? "contract" : "off",
+                    })
+                  }
+                />
+                {animationChecks.level !== "off" && (
+                  <div className="ml-0.5 border-l border-border/40 pl-4">
+                    {animationLanguage === "tsx" && (
+                      <ToggleRow
+                        title="Also check types"
+                        line="Catches any, unsafe array access, wrong props"
+                        info="Runs a full TypeScript pass with the same strictness your repo uses. The first run downloads type definitions and caches them; later runs are local."
+                        checked={animationChecks.level === "strict"}
+                        onCheckedChange={(on) =>
+                          setAnimationChecks({
+                            ...animationChecks,
+                            level: on ? "strict" : "contract",
+                          })
+                        }
+                      />
+                    )}
+                    <ToggleRow
+                      title="Block publish on errors"
+                      line="Stop the publish instead of warning"
+                      info="Only components the post actually references are considered. A source written outside the editor, through the MCP server for example, counts as unchecked. Turn this off to keep the results advisory."
+                      checked={animationChecks.blockPublish}
+                      onCheckedChange={(blockPublish) =>
+                        setAnimationChecks({ ...animationChecks, blockPublish })
+                      }
+                    />
+                  </div>
+                )}
+              </>
             )}
           </>
         )}

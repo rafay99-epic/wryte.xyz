@@ -152,6 +152,30 @@ export default defineSchema({
      */
     animationsEnabled: v.optional(v.boolean()),
     /**
+     * Language animation components are written and published in. Absent =
+     * "tsx". Only these two: the preview compiles React, and anything else
+     * would not build in the target repo.
+     */
+    animationLanguage: v.optional(v.union(v.literal("tsx"), v.literal("jsx"))),
+    /**
+     * Static-analysis level applied to animation sources. Absent = "off",
+     * the pre-existing behaviour where Sucrase parses the file and nothing
+     * else is verified. "contract" adds the SSR/cleanup/accessibility rules
+     * the editor runs locally; "strict" adds a full TypeScript check.
+     * `blockPublish` decides whether failing or unchecked animations stop a
+     * publish or only warn.
+     */
+    animationChecks: v.optional(
+      v.object({
+        level: v.union(
+          v.literal("off"),
+          v.literal("contract"),
+          v.literal("strict"),
+        ),
+        blockPublish: v.boolean(),
+      }),
+    ),
+    /**
      * Opt-in toggle for importing .md/.mdx files from the local filesystem
      * (drag-and-drop or file picker). Default off — costs zero until turned
      * on in project settings.
@@ -1272,6 +1296,26 @@ export default defineSchema({
     name: v.string(),
     source: v.string(),
     updatedAt: v.number(),
+    /**
+     * Result of the last editor-side check, recorded by the same mutation
+     * that wrote `source` so the two can never disagree. `sourceHash` is
+     * derived server-side from the stored source: a record whose hash no
+     * longer matches means the source changed without being checked (an MCP
+     * write, say) and the publish gate treats it as unchecked.
+     */
+    check: v.optional(
+      v.object({
+        sourceHash: v.string(),
+        status: v.union(
+          v.literal("pass"),
+          v.literal("warn"),
+          v.literal("fail"),
+        ),
+        errorCount: v.number(),
+        warningCount: v.number(),
+        checkedAt: v.number(),
+      }),
+    ),
   })
     .index("by_project", ["projectId"])
     .index("by_project_and_name", ["projectId", "name"]),

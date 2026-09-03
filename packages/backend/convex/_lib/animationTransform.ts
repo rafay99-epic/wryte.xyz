@@ -15,10 +15,13 @@
  * used only to *locate* real JSX nodes, and edits are applied as offset-based
  * string splices, so every byte the author wrote stays exactly as written.
  */
+
 import remarkMdx from "remark-mdx";
 import remarkParse from "remark-parse";
 import { unified } from "unified";
 import { visit } from "unist-util-visit";
+import type { AnimationLanguage } from "./animationChecks";
+import { resolveAnimationLanguage } from "./animationChecks";
 
 /** Marker embedded in every generated .tsx. Publish refuses to overwrite a
  * file at the target path that lacks it — never clobber hand-written code. */
@@ -28,7 +31,7 @@ export type AnimationSourceMap = Record<string, string>;
 
 export type TransformedComponent = {
   name: string;
-  /** Repo path of the .tsx file, e.g. "src/components/blog/HarnessLoop.tsx" */
+  /** Repo path of the component file, e.g. "src/components/blog/HarnessLoop.tsx" */
   repoPath: string;
   /** Final file contents: marker header (+ "use client" for Next) + source */
   fileContent: string;
@@ -100,6 +103,8 @@ export function transformMdxWithAnimations(
     framework?: string | undefined;
     contentDir: string;
     animationsDir: string;
+    /** Absent = "tsx". Decides the extension the component is written as. */
+    language?: AnimationLanguage | string | undefined;
   },
 ): AnimationTransformResult {
   const known = new Set(Object.keys(animations));
@@ -155,9 +160,10 @@ export function transformMdxWithAnimations(
   rewritten = `${imports}\n\n${rewritten}`;
 
   const useClient = opts.framework === "nextjs" ? `"use client";\n\n` : "";
+  const ext = resolveAnimationLanguage(opts.language);
   const components: TransformedComponent[] = names.map((name) => ({
     name,
-    repoPath: `${normalizePath(opts.animationsDir)}/${name}.tsx`,
+    repoPath: `${normalizePath(opts.animationsDir)}/${name}.${ext}`,
     fileContent: `${managedHeader(name)}${useClient}${animations[name] ?? ""}`,
   }));
 

@@ -2,6 +2,10 @@
 
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
+import type {
+  AnimationCheckLevel,
+  AnimationLanguage,
+} from "@wryte/backend/_lib/animationChecks";
 import { Button } from "@wryte/ui/button";
 import { Input } from "@wryte/ui/input";
 import { Label } from "@wryte/ui/label";
@@ -14,7 +18,6 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@wryte/ui/sheet";
-import { Textarea } from "@wryte/ui/textarea";
 import { useMutation, useQuery } from "convex/react";
 import {
   AlertCircle,
@@ -30,8 +33,15 @@ import {
   type DeletableAnimation,
   DeleteAnimationDialog,
 } from "@/components/animations/delete-animation-dialog";
+import { useAnimationChecks } from "../hooks/use-animation-checks";
 import { wrapAnimation } from "../lib/animations/animation-boundary";
 import { compileAnimation } from "../lib/animations/compile-animation";
+import { starterSource } from "../lib/animations/templates";
+import {
+  AnimationCheckBadge,
+  AnimationDiagnostics,
+} from "./animation-diagnostics";
+import { CodeEditor } from "./code-editor";
 
 type AnimationInsertDialogProps = {
   open: boolean;
@@ -57,35 +67,6 @@ function nameProblem(raw: string): string | null {
   if (name.length > 60) return "60 characters max";
   return null;
 }
-
-/** Starter source shown for a brand-new animation — a working example the
- * author can run immediately, demonstrating the self-contained contract. */
-const STARTER_SOURCE = `import { useEffect, useState } from "react";
-
-export default function MyAnimation() {
-  const [tick, setTick] = useState(0);
-
-  useEffect(() => {
-    const id = setInterval(() => setTick((t) => t + 1), 800);
-    return () => clearInterval(id);
-  }, []);
-
-  return (
-    <div
-      style={{
-        border: "1px solid #3b4261",
-        borderRadius: 12,
-        padding: "20px 24px",
-        fontFamily: "monospace",
-        background: "#1a1b26",
-        color: "#7aa2f7",
-      }}
-    >
-      pulse #{tick}
-    </div>
-  );
-}
-`;
 
 /** Extract the default-exported function/component name from TSX source. */
 function extractDefaultExportName(source: string): string | null {
@@ -114,12 +95,16 @@ export function AnimationInsertDialog({
     api.cms.animations.list,
     open ? { projectId: projectId as Id<"projects"> } : "skip",
   );
+  const project = useQuery(
+    api.cms.projects.get,
+    open ? { projectId: projectId as Id<"projects"> } : "skip",
+  );
   const createAnimation = useMutation(api.cms.animations.create);
   const updateAnimation = useMutation(api.cms.animations.update);
 
   const [selectedId, setSelectedId] = useState<Id<"animations"> | null>(null);
   const [name, setName] = useState("");
-  const [source, setSource] = useState(STARTER_SOURCE);
+  const [source, setSource] = useState(() => starterSource("tsx"));
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   /** Row handed to the shared reference-checked delete dialog. */
@@ -149,9 +134,19 @@ export function AnimationInsertDialog({
     [compiled, name],
   );
 
+  const checkLevel: AnimationCheckLevel =
+    project?.animationChecks?.level ?? "off";
+  const language: AnimationLanguage = project?.animationLanguage ?? "tsx";
+  const checks = useAnimationChecks({
+    source: debouncedSource,
+    level: checkLevel,
+    language,
+  });
+
   const editing = selectedId !== null;
   const nameError = editing ? null : nameProblem(name);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const sourceRef = useRef<HTMLTextAreaElement>(null);
 
   /**
    * Handle importing a .tsx file from disk: read the file, try to extract
@@ -161,8 +156,8 @@ export function AnimationInsertDialog({
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
-      if (!file.name.endsWith(".tsx") && !file.name.endsWith(".ts")) {
-        toast.error("Please select a .tsx file");
+      if (!/\.(tsx?|jsx?)$/.test(file.name)) {
+        toast.error("Please select a .tsx, .ts, .jsx or .js file");
         e.target.value = "";
         return;
       }
@@ -182,11 +177,11 @@ export function AnimationInsertDialog({
   const resetForm = useCallback(() => {
     setSelectedId(null);
     setName("");
-    setSource(STARTER_SOURCE);
+    setSource(starterSource(language));
     setSaving(false);
     setSaveError(null);
     setDeleteTarget(null);
-  }, []);
+  }, [language]);
 
   // Reset whenever the sheet closes (covers X button and Escape).
   useEffect(() => {
@@ -216,14 +211,16 @@ export function AnimationInsertDialog({
     setSaving(true);
     setSaveError(null);
     try {
+      const check = checks.summary === null ? {} : { check: checks.summary };
       if (editing && selectedId) {
-        await updateAnimation({ animationId: selectedId, source });
+        await updateAnimation({ animationId: selectedId, source, ...check });
         return name.trim();
       }
       const created = await createAnimation({
         projectId: projectId as Id<"projects">,
         name: name.trim(),
         source,
+        ...check,
       });
       return created.name;
     } catch (err) {
@@ -345,12 +342,14 @@ export function AnimationInsertDialog({
 
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <Label htmlFor="animation-source">Component source (TSX)</Label>
+                <Label htmlFor="animation-source">
+                  Component source ({language.toUpperCase()})
+                </Label>
                 <div className="flex items-center gap-2">
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept=".tsx,.ts"
+                    accept=".tsx,.ts,.jsx,.js"
                     className="hidden"
                     onChange={handleFileImport}
                   />
@@ -360,7 +359,7 @@ export function AnimationInsertDialog({
                     className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors"
                   >
                     <FileUp className="size-3" />
-                    Import .tsx
+                    Import file
                   </button>
                   {compiled.ok ? (
                     <span className="flex items-center gap-1 text-[11px] font-medium text-green-500">
@@ -371,6 +370,7 @@ export function AnimationInsertDialog({
                       <AlertCircle className="size-3" /> won&apos;t compile
                     </span>
                   )}
+                  <AnimationCheckBadge checks={checks} />
                 </div>
               </div>
               {/* Error sits ABOVE the code, always in view — no scrolling to
@@ -383,15 +383,16 @@ export function AnimationInsertDialog({
                   </pre>
                 </div>
               )}
-              <Textarea
+              <CodeEditor
                 id="animation-source"
                 value={source}
-                onChange={(e) => setSource(e.target.value)}
+                onChange={setSource}
+                language={language}
                 rows={14}
-                spellCheck={false}
-                className="font-mono text-xs leading-relaxed"
-                aria-invalid={!compiled.ok}
+                invalid={!compiled.ok}
+                textareaRef={sourceRef}
               />
+              <AnimationDiagnostics checks={checks} sourceRef={sourceRef} />
             </div>
 
             <div className="space-y-1.5">
