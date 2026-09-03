@@ -122,4 +122,27 @@ assert.equal(relativeImportDir("", "src/anim"), "./src/anim");
   assert.equal(components.length, 0);
 }
 
+/* --- language decides the published extension ------------------------- */
+{
+  const tsx = transformMdxWithAnimations("<HarnessLoop />", ANIMS, {
+    contentDir: "src/content/blog",
+    animationsDir: "src/components/blog",
+  });
+  assert.equal(
+    tsx.components[0]?.repoPath,
+    "src/components/blog/HarnessLoop.tsx",
+  );
+
+  const jsx = transformMdxWithAnimations("<HarnessLoop />", ANIMS, {
+    contentDir: "src/content/blog",
+    animationsDir: "src/components/blog",
+    language: "jsx",
+  });
+  assert.equal(
+    jsx.components[0]?.repoPath,
+    "src/components/blog/HarnessLoop.jsx",
+  );
+  assert.equal(jsx.body, tsx.body);
+}
+
 process.stdout.write("animationTransform: all checks passed\n");

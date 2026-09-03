@@ -15,6 +15,8 @@ import { v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { internalQuery, mutation, query } from "../_generated/server";
+import type { AnimationCheckRecord } from "../_lib/animationChecks";
+import { hashAnimationSource } from "../_lib/animationChecks";
 import { getAuthedUserOrNull, getCurrentUser } from "../_lib/auth";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
 
@@ -36,6 +38,37 @@ const NAME_RE = /^[A-Z][A-Za-z0-9]*$/;
  * so only capitalized reserved words need listing.
  */
 const RESERVED_NAMES = new Set(["Fragment", "React", "Component", "Suspense"]);
+
+/**
+ * Summary the editor sends alongside a source it has just checked. The hash
+ * is never accepted from the client — it is recomputed here from the source
+ * being written, so a stored record always describes the stored source.
+ */
+export const checkSummaryValidator = v.object({
+  status: v.union(v.literal("pass"), v.literal("warn"), v.literal("fail")),
+  errorCount: v.number(),
+  warningCount: v.number(),
+});
+
+type CheckSummary = {
+  status: AnimationCheckRecord["status"];
+  errorCount: number;
+  warningCount: number;
+};
+
+function toCheckRecord(
+  source: string,
+  summary: CheckSummary | undefined,
+): AnimationCheckRecord | undefined {
+  if (summary === undefined) return undefined;
+  return {
+    sourceHash: hashAnimationSource(source),
+    status: summary.status,
+    errorCount: summary.errorCount,
+    warningCount: summary.warningCount,
+    checkedAt: Date.now(),
+  };
+}
 
 /** Lightweight client shape — the editor needs id + name + source. */
 export type AnimationView = {
@@ -186,6 +219,7 @@ export const listNames = query({
       _id: d._id,
       name: d.name,
       updatedAt: d.updatedAt,
+      checkStatus: d.check?.status ?? null,
     }));
   },
 });
@@ -364,12 +398,21 @@ export const getIdByName = query({
  */
 export const internalListByProject = internalQuery({
   args: { projectId: v.id("projects") },
-  handler: async (ctx, args): Promise<{ name: string; source: string }[]> => {
+  handler: async (
+    ctx,
+    args,
+  ): Promise<
+    { name: string; source: string; check: AnimationCheckRecord | undefined }[]
+  > => {
     const rows = await ctx.db
       .query("animations")
       .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
       .take(MAX_ANIMATIONS);
-    return rows.map((d) => ({ name: d.name, source: d.source }));
+    return rows.map((d) => ({
+      name: d.name,
+      source: d.source,
+      check: d.check,
+    }));
   },
 });
 
@@ -390,6 +433,7 @@ export async function createAnimationForUser(
     projectId: Id<"projects">;
     name: string;
     source: string;
+    check?: CheckSummary | undefined;
   },
 ): Promise<AnimationView> {
   await rateLimiter.limit(ctx, "animations:create", {
@@ -427,11 +471,13 @@ export async function createAnimationForUser(
   }
 
   const now = Date.now();
+  const check = toCheckRecord(source, args.check);
   const animationId = await ctx.db.insert("animations", {
     projectId: args.projectId,
     name,
     source,
     updatedAt: now,
+    ...(check === undefined ? {} : { check }),
   });
 
   await insertNameRow(ctx, args.projectId, name);
@@ -444,6 +490,7 @@ export const create = mutation({
     projectId: v.id("projects"),
     name: v.string(),
     source: v.string(),
+    check: v.optional(checkSummaryValidator),
   },
   handler: async (ctx, args): Promise<AnimationView> =>
     await createAnimationForUser(ctx, await getCurrentUser(ctx), args),
@@ -459,6 +506,7 @@ export async function updateAnimationForUser(
   args: {
     animationId: Id<"animations">;
     source: string;
+    check?: CheckSummary | undefined;
   },
 ): Promise<null> {
   await rateLimiter.limit(ctx, "animations:update", {
@@ -473,9 +521,13 @@ export async function updateAnimationForUser(
   // Name is deliberately immutable — it's the reference key inside every
   // post body. Renaming would silently break `<OldName />` tags; delete
   // and re-create instead.
+  const source = validateSource(args.source);
+  // An unchecked write clears any previous record rather than leaving one
+  // that describes source nobody looked at.
   await ctx.db.patch(args.animationId, {
-    source: validateSource(args.source),
+    source,
     updatedAt: Date.now(),
+    check: toCheckRecord(source, args.check),
   });
   return null;
 }
@@ -484,6 +536,7 @@ export const update = mutation({
   args: {
     animationId: v.id("animations"),
     source: v.string(),
+    check: v.optional(checkSummaryValidator),
   },
   handler: async (ctx, args): Promise<null> =>
     await updateAnimationForUser(ctx, await getCurrentUser(ctx), args),
@@ -566,9 +619,12 @@ export async function replaceAnimationByNameForUser(
     throw new Error(`Animation "${args.name}" not found in this project`);
   }
 
+  // No check travels with this path (import sheet, MCP agents), so any
+  // previous result is dropped rather than left describing older source.
   await ctx.db.patch(row._id, {
     source: validateSource(args.source),
     updatedAt: Date.now(),
+    check: undefined,
   });
   return null;
 }

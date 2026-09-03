@@ -1,4 +1,8 @@
 import type { Doc } from "@wryte/backend/_generated/dataModel";
+import type {
+  AnimationCheckLevel,
+  AnimationLanguage,
+} from "@wryte/backend/_lib/animationChecks";
 import type { CompressionSettings } from "@wryte/logic/lib/image-compression/index";
 import type { AiProvider } from "@wryte/logic/types/ai";
 import type {
@@ -29,6 +33,11 @@ export type {
   MediaProvider,
 };
 
+export type AnimationChecksPolicy = {
+  level: AnimationCheckLevel;
+  blockPublish: boolean;
+};
+
 export type ProjectData = {
   name: string;
   slug: string;
@@ -38,6 +47,8 @@ export type ProjectData = {
   mediaPath?: string;
   animationsPath?: string;
   animationsEnabled?: boolean;
+  animationLanguage?: AnimationLanguage;
+  animationChecks?: AnimationChecksPolicy;
   importEnabled?: boolean;
   mediaStorageMode?: MediaProvider;
   frontmatterSchema?: string;

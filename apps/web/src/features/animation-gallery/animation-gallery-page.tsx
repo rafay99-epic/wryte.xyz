@@ -2,6 +2,11 @@
 
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
+import type {
+  AnimationCheckLevel,
+  AnimationCheckStatus,
+  AnimationLanguage,
+} from "@wryte/backend/_lib/animationChecks";
 import { cn } from "@wryte/logic/lib/utils";
 import { Button, buttonVariants } from "@wryte/ui/button";
 import { Input } from "@wryte/ui/input";
@@ -16,7 +21,6 @@ import {
   SheetTitle,
 } from "@wryte/ui/sheet";
 import { Skeleton } from "@wryte/ui/skeleton";
-import { Textarea } from "@wryte/ui/textarea";
 import { useMutation, useQuery } from "convex/react";
 import { motion } from "framer-motion";
 import {
@@ -38,8 +42,15 @@ import {
   type DeletableAnimation,
   DeleteAnimationDialog,
 } from "@/components/animations/delete-animation-dialog";
+import {
+  AnimationCheckBadge,
+  AnimationDiagnostics,
+} from "@/features/editor/components/animation-diagnostics";
+import { CodeEditor } from "@/features/editor/components/code-editor";
+import { useAnimationChecks } from "@/features/editor/hooks/use-animation-checks";
 import { wrapAnimation } from "@/features/editor/lib/animations/animation-boundary";
 import { compileAnimation } from "@/features/editor/lib/animations/compile-animation";
+import { starterSource } from "@/features/editor/lib/animations/templates";
 
 const COMPILE_DEBOUNCE_MS = 400;
 
@@ -51,6 +62,7 @@ type CardRow = {
   _id: Id<"animations">;
   name: string;
   updatedAt: number;
+  checkStatus: AnimationCheckStatus | null;
 };
 
 /** Extract the default-exported function/component name from TSX source. */
@@ -200,6 +212,8 @@ export function AnimationGalleryPage({
       <AnimationEditSheet
         key={editing === "new" ? "new" : (editing?._id ?? "closed")}
         projectId={projectId}
+        checkLevel={project?.animationChecks?.level ?? "off"}
+        language={project?.animationLanguage ?? "tsx"}
         editing={editing}
         onClose={() => setEditing(null)}
         onRequestDelete={(row) => setDeleting(row)}
@@ -309,6 +323,20 @@ function AnimationCard({
           <p className="truncate font-mono text-sm font-medium">{card.name}</p>
           <p className="text-[11px] text-muted-foreground">
             Updated {new Date(card.updatedAt).toLocaleDateString()}
+            {card.checkStatus !== null && (
+              <span
+                className={cn(
+                  "ml-2",
+                  card.checkStatus === "fail"
+                    ? "text-destructive"
+                    : card.checkStatus === "warn"
+                      ? "text-amber-500"
+                      : "text-green-500",
+                )}
+              >
+                checks {card.checkStatus}
+              </span>
+            )}
           </p>
         </div>
         <div className="flex shrink-0 gap-1 opacity-0 transition-opacity group-hover:opacity-100">
@@ -359,27 +387,17 @@ function AnimationCard({
  * duplicated. Extract a shared <AnimationForm> when a third surface needs
  * it. */
 
-const STARTER_SOURCE = `import { useEffect, useState } from "react";
-
-export default function MyAnimation() {
-  const [tick, setTick] = useState(0);
-
-  useEffect(() => {
-    const id = setInterval(() => setTick((t) => t + 1), 800);
-    return () => clearInterval(id);
-  }, []);
-
-  return <div style={{ fontFamily: "monospace" }}>pulse #{tick}</div>;
-}
-`;
-
 function AnimationEditSheet({
   projectId,
+  checkLevel,
+  language,
   editing,
   onClose,
   onRequestDelete,
 }: {
   projectId: Id<"projects">;
+  checkLevel: AnimationCheckLevel;
+  language: AnimationLanguage;
   editing: CardRow | "new" | null;
   onClose: () => void;
   /** Hands off to the shared reference-checked delete dialog. */
@@ -399,10 +417,11 @@ function AnimationEditSheet({
   );
 
   const [name, setName] = useState(row?.name ?? "");
-  const [source, setSource] = useState(STARTER_SOURCE);
+  const [source, setSource] = useState(() => starterSource(language));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const sourceRef = useRef<HTMLTextAreaElement>(null);
 
   // Populate source once it arrives
   useEffect(() => {
@@ -413,8 +432,8 @@ function AnimationEditSheet({
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
-      if (!file.name.endsWith(".tsx") && !file.name.endsWith(".ts")) {
-        toast.error("Please select a .tsx file");
+      if (!/\.(tsx?|jsx?)$/.test(file.name)) {
+        toast.error("Please select a .tsx, .ts, .jsx or .js file");
         e.target.value = "";
         return;
       }
@@ -452,6 +471,12 @@ function AnimationEditSheet({
     [compiled, name],
   );
 
+  const checks = useAnimationChecks({
+    source: debouncedSource,
+    level: checkLevel,
+    language,
+  });
+
   const nameError = useMemo(() => {
     if (!isNew) return null;
     const n = name.trim();
@@ -468,14 +493,16 @@ function AnimationEditSheet({
     setSaving(true);
     setError(null);
     try {
+      const check = checks.summary === null ? {} : { check: checks.summary };
       if (row) {
-        await updateAnimation({ animationId: row._id, source });
+        await updateAnimation({ animationId: row._id, source, ...check });
         toast.success(`${row.name} updated`);
       } else {
         const created = await createAnimation({
           projectId,
           name: name.trim(),
           source,
+          ...check,
         });
         toast.success(`${created.name} created`);
       }
@@ -526,13 +553,13 @@ function AnimationEditSheet({
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <Label htmlFor="gallery-anim-source">
-                  Component source (TSX)
+                  Component source ({language.toUpperCase()})
                 </Label>
                 <div className="flex items-center gap-2">
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept=".tsx,.ts"
+                    accept=".tsx,.ts,.jsx,.js"
                     className="hidden"
                     onChange={handleFileImport}
                   />
@@ -542,7 +569,7 @@ function AnimationEditSheet({
                     className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors"
                   >
                     <FileUp className="size-3" />
-                    Import .tsx
+                    Import file
                   </button>
                   {compiled.ok ? (
                     <span className="flex items-center gap-1 text-[11px] font-medium text-green-500">
@@ -553,6 +580,7 @@ function AnimationEditSheet({
                       <AlertCircle className="size-3" /> won&apos;t compile
                     </span>
                   )}
+                  <AnimationCheckBadge checks={checks} />
                 </div>
               </div>
               {!compiled.ok && (
@@ -563,15 +591,16 @@ function AnimationEditSheet({
                   </pre>
                 </div>
               )}
-              <Textarea
+              <CodeEditor
                 id="gallery-anim-source"
                 value={source}
-                onChange={(e) => setSource(e.target.value)}
+                onChange={setSource}
+                language={language}
                 rows={16}
-                spellCheck={false}
-                className="font-mono text-xs leading-relaxed"
-                aria-invalid={!compiled.ok}
+                invalid={!compiled.ok}
+                textareaRef={sourceRef}
               />
+              <AnimationDiagnostics checks={checks} sourceRef={sourceRef} />
             </div>
 
             <div className="space-y-1.5">

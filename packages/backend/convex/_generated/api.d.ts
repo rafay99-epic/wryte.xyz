@@ -9,6 +9,7 @@
  */
 
 import type * as _lib_admin from "../_lib/admin.js";
+import type * as _lib_animationChecks from "../_lib/animationChecks.js";
 import type * as _lib_animationTransform from "../_lib/animationTransform.js";
 import type * as _lib_auth from "../_lib/auth.js";
 import type * as _lib_commitAttribution from "../_lib/commitAttribution.js";
@@ -122,6 +123,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   "_lib/admin": typeof _lib_admin;
+  "_lib/animationChecks": typeof _lib_animationChecks;
   "_lib/animationTransform": typeof _lib_animationTransform;
   "_lib/auth": typeof _lib_auth;
   "_lib/commitAttribution": typeof _lib_commitAttribution;
