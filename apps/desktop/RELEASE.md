@@ -22,7 +22,7 @@ and the token gotcha that broke a release, so it doesn't happen again.
    dmg's real sha256, pushing to `rafay99-epic/homebrew-apps`.
 
 macOS is **ad-hoc signed** (afterPack hook, no Apple account). The cask's
-`postflight` strips the download quarantine so `brew install` opens it cleanly
+`postflight_steps` strip the download quarantine so `brew install` opens it cleanly
 without notarization.
 
 Cut a release:
