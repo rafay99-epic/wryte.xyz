@@ -31,7 +31,6 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { useShallow } from "zustand/react/shallow";
 
 /* ------------------------------------------------------------------ */
 /*  Model display names                                                */
@@ -70,12 +69,9 @@ export function AiEnhanceButton({
   onOpenChange,
   projectId,
 }: AiEnhancePanelProps) {
-  const { content, setContent } = useEditorStore(
-    useShallow((state) => ({
-      content: state.content,
-      setContent: state.setContent,
-    })),
-  );
+  // The body is read via getState() (and subscribed to only inside the
+  // mounted preview) so the closed sheet doesn't re-render per keystroke.
+  const setContent = useEditorStore((state) => state.setContent);
 
   const project = useQuery(api.cms.projects.get, {
     projectId: projectId as Id<"projects">,
@@ -92,13 +88,18 @@ export function AiEnhanceButton({
   const [promptExpanded, setPromptExpanded] = useState(false);
   const [originalExpanded, setOriginalExpanded] = useState(false);
 
-  useEffect(() => {
-    const first = templates?.[0];
-    if (first && !customPrompt) {
+  // Seed the prompt from the first template once, when templates first
+  // load. Later resets happen on close; clearing the textarea must not
+  // refill it.
+  const [promptSeeded, setPromptSeeded] = useState(false);
+  if (!promptSeeded && templates !== undefined) {
+    setPromptSeeded(true);
+    const first = templates[0];
+    if (first) {
       setCustomPrompt(first.prompt);
       setActiveTemplateId(first.id);
     }
-  }, [templates, customPrompt]);
+  }
 
   // Query the stream body reactively — auto-updates as chunks arrive
   const streamBody = useQuery(
@@ -167,6 +168,7 @@ export function AiEnhanceButton({
   }, [open, defaultPrompt, defaultTemplateId]);
 
   const handleEnhance = useCallback(async () => {
+    const { content } = useEditorStore.getState();
     if (!content.trim()) {
       toast.error("No content to enhance");
       return;
@@ -185,7 +187,7 @@ export function AiEnhanceButton({
       const err = error as { message?: string };
       toast.error(err.message ?? "Failed to start enhancement");
     }
-  }, [content, createEnhanceStream, projectId, customPrompt]);
+  }, [createEnhanceStream, projectId, customPrompt]);
 
   const handleApply = useCallback(() => {
     if (streamText) {
@@ -355,30 +357,7 @@ export function AiEnhanceButton({
                   animate={{ opacity: 1, y: 0 }}
                   className="space-y-3"
                 >
-                  <p className="text-sm font-medium text-muted-foreground">
-                    Your Content
-                  </p>
-                  <div className="max-h-[50vh] overflow-y-auto rounded-xl border border-border/40 bg-muted/20 px-5 py-4 slim-scrollbar">
-                    <div className="whitespace-pre-wrap text-sm leading-[1.75] text-foreground/85">
-                      {content.length > 3000
-                        ? `${content.slice(0, 3000)}…`
-                        : content || "No content to enhance."}
-                    </div>
-                  </div>
-                  <p className="text-[13px] text-muted-foreground/60">
-                    The AI will improve formatting, grammar, and clarity while
-                    preserving your voice. This can be undone with Ctrl+Z.
-                  </p>
-
-                  <Button
-                    onClick={() => void handleEnhance()}
-                    disabled={!content.trim()}
-                    className="w-full mt-1"
-                    size="lg"
-                  >
-                    <Sparkles className="size-4" />
-                    Enhance Content
-                  </Button>
+                  <ContentPreview onEnhance={() => void handleEnhance()} />
                 </motion.div>
               )}
 
@@ -562,5 +541,38 @@ export function AiEnhanceButton({
         )}
       </SheetContent>
     </Sheet>
+  );
+}
+
+/** Live preview of the editor body plus the Enhance action. Mounted only
+ *  while the sheet is open, so only it re-renders as the user types. */
+function ContentPreview({ onEnhance }: { onEnhance: () => void }) {
+  const content = useEditorStore((state) => state.content);
+
+  return (
+    <>
+      <p className="text-sm font-medium text-muted-foreground">Your Content</p>
+      <div className="max-h-[50vh] overflow-y-auto rounded-xl border border-border/40 bg-muted/20 px-5 py-4 slim-scrollbar">
+        <div className="whitespace-pre-wrap text-sm leading-[1.75] text-foreground/85">
+          {content.length > 3000
+            ? `${content.slice(0, 3000)}…`
+            : content || "No content to enhance."}
+        </div>
+      </div>
+      <p className="text-[13px] text-muted-foreground/60">
+        The AI will improve formatting, grammar, and clarity while preserving
+        your voice. This can be undone with Ctrl+Z.
+      </p>
+
+      <Button
+        onClick={onEnhance}
+        disabled={!content.trim()}
+        className="w-full mt-1"
+        size="lg"
+      >
+        <Sparkles className="size-4" />
+        Enhance Content
+      </Button>
+    </>
   );
 }

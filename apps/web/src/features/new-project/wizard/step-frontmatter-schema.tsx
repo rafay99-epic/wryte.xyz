@@ -179,7 +179,7 @@ export function StepFrontmatterSchema({
                   value={field.name}
                   onChange={(e) =>
                     updateField(index, {
-                      name: (e.target as HTMLInputElement).value,
+                      name: e.currentTarget.value,
                     })
                   }
                   className="h-7 border-transparent bg-transparent px-1.5 text-sm font-medium shadow-none focus-visible:border-input focus-visible:bg-background"
@@ -246,7 +246,7 @@ export function StepFrontmatterSchema({
                         value={field.defaultValue}
                         onChange={(e) =>
                           updateField(index, {
-                            defaultValue: (e.target as HTMLInputElement).value,
+                            defaultValue: e.currentTarget.value,
                           })
                         }
                         className="h-6 border-transparent bg-transparent px-1.5 text-xs shadow-none placeholder:text-muted-foreground/40 focus-visible:border-input focus-visible:bg-background"
@@ -261,7 +261,7 @@ export function StepFrontmatterSchema({
                         value={field.options}
                         onChange={(e) =>
                           updateField(index, {
-                            options: (e.target as HTMLInputElement).value,
+                            options: e.currentTarget.value,
                           })
                         }
                         className="h-6 border-transparent bg-transparent px-1.5 text-xs shadow-none placeholder:text-muted-foreground/40 focus-visible:border-input focus-visible:bg-background"

@@ -71,7 +71,7 @@ export function ScheduleDialog({
   const [isScheduling, setIsScheduling] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
 
-  const document = useQuery(api.cms.documents.get, {
+  const document = useQuery(api.cms.documents.getMeta, {
     documentId: documentId as Id<"documents">,
   });
   const project = useQuery(
@@ -83,14 +83,7 @@ export function ScheduleDialog({
     {
       documentId: documentId as Id<"documents">,
     },
-  ) as
-    | {
-        status: "pending" | "processing" | "completed" | "failed";
-        scheduledAt: number;
-        error?: string;
-      }
-    | null
-    | undefined;
+  );
 
   const socialConfig = useQuery(
     api.social.credentialsDb.getPublicConfig,

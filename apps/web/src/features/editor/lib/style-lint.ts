@@ -201,10 +201,6 @@ function checkPassiveVoiceImpl(
   return findings;
 }
 
-export function checkPassiveVoice(content: string): StyleLintFinding[] {
-  return checkPassiveVoiceImpl(content, buildContext(content));
-}
-
 /* ────────────────────────── b. adverb density ────────────────────────── */
 
 /** Flag every `-ly` adverb once overall density exceeds ~1 per 40 words. */
@@ -229,10 +225,6 @@ function checkAdverbDensityImpl(
     start: w.start,
     end: w.end,
   }));
-}
-
-export function checkAdverbDensity(content: string): StyleLintFinding[] {
-  return checkAdverbDensityImpl(content, buildContext(content));
 }
 
 /* ─────────────────── c. sentence-length variance ─────────────────── */
@@ -306,10 +298,6 @@ function checkSentenceVarianceImpl(
   return findings;
 }
 
-export function checkSentenceVariance(content: string): StyleLintFinding[] {
-  return checkSentenceVarianceImpl(content, buildContext(content));
-}
-
 /* ────────────────────────── d. weasel words ────────────────────────── */
 
 const WEASEL_WORDS = [
@@ -364,10 +352,6 @@ function checkWeaselWordsImpl(
     m = WEASEL_RE.exec(masked);
   }
   return findings;
-}
-
-export function checkWeaselWords(content: string): StyleLintFinding[] {
-  return checkWeaselWordsImpl(content, buildContext(content));
 }
 
 /* ────────────────────────── e. clichés ────────────────────────── */
@@ -442,10 +426,6 @@ function checkClichesImpl(
     m = CLICHE_RE.exec(masked);
   }
   return findings;
-}
-
-export function checkCliches(content: string): StyleLintFinding[] {
-  return checkClichesImpl(content, buildContext(content));
 }
 
 /* ────────────────────────── top-level entry point ────────────────────────── */

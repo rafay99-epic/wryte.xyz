@@ -25,6 +25,8 @@ type AiSynthesisDialogProps = {
   onOpenChange: (open: boolean) => void;
   documentId: string;
   projectId: string;
+  /** Flushes the active tab's unsaved edits before "Apply to Main" replaces it. */
+  onRequestSave: () => Promise<void>;
 };
 
 export function AiSynthesisDialog({
@@ -32,25 +34,26 @@ export function AiSynthesisDialog({
   onOpenChange,
   documentId,
   projectId,
+  onRequestSave,
 }: AiSynthesisDialogProps) {
-  const { title, content, initDocument, setActiveDraftId } = useEditorStore(
+  // Actions only: the editor body/title are read via getState() in the
+  // handlers so a closed dialog doesn't re-render on every keystroke.
+  const { initDocument, setActiveDraftId, setContent } = useEditorStore(
     useShallow((s) => ({
-      title: s.title,
-      content: s.content,
       initDocument: s.initDocument,
       setActiveDraftId: s.setActiveDraftId,
+      setContent: s.setContent,
     })),
   );
 
-  const document = useQuery(api.cms.documents.get, {
-    documentId: documentId as Id<"documents">,
-  });
-  const drafts = useQuery(api.cms.documentDrafts.list, {
-    documentId: documentId as Id<"documents">,
-  });
-  const research = useQuery(api.cms.documentResearch.list, {
-    documentId: documentId as Id<"documents">,
-  });
+  // Subscriptions stay live from open until the close animation finishes,
+  // so the body doesn't empty out while fading away.
+  const [isClosing, setIsClosing] = useState(false);
+  const docArgs =
+    open || isClosing ? { documentId: documentId as Id<"documents"> } : "skip";
+  const document = useQuery(api.cms.documents.get, docArgs);
+  const drafts = useQuery(api.cms.documentDrafts.list, docArgs);
+  const research = useQuery(api.cms.documentResearch.list, docArgs);
 
   const createFinalDraftStream = useMutation(
     api.ai.enhance.createFinalDraftStream,
@@ -58,15 +61,36 @@ export function AiSynthesisDialog({
   const createDraftSnapshot = useMutation(
     api.cms.documentDrafts.createSnapshot,
   );
-  const templates = useQuery(api.ai.promptTemplates.getTemplates, {
-    projectId: projectId as Id<"projects">,
-  });
+  const templates = useQuery(
+    api.ai.promptTemplates.getTemplates,
+    open || isClosing ? { projectId: projectId as Id<"projects"> } : "skip",
+  );
 
   const [selectedDraftIds, setSelectedDraftIds] = useState<Set<string>>(
     () => new Set(),
   );
   const [streamId, setStreamId] = useState<string | undefined>(undefined);
   const [isStarting, setIsStarting] = useState(false);
+
+  // Each open starts fresh: clear any previous stream and, once the drafts
+  // list is available, preselect every draft. Later list changes while open
+  // must not clobber the user's checkbox choices.
+  const [prevOpen, setPrevOpen] = useState(open);
+  const [selectionPending, setSelectionPending] = useState(open);
+  if (open !== prevOpen) {
+    setPrevOpen(open);
+    if (open) {
+      setStreamId(undefined);
+      setSelectionPending(true);
+      setIsClosing(false);
+    } else {
+      setIsClosing(true);
+    }
+  }
+  if (selectionPending && drafts !== undefined) {
+    setSelectionPending(false);
+    setSelectedDraftIds(new Set(drafts.map((d) => d._id)));
+  }
 
   const finalStreamBody = useQuery(
     api.ai.enhance.getStreamBody,
@@ -90,19 +114,13 @@ export function AiSynthesisDialog({
     [research],
   );
 
-  useEffect(() => {
-    if (open) {
-      setSelectedDraftIds(new Set((drafts ?? []).map((d) => d._id)));
-      setStreamId(undefined);
-    }
-  }, [open, drafts]);
-
   const finalDraftPrompt = templates?.find(
     (t) => t.id === "final-draft",
   )?.prompt;
 
   const handleGenerate = useCallback(async () => {
     setIsStarting(true);
+    const { title, content } = useEditorStore.getState();
     try {
       const result = await createFinalDraftStream({
         projectId: projectId as Id<"projects">,
@@ -128,20 +146,44 @@ export function AiSynthesisDialog({
     projectId,
     documentId,
     document,
-    title,
-    content,
     selectedDraftIds,
     selectedResearchIds,
     finalDraftPrompt,
   ]);
 
-  const handleApplyToMain = useCallback(() => {
+  // Replaces Main's body with the synthesis as an unsaved edit, so autosave
+  // persists it (initDocument alone would mark it clean and the page's
+  // server resync would immediately revert it).
+  const handleApplyToMain = useCallback(async () => {
     if (!finalText.trim() || !document) return;
-    initDocument(document.title, finalText, document.projectId as string);
-    setActiveDraftId(null);
+    try {
+      await onRequestSave();
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to save changes",
+      );
+      return;
+    }
+    if (useEditorStore.getState().activeDraftId !== null) {
+      initDocument(
+        document.title,
+        document.content,
+        document.projectId as string,
+      );
+      setActiveDraftId(null);
+    }
+    setContent(finalText);
     onOpenChange(false);
     toast.success("Synthesis applied to main article");
-  }, [finalText, document, initDocument, setActiveDraftId, onOpenChange]);
+  }, [
+    finalText,
+    document,
+    onRequestSave,
+    initDocument,
+    setActiveDraftId,
+    setContent,
+    onOpenChange,
+  ]);
 
   const handleSaveAsDraft = useCallback(async () => {
     if (!finalText.trim()) return;
@@ -149,7 +191,7 @@ export function AiSynthesisDialog({
       await createDraftSnapshot({
         documentId: documentId as Id<"documents">,
         label: "AI Synthesis",
-        title: document?.title ?? title,
+        title: document?.title ?? useEditorStore.getState().title,
         content: finalText,
         ...(document?.frontmatter !== undefined
           ? { frontmatter: document.frontmatter }
@@ -167,7 +209,6 @@ export function AiSynthesisDialog({
     createDraftSnapshot,
     documentId,
     document,
-    title,
     finalText,
     selectedDraftIds.size,
     selectedResearchIds.length,
@@ -175,7 +216,13 @@ export function AiSynthesisDialog({
   ]);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      onOpenChangeComplete={(isOpen) => {
+        if (!isOpen) setIsClosing(false);
+      }}
+    >
       <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -285,7 +332,10 @@ export function AiSynthesisDialog({
               >
                 Save as Draft
               </Button>
-              <Button disabled={!isDone} onClick={handleApplyToMain}>
+              <Button
+                disabled={!isDone}
+                onClick={() => void handleApplyToMain()}
+              >
                 <Check className="mr-2 size-3.5" />
                 Apply to Main
               </Button>

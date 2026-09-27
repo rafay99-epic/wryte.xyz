@@ -124,9 +124,7 @@ export function StepConfigurePaths({
             id="content-path"
             placeholder="content/blog"
             value={state.contentPath}
-            onChange={(e) =>
-              onChange({ contentPath: (e.target as HTMLInputElement).value })
-            }
+            onChange={(e) => onChange({ contentPath: e.currentTarget.value })}
           />
           <p className="text-[11px] text-muted-foreground/60">
             The directory where markdown files will be published (e.g.,
@@ -146,9 +144,7 @@ export function StepConfigurePaths({
             id="media-path"
             placeholder="public/images"
             value={state.mediaPath}
-            onChange={(e) =>
-              onChange({ mediaPath: (e.target as HTMLInputElement).value })
-            }
+            onChange={(e) => onChange({ mediaPath: e.currentTarget.value })}
           />
           <p className="text-[11px] text-muted-foreground/60">
             {getMediaProvider(state.mediaStorageMode).pathHint}

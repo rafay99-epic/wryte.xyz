@@ -40,7 +40,6 @@ import { useAction, useMutation, useQuery } from "convex/react";
 import { CalendarIcon, Clock, GitBranch, Loader2, Send } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { useShallow } from "zustand/react/shallow";
 import {
   AnnouncementComposer,
   AnnouncementSetupHint,
@@ -49,7 +48,7 @@ import { SyndicationStatus } from "@/components/forms/syndication-status";
 import { PublishChecklist } from "./publish-checklist";
 
 const documentsUpdate = api.cms.documents.update;
-const documentsGet = api.cms.documents.get;
+const documentsGetMeta = api.cms.documents.getMeta;
 const projectsGet = api.cms.projects.get;
 const publishAction = api.integrations.github.publish;
 
@@ -73,14 +72,11 @@ export function PublishDialog({
   const [isScheduling, setIsScheduling] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
 
-  const { content, title } = useEditorStore(
-    useShallow((state) => ({
-      content: state.content,
-      title: state.title,
-    })),
-  );
+  // Title only: the body is read in the publish handler, so this dialog
+  // doesn't re-render on every keystroke.
+  const title = useEditorStore((state) => state.title);
 
-  const document = useQuery(documentsGet, {
+  const document = useQuery(documentsGetMeta, {
     documentId: documentId as Id<"documents">,
   });
   const project = useQuery(
@@ -93,14 +89,7 @@ export function PublishDialog({
     {
       documentId: documentId as Id<"documents">,
     },
-  ) as
-    | {
-        status: "pending" | "processing" | "completed" | "failed";
-        scheduledAt: number;
-        error?: string;
-      }
-    | null
-    | undefined;
+  );
 
   const socialConfig = useQuery(
     api.social.credentialsDb.getPublicConfig,
@@ -285,11 +274,12 @@ export function PublishDialog({
   async function handlePublish() {
     setIsPublishing(true);
     try {
-      if (useEditorStore.getState().isDirty) {
+      const editor = useEditorStore.getState();
+      if (editor.isDirty) {
         await updateDocument({
           documentId: documentId as Id<"documents">,
-          content,
-          title,
+          content: editor.content,
+          title: editor.title,
         });
         useEditorStore.getState().markSaved();
       }

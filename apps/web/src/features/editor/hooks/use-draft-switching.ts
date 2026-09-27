@@ -4,7 +4,7 @@ import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
 import { useConvex } from "convex/react";
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { toast } from "sonner";
 
 /** Sentinel `switchTarget` value for a switch back to the Main document. */
@@ -103,7 +103,9 @@ export function useDraftSwitching({
   const seqRef = useRef(0);
   // Kept in a ref so switchToDraft doesn't recreate on every list update.
   const draftsRef = useRef(drafts);
-  draftsRef.current = drafts;
+  useEffect(() => {
+    draftsRef.current = drafts;
+  }, [drafts]);
 
   /**
    * Background refresh after serving from cache. The result is applied only

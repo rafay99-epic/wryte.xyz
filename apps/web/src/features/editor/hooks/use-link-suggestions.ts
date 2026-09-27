@@ -33,7 +33,8 @@ export function useLinkSuggestions(
 ): UseLinkSuggestionsReturn {
   const convex = useConvex();
   const projectId = useEditorStore((s) => s.activeProjectId);
-  const content = useEditorStore((s) => s.content);
+  // Subscribed only while open: a closed panel mustn't re-render per keystroke.
+  const content = useEditorStore((s) => (open ? s.content : ""));
 
   const [docs, setDocs] = useState<LinkTargetDoc[] | null>(null);
   const [suggestions, setSuggestions] = useState<LinkSuggestion[]>([]);

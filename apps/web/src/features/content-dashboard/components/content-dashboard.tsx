@@ -437,10 +437,6 @@ export function ContentDashboard({
     onBulkDeleteDone?.();
   }, [onBulkDeleteDone]);
 
-  const handleBulkImportDone = useCallback(() => {
-    onBulkImportDone();
-  }, [onBulkImportDone]);
-
   // Listen for keyboard shortcut layout switch event — cycles through the
   // three view modes.
   useEffect(() => {
@@ -1012,7 +1008,7 @@ export function ContentDashboard({
         phase={importPhase}
         batch={importBatch}
         result={importLastResult}
-        onDone={handleBulkImportDone}
+        onDone={onBulkImportDone}
         onResolveConflicts={onResolveConflicts}
       />
     </div>

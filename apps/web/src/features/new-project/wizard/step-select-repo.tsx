@@ -187,9 +187,7 @@ export function StepSelectRepo({ state, onChange }: StepSelectRepoProps) {
               id="manual-name"
               placeholder="My Blog"
               value={state.projectName}
-              onChange={(e) =>
-                handleNameChange((e.target as HTMLInputElement).value)
-              }
+              onChange={(e) => handleNameChange(e.currentTarget.value)}
               autoFocus
             />
           </div>
@@ -205,9 +203,7 @@ export function StepSelectRepo({ state, onChange }: StepSelectRepoProps) {
               id="manual-slug"
               placeholder="my-blog"
               value={state.projectSlug}
-              onChange={(e) =>
-                handleSlugChange((e.target as HTMLInputElement).value)
-              }
+              onChange={(e) => handleSlugChange(e.currentTarget.value)}
             />
             <p className="text-xs text-muted-foreground/70">
               URL-friendly identifier. Auto-generated from the name.
@@ -229,7 +225,7 @@ export function StepSelectRepo({ state, onChange }: StepSelectRepoProps) {
               placeholder="owner/repo"
               value={state.selectedRepo?.fullName ?? ""}
               onChange={(e) => {
-                const val = (e.target as HTMLInputElement).value;
+                const val = e.currentTarget.value;
                 if (val.trim()) {
                   onChange({
                     selectedRepo: {
@@ -296,7 +292,7 @@ export function StepSelectRepo({ state, onChange }: StepSelectRepoProps) {
                 placeholder="main"
                 value={state.selectedRepo?.defaultBranch ?? "main"}
                 onChange={(e) => {
-                  const branch = (e.target as HTMLInputElement).value;
+                  const branch = e.currentTarget.value;
                   if (state.selectedRepo) {
                     onChange({
                       selectedRepo: {
@@ -376,9 +372,7 @@ export function StepSelectRepo({ state, onChange }: StepSelectRepoProps) {
             <Input
               placeholder="Search repositories..."
               value={searchQuery}
-              onChange={(e) =>
-                setSearchQuery((e.target as HTMLInputElement).value)
-              }
+              onChange={(e) => setSearchQuery(e.currentTarget.value)}
               className="pl-9"
             />
           </div>
@@ -492,9 +486,7 @@ export function StepSelectRepo({ state, onChange }: StepSelectRepoProps) {
                 id="project-name"
                 placeholder="My Blog"
                 value={state.projectName}
-                onChange={(e) =>
-                  handleNameChange((e.target as HTMLInputElement).value)
-                }
+                onChange={(e) => handleNameChange(e.currentTarget.value)}
               />
             </div>
             <div className="space-y-1">
@@ -508,9 +500,7 @@ export function StepSelectRepo({ state, onChange }: StepSelectRepoProps) {
                 id="project-slug"
                 placeholder="my-blog"
                 value={state.projectSlug}
-                onChange={(e) =>
-                  handleSlugChange((e.target as HTMLInputElement).value)
-                }
+                onChange={(e) => handleSlugChange(e.currentTarget.value)}
               />
             </div>
           </div>

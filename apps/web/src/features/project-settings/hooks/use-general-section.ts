@@ -1,7 +1,7 @@
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
 import { useMutation } from "convex/react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import type { ProjectData } from "../types";
 
@@ -22,21 +22,6 @@ export function useGeneralSection({
     project.defaultAuthorAvatar ?? "",
   );
   const [isSaving, setIsSaving] = useState(false);
-  const initializedRef = useRef(false);
-
-  useEffect(() => {
-    if (initializedRef.current) return;
-    initializedRef.current = true;
-    setName(project.name);
-    setSiteUrl(project.siteUrl ?? "");
-    setDefaultAuthor(project.defaultAuthor ?? "");
-    setDefaultAuthorAvatar(project.defaultAuthorAvatar ?? "");
-  }, [
-    project.name,
-    project.siteUrl,
-    project.defaultAuthor,
-    project.defaultAuthorAvatar,
-  ]);
 
   const hasChanges =
     name.trim() !== project.name ||

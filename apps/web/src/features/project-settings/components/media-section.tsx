@@ -207,8 +207,8 @@ function ProjectUploadLimitSection({
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    setDraftMb((resolveMaxUploadBytes(project) / 1_000_000).toString());
-  }, [project]);
+    setDraftMb((effectiveBytes / 1_000_000).toString());
+  }, [effectiveBytes]);
 
   const parsedBytes = useMemo<number | null>(() => {
     const n = Number.parseFloat(draftMb);

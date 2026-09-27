@@ -26,10 +26,6 @@ export function accentHex(key: string | undefined): string {
   );
 }
 
-export function isProfileAccent(key: string): key is ProfileAccent {
-  return key in PROFILE_ACCENTS;
-}
-
 /** True when the stored accent is a custom hex rather than a preset key. */
 export function isCustomAccent(key: string | undefined): boolean {
   return typeof key === "string" && /^#[0-9a-fA-F]{6}$/.test(key);

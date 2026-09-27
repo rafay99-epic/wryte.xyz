@@ -199,7 +199,7 @@ export function EditorPage({ documentId }: { documentId: string }) {
   // interval while editing the main stream. Deduped server-side.
   const { snapshotNow } = useVersionSnapshots({
     documentId,
-    enabled: hasInitialized.current && openConflict == null,
+    enabled: document != null && openConflict == null,
   });
 
   const handleManualSave = useCallback(() => {
@@ -282,6 +282,7 @@ export function EditorPage({ documentId }: { documentId: string }) {
         onOpenChange={setSynthesisOpen}
         documentId={documentId}
         projectId={document.projectId as string}
+        onRequestSave={handleRequestSave}
       />
     </div>
   );

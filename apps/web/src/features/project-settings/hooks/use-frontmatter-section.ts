@@ -8,7 +8,14 @@ import {
 } from "@wryte/logic/types/frontmatter";
 import { useMutation } from "convex/react";
 import yaml from "js-yaml";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { toast } from "sonner";
 import { DEFAULT_FIELDS, type ProjectData } from "../types";
 
@@ -57,6 +64,17 @@ function getPlaceholderForType(type: FrontmatterField["type"]): string {
   }
 }
 
+/** Returns a copy with items `a` and `b` swapped, or `items` when out of range. */
+function swapItems<T>(items: T[], a: number, b: number): T[] {
+  const itemA = items[a];
+  const itemB = items[b];
+  if (itemA === undefined || itemB === undefined) return items;
+  const next = [...items];
+  next[a] = itemB;
+  next[b] = itemA;
+  return next;
+}
+
 export function useFrontmatterSection({
   projectId,
   project,
@@ -81,8 +99,19 @@ export function useFrontmatterSection({
   }, [project.frontmatterSchema]);
 
   const [fields, setFields] = useState<FrontmatterField[]>(initialFields);
+  // Client-only row identities for the visual editor's React keys, kept
+  // index-aligned with `fields`. Never saved, so persisted data is unchanged.
+  const [fieldIds, setFieldIds] = useState(() =>
+    initialFields.map(() => crypto.randomUUID()),
+  );
+
+  /** Wholesale replacement (remote sync, text parse, re-detect): fresh row ids. */
+  const replaceFields = useCallback((next: FrontmatterField[]) => {
+    setFields(next);
+    setFieldIds(next.map(() => crypto.randomUUID()));
+  }, []);
   const [isSaving, setIsSaving] = useState(false);
-  const [editorMode, setEditorMode] = useState<"visual" | "code" | "yaml">(
+  const [editorMode, setEditorModeState] = useState<"visual" | "code" | "yaml">(
     "visual",
   );
   const [codeValue, setCodeValue] = useState("");
@@ -94,12 +123,10 @@ export function useFrontmatterSection({
   // user's own save round-tripping, or a sibling tab's save) don't wipe
   // unsaved local edits. The ref holds a normalized JSON string; we accept
   // a remote change only when the local fields match the last synced value.
-  const fieldsRef = useRef(fields);
-  fieldsRef.current = fields;
   const lastSyncedRef = useRef<string | null>(null);
 
-  useEffect(() => {
-    const remoteNormalized = JSON.stringify(initialFields);
+  const syncRemoteFields = useEffectEvent((remote: FrontmatterField[]) => {
+    const remoteNormalized = JSON.stringify(remote);
 
     if (lastSyncedRef.current === null) {
       lastSyncedRef.current = remoteNormalized;
@@ -107,26 +134,38 @@ export function useFrontmatterSection({
     }
     if (remoteNormalized === lastSyncedRef.current) return;
 
-    const localNormalized = JSON.stringify(fieldsRef.current);
+    const localNormalized = JSON.stringify(fields);
     if (localNormalized === lastSyncedRef.current) {
-      setFields(initialFields);
+      replaceFields(remote);
       lastSyncedRef.current = remoteNormalized;
     }
-  }, [initialFields]);
+  });
 
   useEffect(() => {
-    if (editorMode === "code") {
-      setCodeValue(JSON.stringify(fields, null, 2));
-      setCodeError(null);
-    }
-  }, [editorMode, fields]);
+    syncRemoteFields(initialFields);
+  }, [initialFields]);
+
+  // The fields array last produced by parsing the user's own code/YAML text.
+  // The text views regenerate from `fields` only when the mode switches or
+  // fields change from elsewhere; echoing a parse back would reformat the
+  // text and jump the caret mid-typing.
+  const parsedFieldsRef = useRef<FrontmatterField[] | null>(null);
+
+  const setEditorMode = useCallback((mode: "visual" | "code" | "yaml") => {
+    parsedFieldsRef.current = null;
+    setEditorModeState(mode);
+  }, []);
 
   // The YAML view is a condensed `name: type` representation that mirrors
   // how a field would look in actual markdown frontmatter -- lossy (drops
   // required/default/options/etc.) but the round trip preserves those props
   // for any field whose name still exists after the YAML edit.
   useEffect(() => {
-    if (editorMode === "yaml") {
+    if (fields === parsedFieldsRef.current) return;
+    if (editorMode === "code") {
+      setCodeValue(JSON.stringify(fields, null, 2));
+      setCodeError(null);
+    } else if (editorMode === "yaml") {
       const lines = fields
         .filter((f) => f.name.trim())
         .map((f) => `${f.name}: ${f.type}`)
@@ -136,26 +175,30 @@ export function useFrontmatterSection({
     }
   }, [editorMode, fields]);
 
-  const handleCodeChange = useCallback((value: string) => {
-    setCodeValue(value);
-    try {
-      const parsed = JSON.parse(value);
-      if (!Array.isArray(parsed)) {
-        setCodeError("Schema must be an array of field definitions");
-        return;
-      }
-      for (const field of parsed) {
-        if (!field.name || !field.type) {
-          setCodeError("Each field must have a 'name' and 'type' property");
+  const handleCodeChange = useCallback(
+    (value: string) => {
+      setCodeValue(value);
+      try {
+        const parsed = JSON.parse(value);
+        if (!Array.isArray(parsed)) {
+          setCodeError("Schema must be an array of field definitions");
           return;
         }
+        for (const field of parsed) {
+          if (!field.name || !field.type) {
+            setCodeError("Each field must have a 'name' and 'type' property");
+            return;
+          }
+        }
+        setCodeError(null);
+        parsedFieldsRef.current = parsed as FrontmatterField[];
+        replaceFields(parsedFieldsRef.current);
+      } catch (err) {
+        setCodeError(err instanceof SyntaxError ? err.message : "Invalid JSON");
       }
-      setCodeError(null);
-      setFields(parsed as FrontmatterField[]);
-    } catch (err) {
-      setCodeError(err instanceof SyntaxError ? err.message : "Invalid JSON");
-    }
-  }, []);
+    },
+    [replaceFields],
+  );
 
   // Each YAML entry is `name: type`; we merge the result with the existing
   // fields so a user who only retypes the YAML view doesn't lose props
@@ -211,9 +254,10 @@ export function useFrontmatterSection({
         };
       });
       setYamlError(null);
-      setFields(nextFields);
+      parsedFieldsRef.current = nextFields;
+      replaceFields(nextFields);
     },
-    [fields],
+    [fields, replaceFields],
   );
 
   const addField = useCallback(() => {
@@ -227,10 +271,12 @@ export function useFrontmatterSection({
         options: "",
       },
     ]);
+    setFieldIds((prev) => [...prev, crypto.randomUUID()]);
   }, []);
 
   const removeField = useCallback((index: number) => {
     setFields((prev) => prev.filter((_, i) => i !== index));
+    setFieldIds((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
   const updateField = useCallback(
@@ -255,17 +301,9 @@ export function useFrontmatterSection({
   );
 
   const moveField = useCallback((index: number, direction: "up" | "down") => {
-    setFields((prev) => {
-      const newFields = [...prev];
-      const targetIndex = direction === "up" ? index - 1 : index + 1;
-      if (targetIndex < 0 || targetIndex >= newFields.length) return prev;
-      const a = newFields[index];
-      const b = newFields[targetIndex];
-      if (!a || !b) return prev;
-      newFields[targetIndex] = a;
-      newFields[index] = b;
-      return newFields;
-    });
+    const targetIndex = direction === "up" ? index - 1 : index + 1;
+    setFields((prev) => swapItems(prev, index, targetIndex));
+    setFieldIds((prev) => swapItems(prev, index, targetIndex));
   }, []);
 
   /**
@@ -301,7 +339,7 @@ export function useFrontmatterSection({
         defaultValue: f.defaultValue ?? "",
         options: f.options ?? "",
       }));
-      setFields(detected);
+      replaceFields(detected);
 
       const serialized = JSON.stringify(detected);
       const updates: {
@@ -340,6 +378,7 @@ export function useFrontmatterSection({
     projectId,
     detectMutation,
     updateProject,
+    replaceFields,
   ]);
 
   const handleSave = useCallback(async () => {
@@ -384,6 +423,7 @@ export function useFrontmatterSection({
 
   return {
     fields,
+    fieldIds,
     isSaving,
     editorMode,
     setEditorMode,
