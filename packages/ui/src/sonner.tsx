@@ -1,5 +1,6 @@
 "use client";
 
+import { useResolvedTheme } from "@wryte/logic/hooks/use-resolved-theme";
 import {
   CircleCheckIcon,
   InfoIcon,
@@ -7,21 +8,16 @@ import {
   OctagonXIcon,
   TriangleAlertIcon,
 } from "lucide-react";
-import { useTheme } from "next-themes";
 import { Toaster as Sonner, type ToasterProps } from "sonner";
 
 const Toaster = ({ ...props }: ToasterProps) => {
-  // `resolvedTheme` is the *actual* applied theme ("light" or "dark"); `theme`
-  // can be "system" which Sonner doesn't translate as reliably as our own
-  // CSS-variable approach.
-  const { resolvedTheme } = useTheme();
-  const sonnerTheme = (resolvedTheme === "dark" ? "dark" : "light") as
-    | "dark"
-    | "light";
+  // The app's theme store keeps "system" as a mode; Sonner gets the concrete
+  // resolved value so toasts always match the applied theme.
+  const resolvedTheme = useResolvedTheme();
 
   return (
     <Sonner
-      theme={sonnerTheme}
+      theme={resolvedTheme}
       className="toaster group"
       // Adds a small × on every toast so the user can dismiss long-running
       // info messages without waiting for the auto-dismiss timer.

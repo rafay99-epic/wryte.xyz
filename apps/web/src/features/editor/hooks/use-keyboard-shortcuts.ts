@@ -2,12 +2,8 @@ import { useShortcutsStore } from "@wryte/logic/stores/shortcuts-store";
 import { type RefObject, useEffect, useRef } from "react";
 import { listEnterAction, listIndentAction } from "../lib/lists";
 
-/** Callback map for notifying the parent component when a shortcut fires. */
+/** Callbacks for shortcuts whose behavior lives in the parent component. */
 type KeyboardShortcutCallbacks = {
-  onBold: () => void;
-  onItalic: () => void;
-  onLink: () => void;
-  onCodeBlock: () => void;
   onInlineAI?: () => void;
 };
 
@@ -81,14 +77,14 @@ function matchesBinding(event: KeyboardEvent, binding: string): boolean {
  *   on an empty item, removes the marker instead
  * - **Tab / Shift+Tab** — Indent/outdent list lines; otherwise Tab inserts two spaces
  *
- * Each shortcut also fires the corresponding callback so the parent can
- * run side-effects (e.g. analytics, toast notifications).
+ * The markdown shortcuts are handled here; Inline AI is delegated to the
+ * parent via `onInlineAI`.
  *
  * Uses a stable ref for callbacks so the event listener is not torn down
  * and re-attached on every render (prevents excessive addEventListener cycles).
  *
  * @param textareaRef - Ref to the target textarea element
- * @param callbacks - Handlers invoked after each shortcut is applied
+ * @param callbacks - Handlers for shortcuts the parent implements
  */
 export function useKeyboardShortcuts(
   textareaRef: RefObject<HTMLTextAreaElement | null>,
@@ -127,7 +123,6 @@ export function useKeyboardShortcuts(
       if (isCtrl && !event.shiftKey && !event.altKey && event.key === "b") {
         event.preventDefault();
         wrapSelection(target, "**", "**");
-        cb.onBold();
         return;
       }
 
@@ -135,7 +130,6 @@ export function useKeyboardShortcuts(
       if (isCtrl && !event.shiftKey && !event.altKey && event.key === "i") {
         event.preventDefault();
         wrapSelection(target, "*", "*");
-        cb.onItalic();
         return;
       }
 
@@ -154,7 +148,6 @@ export function useKeyboardShortcuts(
           "select",
         );
         target.dispatchEvent(new Event("input", { bubbles: true }));
-        cb.onLink();
         return;
       }
 
@@ -172,7 +165,6 @@ export function useKeyboardShortcuts(
           "select",
         );
         target.dispatchEvent(new Event("input", { bubbles: true }));
-        cb.onCodeBlock();
         return;
       }
 

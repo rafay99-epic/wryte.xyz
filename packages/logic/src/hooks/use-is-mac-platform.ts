@@ -1,7 +1,7 @@
 "use client";
 
+import { isMac } from "@wryte/logic/lib/shortcuts";
 import { useSyncExternalStore } from "react";
-import { isMac } from "../lib/shortcuts";
 
 const subscribe = () => () => {};
 

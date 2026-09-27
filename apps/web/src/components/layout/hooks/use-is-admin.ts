@@ -18,6 +18,5 @@ import { useUser } from "@clerk/nextjs";
 export function useIsAdmin(): boolean {
   const { user, isLoaded } = useUser();
   if (!isLoaded || !user) return false;
-  const role = (user.publicMetadata as { role?: unknown } | null)?.role;
-  return role === "admin";
+  return user.publicMetadata.role === "admin";
 }

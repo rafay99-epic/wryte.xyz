@@ -10,11 +10,12 @@
  *   - `sessions`: one row per `initialize`. Never garbage-collected by the
  *     component, so without this an abandoned agent session lives forever.
  *
- * Both prune functions delete up to ~200 rows per mutation (bounded to stay
- * inside Convex's per-mutation write limits) and return the count, so the
- * caller loops until they return 0. Where a single cron tick can't drain the
- * backlog we re-schedule rather than raising the batch size — the batch is
- * fixed by the component, so calling more often is the only real knob.
+ * Each gateway prune call deletes one bounded batch (~200 rows) and returns
+ * the count. Component calls run inside the calling mutation's transaction, so
+ * looping several batches in one mutation stacks their writes against a single
+ * transaction's limits and can abort before anything is rescheduled. Instead
+ * each invocation prunes exactly one batch and, if it deleted anything,
+ * schedules itself again; the chain ends on the first empty batch.
  */
 import { v } from "convex/values";
 import { McpGateway } from "convex-mcp-gateway";
@@ -34,28 +35,29 @@ const AUDIT_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 /** Idle sessions older than this are dead — MCP clients re-`initialize`. */
 const SESSION_IDLE_MS = 60 * 60 * 1000;
 
-/** Loop guard: at ~200 rows per call this drains 20k rows per tick. */
-const MAX_BATCHES_PER_TICK = 100;
+/**
+ * Runs one prune batch and reports whether another may be needed. The caller
+ * reschedules itself on `true`.
+ */
+async function pruneOneBatch(
+  label: string,
+  prune: () => Promise<number>,
+): Promise<boolean> {
+  const deleted = await prune();
+  if (deleted > 0) console.info(`[mcp] pruned ${deleted} ${label}`);
+  return deleted > 0;
+}
 
 export const pruneAudit = internalMutation({
   args: {},
   returns: v.null(),
   handler: async (ctx) => {
-    let total = 0;
-    for (let batch = 0; batch < MAX_BATCHES_PER_TICK; batch++) {
-      const deleted = await gateway.pruneAuditEntries(ctx, AUDIT_RETENTION_MS);
-      if (deleted === 0) {
-        if (total > 0) console.info(`[mcp] pruned ${total} audit entries`);
-        return null;
-      }
-      total += deleted;
-    }
-    // Hit the batch ceiling with rows still expired — chain instead of
-    // stretching one mutation past its write budget.
-    console.warn(
-      `[mcp] audit prune hit the batch ceiling after ${total} rows; rescheduling`,
+    const more = await pruneOneBatch("audit entries", () =>
+      gateway.pruneAuditEntries(ctx, AUDIT_RETENTION_MS),
     );
-    await ctx.scheduler.runAfter(0, internal.mcp.maintenance.pruneAudit, {});
+    if (more) {
+      await ctx.scheduler.runAfter(0, internal.mcp.maintenance.pruneAudit, {});
+    }
     return null;
   },
 });
@@ -64,19 +66,16 @@ export const pruneSessions = internalMutation({
   args: {},
   returns: v.null(),
   handler: async (ctx) => {
-    let total = 0;
-    for (let batch = 0; batch < MAX_BATCHES_PER_TICK; batch++) {
-      const deleted = await gateway.pruneSessions(ctx, SESSION_IDLE_MS);
-      if (deleted === 0) {
-        if (total > 0) console.info(`[mcp] pruned ${total} idle sessions`);
-        return null;
-      }
-      total += deleted;
-    }
-    console.warn(
-      `[mcp] session prune hit the batch ceiling after ${total} rows; rescheduling`,
+    const more = await pruneOneBatch("idle sessions", () =>
+      gateway.pruneSessions(ctx, SESSION_IDLE_MS),
     );
-    await ctx.scheduler.runAfter(0, internal.mcp.maintenance.pruneSessions, {});
+    if (more) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.mcp.maintenance.pruneSessions,
+        {},
+      );
+    }
     return null;
   },
 });

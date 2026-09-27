@@ -9,16 +9,7 @@ declare global {
       isDesktop: boolean;
       platform: string;
       isMac: boolean;
-      online: boolean | null;
       onOnlineStatusChange: (cb: (online: boolean) => void) => () => void;
-      submitTask: (
-        task: string,
-        params: Record<string, unknown>,
-      ) => Promise<unknown>;
-      getWorkerStatus: () => Promise<{
-        connectivity: number | null;
-        task: number | null;
-      }>;
     };
   }
 }
@@ -47,6 +38,7 @@ export function DesktopChrome() {
     }
 
     let prev: boolean | null = null;
+    let backOnlineTimer: ReturnType<typeof setTimeout> | undefined;
     const unsub = d.onOnlineStatusChange((isOnline) => {
       setOnline(isOnline);
       document.documentElement.classList.toggle(
@@ -56,12 +48,16 @@ export function DesktopChrome() {
 
       if (prev === false && isOnline === true) {
         setBackOnline(true);
-        setTimeout(() => setBackOnline(false), 3000);
+        clearTimeout(backOnlineTimer);
+        backOnlineTimer = setTimeout(() => setBackOnline(false), 3000);
       }
       prev = isOnline;
     });
 
-    return unsub;
+    return () => {
+      unsub();
+      clearTimeout(backOnlineTimer);
+    };
   }, []);
 
   return (

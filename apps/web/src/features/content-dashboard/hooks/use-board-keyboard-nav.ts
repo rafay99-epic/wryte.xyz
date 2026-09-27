@@ -86,9 +86,13 @@ export function useBoardKeyboardNav({
         documentId: focusedCardId as Id<"documents">,
         targetStatus: col.id,
         boardPosition: Date.now(),
-      }).then(() => {
-        toast.success(`Moved to "${col.label}"`);
-      });
+      })
+        .then(() => {
+          toast.success(`Moved to "${col.label}"`);
+        })
+        .catch(() => {
+          toast.error("Failed to move card");
+        });
     },
     [focusedCardId, columns, flatCards, moveCard],
   );

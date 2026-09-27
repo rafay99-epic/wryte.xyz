@@ -47,8 +47,9 @@ export function EditorProvider({ children }: { children: ReactNode }) {
 
   /**
    * Insert text at the current cursor position (or replace the current selection).
-   * Uses the native `setRangeText` API so the browser's undo stack is preserved.
-   * Dispatches a synthetic `input` event so React state stays in sync.
+   * Uses the native `setRangeText` API, which edits the value in place (note:
+   * it does NOT add a native undo step). Dispatches a synthetic `input` event
+   * so the store stays in sync.
    */
   const insertAtCursor = useCallback((text: string) => {
     const textarea = textareaRef.current;

@@ -1,8 +1,8 @@
 "use strict";
 
 /**
- * Utility process that periodically checks internet reachability.
- * Spawned by main.cjs via `utilityProcess.fork`. Communicates
+ * Child process that periodically checks internet reachability.
+ * Spawned by main.cjs via `child_process.fork`. Communicates
  * status changes back to the main process over IPC.
  */
 
@@ -22,8 +22,6 @@ const CHECK_OPTIONS = {
 };
 const CHECK_INTERVAL_MS = config.CONNECTIVITY_CHECK_INTERVAL_MS;
 
-/** @type {NodeJS.Timeout | undefined} */
-let timer;
 let lastOnline = null;
 
 function check() {
@@ -53,13 +51,8 @@ function check() {
 
 process.on("message", (msg) => {
   if (msg?.type === "start") {
-    process.send?.({ type: "started" });
     check();
-    timer = setInterval(check, CHECK_INTERVAL_MS);
-  }
-  if (msg?.type === "stop") {
-    clearInterval(timer);
-    timer = undefined;
+    setInterval(check, CHECK_INTERVAL_MS);
   }
   if (msg?.type === "check-now") {
     check();

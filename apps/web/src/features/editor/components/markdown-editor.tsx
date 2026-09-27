@@ -22,11 +22,8 @@ import { SlashMenu } from "./slash-menu";
 import { WikiLinkMenu } from "./wiki-link-menu";
 
 /**
- * Raw markdown textarea editor matching the Seospace reference feel:
- * - Clean, spacious writing area with comfortable line length
- * - Generous padding for a focused writing experience
- * - Slightly larger text for readability
- * - Cmd+J inline AI enhancement for selected text
+ * Raw markdown textarea editor: markdown shortcuts, Cmd+J inline AI on the
+ * selection, slash/wiki-link menus, and paste/drop media upload.
  */
 export function MarkdownEditor({
   documentId,
@@ -78,11 +75,6 @@ export function MarkdownEditor({
   const [presetInstruction, setPresetInstruction] = useState<string | null>(
     null,
   );
-
-  const onBold = useCallback(() => {}, []);
-  const onItalic = useCallback(() => {}, []);
-  const onLink = useCallback(() => {}, []);
-  const onCodeBlock = useCallback(() => {}, []);
 
   const inlineAiKeys = useShortcutsStore((s) => s.getKeys("inlineAI"));
   const isMacPlatform = useIsMacPlatform();
@@ -168,13 +160,7 @@ export function MarkdownEditor({
     [aiReady, notifyAiNotReady],
   );
 
-  useKeyboardShortcuts(textareaRef, {
-    onBold,
-    onItalic,
-    onLink,
-    onCodeBlock,
-    onInlineAI,
-  });
+  useKeyboardShortcuts(textareaRef, { onInlineAI });
 
   // Paste/drop media upload + paste-URL-over-selection linking.
   useMediaPaste({ documentId, projectId });

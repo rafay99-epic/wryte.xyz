@@ -60,18 +60,17 @@ export const ALL_SCOPES: readonly Scope[] = Object.values(SCOPES);
  */
 export const DEFAULT_GRANT: readonly Scope[] = [SCOPES.read, SCOPES.write];
 
-/** Resolves a stored grant (or its absence) to the effective capability set. */
-export function effectiveGrant(stored: string[] | undefined): Set<string> {
-  return new Set(stored ?? DEFAULT_GRANT);
-}
-
 /**
  * Shape of the `metadata` we attach to every tool declaration. The gateway
  * treats it as opaque and hands it to the authorize callback untouched.
  */
 export type WryteToolMetadata = {
-  /** Scopes the caller's token must carry. Empty means read-only default. */
-  scopes: readonly Scope[];
+  /**
+   * Capabilities the caller's grant (`users.mcpScopes`, not the token) must
+   * include. Non-empty by type: the authorizer denies a tool that declares
+   * none, so an unlabelled tool fails closed.
+   */
+  scopes: readonly [Scope, ...Scope[]];
   /**
    * What the gateway writes into the audit row's `args` column.
    *

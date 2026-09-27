@@ -7,6 +7,7 @@ import { motion } from "framer-motion";
 import { AlertTriangle, LayoutDashboard, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { useEffect } from "react";
+import { usePreAuthRetry } from "@/components/layout/hooks/use-pre-auth-retry";
 
 /**
  * Error boundary for the authenticated (app) route group.
@@ -21,9 +22,13 @@ export default function AppError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const pending = usePreAuthRetry(reset);
+
   useEffect(() => {
-    console.error("[AppError]", error);
-  }, [error]);
+    if (!pending) console.error("[AppError]", error);
+  }, [pending, error]);
+
+  if (pending) return null;
 
   return (
     <div className="flex h-full items-center justify-center p-6">

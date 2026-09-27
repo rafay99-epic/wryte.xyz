@@ -1,59 +1,55 @@
-"use client";
+import { SITE_URL } from "@wryte/logic/lib/seo";
+import { LandingPage } from "./_components/landing-page";
 
-import { useUser } from "@clerk/nextjs";
-import { useRef } from "react";
-import { MarketingFooter } from "@/components/layout/marketing-footer";
-import { MarketingNavbar } from "@/components/layout/marketing-navbar";
-import { CanvasBoard } from "@/features/marketing/components/canvas-board";
-import { CanvasEditor } from "@/features/marketing/components/canvas-editor";
-import { CommitTicker } from "@/features/marketing/components/commit-ticker";
-import { ComparisonSection } from "@/features/marketing/components/comparison-section";
-import { ConnectedFlow } from "@/features/marketing/components/connected-flow";
-import { CtaDiff } from "@/features/marketing/components/cta-diff";
-import { DesktopApp } from "@/features/marketing/components/desktop-app";
-import { HeroDiff } from "@/features/marketing/components/hero-diff";
-import { PageBackground } from "@/features/marketing/components/page-background";
+/** FAQ structured data for the landing page's search result. */
+const FAQ_JSON_LD = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "@id": `${SITE_URL}/#faq`,
+  mainEntity: [
+    {
+      "@type": "Question",
+      name: "What is Wryte?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Wryte is an editor-first content workflow tool for developers. Capture rough ideas in a markdown/MDX editor, refine drafts with AI, and publish straight to GitHub on a schedule.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Does Wryte support AI writing assistance?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Yes. Wryte supports Anthropic, OpenAI, and OpenRouter via user-supplied API keys (BYOK). Keys are encrypted in WorkOS Vault and read per-request.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Where is content published?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Content is published as clean commits to a GitHub repository and branch you configure per project. Scheduled publishes run on durable workflows with retries.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "How much does Wryte cost?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Wryte is free. You bring your own AI and media provider keys, so you pay providers directly — Wryte never proxies usage.",
+      },
+    },
+  ],
+};
 
-export default function LandingPage() {
-  const { isSignedIn } = useUser();
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  const scrollToSection = (id: string) => {
-    document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
-  };
-
+export default function Page() {
   return (
-    <div
-      ref={containerRef}
-      className="relative min-h-screen overflow-x-hidden bg-background text-foreground"
-    >
-      <PageBackground containerRef={containerRef} />
-
-      <div className="relative z-10">
-        <MarketingNavbar
-          items={[
-            { label: "Editor", scrollTo: "editor" },
-            { label: "Board", scrollTo: "board" },
-            { label: "How it Works", scrollTo: "how" },
-            { label: "Desktop", scrollTo: "desktop" },
-            { label: "Compare", scrollTo: "comparison" },
-          ]}
-          onScrollTo={scrollToSection}
-        />
-
-        <HeroDiff
-          isSignedIn={isSignedIn ?? false}
-          onScrollTo={scrollToSection}
-        />
-        <CommitTicker />
-        <CanvasEditor />
-        <CanvasBoard />
-        <ConnectedFlow />
-        <ComparisonSection />
-        <DesktopApp />
-        <CtaDiff isSignedIn={isSignedIn ?? false} />
-        <MarketingFooter />
-      </div>
-    </div>
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(FAQ_JSON_LD) }}
+      />
+      <LandingPage />
+    </>
   );
 }

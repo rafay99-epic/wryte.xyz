@@ -404,9 +404,17 @@ export function FrontmatterEditor({
     projectId ? { projectId: projectId as Id<"projects"> } : "skip",
   );
   const aiReady = aiReadiness?.ready ?? false;
+  // Metadata only: the full `get` re-sends the body on every autosave tick.
+  // The body is subscribed just while the AI drawer (its only reader) is open.
   const document = useQuery(
-    api.cms.documents.get,
+    api.cms.documents.getMeta,
     documentId ? { documentId: documentId as Id<"documents"> } : "skip",
+  );
+  const documentWithBody = useQuery(
+    api.cms.documents.get,
+    documentId && aiDrawerOpen
+      ? { documentId: documentId as Id<"documents"> }
+      : "skip",
   );
   const updateDocument = useMutation(api.cms.documents.update);
 
@@ -991,10 +999,10 @@ export function FrontmatterEditor({
 
       {aiReady && (
         <FrontmatterAiDrawer
-          open={aiDrawerOpen}
+          open={aiDrawerOpen && documentWithBody !== undefined}
           onOpenChange={setAiDrawerOpen}
           projectId={projectId}
-          documentContent={document?.content ?? ""}
+          documentContent={documentWithBody?.content ?? ""}
           currentFrontmatter={JSON.stringify(values)}
           eligibleFields={aiEligibleFields}
           onAccept={handleAiAccept}

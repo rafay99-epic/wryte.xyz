@@ -13,10 +13,7 @@
     "@base-ui/react": "^1.7.0",
     "@wryte/logic": "workspace:*",
     "class-variance-authority": "^0.7.1",
-    "framer-motion": "^12.43.0",
     "lucide-react": "^1.40.0",
-    "next": "16.3.4",
-    "next-themes": "^0.4.6",
     "react": "19.2.8",
     "sonner": "^2.0.8"
   },

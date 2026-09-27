@@ -25,7 +25,14 @@ export const list = internalQuery({
   args: { caller: mcpCallerValidator, projectId: v.id("projects") },
   handler: async (ctx, args) => {
     const user = await requireCaller(ctx, args.caller);
-    return await animationsListForUser(ctx, user._id, args.projectId);
+    const animations = await animationsListForUser(
+      ctx,
+      user._id,
+      args.projectId,
+    );
+    // Metadata only: sources run to ~100 KB each, and an agent that needs one
+    // fetches it with `getSource`.
+    return animations.map(({ source: _source, ...meta }) => meta);
   },
 });
 

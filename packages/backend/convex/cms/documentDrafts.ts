@@ -8,6 +8,7 @@ import type {
 import { mutation, query } from "../_generated/server";
 import { getAuthedUserOrNull, getCurrentUser } from "../_lib/auth";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
+import { countWords } from "../_lib/wordCount";
 import {
   buildExcerpt,
   readContent,
@@ -35,11 +36,6 @@ async function verifyDocumentOwnership(
     throw new Error("Unauthorized: you do not own this document");
   }
   return document;
-}
-
-function wordCount(content: string): number {
-  const trimmed = content.trim();
-  return trimmed ? trimmed.split(/\s+/).length : 0;
 }
 
 /**
@@ -128,9 +124,9 @@ export const list = query({
 });
 
 /**
- * `get`'s body with the actor passed in explicitly (MCP twin — see
- * `draftsListForUser`). Returns null when the draft doesn't exist or the
- * caller doesn't own it, mirroring the public query's empty-state contract.
+ * Full draft (metadata joined with its title + body) for the MCP handler,
+ * with the actor passed in explicitly — see `draftsListForUser`. Returns null
+ * when the draft doesn't exist or the caller doesn't own it.
  */
 export async function draftGetForUser(
   ctx: QueryCtx,
@@ -142,25 +138,6 @@ export async function draftGetForUser(
   const { title, content } = await readDraftContent(ctx, draft);
   return { ...draft, title, content };
 }
-
-/**
- * Full draft (metadata joined with its title + body). Fetched on demand;
- * resolves the body from the content row.
- */
-export const get = query({
-  args: { draftId: v.id("document_drafts") },
-  handler: async (ctx, args) => {
-    // Auth and the draft row are independent reads — resolve them together
-    // (ownership is still checked before anything is returned).
-    const [user, draft] = await Promise.all([
-      getAuthedUserOrNull(ctx),
-      ctx.db.get(args.draftId),
-    ]);
-    if (!user || !draft || draft.userId !== user._id) return null;
-    const { title, content } = await readDraftContent(ctx, draft);
-    return { ...draft, title, content };
-  },
-});
 
 /**
  * On-demand title + body for a single draft. Read when the editor switches
@@ -234,7 +211,7 @@ export async function createDraftForUser(
     ...(copyContent && document.frontmatter !== undefined
       ? { frontmatterSnapshot: document.frontmatter }
       : {}),
-    wordCount: copyContent ? wordCount(mainContent) : 0,
+    wordCount: copyContent ? countWords(mainContent) : 0,
     createdAt: now,
     updatedAt: now,
   });
@@ -313,7 +290,7 @@ export async function createDraftSnapshotForUser(
       ? { frontmatterSnapshot: args.frontmatter }
       : {}),
     ...(args.summary?.trim() ? { summary: args.summary.trim() } : {}),
-    wordCount: wordCount(args.content),
+    wordCount: countWords(args.content),
     createdAt: now,
     updatedAt: now,
   });
@@ -466,7 +443,7 @@ export async function updateDraftContentForUser(
   // never written back every future autosave pays the full-body index
   // read this architecture exists to avoid).
   await ctx.db.patch(draft._id, {
-    wordCount: wordCount(content),
+    wordCount: countWords(content),
     updatedAt: Date.now(),
     ...(draft.contentId !== contentId ? { contentId } : {}),
   });
@@ -539,7 +516,7 @@ export async function promoteDraftToMainForUser(
   await ctx.db.patch(draft.documentId, {
     title,
     excerpt: buildExcerpt(content),
-    wordCount: wordCount(content),
+    wordCount: countWords(content),
     // Only replace the document's frontmatter when the draft actually
     // carries a snapshot. Patching `undefined` would UNSET the field —
     // promoting a blank draft used to silently wipe Main's frontmatter.

@@ -57,30 +57,28 @@ async function createIdeaForUser(
   user: Doc<"users">,
   args: { projectId: Id<"projects">; title: string; note?: string },
 ) {
-  {
-    await rateLimiter.limit(ctx, "ideas:create", {
-      key: user.tokenIdentifier,
-      throws: true,
-    });
+  await rateLimiter.limit(ctx, "ideas:create", {
+    key: user.tokenIdentifier,
+    throws: true,
+  });
 
-    const project = await ctx.db.get(args.projectId);
-    if (!project || project.userId !== user._id) {
-      throw new Error("Unauthorized: you do not own this project");
-    }
-
-    const title = args.title.trim().slice(0, MAX_TITLE_LENGTH);
-    if (!title) throw new Error("Idea title is required");
-
-    const note = args.note?.trim().slice(0, MAX_NOTE_LENGTH);
-
-    return await ctx.db.insert("ideas", {
-      projectId: args.projectId,
-      userId: user._id,
-      title,
-      ...(note ? { note } : {}),
-      createdAt: Date.now(),
-    });
+  const project = await ctx.db.get(args.projectId);
+  if (!project || project.userId !== user._id) {
+    throw new Error("Unauthorized: you do not own this project");
   }
+
+  const title = args.title.trim().slice(0, MAX_TITLE_LENGTH);
+  if (!title) throw new Error("Idea title is required");
+
+  const note = args.note?.trim().slice(0, MAX_NOTE_LENGTH);
+
+  return await ctx.db.insert("ideas", {
+    projectId: args.projectId,
+    userId: user._id,
+    title,
+    ...(note ? { note } : {}),
+    createdAt: Date.now(),
+  });
 }
 
 export const remove = mutation({

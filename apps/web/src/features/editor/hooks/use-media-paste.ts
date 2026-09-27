@@ -94,12 +94,26 @@ export function useMediaPaste({
       textarea.dispatchEvent(new Event("input", { bubbles: true }));
     }
 
+    /** The version (draft id, or the document for Main) now in the editor. */
+    function currentTarget() {
+      return (
+        useEditorStore.getState().activeDraftId ?? ctxRef.current.documentId
+      );
+    }
+
     /**
      * The placeholder may have moved (or been deleted) by the time the
      * upload settles, so it's located by content search rather than by the
-     * insertion offset. The token in the URL slot makes it unique.
+     * insertion offset. The token in the URL slot makes it unique. If the
+     * editor switched to another draft/document meanwhile, nothing is
+     * inserted: the markup belongs to the version the upload started in.
      */
-    function settlePlaceholder(placeholder: string, markup: string | null) {
+    function settlePlaceholder(
+      placeholder: string,
+      markup: string | null,
+      target: string,
+    ) {
+      if (currentTarget() !== target) return;
       const content = useEditorStore.getState().content;
       const index = content.indexOf(placeholder);
       if (index === -1) {
@@ -120,6 +134,7 @@ export function useMediaPaste({
       const isImage = file.type.startsWith("image/");
       const token = Math.random().toString(36).slice(2, 9);
       const placeholder = `![Uploading ${file.name}…](uploading-${token})`;
+      const target = currentTarget();
       insertAtCaret(placeholder);
 
       try {
@@ -140,7 +155,7 @@ export function useMediaPaste({
         }
 
         if (toUpload.size > ctx.maxUploadBytes) {
-          settlePlaceholder(placeholder, null);
+          settlePlaceholder(placeholder, null, target);
           toast.error(`File is ${formatMb(toUpload.size)}`, {
             description: `Exceeds the ${ctx.maxUploadLabel} limit. Host it externally and embed it by URL, or raise the limit in project settings.`,
           });
@@ -160,12 +175,12 @@ export function useMediaPaste({
         const markup = isImage
           ? `![${alt}](${result.url})`
           : videoEmbedMarkup(result.url, alt);
-        settlePlaceholder(placeholder, markup);
+        settlePlaceholder(placeholder, markup, target);
         toast.success(`Uploaded ${file.name}`, {
           description: savings || undefined,
         });
       } catch (err) {
-        settlePlaceholder(placeholder, null);
+        settlePlaceholder(placeholder, null, target);
         const data = (err as { data?: { message?: string } })?.data;
         toast.error("Upload failed", {
           description:

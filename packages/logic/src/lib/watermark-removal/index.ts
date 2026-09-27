@@ -14,6 +14,7 @@
  */
 
 import { removeWatermarkFromImageData } from "@pilio/gemini-watermark-remover/image-data";
+import { MAX_DECODE_PIXELS } from "@wryte/logic/lib/image-compression/index";
 
 export type WatermarkResult = {
   /** The file after watermark removal (may be the original if none was found). */
@@ -27,12 +28,6 @@ export type WatermarkResult = {
  * (icons, avatars) won't have a Gemini watermark.
  */
 const MIN_DIMENSION = 200;
-
-/**
- * Maximum pixel area for canvas processing. 50 MP cap mirrors the
- * compression pipeline's limit — anything bigger skips detection.
- */
-const MAX_PIXELS = 50_000_000;
 
 /**
  * Passes through without processing — no canvas round-trip or re-encode.
@@ -78,7 +73,8 @@ export async function removeWatermark(
     bitmap.close();
     return passthrough(file);
   }
-  if (width * height > MAX_PIXELS) {
+  // Same pixel cap as the compression pipeline; anything bigger skips detection.
+  if (width * height > MAX_DECODE_PIXELS) {
     bitmap.close();
     return passthrough(file);
   }
@@ -112,7 +108,17 @@ export async function removeWatermark(
   }
 
   // ---- re-encode -------------------------------------------------------
-  ctx.putImageData(result.imageData as unknown as ImageData, 0, 0);
+  // The library clones real `ImageData` inputs as `ImageData`; the fallback
+  // only covers its plain-object branch.
+  const cleaned =
+    result.imageData instanceof ImageData
+      ? result.imageData
+      : new ImageData(
+          new Uint8ClampedArray(result.imageData.data),
+          result.imageData.width,
+          result.imageData.height,
+        );
+  ctx.putImageData(cleaned, 0, 0);
 
   let blob: Blob;
   try {

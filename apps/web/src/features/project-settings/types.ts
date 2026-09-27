@@ -1,8 +1,5 @@
 import type { Doc } from "@wryte/backend/_generated/dataModel";
-import type {
-  AnimationCheckLevel,
-  AnimationLanguage,
-} from "@wryte/backend/_lib/animationChecks";
+import type { AnimationCheckLevel } from "@wryte/backend/_lib/animationChecks";
 import type { CompressionSettings } from "@wryte/logic/lib/image-compression/index";
 import type { AiProvider } from "@wryte/logic/types/ai";
 import type {
@@ -38,51 +35,8 @@ export type AnimationChecksPolicy = {
   blockPublish: boolean;
 };
 
-export type ProjectData = {
-  name: string;
-  slug: string;
-  githubRepo?: string;
-  githubBranch?: string;
-  contentPath?: string;
-  mediaPath?: string;
-  animationsPath?: string;
-  animationsEnabled?: boolean;
-  animationLanguage?: AnimationLanguage;
-  animationChecks?: AnimationChecksPolicy;
-  importEnabled?: boolean;
-  mediaStorageMode?: MediaProvider;
-  frontmatterSchema?: string;
-  commitMessageTemplate?: string;
-  commitAttribution?: boolean;
-  commitAttributionText?: string;
-  verifiedCommits?: boolean;
-  filenamePattern?: string;
-  contentFormat?: "md" | "mdx";
-  defaultDraft?: boolean;
-  siteUrl?: string;
-  postUrlPrefix?: string;
-  deployHookUrl?: string;
-  frontmatterFormat?: "yaml" | "toml";
-  framework?: string;
-  defaultAuthor?: string;
-  defaultAuthorAvatar?: string;
-  aiProvider?: AiProvider;
-  aiModel?: string;
-  timezone?: string;
-  autoSaveEnabled?: boolean;
-  autoWatermarkRemoval?: boolean;
-  compressionSettings?: CompressionSettings;
-  maxUploadBytes?: number;
-  trashRetentionDays?: number;
-  socialPostOnPublish?: boolean;
-  syndicateOnPublish?: boolean;
-  deployVerificationEnabled?: boolean;
-  readabilityLensEnabled?: boolean;
-  slashCommandsEnabled?: boolean;
-  snippetsEnabled?: boolean;
-  selectionToolbarEnabled?: boolean;
-  snippetCount?: number;
-};
+/** The `projects` row as served to the settings pages. */
+export type ProjectData = Doc<"projects">;
 
 export const DEFAULT_FIELDS: FrontmatterField[] = [
   {

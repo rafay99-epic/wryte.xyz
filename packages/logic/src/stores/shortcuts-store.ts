@@ -217,14 +217,6 @@ export const useShortcutsStore = create<ShortcutsState>()(
 );
 
 /**
- * Get the definition for a shortcut by ID.
- * Returns undefined if the ID doesn't exist.
- */
-export function getShortcutDef(id: string): ShortcutDef | undefined {
-  return DEFAULTS_MAP.get(id);
-}
-
-/**
  * Check if a key binding conflicts with any existing shortcut.
  * Returns the conflicting shortcut def, or null.
  */

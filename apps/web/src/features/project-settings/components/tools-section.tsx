@@ -9,7 +9,6 @@ import {
 } from "@wryte/logic/lib/motion";
 import { Button } from "@wryte/ui/button";
 import { useAction, useConvex } from "convex/react";
-import { strToU8, zipSync } from "fflate";
 import { motion } from "framer-motion";
 import yaml from "js-yaml";
 import {
@@ -86,6 +85,8 @@ function ExportTool({
     setIsExporting(true);
     setProgress(0);
     try {
+      // Loaded on click: the zip library is only needed for this export.
+      const { strToU8, zipSync } = await import("fflate");
       // Walk the export feed page by page with one-shot queries — no
       // subscription, nothing reactive, only paid on click.
       const files: Record<string, Uint8Array> = {};
@@ -140,7 +141,7 @@ function ExportTool({
       }
 
       const zipped = zipSync(files);
-      const blob = new Blob([zipped as unknown as BlobPart], {
+      const blob = new Blob([zipped], {
         type: "application/zip",
       });
       const url = URL.createObjectURL(blob);

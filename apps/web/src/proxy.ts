@@ -1,17 +1,6 @@
 import { clerkMiddleware } from "@clerk/nextjs/server";
+import { APP_ROUTE_PREFIXES, AUTH_ROUTE_PREFIXES } from "@wryte/logic/lib/seo";
 import { NextResponse } from "next/server";
-
-const PROTECTED_ROUTE_PREFIXES = [
-  "/dashboard",
-  "/articles",
-  "/calendar",
-  "/editor",
-  "/projects",
-  "/settings",
-  "/admin",
-] as const;
-
-const PUBLIC_AUTH_ROUTE_PREFIXES = ["/sign-in", "/sign-up"] as const;
 
 function matchesRoutePrefix(pathname: string, prefix: string): boolean {
   return pathname === prefix || pathname.startsWith(`${prefix}/`);
@@ -32,11 +21,11 @@ export default clerkMiddleware(async (auth, req) => {
   const { userId } = await auth();
   const pathname = req.nextUrl.pathname;
 
-  if (userId && matchesAnyRoutePrefix(pathname, PUBLIC_AUTH_ROUTE_PREFIXES)) {
+  if (userId && matchesAnyRoutePrefix(pathname, AUTH_ROUTE_PREFIXES)) {
     return NextResponse.redirect(new URL("/dashboard", req.url));
   }
 
-  if (matchesAnyRoutePrefix(pathname, PROTECTED_ROUTE_PREFIXES)) {
+  if (matchesAnyRoutePrefix(pathname, APP_ROUTE_PREFIXES)) {
     await auth.protect();
   }
 
@@ -46,6 +35,6 @@ export default clerkMiddleware(async (auth, req) => {
 export const config = {
   matcher: [
     "/((?!_next|__nextjs_font|sitemap\\.xml|robots\\.txt|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest|xml|txt)).*)",
-    "/(api|trpc)(.*)",
+    "/api(.*)",
   ],
 };

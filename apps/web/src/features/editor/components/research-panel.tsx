@@ -473,7 +473,13 @@ export function ResearchPanel({
                                             void toggleResearch({
                                               researchId: item._id,
                                               selectedForAi: checked,
-                                            })
+                                            }).catch((error) =>
+                                              toast.error(
+                                                error instanceof Error
+                                                  ? error.message
+                                                  : "Failed to update",
+                                              ),
+                                            )
                                           }
                                           className="scale-75"
                                         />

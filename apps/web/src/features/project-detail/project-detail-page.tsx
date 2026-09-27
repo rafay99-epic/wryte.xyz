@@ -59,8 +59,9 @@ import { CreateDocumentDialog } from "@/features/new-project-document/components
 type RemoteFile = ContentFile;
 
 /**
- * Project detail page — thin orchestrator that fetches data, manages state,
- * and delegates rendering to `<ContentDashboard>` + dialog components.
+ * Project detail page. Owns the project's data subscriptions, search, remote
+ * GitHub file listing, and the create/import/delete/schedule flows, then
+ * renders `<ContentDashboard>` and the dialogs around it.
  */
 export function ProjectDetailPage({
   projectId: rawProjectId,
@@ -743,7 +744,7 @@ function BoardScheduleDialog() {
 
   // Query the document to check its status on close
   const document = useQuery(
-    api.cms.documents.get,
+    api.cms.documents.getMeta,
     pendingDocId ? { documentId: pendingDocId as Id<"documents"> } : "skip",
   );
 

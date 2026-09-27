@@ -9,7 +9,7 @@ import { v } from "convex/values";
 import { internalQuery, mutation, query } from "../_generated/server";
 import { getAuthedUserOrNull, getCurrentUser } from "../_lib/auth";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
-import { ALL_SCOPES, DEFAULT_GRANT, type Scope } from "./scopes";
+import { ALL_SCOPES, DEFAULT_GRANT } from "./scopes";
 
 /**
  * Looks up a grant by Clerk subject — the `sub` claim of the MCP client's
@@ -69,10 +69,8 @@ export const setGrant = mutation({
 
     // Deduplicate and store in a stable order so the row doesn't churn on
     // re-saves that only reordered the checkboxes.
-    const next = ALL_SCOPES.filter((scope: Scope) =>
-      args.scopes.includes(scope),
-    );
-    await ctx.db.patch(user._id, { mcpScopes: [...next] });
+    const next = ALL_SCOPES.filter((scope) => args.scopes.includes(scope));
+    await ctx.db.patch(user._id, { mcpScopes: next });
     return null;
   },
 });

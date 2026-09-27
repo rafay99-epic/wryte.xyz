@@ -2,9 +2,14 @@
  * Credential rotation workflow.
  *
  * The "verify new key → swap pointer → delete old vault entry" sequence is
- * crash-safe: if the deploy restarts after step 2 succeeded, step 3 runs
- * automatically on resume. If verification fails, we surface the error and
- * keep the old vault entry intact — the user can retry with a fresh key.
+ * crash-safe: if the deploy restarts after the swap succeeded, the old-entry
+ * delete runs automatically on resume. If verification fails, we surface the
+ * error, drop the new vault entry, and keep the old one intact — the user can
+ * retry with a fresh key.
+ *
+ * The caller (`media/credentials.rotate`) stores the new secret in the vault
+ * before starting the workflow, so only its vault id is journaled as a
+ * workflow argument — the plaintext never is.
  *
  * The Node-only verification step lives in `rotateCredentialActions.ts`
  * (this file is regular Convex runtime so it can also expose mutations).
@@ -29,17 +34,18 @@ export const rotateWorkflowManager = new WorkflowManager(components.workflow, {
 });
 
 /**
- * Sequenced rotation:
- *   1. ping the new secret with the active provider — bails on failure
- *   2. store the new secret in the vault
- *   3. swap the row's `vaultSecretId` and mark `active`
- *   4. delete the old vault entry
+ * Sequenced rotation (the new secret is already in the vault):
+ *   1. ping the new secret with the active provider — on failure, revert
+ *      the status and delete the new vault entry
+ *   2. swap the row's `vaultSecretId` and mark `active`
+ *   3. delete the old vault entry
  */
 export const rotateCredentialWorkflow = rotateWorkflowManager.define({
   args: {
     credentialId: v.id("mediaCredentials"),
     provider: PROVIDER_VALIDATOR,
-    newSecret: v.string(),
+    newVaultSecretId: v.string(),
+    newVersionId: v.optional(v.string()),
     // Status to revert to if verification fails. Without this, a failed
     // rotation of an `"invalid"` row was incorrectly promoting it to
     // `"active"`.
@@ -48,7 +54,7 @@ export const rotateCredentialWorkflow = rotateWorkflowManager.define({
   handler: async (step, args) => {
     const verify = await step.runAction(
       internal.workflows.rotateCredentialActions.verifyNewSecret,
-      { provider: args.provider, secret: args.newSecret },
+      { provider: args.provider, vaultSecretId: args.newVaultSecretId },
     );
 
     if (!verify.ok) {
@@ -57,26 +63,22 @@ export const rotateCredentialWorkflow = rotateWorkflowManager.define({
         status: args.priorStatus,
         lastVerifyError: verify.message,
       });
+      await step.runAction(internal.integrations.secretStore._delete, {
+        id: args.newVaultSecretId,
+      });
       return;
     }
 
     const cred = await step.runQuery(internal.media.credentialsDb._findById, {
       credentialId: args.credentialId,
     });
-    if (!cred) return;
-
-    const created = await step.runAction(
-      internal.integrations.secretStore._create,
-      {
-        value: args.newSecret,
-        meta: {
-          userId: cred.userId,
-          projectId: cred.projectId,
-          provider: args.provider,
-          label: `${args.provider}-creds-rotated`,
-        },
-      },
-    );
+    if (!cred) {
+      // Credential deleted mid-rotation; don't leave the new entry orphaned.
+      await step.runAction(internal.integrations.secretStore._delete, {
+        id: args.newVaultSecretId,
+      });
+      return;
+    }
 
     const markArgs: {
       credentialId: typeof args.credentialId;
@@ -84,10 +86,10 @@ export const rotateCredentialWorkflow = rotateWorkflowManager.define({
       newVersionId?: string;
     } = {
       credentialId: args.credentialId,
-      newVaultSecretId: created.id,
+      newVaultSecretId: args.newVaultSecretId,
     };
-    if (created.versionId !== undefined) {
-      markArgs.newVersionId = created.versionId;
+    if (args.newVersionId !== undefined) {
+      markArgs.newVersionId = args.newVersionId;
     }
     await step.runMutation(internal.media.credentialsDb._markRotated, markArgs);
 
@@ -108,26 +110,14 @@ export const kickRotation = internalMutation({
   args: {
     credentialId: v.id("mediaCredentials"),
     provider: PROVIDER_VALIDATOR,
-    newSecret: v.string(),
+    newVaultSecretId: v.string(),
+    newVersionId: v.optional(v.string()),
     priorStatus: v.union(v.literal("active"), v.literal("invalid")),
   },
-  handler: async (ctx, args): Promise<string> => {
-    const workflowArgs: {
-      credentialId: typeof args.credentialId;
-      provider: typeof args.provider;
-      newSecret: string;
-      priorStatus: "active" | "invalid";
-    } = {
-      credentialId: args.credentialId,
-      provider: args.provider,
-      newSecret: args.newSecret,
-      priorStatus: args.priorStatus,
-    };
-    const workflowId = await rotateWorkflowManager.start(
+  handler: async (ctx, args): Promise<string> =>
+    await rotateWorkflowManager.start(
       ctx,
       internal.workflows.rotateCredential.rotateCredentialWorkflow,
-      workflowArgs,
-    );
-    return workflowId as unknown as string;
-  },
+      args,
+    ),
 });

@@ -8,17 +8,16 @@
  * value the client checks before sending bytes over the wire.
  */
 
+import { QUOTAS } from "@wryte/backend/_lib/quotas";
+
 /** Default ceiling applied when a project has no explicit override. */
 export const DEFAULT_MAX_UPLOAD_BYTES = 1_000_000;
 
 /** Minimum a user can configure — prevents shooting yourself in the foot. */
 export const MIN_MAX_UPLOAD_BYTES = 100_000;
 
-/**
- * Absolute ceiling. Mirrors `QUOTAS.MAX_UPLOAD_BYTES` in
- * `convex/_lib/quotas.ts` — keep the two in sync.
- */
-export const ABS_MAX_UPLOAD_BYTES = 16 * 1024 * 1024;
+/** Absolute ceiling — the backend's `QUOTAS.MAX_UPLOAD_BYTES`. */
+export const ABS_MAX_UPLOAD_BYTES = QUOTAS.MAX_UPLOAD_BYTES;
 
 /** Resolve the effective limit for a project. */
 export function resolveMaxUploadBytes(

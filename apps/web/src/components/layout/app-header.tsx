@@ -52,7 +52,7 @@ import { ShareLinkDialog } from "@/features/editor/components/share-link-dialog"
 
 /**
  * Editor header with article navigation arrows, bookmark, focus mode,
- * save status, and publish actions — matching the Seospace reference layout.
+ * save status, and publish actions.
  */
 export function AppHeader() {
   const pathname = usePathname();

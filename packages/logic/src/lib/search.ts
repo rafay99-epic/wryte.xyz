@@ -186,18 +186,3 @@ export function searchItems(
 
   return results;
 }
-
-/**
- * Determine if a query looks like a filter expression.
- * E.g., "tag:react" or "status:draft" — returns null if not a filter.
- */
-export function parseFilterPrefix(
-  query: string,
-): { field: string; value: string } | null {
-  const match = query.match(/^(tag|status|author|kind):(.+)$/i);
-  if (!match) return null;
-  return {
-    field: (match[1] as string).toLowerCase(),
-    value: (match[2] as string).trim().toLowerCase(),
-  };
-}

@@ -7,8 +7,8 @@ import type { FrontmatterFieldType } from "@wryte/logic/types/frontmatter";
  * correctly regardless of the sampled value.
  *
  * NOTE: the array set mirrors `ALWAYS_ARRAY_FIELDS` in
- * `convex/_lib/frontmatter.ts` (the publish-time guard). The two live apart
- * because Convex cannot import from `src/` — keep them in sync.
+ * `packages/backend/convex/_lib/frontmatter.ts` (the publish-time guard),
+ * which is module-private there — keep the two in sync.
  */
 
 /** Keys that are list-valued across every framework we target. */

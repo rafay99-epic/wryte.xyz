@@ -384,20 +384,15 @@ export default defineSchema({
     .index("by_userId", ["userId"])
     .index("by_userId_and_status", ["userId", "status"])
     .index("by_projectId_and_status", ["projectId", "status"])
-    .index("by_status_and_scheduledAt", ["status", "scheduledAt"])
-    // Drives the dedup-by-githubPath lookup in `importFromGithub` /
-    // `_importFromGithubInternal`. Without it both have to `.collect()`
-    // every document in the project to find a single match — a full
-    // table scan per imported file. With the index it's an O(log n)
-    // `.unique()` lookup.
+    // Drives the dedup-by-githubPath lookups in the GitHub import and
+    // publish paths (`_importFromGithubInternal`, `_upsertImportedDocument`,
+    // …): an O(log n) `.unique()` lookup instead of scanning every document
+    // in the project per imported file.
     .index("by_projectId_and_githubPath", ["projectId", "githubPath"])
     // Powers the trash list view and the daily cleanup cron. Filtering
     // `trashedAt` server-side on the indexed range avoids a full project
     // scan for projects with thousands of active docs.
     .index("by_projectId_and_trashedAt", ["projectId", "trashedAt"])
-    // O(log n) slug lookup for `getBySlug` (share/preview routes). Without
-    // it the query scanned up to 2000 metadata rows per fetch.
-    .index("by_projectId_and_slug", ["projectId", "slug"])
     // Title typeahead for the editor's `[[` internal-link menu — search
     // scoped to the project so results never leak across projects.
     //
@@ -503,8 +498,7 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index("by_documentId", ["documentId"])
-    .index("by_projectId", ["projectId"])
-    .index("by_bulkBatchId", ["bulkBatchId"]),
+    .index("by_projectId", ["projectId"]),
 
   /**
    * Publish bodies — split out of `publish_history` (1:1, keyed by
@@ -968,14 +962,13 @@ export default defineSchema({
 
   /**
    * Import batches — one row per bulk GitHub-to-Convex import. Jobs are
-   * dispatched through `convex/importPool.ts`; the `onComplete` callback
-   * increments `succeeded` or `failed` on this row so the UI can subscribe
-   * via `documents:getImportBatch` and render live progress without
-   * polling.
+   * dispatched through the `importPool` workpool (`_pools/import.ts`); the
+   * `onComplete` callback inserts one `import_job_outcomes` row per job, and
+   * `cms/documents:getImportBatch` aggregates them so the UI can render live
+   * progress without polling.
    *
-   * `errors` is intentionally capped (see `convex/github.ts`) so a batch
-   * with hundreds of failures doesn't grow this row past the document
-   * size limit. The full error list lives in Convex logs when needed.
+   * `succeeded` / `failed` / `errors` are legacy counters kept optional for
+   * rows written before outcomes moved to their own table.
    */
   import_batches: defineTable({
     projectId: v.id("projects"),
@@ -1129,10 +1122,7 @@ export default defineSchema({
     source: v.union(v.literal("dashboard"), v.literal("marketing")),
     createdAt: v.number(),
     updatedAt: v.number(),
-  })
-    .index("by_userId", ["userId"])
-    .index("by_status", ["status"])
-    .index("by_createdAt", ["createdAt"]),
+  }).index("by_userId", ["userId"]),
 
   scheduled_publishes: defineTable({
     documentId: v.id("documents"),
@@ -1147,9 +1137,7 @@ export default defineSchema({
     workflowId: v.optional(v.string()),
     socialPostText: v.optional(v.string()),
     createdAt: v.number(),
-  })
-    .index("by_documentId", ["documentId"])
-    .index("by_scheduledAt", ["scheduledAt"]),
+  }).index("by_documentId", ["documentId"]),
 
   /**
    * Feature requests — community-submitted ideas for new functionality.
@@ -1181,10 +1169,8 @@ export default defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
   })
-    .index("by_status", ["status"])
     .index("by_upvoteCount", ["upvoteCount"])
-    .index("by_status_and_upvoteCount", ["status", "upvoteCount"])
-    .index("by_authorClerkUserId", ["authorClerkUserId"]),
+    .index("by_status_and_upvoteCount", ["status", "upvoteCount"]),
 
   /**
    * Join rows — one per (user, feature request) pair. The composite
@@ -1200,17 +1186,11 @@ export default defineSchema({
     .index("by_user_and_request", ["clerkUserId", "featureRequestId"]),
 
   /**
-   * Per-stream ownership record so `getStreamBody` can reject reads from
-   * users who weren't the one who started the stream. The persistent-text-
-   * streaming component's `streams` table has no owner column, so we keep
-   * the binding here. Cleaned up by `projects.remove` (per-project) and
-   * `account.selfDestruct` (per-user).
-   */
-  /**
    * Per-user writing analytics — streak tracking, daily progress, lifetime
-   * totals, and a rolling 30-day activity window for charts. One row per
-   * user, updated asynchronously via `ctx.scheduler.runAfter(0, ...)` from
-   * document save mutations so the primary save path stays fast.
+   * totals, and a rolling 84-day (`RECENT_ACTIVITY_DAYS`) activity window
+   * for charts. One row per user, updated asynchronously via
+   * `ctx.scheduler.runAfter(0, ...)` from document save mutations so the
+   * primary save path stays fast.
    */
   writing_stats: defineTable({
     userId: v.id("users"),
@@ -1249,6 +1229,13 @@ export default defineSchema({
     .index("by_projectId", ["projectId"])
     .index("by_userId", ["userId"]),
 
+  /**
+   * Per-stream ownership record so `getStreamBody` can reject reads from
+   * users who weren't the one who started the stream. The persistent-text-
+   * streaming component's `streams` table has no owner column, so we keep
+   * the binding here. Cleaned up by `projects.remove` (per-project) and
+   * `account.selfDestruct` (per-user).
+   */
   ai_stream_owners: defineTable({
     streamId: v.string(),
     userId: v.id("users"),
@@ -1258,7 +1245,7 @@ export default defineSchema({
     .index("by_streamId", ["streamId"])
     .index("by_userId_and_createdAt", ["userId", "createdAt"])
     .index("by_projectId", ["projectId"])
-    // Global time-ordered sweep for the hourly cleanup cron (see ai/aiStreams.ts).
+    // Global time-ordered sweep for the daily cleanup cron (see ai/aiStreams.ts).
     .index("by_createdAt", ["createdAt"]),
 
   /**
@@ -1322,10 +1309,9 @@ export default defineSchema({
 
   /**
    * Lightweight name-only index for animation existence checks.
-   * Each row is tiny (~50 bytes vs ~100KB with source) so checking 50k
-   * names costs pennies instead of gigabytes. Kept in sync by create/
-   * update/remove mutations via the helpers in animations.ts.
-   * Migration: convex/_seed/animationNames.ts (admin panel)
+   * Each row is tiny (~50 bytes vs up to ~100KB with source), so a name
+   * check never reads source bodies. Kept in sync by create/update/remove
+   * mutations via the helpers in cms/animations.ts.
    */
   animation_names: defineTable({
     projectId: v.id("projects"),

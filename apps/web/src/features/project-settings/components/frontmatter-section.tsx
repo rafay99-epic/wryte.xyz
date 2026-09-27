@@ -56,6 +56,7 @@ export function FrontmatterSection({
 }) {
   const {
     fields,
+    fieldIds,
     isSaving,
     editorMode,
     setEditorMode,
@@ -246,7 +247,7 @@ export function FrontmatterSection({
             <div className="space-y-2">
               {fields.map((field, index) => (
                 <FrontmatterFieldRow
-                  key={index}
+                  key={fieldIds[index] ?? index}
                   field={field}
                   index={index}
                   totalFields={fields.length}

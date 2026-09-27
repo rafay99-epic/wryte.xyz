@@ -3,13 +3,14 @@
 const { Tray, Menu, nativeImage, app } = require("electron");
 const path = require("node:path");
 const config = require("../config.cjs");
+const win = require("../window/window.cjs");
 
 const isMac = process.platform === "darwin";
 
 /** @type {Tray | undefined} */
 let tray;
 
-function createTray(mainWindow) {
+function createTray() {
   if (tray) return tray;
 
   const iconPath = path.join(__dirname, "..", "..", "assets", "wryte-icon.png");
@@ -31,31 +32,21 @@ function createTray(mainWindow) {
 
   tray = new Tray(trayIcon);
   tray.setToolTip(config.APP_NAME);
-  rebuildMenu(mainWindow);
+  rebuildMenu();
 
   // Single-click shows/focuses the window on all platforms.
-  tray.on("click", () => {
-    if (!mainWindow || mainWindow.isDestroyed()) return;
-    if (mainWindow.isMinimized()) mainWindow.restore();
-    if (!mainWindow.isVisible()) mainWindow.show();
-    mainWindow.focus();
-  });
+  tray.on("click", win.focusMainWindow);
 
   return tray;
 }
 
-function rebuildMenu(mainWindow) {
+function rebuildMenu() {
   if (!tray) return;
   tray.setContextMenu(
     Menu.buildFromTemplate([
       {
         label: `Show ${config.APP_NAME}`,
-        click: () => {
-          if (!mainWindow || mainWindow.isDestroyed()) return;
-          if (mainWindow.isMinimized()) mainWindow.restore();
-          if (!mainWindow.isVisible()) mainWindow.show();
-          mainWindow.focus();
-        },
+        click: win.focusMainWindow,
       },
       { type: "separator" },
       {

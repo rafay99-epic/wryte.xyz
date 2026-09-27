@@ -12,18 +12,24 @@
  *   - Without board columns, it invents statuses like "in progress" when the
  *     project's board says "wip".
  *
- * Read handlers run host-side, so `ctx.runQuery` works and the underlying
- * queries apply their own ownership checks. The gateway rejects anonymous
- * resource reads before a handler runs.
+ * Read handlers run host-side and go through the same internal handlers as
+ * the tools, with the caller passed in from the identity the gateway resolved
+ * (see `_lib/auth.ts → requireCaller`). The gateway rejects anonymous resource
+ * reads before a handler runs, and `authorizeResource` in `./authorize.ts`
+ * requires the `read` capability for every one of them.
+ *
+ * The gateway types `ctx.runQuery` as returning `any`, so each result is
+ * annotated with the handler's real return type.
  */
+
+import type { FunctionReturnType } from "convex/server";
 import {
   defineMcpResource,
   defineMcpResourceTemplate,
   type McpResourceRegistration,
   type McpResourceTemplateProvider,
 } from "convex-mcp-gateway";
-import { api } from "../_generated/api";
-import type { Doc, Id } from "../_generated/dataModel";
+import { api, internal } from "../_generated/api";
 
 const JSON_MIME = "application/json";
 
@@ -36,9 +42,8 @@ function jsonPart(uri: string, data: unknown) {
 // type covers this module, so an inferred export type would be circular.
 export const resources: McpResourceRegistration[] = [
   /**
-   * The agent's map. Projected down to the fields an agent actually reasons
-   * about — the full project row also carries frontmatter schemas, retention
-   * settings and provider config, none of which belong in a context window.
+   * The agent's map. Same projection as `wryte_projects_list`, see
+   * `handlers/projects.ts`.
    */
   defineMcpResource({
     uri: "wryte://projects",
@@ -47,23 +52,13 @@ export const resources: McpResourceRegistration[] = [
     description:
       "Index of the caller's writing projects: id, name, slug, repo, media storage mode.",
     mimeType: JSON_MIME,
-    read: async (ctx, { uri }) => {
-      const projects: Doc<"projects">[] = await ctx.runQuery(
-        api.cms.projects.list,
-        {},
-      );
-      return jsonPart(
-        uri,
-        projects.map((project) => ({
-          projectId: project._id,
-          name: project.name,
-          slug: project.slug,
-          githubRepo: project.githubRepo ?? null,
-          githubBranch: project.githubBranch ?? null,
-          contentPath: project.contentPath ?? null,
-          mediaStorageMode: project.mediaStorageMode ?? "github",
-        })),
-      );
+    read: async (ctx, { uri, identity }) => {
+      const projects: FunctionReturnType<
+        typeof internal.mcp.handlers.projects.list
+      > = await ctx.runQuery(internal.mcp.handlers.projects.list, {
+        caller: { subject: identity.subject },
+      });
+      return jsonPart(uri, projects);
     },
   }),
 ];
@@ -89,10 +84,15 @@ export const resourceTemplates: McpResourceTemplateProvider[] = [
     description:
       "The frontmatter contract for a project. Read this before creating or updating a document.",
     mimeType: JSON_MIME,
-    read: async (ctx, { uri, params }) => {
-      const projectId = params["projectId"] as Id<"projects"> | undefined;
+    read: async (ctx, { uri, params, identity }) => {
+      const projectId = params["projectId"];
       if (!projectId) return null;
-      const project = await ctx.runQuery(api.cms.projects.get, { projectId });
+      const project: FunctionReturnType<
+        typeof internal.mcp.handlers.resources.project
+      > = await ctx.runQuery(internal.mcp.handlers.resources.project, {
+        caller: { subject: identity.subject },
+        projectId,
+      });
       if (!project) return null;
 
       // Minimal mirror of `FrontmatterField` — only what an agent needs.
@@ -155,23 +155,27 @@ export const resourceTemplates: McpResourceTemplateProvider[] = [
   }),
 
   /**
-   * Valid board statuses. `wryte_documents_set_status` takes a free string,
-   * and the set of legal values is per-project, so without this an agent is
-   * guessing.
+   * Valid board statuses. `wryte_documents_update` takes `status` as a free
+   * string, and the set of legal values is per-project, so without this an
+   * agent is guessing.
+   *
+   * Still reads through the public `cms/boardColumns.getColumns` (auth from the
+   * token via `ctx.auth`): the defaults and parsing live module-private there,
+   * and this is the one resource not yet on the internal-handler path.
    */
   defineMcpResourceTemplate({
     uriTemplate: "wryte://project/{projectId}/board-columns",
     name: "wryte-board-columns",
     title: "Project board columns",
     description:
-      "Valid status values for a project, in board order. Use these with wryte_documents_set_status.",
+      "Valid status values for a project, in board order. Use these as the status in wryte_documents_update.",
     mimeType: JSON_MIME,
     read: async (ctx, { uri, params }) => {
-      const projectId = params["projectId"] as Id<"projects"> | undefined;
+      const projectId = params["projectId"];
       if (!projectId) return null;
-      const columns = await ctx.runQuery(api.cms.boardColumns.getColumns, {
-        projectId,
-      });
+      const columns: FunctionReturnType<
+        typeof api.cms.boardColumns.getColumns
+      > = await ctx.runQuery(api.cms.boardColumns.getColumns, { projectId });
       return jsonPart(uri, { projectId, columns });
     },
   }),
@@ -186,10 +190,15 @@ export const resourceTemplates: McpResourceTemplateProvider[] = [
     title: "Document",
     description: "A document's frontmatter, body and tags.",
     mimeType: JSON_MIME,
-    read: async (ctx, { uri, params }) => {
-      const documentId = params["documentId"] as Id<"documents"> | undefined;
+    read: async (ctx, { uri, params, identity }) => {
+      const documentId = params["documentId"];
       if (!documentId) return null;
-      const doc = await ctx.runQuery(api.cms.documents.get, { documentId });
+      const doc: FunctionReturnType<
+        typeof internal.mcp.handlers.resources.document
+      > = await ctx.runQuery(internal.mcp.handlers.resources.document, {
+        caller: { subject: identity.subject },
+        documentId,
+      });
       if (!doc) return null;
       return jsonPart(uri, {
         documentId: doc._id,

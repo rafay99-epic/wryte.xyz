@@ -580,7 +580,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     if (!selected) return;
     selected.scrollIntoView({
       block: "nearest",
-      behavior: "instant" as ScrollBehavior,
+      behavior: "instant",
     });
   }, [selectedIndex]);
 

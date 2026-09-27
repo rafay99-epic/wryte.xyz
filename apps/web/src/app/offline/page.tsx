@@ -2,15 +2,15 @@ import { BRAND, resolveBrandAsset } from "@wryte/logic/lib/branding";
 import Image from "next/image";
 
 export const metadata = {
-  title: "Offline — Wryte",
+  title: "Offline",
 };
 
 /**
  * Offline fallback served by the service worker when a page navigation
- * fails. Deliberately self-contained and JS-free: it renders fully from
- * the precached HTML, and the retry link is a plain anchor — if the
- * network is back the navigation succeeds, otherwise the worker serves
- * this page again. Mirrors the desktop app's offline UX.
+ * fails. The page body needs no JavaScript: it renders fully from the
+ * precached HTML, and the retry link is a plain anchor — if the network is
+ * back the navigation succeeds, otherwise the worker serves this page
+ * again. Mirrors the desktop app's offline UX.
  */
 export default function OfflinePage() {
   return (

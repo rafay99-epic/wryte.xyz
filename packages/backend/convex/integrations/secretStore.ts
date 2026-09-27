@@ -133,17 +133,6 @@ export const _read = internalAction({
   },
 });
 
-export const _update = internalAction({
-  args: {
-    id: v.string(),
-    value: v.string(),
-    versionCheck: v.optional(v.string()),
-  },
-  handler: async (_ctx, args) => {
-    return await secretStore.update(args.id, args.value, args.versionCheck);
-  },
-});
-
 export const _delete = internalAction({
   args: { id: v.string() },
   handler: async (_ctx, args) => {

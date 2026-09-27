@@ -6,7 +6,7 @@ import type { AnalyzeResponseMessage } from "./worker-protocol";
  * Owns a single readability Web Worker and routes analysis onto it. Worker
  * construction can fail in SSR and some embedded webviews; when it does we set
  * `useMainThread` and run the identical `analyze()` inline. Once fallen back we
- * don't retry. Mirrors `src/lib/image-compression/worker-client.ts`.
+ * don't retry. Mirrors `packages/logic/src/lib/image-compression/worker-client.ts`.
  */
 
 let workerSingleton: Worker | null = null;

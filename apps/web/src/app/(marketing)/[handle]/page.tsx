@@ -72,12 +72,15 @@ export async function generateMetadata({
   const result = await loadProfile(handle, preview);
   if (!result) {
     return {
-      title: `Profile not found · ${SITE_NAME}`,
+      title: "Profile not found",
       robots: { index: false },
     };
   }
   const { profile } = result;
-  const title = `${profile.name} (@${profile.username}) · ${SITE_NAME}`;
+  // The root layout's title template appends the brand; OG/Twitter titles
+  // aren't templated, so they carry it explicitly.
+  const title = `${profile.name} (@${profile.username})`;
+  const socialTitle = `${title} · ${SITE_NAME}`;
   const description =
     profile.bio || `${profile.name}'s published writing on ${SITE_NAME}.`;
   const url = absoluteUrl(`/@${profile.username}`);
@@ -89,8 +92,8 @@ export async function generateMetadata({
     title,
     description,
     alternates: { canonical: url },
-    openGraph: { title, description, url, type: "profile" },
-    twitter: { card: "summary", title, description },
+    openGraph: { title: socialTitle, description, url, type: "profile" },
+    twitter: { card: "summary", title: socialTitle, description },
   };
 }
 

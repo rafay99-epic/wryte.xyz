@@ -272,35 +272,19 @@ export async function uploadForUser(
 /*  Upload (base64) — MCP entry point                                    */
 /* ------------------------------------------------------------------ */
 
-/**
- * Base64 twin of {@link upload}, for callers that can't send binary.
- *
- * `upload` takes `v.bytes()`, which has no representation in JSON-RPC — the
- * MCP transport is JSON, so an ArrayBuffer argument can't survive the wire.
- * A base64 string is also a far better argument for a language model to
- * produce than Convex's `{"$bytes": …}` envelope.
- *
- * Deliberately a thin decode-and-delegate rather than a second copy of the
- * upload pipeline: provider routing, quota checks, path-traversal guards,
- * rate limits and error normalisation all stay in exactly one place. The cost
- * is one extra action hop per upload, which is irrelevant at media-upload
- * frequency (single digits per minute, per the `media:upload` limit).
- */
-export const uploadBase64 = action({
-  args: {
-    projectId: v.id("projects"),
-    base64: v.string(),
-    mime: v.string(),
-    filename: v.string(),
-    documentId: v.optional(v.id("documents")),
-    provider: v.optional(mediaProviderValidator),
-  },
-  handler: async (ctx, args) =>
-    await uploadBase64ForUser(ctx, await requireUserFromAuth(ctx), args),
-});
+/** Standard or URL-safe base64 alphabet with at most two trailing `=`. */
+const BASE64_RE = /^[A-Za-z0-9+/_-]+={0,2}$/;
 
-/** `uploadBase64`'s body with the actor passed in explicitly. Shared with the
- *  MCP handler — see `requireUserFromAuth` above. */
+/**
+ * Base64 twin of {@link uploadForUser}, for the MCP handler (the actor is
+ * passed in explicitly — see `requireUserFromAuth` above).
+ *
+ * `upload` takes `v.bytes()`, which has no representation in JSON-RPC, and a
+ * base64 string is a far better argument for a language model to produce than
+ * Convex's `{"$bytes": …}` envelope. Deliberately a thin decode-and-delegate:
+ * provider routing, quota checks, path-traversal guards, rate limits and error
+ * normalisation all stay in `uploadForUser`.
+ */
 export async function uploadBase64ForUser(
   ctx: ActionCtx,
   user: Doc<"users">,
@@ -329,19 +313,24 @@ export async function uploadBase64ForUser(
     });
   }
 
-  let buffer: Buffer;
-  try {
-    // `base64` is strict here: Node's decoder silently ignores invalid
-    // characters, so a truncated or mangled payload would otherwise upload
-    // as a corrupt image rather than failing loudly.
-    buffer = Buffer.from(args.base64, "base64");
-    if (buffer.length === 0) throw new Error("empty");
-  } catch {
+  // Node's decoder silently skips invalid characters, so a truncated or
+  // mangled payload would otherwise upload as a corrupt image rather than
+  // failing loudly. Validate the alphabet and length first; line-wrapping
+  // whitespace is tolerated.
+  const base64 = args.base64.replace(/\s+/g, "");
+  const unpadded = base64.replace(/=+$/, "");
+  const validBase64 =
+    base64.length > 0 &&
+    BASE64_RE.test(base64) &&
+    unpadded.length % 4 !== 1 &&
+    (unpadded.length === base64.length || base64.length % 4 === 0);
+  if (!validBase64) {
     throw new ConvexError({
-      code: "UNSUPPORTED_MIME" as MediaErrorCode,
+      code: "UNKNOWN" as MediaErrorCode,
       message: "Could not decode base64 payload.",
     });
   }
+  const buffer = Buffer.from(base64, "base64");
 
   // Calls the shared body directly rather than `ctx.runAction(api...upload)`:
   // one fewer action hop per upload, and it works for an MCP caller, where
@@ -426,54 +415,6 @@ export async function listMediaForUser(
 /* ------------------------------------------------------------------ */
 /*  Delete                                                              */
 /* ------------------------------------------------------------------ */
-
-/** Deletes a tracked upload: removes it at the provider, then drops the row. */
-export const del = action({
-  args: { mediaId: v.id("media") },
-  handler: async (ctx, args): Promise<void> => {
-    const user = await requireUserFromAuth(ctx);
-    const key = user.tokenIdentifier;
-    await rateLimiter.limit(ctx, "media:delete", { key, throws: true });
-
-    const row = await ctx.runQuery(internal.media.uploadsDb._getById, {
-      mediaId: args.mediaId,
-    });
-    if (!row) return;
-
-    const owned = await requireOwnedProject(ctx, user, row.projectId);
-    const provider = row.provider ?? "github";
-
-    if (row.externalId) {
-      try {
-        // Best-effort: a provider that has since been disconnected shouldn't
-        // strand the row in our table forever.
-        const resolved = await tryResolveProvider(ctx, {
-          project: owned.project,
-          userId: owned.userId,
-          requested: provider,
-          rateKey: key,
-        });
-        if (resolved) {
-          await resolved.adapter.remove(resolved.cx, {
-            externalId: row.externalId,
-          });
-        }
-      } catch (err) {
-        throw await normalizeFailure(
-          ctx,
-          err,
-          { userId: owned.userId, projectId: row.projectId, provider },
-          "delete",
-          "Delete failed",
-        );
-      }
-    }
-
-    await ctx.runMutation(internal.media.uploadsDb._deleteRow, {
-      mediaId: args.mediaId,
-    });
-  },
-});
 
 /**
  * Delete a media file by provider + externalId. Used by the media library

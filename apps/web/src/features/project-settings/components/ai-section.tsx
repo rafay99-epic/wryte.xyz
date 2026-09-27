@@ -202,6 +202,34 @@ function PromptTemplatesEditor({ projectId }: { projectId: Id<"projects"> }) {
   const [isAdding, setIsAdding] = useState(false);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
+  // Edits made within one debounce window, keyed by template id. Each save
+  // merges ALL of them over the latest server snapshot, so a second edit
+  // inside the window can't drop the first.
+  const pendingEditsRef = useRef(
+    new Map<string, Partial<Record<"name" | "prompt", string>>>(),
+  );
+  const pendingBaseRef = useRef<typeof templates>(undefined);
+
+  const flushEdits = useCallback(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = null;
+    const base = pendingBaseRef.current;
+    const edits = pendingEditsRef.current;
+    if (!base || edits.size === 0) return;
+    pendingEditsRef.current = new Map();
+    const merged = base.map((t) => ({ ...t, ...edits.get(t.id) }));
+    updateTemplates({
+      projectId,
+      templates: JSON.stringify(merged),
+    }).catch((err: unknown) => {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to save templates",
+      );
+    });
+  }, [updateTemplates, projectId]);
+
+  // Leaving the page mid-debounce saves right away instead of dropping it.
+  useEffect(() => flushEdits, [flushEdits]);
 
   const handleAdd = useCallback(async () => {
     const name = newName.trim();
@@ -246,19 +274,14 @@ function PromptTemplatesEditor({ projectId }: { projectId: Id<"projects"> }) {
     ) => {
       if (!currentTemplates) return;
 
-      const updated = currentTemplates.map((t) =>
-        t.id === templateId ? { ...t, [field]: value } : t,
-      );
+      pendingBaseRef.current = currentTemplates;
+      const edits = pendingEditsRef.current;
+      edits.set(templateId, { ...edits.get(templateId), [field]: value });
 
       if (debounceRef.current) clearTimeout(debounceRef.current);
-      debounceRef.current = setTimeout(() => {
-        void updateTemplates({
-          projectId,
-          templates: JSON.stringify(updated),
-        });
-      }, 600);
+      debounceRef.current = setTimeout(flushEdits, 600);
     },
-    [updateTemplates, projectId],
+    [flushEdits],
   );
 
   const atLimit = (templates?.length ?? 0) >= 20;
@@ -422,10 +445,6 @@ function AiCredentialsForm({
 
   const hasExisting = config !== null && config !== undefined;
   const isRotating = config?.status === "rotating";
-
-  useEffect(() => {
-    setSecret("");
-  }, []);
 
   const entry = getProvider(provider);
   const placeholder = entry.keyPrefixHint;

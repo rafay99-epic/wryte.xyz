@@ -1,15 +1,16 @@
 import { v } from "convex/values";
+import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { internalMutation, mutation, query } from "../_generated/server";
 import { getAuthedUserOrNull, getCurrentUser } from "../_lib/auth";
 import {
   dateInTimezone,
-  isValidTimezone,
   RECENT_ACTIVITY_DAYS,
   updateRecentActivity,
   yesterdayStr,
 } from "../_lib/dateUtils";
+import type { DocPatch } from "../_lib/docPatch";
 import { statusToField } from "../_lib/projectStats";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
 
@@ -32,91 +33,89 @@ export async function dashboardStatsForUser(
   ctx: QueryCtx,
   userId: Id<"users">,
 ) {
-  {
-    const writingStats = await ctx.db
-      .query("writing_stats")
-      .withIndex("by_userId", (q) => q.eq("userId", userId))
-      .unique();
+  const writingStats = await ctx.db
+    .query("writing_stats")
+    .withIndex("by_userId", (q) => q.eq("userId", userId))
+    .unique();
 
-    const allProjectStats = await ctx.db
-      .query("project_stats")
-      .withIndex("by_userId", (q) => q.eq("userId", userId))
-      .take(100);
+  const allProjectStats = await ctx.db
+    .query("project_stats")
+    .withIndex("by_userId", (q) => q.eq("userId", userId))
+    .take(100);
 
-    let totalDrafts = 0;
-    let totalReview = 0;
-    let totalReady = 0;
-    let totalScheduled = 0;
-    let totalPublished = 0;
-    let totalWords = 0;
+  let totalDrafts = 0;
+  let totalReview = 0;
+  let totalReady = 0;
+  let totalScheduled = 0;
+  let totalPublished = 0;
+  let totalWords = 0;
 
-    for (const ps of allProjectStats) {
-      totalDrafts += ps.draftCount;
-      totalReview += ps.reviewCount;
-      totalReady += ps.readyCount;
-      totalScheduled += ps.scheduledCount;
-      totalPublished += ps.publishedCount;
-      totalWords += ps.totalWords;
-    }
-
-    const totalDocs =
-      totalDrafts + totalReview + totalReady + totalScheduled + totalPublished;
-
-    const now = Date.now();
-    const tz = writingStats?.timezone ?? "UTC";
-    const todayStr = dateInTimezone(now, tz);
-    const yesterday = yesterdayStr(todayStr);
-
-    let displayStreak = writingStats?.currentStreak ?? 0;
-    let displayWordsToday = writingStats?.wordsToday ?? 0;
-
-    if (writingStats) {
-      if (
-        writingStats.lastActiveDate !== todayStr &&
-        writingStats.lastActiveDate !== yesterday
-      ) {
-        displayStreak = 0;
-      }
-      if (writingStats.todayDate !== todayStr) {
-        displayWordsToday = 0;
-      }
-    }
-
-    const projects = await ctx.db
-      .query("projects")
-      .withIndex("by_userId", (q) => q.eq("userId", userId))
-      .take(100);
-    const projectMap = new Map(projects.map((p) => [p._id.toString(), p.name]));
-
-    return {
-      currentStreak: displayStreak,
-      longestStreak: writingStats?.longestStreak ?? 0,
-      wordsToday: displayWordsToday,
-      dailyWordGoal: writingStats?.dailyWordGoal ?? null,
-      weeklyWordGoal: writingStats?.weeklyWordGoal ?? null,
-      recentActivity: writingStats?.recentActivity ?? [],
-      totalDocs,
-      totalWords: writingStats?.totalWords ?? totalWords,
-      totalPublished: writingStats?.totalPublished ?? totalPublished,
-      statusCounts: {
-        draft: totalDrafts,
-        review: totalReview,
-        ready: totalReady,
-        scheduled: totalScheduled,
-        published: totalPublished,
-      },
-      projectStats: allProjectStats.map((ps) => ({
-        projectId: ps.projectId,
-        projectName: projectMap.get(ps.projectId.toString()) ?? "Unknown",
-        totalWords: ps.totalWords,
-        draftCount: ps.draftCount,
-        reviewCount: ps.reviewCount,
-        readyCount: ps.readyCount,
-        scheduledCount: ps.scheduledCount,
-        publishedCount: ps.publishedCount,
-      })),
-    };
+  for (const ps of allProjectStats) {
+    totalDrafts += ps.draftCount;
+    totalReview += ps.reviewCount;
+    totalReady += ps.readyCount;
+    totalScheduled += ps.scheduledCount;
+    totalPublished += ps.publishedCount;
+    totalWords += ps.totalWords;
   }
+
+  const totalDocs =
+    totalDrafts + totalReview + totalReady + totalScheduled + totalPublished;
+
+  const now = Date.now();
+  const tz = writingStats?.timezone ?? "UTC";
+  const todayStr = dateInTimezone(now, tz);
+  const yesterday = yesterdayStr(todayStr);
+
+  let displayStreak = writingStats?.currentStreak ?? 0;
+  let displayWordsToday = writingStats?.wordsToday ?? 0;
+
+  if (writingStats) {
+    if (
+      writingStats.lastActiveDate !== todayStr &&
+      writingStats.lastActiveDate !== yesterday
+    ) {
+      displayStreak = 0;
+    }
+    if (writingStats.todayDate !== todayStr) {
+      displayWordsToday = 0;
+    }
+  }
+
+  const projects = await ctx.db
+    .query("projects")
+    .withIndex("by_userId", (q) => q.eq("userId", userId))
+    .take(100);
+  const projectMap = new Map(projects.map((p) => [p._id.toString(), p.name]));
+
+  return {
+    currentStreak: displayStreak,
+    longestStreak: writingStats?.longestStreak ?? 0,
+    wordsToday: displayWordsToday,
+    dailyWordGoal: writingStats?.dailyWordGoal ?? null,
+    weeklyWordGoal: writingStats?.weeklyWordGoal ?? null,
+    recentActivity: writingStats?.recentActivity ?? [],
+    totalDocs,
+    totalWords: writingStats?.totalWords ?? totalWords,
+    totalPublished: writingStats?.totalPublished ?? totalPublished,
+    statusCounts: {
+      draft: totalDrafts,
+      review: totalReview,
+      ready: totalReady,
+      scheduled: totalScheduled,
+      published: totalPublished,
+    },
+    projectStats: allProjectStats.map((ps) => ({
+      projectId: ps.projectId,
+      projectName: projectMap.get(ps.projectId.toString()) ?? "Unknown",
+      totalWords: ps.totalWords,
+      draftCount: ps.draftCount,
+      reviewCount: ps.reviewCount,
+      readyCount: ps.readyCount,
+      scheduledCount: ps.scheduledCount,
+      publishedCount: ps.publishedCount,
+    })),
+  };
 }
 
 /**
@@ -184,20 +183,25 @@ export const getUpcomingScheduled = query({
     const limit = args.limit ?? 5;
     const now = Date.now();
 
+    // Per-user index keeps the read proportional to this user's scheduled
+    // queue instead of scanning every user's scheduled docs. Bounded; the
+    // future/trash/project filters and soonest-first sort run in memory.
     const scheduled = await ctx.db
       .query("documents")
-      .withIndex("by_status_and_scheduledAt", (q) =>
-        q.eq("status", "scheduled").gt("scheduledAt", now),
+      .withIndex("by_userId_and_status", (q) =>
+        q.eq("userId", user._id).eq("status", "scheduled"),
       )
-      .take(limit * 3);
+      .take(500);
 
     const userDocs = scheduled
       .filter(
         (d) =>
-          d.userId === user._id &&
+          d.scheduledAt !== undefined &&
+          d.scheduledAt > now &&
           d.trashedAt === undefined &&
           (!args.projectId || d.projectId === args.projectId),
       )
+      .sort((a, b) => (a.scheduledAt ?? 0) - (b.scheduledAt ?? 0))
       .slice(0, limit);
 
     const projectIds = [...new Set(userDocs.map((d) => d.projectId))];
@@ -329,50 +333,6 @@ export const setWeeklyWordGoal = mutation({
   },
 });
 
-export const setTimezone = mutation({
-  args: { timezone: v.string() },
-  handler: async (ctx, args) => {
-    if (!isValidTimezone(args.timezone)) {
-      throw new Error("Invalid timezone identifier.");
-    }
-
-    const key = await getRateLimitKey(ctx);
-    await rateLimiter.limit(ctx, "writingStats:setTimezone", {
-      key,
-      throws: true,
-    });
-
-    const user = await getCurrentUser(ctx);
-    const stats = await ctx.db
-      .query("writing_stats")
-      .withIndex("by_userId", (q) => q.eq("userId", user._id))
-      .unique();
-
-    if (stats) {
-      await ctx.db.patch(stats._id, {
-        timezone: args.timezone,
-        updatedAt: Date.now(),
-      });
-    } else {
-      const now = Date.now();
-      const todayStr = dateInTimezone(now, args.timezone);
-      await ctx.db.insert("writing_stats", {
-        userId: user._id,
-        currentStreak: 0,
-        longestStreak: 0,
-        lastActiveDate: todayStr,
-        wordsToday: 0,
-        todayDate: todayStr,
-        totalWords: 0,
-        totalPublished: 0,
-        recentActivity: [],
-        timezone: args.timezone,
-        updatedAt: now,
-      });
-    }
-  },
-});
-
 /* ------------------------------------------------------------------ */
 /*  Internal mutations — async fire-and-forget from document saves     */
 /* ------------------------------------------------------------------ */
@@ -405,16 +365,15 @@ export const _recordActivity = internalMutation({
 
       let { currentStreak, longestStreak, wordsToday } = stats;
 
-      if (isSameDay) {
-        wordsToday = Math.max(0, wordsToday + args.wordCountDelta);
-      } else {
-        if (isYesterday) {
-          currentStreak += 1;
-        } else if (stats.lastActiveDate !== todayStr) {
-          currentStreak = 1;
-        }
-        wordsToday = Math.max(0, args.wordCountDelta);
+      // Rows seeded by the goal/publish upserts carry `lastActiveDate=today`
+      // with a zero streak, so a zero streak also means "no activity counted
+      // yet" and the first write of the day still starts the streak.
+      if (stats.lastActiveDate !== todayStr || currentStreak === 0) {
+        currentStreak = isYesterday ? currentStreak + 1 : 1;
       }
+      wordsToday = isSameDay
+        ? Math.max(0, wordsToday + args.wordCountDelta)
+        : Math.max(0, args.wordCountDelta);
 
       longestStreak = Math.max(longestStreak, currentStreak);
 
@@ -517,14 +476,14 @@ export const _adjustStatusCounts = internalMutation({
 
     if (args.oldStatus === args.newStatus) return;
 
-    const patch: Record<string, unknown> = { updatedAt: now };
+    const patch: DocPatch<"project_stats"> = { updatedAt: now };
     if (args.oldStatus) {
       const field = statusToField(args.oldStatus);
-      if (field) patch[field] = Math.max(0, (stats[field] as number) - n);
+      if (field) patch[field] = Math.max(0, stats[field] - n);
     }
     if (args.newStatus) {
       const field = statusToField(args.newStatus);
-      if (field) patch[field] = ((stats[field] as number) ?? 0) + n;
+      if (field) patch[field] = stats[field] + n;
     }
 
     await ctx.db.patch(stats._id, patch);
@@ -564,65 +523,40 @@ export const _incrementPublished = internalMutation({
 });
 
 /* ------------------------------------------------------------------ */
-/*  Cascade cleanup — called from project/account deletion             */
-/* ------------------------------------------------------------------ */
-
-export const _deleteProjectStats = internalMutation({
-  args: { projectId: v.id("projects") },
-  handler: async (ctx, args) => {
-    const row = await ctx.db
-      .query("project_stats")
-      .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
-      .unique();
-    if (!row) return;
-
-    const userStats = await ctx.db
-      .query("writing_stats")
-      .withIndex("by_userId", (q) => q.eq("userId", row.userId))
-      .unique();
-    if (userStats) {
-      await ctx.db.patch(userStats._id, {
-        totalWords: Math.max(0, userStats.totalWords - row.totalWords),
-        updatedAt: Date.now(),
-      });
-    }
-
-    await ctx.db.delete(row._id);
-  },
-});
-
-export const _deleteUserStats = internalMutation({
-  args: { userId: v.id("users") },
-  handler: async (ctx, args) => {
-    const stats = await ctx.db
-      .query("writing_stats")
-      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
-      .unique();
-    if (stats) await ctx.db.delete(stats._id);
-
-    const projectStats = await ctx.db
-      .query("project_stats")
-      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
-      .take(100);
-    for (const ps of projectStats) {
-      await ctx.db.delete(ps._id);
-    }
-  },
-});
-
-/* ------------------------------------------------------------------ */
 /*  Cron maintenance                                                   */
 /* ------------------------------------------------------------------ */
 
+/** `writing_stats` rows pruned per `_dailyMaintenance` transaction. */
+const MAINTENANCE_PAGE_SIZE = 500;
+
+/**
+ * Prunes `recentActivity` entries older than `RECENT_ACTIVITY_DAYS`. Walks
+ * the table one page per transaction and self-reschedules with the next
+ * cursor until every row is visited.
+ */
 export const _dailyMaintenance = internalMutation({
-  args: {},
-  handler: async (ctx) => {
+  args: { cursor: v.optional(v.union(v.string(), v.null())) },
+  handler: async (ctx, args) => {
     const now = Date.now();
     const cutoff = new Date(now - RECENT_ACTIVITY_DAYS * 24 * 60 * 60 * 1000)
       .toISOString()
       .slice(0, 10);
 
-    const allStats = await ctx.db.query("writing_stats").take(1000);
+    const {
+      page: allStats,
+      isDone,
+      continueCursor,
+    } = await ctx.db.query("writing_stats").paginate({
+      numItems: MAINTENANCE_PAGE_SIZE,
+      cursor: args.cursor ?? null,
+    });
+    if (!isDone) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.analytics.writingStats._dailyMaintenance,
+        { cursor: continueCursor },
+      );
+    }
     let updated = 0;
     for (const row of allStats) {
       const pruned = row.recentActivity.filter((e) => e.date >= cutoff);

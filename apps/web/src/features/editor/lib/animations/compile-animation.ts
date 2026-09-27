@@ -19,10 +19,8 @@
  */
 import type React from "react";
 import * as ReactNamespace from "react";
-// react/jsx-runtime is only needed if we ever switch Sucrase to automatic
-// JSX. With the classic runtime (React.createElement) it's unused, but a
-// pasted file may still import it explicitly — resolve it to keep such
-// files working rather than erroring on a legitimate React import.
+// Sucrase compiles JSX with the automatic runtime (see `compileAnimation`),
+// so every compiled module requires react/jsx-runtime.
 import * as JsxRuntime from "react/jsx-runtime";
 import { transform } from "sucrase";
 

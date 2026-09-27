@@ -1,11 +1,9 @@
 /**
- * Whitespace-collapsed word count — the single client-side word counter.
+ * Whitespace-collapsed word count — the single word counter.
  *
- * Shared by the editor store (session baseline), the toolbar stats, writing
- * sprints, the publish checklist, SEO lint, and the draft compare view so
- * every surface reports identical numbers for the same text.
+ * Lives in `convex/_lib/wordCount.ts` (plain TypeScript, no server imports)
+ * and is re-exported here so the editor store, toolbar stats, writing sprints,
+ * the publish checklist, SEO lint, and the draft compare view report the same
+ * numbers as the server for the same text.
  */
-export function countWords(text: string): number {
-  const trimmed = text.trim();
-  return trimmed ? trimmed.split(/\s+/).length : 0;
-}
+export { countWords } from "@wryte/backend/_lib/wordCount";

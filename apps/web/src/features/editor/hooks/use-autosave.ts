@@ -100,17 +100,28 @@ export function useAutosave({
   // store goes clean). Backs the max-wait ceiling below.
   const firstDirtyAtRef = useRef<number | null>(null);
   const prevTargetIdRef = useRef(targetId);
+  // Last committed `isDirty`. The unmount flush reads this instead of the
+  // store because the host page's `reset()` cleanup can run before ours and
+  // wipe the store's dirty flag.
+  const isDirtyRef = useRef(isDirty);
+
+  useEffect(() => {
+    isDirtyRef.current = isDirty;
+  }, [isDirty]);
 
   useEffect(() => {
     latestRef.current = { content, title, targetId };
     // Switching targets (main doc <-> draft) always goes through
     // `initDocument` first, which loads the freshly-persisted snapshot for
-    // the new target — so that value IS the last-saved baseline for it.
+    // the new target — so a clean value IS the last-saved baseline for it.
+    // A switch that lands already dirty (e.g. applying an AI synthesis to
+    // Main) keeps the old target's baseline, whose mismatched targetId
+    // guarantees the next save actually writes.
     if (prevTargetIdRef.current !== targetId) {
       prevTargetIdRef.current = targetId;
-      lastSavedRef.current = { content, title, targetId };
+      if (!isDirty) lastSavedRef.current = { content, title, targetId };
     }
-  }, [content, title, targetId]);
+  }, [content, title, targetId, isDirty]);
 
   useEffect(() => {
     onSaveRef.current = onSave;
@@ -305,32 +316,28 @@ export function useAutosave({
     };
   }, [content, title, isDirty, save, enabled]);
 
+  // Flush on unmount (or when autosave turns off). Decides from the dirty
+  // flag rather than the debounce timer: the timer effect above is cleaned
+  // up first and has already cleared its handle by the time this runs.
   useEffect(() => {
     return () => {
       if (!enabled) return;
-      const hasPendingTimer = timerRef.current !== null;
-      const state = useEditorStore.getState();
-      const { content: c, title: t } = latestRef.current;
+      const { content: c, title: t, targetId: id } = latestRef.current;
       const flushFn = onFlushRef.current ?? onSaveRef.current;
+      const saved = lastSavedRef.current;
+      // Same dirty-check as performSave: an edit that reverted to the
+      // already-persisted value needs no full save.
+      const hasUnsavedEdits =
+        isDirtyRef.current &&
+        !(saved.targetId === id && saved.content === c && saved.title === t);
       // Leaving with unsaved edits → full save. Otherwise, if the body was
       // autosaved but the documents row hasn't had its metadata refreshed
       // yet, flush it now so the board/sidebar reflect the final state.
-      if (hasPendingTimer && state.isDirty) {
-        const saved = lastSavedRef.current;
-        const isUnchanged =
-          saved.targetId === latestRef.current.targetId &&
-          saved.content === c &&
-          saved.title === t;
-        // Same dirty-check as performSave: skip the full flush if the
-        // pending edit reverted to the already-persisted value — but an
-        // earlier body-only autosave may still owe the metadata refresh
-        // (flushPendingRef), which must not be skipped along with it.
-        if (!isUnchanged || flushPendingRef.current) {
-          flushPendingRef.current = false;
-          void flushFn(c, t).catch((err) => {
-            console.error("[Autosave] Flush-on-unmount failed:", err);
-          });
-        }
+      if (hasUnsavedEdits) {
+        flushPendingRef.current = false;
+        void flushFn(c, t).catch((err) => {
+          console.error("[Autosave] Flush-on-unmount failed:", err);
+        });
       } else if (flushPendingRef.current) {
         flushPendingRef.current = false;
         void flushFn(c, t).catch((err) => {

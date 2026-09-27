@@ -9,24 +9,26 @@ import { createHmac, timingSafeEqual } from "node:crypto";
  *
  * Signature verification uses GITHUB_MARKETPLACE_WEBHOOK_SECRET (Vercel
  * env var, same value as the Secret field on the GitHub webhook form).
- * Fail-closed: if the secret is configured, unsigned/mismatched payloads
- * are rejected.
+ * Fail-closed: a missing secret or an unsigned/mismatched payload is
+ * rejected.
  */
 export async function POST(request: Request) {
   const body = await request.text();
 
   const secret = process.env["GITHUB_MARKETPLACE_WEBHOOK_SECRET"];
-  if (secret) {
-    const signature = request.headers.get("x-hub-signature-256") ?? "";
-    const expected = `sha256=${createHmac("sha256", secret).update(body).digest("hex")}`;
-    const signatureBuffer = Buffer.from(signature);
-    const expectedBuffer = Buffer.from(expected);
-    if (
-      signatureBuffer.length !== expectedBuffer.length ||
-      !timingSafeEqual(signatureBuffer, expectedBuffer)
-    ) {
-      return new Response("invalid signature", { status: 401 });
-    }
+  if (!secret) {
+    console.error("[marketplace] GITHUB_MARKETPLACE_WEBHOOK_SECRET is not set");
+    return new Response("webhook secret not configured", { status: 500 });
+  }
+  const signature = request.headers.get("x-hub-signature-256") ?? "";
+  const expected = `sha256=${createHmac("sha256", secret).update(body).digest("hex")}`;
+  const signatureBuffer = Buffer.from(signature);
+  const expectedBuffer = Buffer.from(expected);
+  if (
+    signatureBuffer.length !== expectedBuffer.length ||
+    !timingSafeEqual(signatureBuffer, expectedBuffer)
+  ) {
+    return new Response("invalid signature", { status: 401 });
   }
 
   let action = "unknown";

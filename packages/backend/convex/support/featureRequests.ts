@@ -298,20 +298,33 @@ export const remove = action({
   },
 });
 
+/** Upvote rows deleted per `_delete` transaction. */
+const UPVOTE_DELETE_BATCH = 500;
+
 export const _delete = internalMutation({
   args: { id: v.id("feature_requests") },
   handler: async (ctx, args) => {
     // Cascade — purge the join rows so the per-user upvote index stays
-    // accurate even after the parent row is gone.
+    // accurate even after the parent row is gone. Bounded per transaction;
+    // a full batch reschedules itself, and the parent is deleted only once
+    // every upvote is gone.
     const upvotes = await ctx.db
       .query("feature_request_upvotes")
       .withIndex("by_featureRequestId", (q) =>
         q.eq("featureRequestId", args.id),
       )
-      .take(1000);
+      .take(UPVOTE_DELETE_BATCH);
     for (const u of upvotes) {
       await ctx.db.delete(u._id);
     }
-    await ctx.db.delete(args.id);
+    if (upvotes.length === UPVOTE_DELETE_BATCH) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.support.featureRequests._delete,
+        args,
+      );
+      return;
+    }
+    if (await ctx.db.get(args.id)) await ctx.db.delete(args.id);
   },
 });

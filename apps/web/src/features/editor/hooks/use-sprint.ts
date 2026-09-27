@@ -6,7 +6,7 @@ import {
   type SprintStatus,
   useEditorStore,
 } from "@wryte/logic/stores/editor-store";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useShallow } from "zustand/react/shallow";
 import { formatClock, wordsPerMinute } from "../lib/sprint";
@@ -55,13 +55,17 @@ export function useSprint(): SprintSnapshot | null {
       startedAt: state.sprintStartedAt,
       accumulatedMs: state.sprintAccumulatedMs,
       endReason: state.sprintEndReason,
-      content: state.content,
+      // Only tracked during a sprint, so an idle HUD skips keystrokes.
+      content: state.sprintStatus === "idle" ? "" : state.content,
       completeSprint: state.completeSprint,
     })),
   );
 
-  // Heartbeat + completion detection. The check runs on every store change
-  // (each keystroke re-runs this effect via `content`) AND once per second
+  // Counted once per content change, shared by the check and the snapshot.
+  const totalWords = useMemo(() => countWords(content), [content]);
+
+  // Heartbeat + completion detection. The check runs whenever the word count
+  // changes (re-running this effect via `totalWords`) AND once per second
   // via the interval, so time-up fires even when the user isn't typing —
   // and the 1s re-render keeps the clock display advancing. Word target is
   // checked first (the happier outcome); `completeSprint` no-ops unless the
@@ -71,7 +75,7 @@ export function useSprint(): SprintSnapshot | null {
     if (status !== "running") return;
 
     const check = () => {
-      const words = Math.max(0, countWords(content) - startWords);
+      const words = Math.max(0, totalWords - startWords);
       const elapsed =
         accumulatedMs + (startedAt !== null ? Date.now() - startedAt : 0);
       if (targetWords > 0 && words >= targetWords) {
@@ -99,7 +103,7 @@ export function useSprint(): SprintSnapshot | null {
     return () => window.clearInterval(id);
   }, [
     status,
-    content,
+    totalWords,
     startWords,
     targetWords,
     durationMs,
@@ -112,7 +116,7 @@ export function useSprint(): SprintSnapshot | null {
 
   const elapsedMs =
     accumulatedMs + (startedAt !== null ? Date.now() - startedAt : 0);
-  const wordsWritten = Math.max(0, countWords(content) - startWords);
+  const wordsWritten = Math.max(0, totalWords - startWords);
 
   return {
     status,

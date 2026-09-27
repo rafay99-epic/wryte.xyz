@@ -1,3 +1,4 @@
+import { absoluteUrl } from "@wryte/logic/lib/seo";
 import { Shield } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -9,6 +10,7 @@ export const metadata: Metadata = {
   title: "Privacy Policy",
   description:
     "How Wryte collects, uses, and protects your personal information.",
+  alternates: { canonical: absoluteUrl("/privacy") },
 };
 
 export default function PrivacyPage() {

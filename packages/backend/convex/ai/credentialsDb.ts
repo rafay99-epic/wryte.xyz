@@ -8,6 +8,7 @@
 import { v } from "convex/values";
 import { internalMutation, internalQuery, query } from "../_generated/server";
 import { getAuthedUserOrNull } from "../_lib/auth";
+import type { DocPatch } from "../_lib/docPatch";
 import { providerValidator } from "./_lib/providers";
 
 /**
@@ -66,11 +67,6 @@ export const _findByProjectAndProvider = internalQuery({
   },
 });
 
-export const _findById = internalQuery({
-  args: { credentialId: v.id("aiCredentials") },
-  handler: async (ctx, args) => ctx.db.get(args.credentialId),
-});
-
 export const _insert = internalMutation({
   args: {
     projectId: v.id("projects"),
@@ -103,13 +99,13 @@ export const _replaceVaultId = internalMutation({
     newVersionId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const patch: Record<string, unknown> = {
+    const patch: DocPatch<"aiCredentials"> = {
       vaultSecretId: args.newVaultSecretId,
       status: "verifying" as const,
       updatedAt: Date.now(),
     };
     if (args.newVersionId !== undefined) {
-      patch["vaultVersionId"] = args.newVersionId;
+      patch.vaultVersionId = args.newVersionId;
     }
     await ctx.db.patch(args.credentialId, patch);
   },
@@ -128,17 +124,17 @@ export const _setStatus = internalMutation({
     lastVerifiedAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const patch: Record<string, unknown> = {
+    const patch: DocPatch<"aiCredentials"> = {
       status: args.status,
       updatedAt: Date.now(),
     };
     if (args.lastVerifyError !== undefined) {
-      patch["lastVerifyError"] = args.lastVerifyError;
+      patch.lastVerifyError = args.lastVerifyError;
     } else if (args.status === "active") {
-      patch["lastVerifyError"] = undefined;
+      patch.lastVerifyError = undefined;
     }
     if (args.lastVerifiedAt !== undefined) {
-      patch["lastVerifiedAt"] = args.lastVerifiedAt;
+      patch.lastVerifiedAt = args.lastVerifiedAt;
     }
     await ctx.db.patch(args.credentialId, patch);
   },
@@ -152,7 +148,7 @@ export const _markRotated = internalMutation({
   },
   handler: async (ctx, args) => {
     const now = Date.now();
-    const patch: Record<string, unknown> = {
+    const patch: DocPatch<"aiCredentials"> = {
       vaultSecretId: args.newVaultSecretId,
       status: "active" as const,
       rotatedAt: now,
@@ -161,7 +157,7 @@ export const _markRotated = internalMutation({
       updatedAt: now,
     };
     if (args.newVersionId !== undefined) {
-      patch["vaultVersionId"] = args.newVersionId;
+      patch.vaultVersionId = args.newVersionId;
     }
     await ctx.db.patch(args.credentialId, patch);
   },

@@ -2,6 +2,7 @@
 
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
+import { useDebouncedValue } from "@wryte/logic/hooks/use-debounced-value";
 import {
   type MediaFilter,
   type MediaLibraryItem,
@@ -57,6 +58,9 @@ import {
 } from "@/components/media/batch-image-upload";
 import { MediaImage } from "@/features/media-library/components/media-image";
 import { usePendingDeletes } from "@/features/media-library/hooks/use-pending-deletes";
+
+/** Pause after the last keystroke before a no-match search pages further. */
+const AUTO_LOAD_DEBOUNCE_MS = 300;
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -160,11 +164,15 @@ export function MediaLibraryPage({
 
   // Auto-load more when a search has zero matches but there are more pages
   // to fetch. Cap at 5 extra fetches per search to avoid excessive API calls.
+  // Keyed on the debounced query so typing doesn't fire a fetch per keystroke.
   const autoFetchCountRef = useRef(0);
   const lastSearchRef = useRef("");
+  const autoLoadQuery = useDebouncedValue(searchQuery, AUTO_LOAD_DEBOUNCE_MS);
 
   useEffect(() => {
-    const q = searchQuery.trim();
+    // Still typing: act only once the query has settled.
+    if (autoLoadQuery !== searchQuery) return;
+    const q = autoLoadQuery.trim();
     if (!q) return;
     if (q !== lastSearchRef.current) {
       autoFetchCountRef.current = 0;
@@ -180,7 +188,15 @@ export function MediaLibraryPage({
       autoFetchCountRef.current++;
       loadMore();
     }
-  }, [searchQuery, providerHasMore, isLoading, isLoadingMore, items, loadMore]);
+  }, [
+    autoLoadQuery,
+    searchQuery,
+    providerHasMore,
+    isLoading,
+    isLoadingMore,
+    items,
+    loadMore,
+  ]);
 
   // Searching is scoped to the visible tab, so the query belongs to that tab
   // too: carrying it across a switch silently hides files in the new one.

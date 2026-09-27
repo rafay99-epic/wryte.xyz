@@ -7,6 +7,7 @@
 import { v } from "convex/values";
 import { internalMutation, internalQuery, query } from "../_generated/server";
 import { getAuthedUserOrNull } from "../_lib/auth";
+import type { DocPatch } from "../_lib/docPatch";
 import { syndicationProviderValidator } from "./_lib/providers";
 
 const STATUS_VALIDATOR = v.union(
@@ -135,13 +136,13 @@ export const _replaceVaultId = internalMutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const patch: Record<string, unknown> = {
+    const patch: DocPatch<"syndicationCredentials"> = {
       vaultSecretId: args.newVaultSecretId,
       rotatedAt: Date.now(),
       updatedAt: Date.now(),
     };
     if (args.newVersionId !== undefined) {
-      patch["vaultVersionId"] = args.newVersionId;
+      patch.vaultVersionId = args.newVersionId;
     }
     await ctx.db.patch(args.credentialId, patch);
     return null;
@@ -172,17 +173,17 @@ export const _setStatus = internalMutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const patch: Record<string, unknown> = {
+    const patch: DocPatch<"syndicationCredentials"> = {
       status: args.status,
       updatedAt: Date.now(),
     };
     if (args.lastVerifyError !== undefined) {
-      patch["lastVerifyError"] = args.lastVerifyError;
+      patch.lastVerifyError = args.lastVerifyError;
     } else if (args.status === "active") {
-      patch["lastVerifyError"] = undefined;
+      patch.lastVerifyError = undefined;
     }
     if (args.lastVerifiedAt !== undefined) {
-      patch["lastVerifiedAt"] = args.lastVerifiedAt;
+      patch.lastVerifiedAt = args.lastVerifiedAt;
     }
     await ctx.db.patch(args.credentialId, patch);
     return null;

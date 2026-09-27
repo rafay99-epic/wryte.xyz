@@ -180,6 +180,8 @@ export function BoardView({
 
       const { active, over } = event;
       if (!over || !active.data.current) return;
+      // Dropped on itself: nothing moved.
+      if (over.id === active.id) return;
 
       const activeData = active.data.current;
       const draggedItem = activeData["item"] as ContentItem;

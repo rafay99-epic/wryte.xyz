@@ -2,7 +2,7 @@
  * Zustand store for board-specific transient UI state.
  *
  * Manages drag-and-drop state, optimistic card positions, tag filters,
- * column editing state, and scheduling dialog triggers. Follows the same
+ * the settings dialog, and scheduling dialog triggers. Follows the same
  * flat-store, no-persist pattern as `editor-store.ts`.
  *
  * NOT persisted — all state is ephemeral and resets on navigation.
@@ -30,9 +30,7 @@ type BoardState = {
   /** Active tag filters. Empty = show all. OR logic. */
   activeTagFilters: Set<string>;
 
-  // --- Column editing ---
-  /** Column ID currently being renamed inline, or null. */
-  editingColumnId: string | null;
+  // --- Settings dialog ---
   /** Whether the board settings dialog is open. */
   settingsDialogOpen: boolean;
 
@@ -60,13 +58,10 @@ type BoardState = {
     boardPosition: number,
   ) => void;
   clearOptimisticMove: (itemId: string) => void;
-  clearAllOptimisticMoves: () => void;
 
   toggleTagFilter: (tag: string) => void;
-  setTagFilters: (tags: Set<string>) => void;
   clearTagFilters: () => void;
 
-  setEditingColumnId: (id: string | null) => void;
   setSettingsDialogOpen: (open: boolean) => void;
 
   toggleColumnCollapsed: (columnId: string) => void;
@@ -86,7 +81,6 @@ const initialState = {
   activeTagFilters: new Set<string>(),
   collapsedColumns: new Set<string>(),
   focusedCardId: null as string | null,
-  editingColumnId: null as string | null,
   settingsDialogOpen: false,
   pendingScheduleDocId: null as string | null,
   pendingSchedulePrevStatus: null as string | null,
@@ -112,8 +106,6 @@ export const useBoardStore = create<BoardState>()((set) => ({
       return { optimisticMoves: next };
     }),
 
-  clearAllOptimisticMoves: () => set({ optimisticMoves: new Map() }),
-
   toggleTagFilter: (tag) =>
     set((state) => {
       const next = new Set(state.activeTagFilters);
@@ -125,10 +117,8 @@ export const useBoardStore = create<BoardState>()((set) => ({
       return { activeTagFilters: next };
     }),
 
-  setTagFilters: (tags) => set({ activeTagFilters: tags }),
   clearTagFilters: () => set({ activeTagFilters: new Set() }),
 
-  setEditingColumnId: (id) => set({ editingColumnId: id }),
   setSettingsDialogOpen: (open) => set({ settingsDialogOpen: open }),
 
   toggleColumnCollapsed: (columnId) =>
@@ -156,17 +146,6 @@ export const useBoardStore = create<BoardState>()((set) => ({
       pendingSchedulePrevStatus: null,
     }),
 
-  reset: () =>
-    set({
-      activeItem: null,
-      overColumnId: null,
-      optimisticMoves: new Map(),
-      activeTagFilters: new Set(),
-      collapsedColumns: new Set(),
-      focusedCardId: null,
-      editingColumnId: null,
-      settingsDialogOpen: false,
-      pendingScheduleDocId: null,
-      pendingSchedulePrevStatus: null,
-    }),
+  // Safe to share initialState's Map/Sets: every action copies before writing.
+  reset: () => set(initialState),
 }));

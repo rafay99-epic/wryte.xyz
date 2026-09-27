@@ -40,9 +40,9 @@ export async function getGithubToken(): Promise<
   return { token };
 }
 
-// NOTE: frontmatter type inference now lives in the detection engine at
-// `src/lib/frontmatter-detection/infer.ts` (name-registry aware, used by the
-// detect-frontmatter route). This file keeps only GitHub auth/repo helpers.
+// Frontmatter type inference lives in `@wryte/logic/lib/frontmatter-detection`
+// (used by the detect-frontmatter route); this file keeps only GitHub
+// auth/repo helpers.
 
 /**
  * Splits a "owner/repo" string into its component parts.

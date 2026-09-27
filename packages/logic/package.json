@@ -7,7 +7,8 @@
     "./*": "./src/*.ts"
   },
   "scripts": {
-    "type": "tsc --noEmit"
+    "type": "tsc --noEmit",
+    "test": "bun test tests"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.9.1",

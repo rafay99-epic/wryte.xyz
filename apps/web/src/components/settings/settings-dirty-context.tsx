@@ -5,8 +5,8 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useId,
   useMemo,
-  useRef,
   useState,
 } from "react";
 
@@ -64,8 +64,6 @@ export function useSettingsDirty(): number {
   return useContext(SettingsDirtyContext)?.dirtyCount ?? 0;
 }
 
-let nextId = 0;
-
 /**
  * Report this section's dirty state to the shell. Unregisters on unmount
  * (an unmounted section's edits are already gone — nothing left to guard).
@@ -73,12 +71,7 @@ let nextId = 0;
  */
 export function useReportDirty(dirty: boolean): void {
   const ctx = useContext(SettingsDirtyContext);
-  const idRef = useRef<string | null>(null);
-  if (idRef.current === null) {
-    nextId += 1;
-    idRef.current = `section-${String(nextId)}`;
-  }
-  const id = idRef.current;
+  const id = useId();
   const report = ctx?.report;
 
   useEffect(() => {

@@ -118,6 +118,7 @@ export const getLatestForDocument = query({
     const records = await ctx.db
       .query("scheduled_publishes")
       .withIndex("by_documentId", (q) => q.eq("documentId", args.documentId))
+      .order("desc")
       .take(10);
 
     if (records.length === 0) return null;
@@ -161,118 +162,114 @@ export async function scheduleForUser(
     socialPostText?: string;
   },
 ) {
-  {
-    await rateLimiter.limit(ctx, "scheduling:schedule", {
-      key: user.tokenIdentifier,
-      throws: true,
-    });
+  await rateLimiter.limit(ctx, "scheduling:schedule", {
+    key: user.tokenIdentifier,
+    throws: true,
+  });
 
-    const document = await ctx.db.get(args.documentId);
-    if (!document) {
-      throw new Error("Document not found");
-    }
+  const document = await ctx.db.get(args.documentId);
+  if (!document) {
+    throw new Error("Document not found");
+  }
 
-    const project = await ctx.db.get(document.projectId);
-    if (!project || project.userId !== user._id) {
-      throw new Error("Unauthorized: you do not own this document");
-    }
+  const project = await ctx.db.get(document.projectId);
+  if (!project || project.userId !== user._id) {
+    throw new Error("Unauthorized: you do not own this document");
+  }
 
-    if (args.scheduledAt <= Date.now()) {
-      throw new Error("Please choose a date and time in the future.");
-    }
+  if (args.scheduledAt <= Date.now()) {
+    throw new Error("Please choose a date and time in the future.");
+  }
 
-    if (args.socialPostText && args.socialPostText.length > 2000) {
-      throw new Error("Social post text is too long (max 2000 characters).");
-    }
+  if (args.socialPostText && args.socialPostText.length > 2000) {
+    throw new Error("Social post text is too long (max 2000 characters).");
+  }
 
-    // Cancel any existing pending workflows for this document
-    const existing = await ctx.db
-      .query("scheduled_publishes")
-      .withIndex("by_documentId", (q) => q.eq("documentId", args.documentId))
-      .take(10);
+  // Cancel any existing pending workflows for this document
+  const existing = await ctx.db
+    .query("scheduled_publishes")
+    .withIndex("by_documentId", (q) => q.eq("documentId", args.documentId))
+    .order("desc")
+    .take(10);
 
-    for (const sp of existing) {
-      if (sp.status === "pending" || sp.status === "processing") {
-        // Cancel the workflow if it exists
-        if (sp.workflowId) {
-          try {
-            await publishWorkflowManager.cancel(
-              ctx,
-              sp.workflowId as WorkflowId,
-            );
-          } catch {
-            // Workflow may already be completed/canceled — safe to ignore
-          }
-        }
-        // Record may have been deleted by the workflow's onComplete callback
-        const stillExists = await ctx.db.get(sp._id);
-        if (stillExists) {
-          await ctx.db.delete(sp._id);
+  for (const sp of existing) {
+    if (sp.status === "pending" || sp.status === "processing") {
+      // Cancel the workflow if it exists
+      if (sp.workflowId) {
+        try {
+          await publishWorkflowManager.cancel(ctx, sp.workflowId as WorkflowId);
+        } catch {
+          // Workflow may already be completed/canceled — safe to ignore
         }
       }
+      // Record may have been deleted by the workflow's onComplete callback
+      const stillExists = await ctx.db.get(sp._id);
+      if (stillExists) {
+        await ctx.db.delete(sp._id);
+      }
     }
-
-    // Create the scheduled publish record
-    const insertDoc: {
-      documentId: Id<"documents">;
-      scheduledAt: number;
-      status: "pending";
-      socialPostText?: string;
-      createdAt: number;
-    } = {
-      documentId: args.documentId,
-      scheduledAt: args.scheduledAt,
-      status: "pending",
-      createdAt: Date.now(),
-    };
-    if (args.socialPostText) insertDoc.socialPostText = args.socialPostText;
-    const publishId = await ctx.db.insert("scheduled_publishes", insertDoc);
-
-    // Start the durable workflow. The workflow no longer carries a
-    // credential — `publishToGithub` resolves a fresh token from Clerk
-    // (or vault) at fire-time, which is what makes long-term schedules
-    // reliable even when the captured-at-schedule-time token would have
-    // expired.
-    const workflowArgs: {
-      publishId: Id<"scheduled_publishes">;
-      documentId: Id<"documents">;
-      scheduledAt: number;
-      socialPostText?: string;
-    } = {
-      publishId,
-      documentId: args.documentId,
-      scheduledAt: args.scheduledAt,
-    };
-    if (args.socialPostText) workflowArgs.socialPostText = args.socialPostText;
-    const workflowId = await publishWorkflowManager.start(
-      ctx,
-      internal.integrations.scheduling.scheduledPublishWorkflow,
-      workflowArgs,
-      {
-        onComplete: internal.integrations.scheduling.onPublishComplete,
-        context: { publishId, documentId: args.documentId },
-      },
-    );
-
-    // Store the workflow ID for cancellation
-    await ctx.db.patch(publishId, { workflowId: workflowId as string });
-
-    const oldStatus = document.status;
-
-    // Update document status to "scheduled"
-    await ctx.db.patch(args.documentId, {
-      status: "scheduled",
-      scheduledAt: args.scheduledAt,
-      updatedAt: Date.now(),
-    });
-
-    await scheduleStatusChange(ctx, {
-      projectId: document.projectId,
-      userId: user._id,
-      oldStatus,
-      newStatus: "scheduled",
-    });
   }
+
+  // Create the scheduled publish record
+  const insertDoc: {
+    documentId: Id<"documents">;
+    scheduledAt: number;
+    status: "pending";
+    socialPostText?: string;
+    createdAt: number;
+  } = {
+    documentId: args.documentId,
+    scheduledAt: args.scheduledAt,
+    status: "pending",
+    createdAt: Date.now(),
+  };
+  if (args.socialPostText) insertDoc.socialPostText = args.socialPostText;
+  const publishId = await ctx.db.insert("scheduled_publishes", insertDoc);
+
+  // Start the durable workflow. The workflow no longer carries a
+  // credential — `publishToGithub` resolves a fresh token from Clerk
+  // (or vault) at fire-time, which is what makes long-term schedules
+  // reliable even when the captured-at-schedule-time token would have
+  // expired.
+  const workflowArgs: {
+    publishId: Id<"scheduled_publishes">;
+    documentId: Id<"documents">;
+    scheduledAt: number;
+    socialPostText?: string;
+  } = {
+    publishId,
+    documentId: args.documentId,
+    scheduledAt: args.scheduledAt,
+  };
+  if (args.socialPostText) workflowArgs.socialPostText = args.socialPostText;
+  const workflowId = await publishWorkflowManager.start(
+    ctx,
+    internal.integrations.scheduling.scheduledPublishWorkflow,
+    workflowArgs,
+    {
+      onComplete: internal.integrations.scheduling.onPublishComplete,
+      context: { publishId, documentId: args.documentId },
+    },
+  );
+
+  // Store the workflow ID for cancellation
+  await ctx.db.patch(publishId, { workflowId: workflowId as string });
+
+  const oldStatus = document.status;
+
+  // Update document status to "scheduled"
+  await ctx.db.patch(args.documentId, {
+    status: "scheduled",
+    scheduledAt: args.scheduledAt,
+    updatedAt: Date.now(),
+  });
+
+  await scheduleStatusChange(ctx, {
+    projectId: document.projectId,
+    userId: user._id,
+    oldStatus,
+    newStatus: "scheduled",
+  });
 }
 
 /**
@@ -295,62 +292,58 @@ export async function cancelScheduleForUser(
   user: Doc<"users">,
   args: { documentId: Id<"documents"> },
 ) {
-  {
-    await rateLimiter.limit(ctx, "scheduling:cancel", {
-      key: user.tokenIdentifier,
-      throws: true,
-    });
+  await rateLimiter.limit(ctx, "scheduling:cancel", {
+    key: user.tokenIdentifier,
+    throws: true,
+  });
 
-    const document = await ctx.db.get(args.documentId);
-    if (!document) {
-      throw new Error("Document not found");
-    }
+  const document = await ctx.db.get(args.documentId);
+  if (!document) {
+    throw new Error("Document not found");
+  }
 
-    const project = await ctx.db.get(document.projectId);
-    if (!project || project.userId !== user._id) {
-      throw new Error("Unauthorized: you do not own this document");
-    }
+  const project = await ctx.db.get(document.projectId);
+  if (!project || project.userId !== user._id) {
+    throw new Error("Unauthorized: you do not own this document");
+  }
 
-    const scheduledPublishes = await ctx.db
-      .query("scheduled_publishes")
-      .withIndex("by_documentId", (q) => q.eq("documentId", args.documentId))
-      .take(10);
+  const scheduledPublishes = await ctx.db
+    .query("scheduled_publishes")
+    .withIndex("by_documentId", (q) => q.eq("documentId", args.documentId))
+    .order("desc")
+    .take(10);
 
-    for (const sp of scheduledPublishes) {
-      if (sp.status === "pending" || sp.status === "processing") {
-        // Cancel the workflow if it exists
-        if (sp.workflowId) {
-          try {
-            await publishWorkflowManager.cancel(
-              ctx,
-              sp.workflowId as WorkflowId,
-            );
-          } catch {
-            // Workflow may already be completed/canceled — safe to ignore
-          }
-        }
-        // Record may have been deleted by the workflow's onComplete callback
-        // (same race the schedule mutation guards against above).
-        const stillExists = await ctx.db.get(sp._id);
-        if (stillExists) {
-          await ctx.db.delete(sp._id);
+  for (const sp of scheduledPublishes) {
+    if (sp.status === "pending" || sp.status === "processing") {
+      // Cancel the workflow if it exists
+      if (sp.workflowId) {
+        try {
+          await publishWorkflowManager.cancel(ctx, sp.workflowId as WorkflowId);
+        } catch {
+          // Workflow may already be completed/canceled — safe to ignore
         }
       }
+      // Record may have been deleted by the workflow's onComplete callback
+      // (same race the schedule mutation guards against above).
+      const stillExists = await ctx.db.get(sp._id);
+      if (stillExists) {
+        await ctx.db.delete(sp._id);
+      }
     }
-
-    await ctx.db.patch(args.documentId, {
-      status: "draft",
-      scheduledAt: undefined,
-      updatedAt: Date.now(),
-    });
-
-    await scheduleStatusChange(ctx, {
-      projectId: document.projectId,
-      userId: user._id,
-      oldStatus: "scheduled",
-      newStatus: "draft",
-    });
   }
+
+  await ctx.db.patch(args.documentId, {
+    status: "draft",
+    scheduledAt: undefined,
+    updatedAt: Date.now(),
+  });
+
+  await scheduleStatusChange(ctx, {
+    projectId: document.projectId,
+    userId: user._id,
+    oldStatus: "scheduled",
+    newStatus: "draft",
+  });
 }
 
 /* ------------------------------------------------------------------ */
@@ -377,13 +370,33 @@ export const updatePublishStatus = internalMutation({
     const record = await ctx.db.get(args.publishId);
     if (!record) return; // Record was deleted (e.g. canceled)
 
-    const updates: Record<string, unknown> = { status: args.status };
-    if (args.error !== undefined) {
-      updates["error"] = args.error;
-    }
-    await ctx.db.patch(args.publishId, updates);
+    await ctx.db.patch(args.publishId, {
+      status: args.status,
+      ...(args.error !== undefined ? { error: args.error } : {}),
+    });
   },
 });
+
+/**
+ * Reverts a scheduled document to draft after its workflow failed or was
+ * canceled, keeping `project_stats` counts in step with the status change.
+ */
+async function revertScheduledToDraft(
+  ctx: MutationCtx,
+  doc: Doc<"documents">,
+): Promise<void> {
+  await ctx.db.patch(doc._id, {
+    status: "draft",
+    scheduledAt: undefined,
+    updatedAt: Date.now(),
+  });
+  await scheduleStatusChange(ctx, {
+    projectId: doc.projectId,
+    userId: doc.userId,
+    oldStatus: "scheduled",
+    newStatus: "draft",
+  });
+}
 
 /**
  * Called by the workflow's `onComplete` callback. Handles final state updates
@@ -400,8 +413,8 @@ export const onPublishComplete = internalMutation({
   },
   handler: async (ctx, args) => {
     const { publishId, documentId } = args.context as {
-      publishId: string;
-      documentId: string;
+      publishId: Id<"scheduled_publishes">;
+      documentId: Id<"documents">;
     };
 
     const result = args.result as
@@ -411,7 +424,7 @@ export const onPublishComplete = internalMutation({
 
     if (result.kind === "failed") {
       // Mark as failed with the error message
-      const record = await ctx.db.get(publishId as Id<"scheduled_publishes">);
+      const record = await ctx.db.get(publishId);
       if (record) {
         await ctx.db.patch(record._id, {
           status: "failed" as const,
@@ -424,52 +437,42 @@ export const onPublishComplete = internalMutation({
       // We don't revert if a NEWER schedule has been created in the meantime
       // (rescheduling races): only revert if this publish is the current
       // active one.
-      const doc = await ctx.db.get(documentId as Id<"documents">);
+      const doc = await ctx.db.get(documentId);
       if (doc && doc.status === "scheduled") {
         const otherActive = await ctx.db
           .query("scheduled_publishes")
-          .withIndex("by_documentId", (q) =>
-            q.eq("documentId", documentId as Id<"documents">),
-          )
+          .withIndex("by_documentId", (q) => q.eq("documentId", documentId))
+          .order("desc")
           .take(10);
         const hasFreshSchedule = otherActive.some(
           (s) =>
-            s._id !== (publishId as Id<"scheduled_publishes">) &&
+            s._id !== publishId &&
             (s.status === "pending" || s.status === "processing"),
         );
         if (!hasFreshSchedule) {
-          await ctx.db.patch(doc._id, {
-            status: "draft",
-            scheduledAt: undefined,
-            updatedAt: Date.now(),
-          });
+          await revertScheduledToDraft(ctx, doc);
         }
       }
     } else if (result.kind === "canceled") {
       // Only revert to draft if this specific publish record still exists
       // (if user rescheduled, the old record was already deleted and a new
       // one was created — we should NOT revert the document to draft)
-      const record = await ctx.db.get(publishId as Id<"scheduled_publishes">);
+      const record = await ctx.db.get(publishId);
       if (record) {
         await ctx.db.delete(record._id);
         // Only revert doc status if no other pending/processing schedules exist
         const otherSchedules = await ctx.db
           .query("scheduled_publishes")
-          .withIndex("by_documentId", (q) =>
-            q.eq("documentId", documentId as Id<"documents">),
-          )
+          .withIndex("by_documentId", (q) => q.eq("documentId", documentId))
+          .order("desc")
           .take(10);
         const hasActiveSchedule = otherSchedules.some(
           (s) => s.status === "pending" || s.status === "processing",
         );
         if (!hasActiveSchedule) {
-          const doc = await ctx.db.get(documentId as Id<"documents">);
+          const doc = await ctx.db.get(documentId);
           if (doc && doc.status === "scheduled") {
-            await ctx.db.patch(doc._id, {
-              status: "draft",
-              scheduledAt: undefined,
-              updatedAt: Date.now(),
-            });
+            await revertScheduledToDraft(ctx, doc);
           }
         }
       }

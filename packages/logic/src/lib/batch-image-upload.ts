@@ -40,7 +40,7 @@ export type BatchSelectionResult = {
 };
 
 export type BatchImageAction =
-  | { kind: "replace"; items: BatchImageItem[] }
+  | { kind: "add"; items: BatchImageItem[] }
   | { kind: "remove"; id: string }
   | { kind: "set-alt"; id: string; altText: string }
   | { kind: "set-status"; id: string; status: BatchUploadStatus }
@@ -96,13 +96,34 @@ export function addBatchImages(
   return { items, issues };
 }
 
+/**
+ * Append already-built items to the batch, skipping files that are already
+ * queued and anything past the batch cap. Used by the reducer so two quick
+ * `addFiles` calls can't overwrite each other.
+ */
+function appendBatchImages(
+  existing: BatchImageItem[],
+  incoming: BatchImageItem[],
+): BatchImageItem[] {
+  const items = [...existing];
+  const identities = new Set(items.map((item) => fileIdentity(item.file)));
+  for (const item of incoming) {
+    if (items.length >= MAX_BATCH_IMAGES) break;
+    const identity = fileIdentity(item.file);
+    if (identities.has(identity)) continue;
+    identities.add(identity);
+    items.push(item);
+  }
+  return items;
+}
+
 export function batchImageReducer(
   items: BatchImageItem[],
   action: BatchImageAction,
 ): BatchImageItem[] {
   switch (action.kind) {
-    case "replace":
-      return action.items;
+    case "add":
+      return appendBatchImages(items, action.items);
     case "remove":
       return items.filter((item) => item.id !== action.id);
     case "set-alt":

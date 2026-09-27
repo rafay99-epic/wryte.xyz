@@ -25,7 +25,7 @@ apps/desktop/
 │   ├── tray/tray.cjs       # Menu-bar tray, hide-to-tray
 │   ├── updater/            # electron-updater flow + its own window
 │   ├── about/              # About window
-│   └── workers/            # Connectivity + task child processes
+│   └── workers/            # Connectivity child process
 ├── assets/wryte-icon.png   # Runtime icon (tray, window, about)
 ├── build/icon.png          # electron-builder buildResources
 └── electron-builder.js     # Packaging + publish config

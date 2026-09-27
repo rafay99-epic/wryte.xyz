@@ -1,6 +1,6 @@
 /**
  * Shape of compression preferences. Mirrors `compressionSettingsValidator`
- * in `convex/compressionSettings.ts` so a value stored on a user or project
+ * in `packages/backend/convex/_lib/compression.ts` so a value stored on a user or project
  * record is type-compatible with this client-side library.
  */
 export type CompressionSettings = {

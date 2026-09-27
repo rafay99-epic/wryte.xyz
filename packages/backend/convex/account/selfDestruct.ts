@@ -9,9 +9,6 @@
  *    them are removed).
  *  - Delete the Convex `users` row — patched in place so the active session
  *    survives and the next page load sees an empty inventory.
- *
- * Architecture is in `/Users/prometheus/.claude/plans/yeah-so-here-s-the-crispy-zephyr.md`
- * under "Self-Destruct (User Account Reset)".
  */
 
 import type { WorkflowId } from "@convex-dev/workflow";
@@ -27,6 +24,7 @@ import {
 } from "../_generated/server";
 import { getAuthedUserOrNull } from "../_lib/auth";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
+import { listProjectVaultIds, wipeProjectRows } from "../cms/projects";
 import { publishWorkflowManager } from "../integrations/scheduling";
 
 /* ------------------------------------------------------------------ */
@@ -242,9 +240,8 @@ export const selfDestruct = action({
 
 /**
  * All scheduled_publishes for the user that still need cancelling.
- * Walks projects → documents → scheduled_publishes because there's no
- * by_userId index on scheduled_publishes (intentional — that table is keyed
- * on documentId / scheduledAt for the cron-style polling done elsewhere).
+ * Walks documents → scheduled_publishes because there's no by_userId index
+ * on scheduled_publishes (the table is keyed on documentId).
  */
 export const _listCancellationTargets = internalQuery({
   args: { userId: v.id("users") },
@@ -290,33 +287,53 @@ export const _listCancellationTargets = internalQuery({
 
 /**
  * Every vault id owned by the user — the GitHub PAT pointer plus every
- * mediaCredentials.vaultSecretId.
+ * credential row's `vaultSecretId`: the user-indexed media/AI/social/
+ * syndication credentials, and per project the deployment targets and
+ * retired analytics targets (which only have a project index).
  */
 export const _listVaultIds = internalQuery({
   args: { userId: v.id("users") },
   handler: async (ctx, args): Promise<string[]> => {
-    const ids: string[] = [];
+    const ids = new Set<string>();
 
     const user = await ctx.db.get(args.userId);
-    if (user?.githubVaultSecretId) ids.push(user.githubVaultSecretId);
+    if (user?.githubVaultSecretId) ids.add(user.githubVaultSecretId);
 
-    const mediaCreds = await ctx.db
-      .query("mediaCredentials")
-      .withIndex("by_userId_and_provider", (q) => q.eq("userId", args.userId))
-      .take(20);
-    for (const c of mediaCreds) {
-      if (c.vaultSecretId) ids.push(c.vaultSecretId);
+    const userCreds = await Promise.all([
+      ctx.db
+        .query("mediaCredentials")
+        .withIndex("by_userId_and_provider", (q) => q.eq("userId", args.userId))
+        .take(20),
+      ctx.db
+        .query("aiCredentials")
+        .withIndex("by_userId_and_provider", (q) => q.eq("userId", args.userId))
+        .take(20),
+      ctx.db
+        .query("socialCredentials")
+        .withIndex("by_userId_and_provider", (q) => q.eq("userId", args.userId))
+        .take(20),
+      ctx.db
+        .query("syndicationCredentials")
+        .withIndex("by_userId_and_provider", (q) => q.eq("userId", args.userId))
+        .take(20),
+    ]);
+    for (const rows of userCreds) {
+      for (const c of rows) {
+        if (c.vaultSecretId) ids.add(c.vaultSecretId);
+      }
     }
 
-    const aiCreds = await ctx.db
-      .query("aiCredentials")
-      .withIndex("by_userId_and_provider", (q) => q.eq("userId", args.userId))
-      .take(20);
-    for (const c of aiCreds) {
-      if (c.vaultSecretId) ids.push(c.vaultSecretId);
+    const projects = await ctx.db
+      .query("projects")
+      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+      .take(100);
+    for (const project of projects) {
+      for (const id of await listProjectVaultIds(ctx, project._id)) {
+        ids.add(id);
+      }
     }
 
-    return ids;
+    return [...ids];
   },
 });
 
@@ -336,7 +353,9 @@ export const _listVaultIds = internalQuery({
  *  5. mediaUsage
  *  6. mediaCredentials    (vault entries already removed in step B)
  *  7. documents
- *  8. projects
+ *  8. every remaining project-scoped table, per project (shared with
+ *     project deletion via `cms/projects.wipeProjectRows`)
+ *  9. projects
  *
  * Inside each table we drain as many rows as the remaining batch budget
  * allows; `remaining` totals what would still need to be processed.
@@ -595,11 +614,8 @@ export const _wipeChunk = internalMutation({
     }
 
     /* 7c-i. document_draft_content — draft bodies live in their own table
-     *       with a direct `by_userId` index. Note: `document_drafts`
-     *       metadata rows themselves aren't drained anywhere in this chunk
-     *       today (a pre-existing gap independent of this content split —
-     *       see the cost-audit cascade notes); this only prevents the new
-     *       content table from outliving even that. */
+     *       with a direct `by_userId` index. The `document_drafts` metadata
+     *       rows are drained per project in step 8b. */
     if (budget > 0) {
       const rows = await ctx.db
         .query("document_draft_content")
@@ -611,7 +627,7 @@ export const _wipeChunk = internalMutation({
       }
     }
 
-    /* 7c-ii. document_snapshot_content — same story as 7c-i, mirrored for
+    /* 7c-ii. document_snapshot_content — same as 7c-i, mirrored for
      *        `document_snapshots`. */
     if (budget > 0) {
       const rows = await ctx.db
@@ -660,6 +676,26 @@ export const _wipeChunk = internalMutation({
         await ctx.db.delete(row._id);
         budget--;
         documentsDeleted++;
+      }
+    }
+
+    /* 8b. Every other project-scoped table (drafts, snapshots, research,
+     *     ideas, share links, snippets, animations, social/syndication
+     *     posts and credentials, deployment targets and verifications, …).
+     *     Shared with project deletion so the two cascades cover the same
+     *     tables. Projects are only deleted in step 9 once this leaves
+     *     budget over, i.e. once every project is fully drained. */
+    if (budget > 0) {
+      const projects = await ctx.db
+        .query("projects")
+        .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+        .take(100);
+      for (const project of projects) {
+        if (budget <= 0) break;
+        const wiped = await wipeProjectRows(ctx, project._id, budget);
+        budget = wiped.budget;
+        documentsDeleted += wiped.documentsDeleted;
+        mediaDeleted += wiped.mediaDeleted;
       }
     }
 

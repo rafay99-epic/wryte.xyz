@@ -1,8 +1,8 @@
 import type { WorkflowId } from "@convex-dev/workflow";
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
-import type { Doc, Id } from "../_generated/dataModel";
-import type { QueryCtx } from "../_generated/server";
+import type { Doc, Id, TableNames } from "../_generated/dataModel";
+import type { MutationCtx, QueryCtx } from "../_generated/server";
 import {
   action,
   internalMutation,
@@ -708,36 +708,53 @@ export const _listProjectCancellationTargets = internalQuery({
 export const _listProjectVaultIds = internalQuery({
   args: { projectId: v.id("projects") },
   returns: v.array(v.string()),
-  handler: async (ctx, args): Promise<string[]> => {
-    const ids: string[] = [];
-
-    const mediaCreds = await ctx.db
-      .query("mediaCredentials")
-      .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
-      .take(20);
-    for (const c of mediaCreds) {
-      if (c.vaultSecretId) ids.push(c.vaultSecretId);
-    }
-
-    const aiCreds = await ctx.db
-      .query("aiCredentials")
-      .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
-      .take(20);
-    for (const c of aiCreds) {
-      if (c.vaultSecretId) ids.push(c.vaultSecretId);
-    }
-
-    const socialCreds = await ctx.db
-      .query("socialCredentials")
-      .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
-      .take(20);
-    for (const c of socialCreds) {
-      if (c.vaultSecretId) ids.push(c.vaultSecretId);
-    }
-
-    return ids;
-  },
+  handler: async (ctx, args): Promise<string[]> =>
+    await listProjectVaultIds(ctx, args.projectId),
 });
+
+/**
+ * Every vault id referenced by a project's credential rows: media, AI,
+ * social, syndication, deployment targets, and the retired analytics
+ * targets. Shared with `account/selfDestruct._listVaultIds`.
+ */
+export async function listProjectVaultIds(
+  ctx: QueryCtx,
+  projectId: Id<"projects">,
+): Promise<string[]> {
+  const groups = await Promise.all([
+    ctx.db
+      .query("mediaCredentials")
+      .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+      .take(50),
+    ctx.db
+      .query("aiCredentials")
+      .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+      .take(50),
+    ctx.db
+      .query("socialCredentials")
+      .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+      .take(50),
+    ctx.db
+      .query("syndicationCredentials")
+      .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+      .take(50),
+    ctx.db
+      .query("deployment_targets")
+      .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+      .take(50),
+    ctx.db
+      .query("analytics_targets")
+      .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+      .take(50),
+  ]);
+  const ids: string[] = [];
+  for (const rows of groups) {
+    for (const row of rows) {
+      if (row.vaultSecretId) ids.push(row.vaultSecretId);
+    }
+  }
+  return ids;
+}
 
 /**
  * Drains as many project-scoped rows as `batch` allows in a single
@@ -763,386 +780,482 @@ export const _wipeProjectChunk = internalMutation({
     documentsDeleted: number;
     mediaDeleted: number;
   }> => {
-    let budget = args.batch;
-    let documentsDeleted = 0;
-    let mediaDeleted = 0;
-
-    /* 1. scheduled_publishes via documents. Walks docs and decrements the
-     *    shared budget per scheduled_publish deleted so a project with many
-     *    docs × many SPs doesn't blow the per-transaction read/write limit
-     *    in a single chunk. Mirrors `selfDestruct._wipeChunk` step 1. */
-    if (budget > 0) {
-      const documents = await ctx.db
-        .query("documents")
-        .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
-        .take(Math.min(budget + 1, 5000));
-      for (const doc of documents) {
-        if (budget <= 0) break;
-        const rows = await ctx.db
-          .query("scheduled_publishes")
-          .withIndex("by_documentId", (q) => q.eq("documentId", doc._id))
-          .take(budget);
-        for (const row of rows) {
-          await ctx.db.delete(row._id);
-          budget--;
-        }
-      }
-    }
-
-    /* 1b. publish_history_content — drained before `publish_history` so a
-     *     re-run never leaves an orphaned content row. */
-    if (budget > 0) {
-      const rows = await ctx.db
-        .query("publish_history_content")
-        .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
-        .take(budget);
-      for (const row of rows) {
-        await ctx.db.delete(row._id);
-        budget--;
-      }
-    }
-
-    /* 2. publish_history */
-    if (budget > 0) {
-      const rows = await ctx.db
-        .query("publish_history")
-        .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
-        .take(budget);
-      for (const row of rows) {
-        await ctx.db.delete(row._id);
-        budget--;
-      }
-    }
-
-    /* 2b. document_draft_content — drained before `document_drafts` so a
-     *     re-run never leaves an orphaned content row pointing at a
-     *     deleted draft. Mirrors the `document_content`/`documents`
-     *     ordering used at the end of this chunk (step 13b/14). */
-    if (budget > 0) {
-      const rows = await ctx.db
-        .query("document_draft_content")
-        .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
-        .take(budget);
-      for (const row of rows) {
-        await ctx.db.delete(row._id);
-        budget--;
-      }
-    }
-
-    /* 3. document_drafts */
-    if (budget > 0) {
-      const rows = await ctx.db
-        .query("document_drafts")
-        .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
-        .take(budget);
-      for (const row of rows) {
-        await ctx.db.delete(row._id);
-        budget--;
-      }
-    }
-
-    /* 4. document_research */
-    if (budget > 0) {
-      const rows = await ctx.db
-        .query("document_research")
-        .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
-        .take(budget);
-      for (const row of rows) {
-        await ctx.db.delete(row._id);
-        budget--;
-      }
-    }
-
-    /* 4a2. document_snapshot_content — drained before `document_snapshots`
-     *      so a re-run never leaves an orphaned content row. */
-    if (budget > 0) {
-      const rows = await ctx.db
-        .query("document_snapshot_content")
-        .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
-        .take(budget);
-      for (const row of rows) {
-        await ctx.db.delete(row._id);
-        budget--;
-      }
-    }
-
-    /* 4b. document_snapshots */
-    if (budget > 0) {
-      const rows = await ctx.db
-        .query("document_snapshots")
-        .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
-        .take(budget);
-      for (const row of rows) {
-        await ctx.db.delete(row._id);
-        budget--;
-      }
-    }
-
-    /* 4c. ideas */
-    if (budget > 0) {
-      const rows = await ctx.db
-        .query("ideas")
-        .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
-        .take(budget);
-      for (const row of rows) {
-        await ctx.db.delete(row._id);
-        budget--;
-      }
-    }
-
-    /* 4d. share_links */
-    if (budget > 0) {
-      const rows = await ctx.db
-        .query("share_links")
-        .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
-        .take(budget);
-      for (const row of rows) {
-        await ctx.db.delete(row._id);
-        budget--;
-      }
-    }
-
-    /* 5. media */
-    if (budget > 0) {
-      const rows = await ctx.db
-        .query("media")
-        .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
-        .take(budget);
-      for (const row of rows) {
-        await ctx.db.delete(row._id);
-        budget--;
-        mediaDeleted++;
-      }
-    }
-
-    /* 6. mediaErrorLog */
-    if (budget > 0) {
-      const rows = await ctx.db
-        .query("mediaErrorLog")
-        .withIndex("by_projectId_and_createdAt", (q) =>
-          q.eq("projectId", args.projectId),
-        )
-        .take(budget);
-      for (const row of rows) {
-        await ctx.db.delete(row._id);
-        budget--;
-      }
-    }
-
-    /* 7. mediaUsage */
-    if (budget > 0) {
-      const rows = await ctx.db
-        .query("mediaUsage")
-        .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
-        .take(budget);
-      for (const row of rows) {
-        await ctx.db.delete(row._id);
-        budget--;
-      }
-    }
-
-    /* 8. credentials (vault entries already dropped in step B) */
-    if (budget > 0) {
-      const rows = await ctx.db
-        .query("mediaCredentials")
-        .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
-        .take(budget);
-      for (const row of rows) {
-        await ctx.db.delete(row._id);
-        budget--;
-      }
-    }
-    if (budget > 0) {
-      const rows = await ctx.db
-        .query("aiCredentials")
-        .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
-        .take(budget);
-      for (const row of rows) {
-        await ctx.db.delete(row._id);
-        budget--;
-      }
-    }
-    if (budget > 0) {
-      const rows = await ctx.db
-        .query("socialCredentials")
-        .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
-        .take(budget);
-      for (const row of rows) {
-        await ctx.db.delete(row._id);
-        budget--;
-      }
-    }
-
-    /* 9. sync_conflicts */
-    if (budget > 0) {
-      const rows = await ctx.db
-        .query("sync_conflicts")
-        .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
-        .take(budget);
-      for (const row of rows) {
-        await ctx.db.delete(row._id);
-        budget--;
-      }
-    }
-
-    /* 10. import_batches + outcomes */
-    if (budget > 0) {
-      const batches = await ctx.db
-        .query("import_batches")
-        .withIndex("by_projectId_and_createdAt", (q) =>
-          q.eq("projectId", args.projectId),
-        )
-        .take(budget);
-      for (const batch of batches) {
-        if (budget <= 0) break;
-        const outcomes = await ctx.db
-          .query("import_job_outcomes")
-          .withIndex("by_batchId", (q) => q.eq("batchId", batch._id))
-          .take(budget);
-        for (const outcome of outcomes) {
-          await ctx.db.delete(outcome._id);
-          budget--;
-        }
-        if (budget > 0) {
-          const remaining = await ctx.db
-            .query("import_job_outcomes")
-            .withIndex("by_batchId", (q) => q.eq("batchId", batch._id))
-            .take(1);
-          if (remaining.length === 0) {
-            await ctx.db.delete(batch._id);
-            budget--;
-          }
-        }
-      }
-    }
-
-    /* 11. delete_batches + outcomes */
-    if (budget > 0) {
-      const batches = await ctx.db
-        .query("delete_batches")
-        .withIndex("by_projectId_and_createdAt", (q) =>
-          q.eq("projectId", args.projectId),
-        )
-        .take(budget);
-      for (const batch of batches) {
-        if (budget <= 0) break;
-        const outcomes = await ctx.db
-          .query("delete_job_outcomes")
-          .withIndex("by_batchId", (q) => q.eq("batchId", batch._id))
-          .take(budget);
-        for (const outcome of outcomes) {
-          await ctx.db.delete(outcome._id);
-          budget--;
-        }
-        if (budget > 0) {
-          const remaining = await ctx.db
-            .query("delete_job_outcomes")
-            .withIndex("by_batchId", (q) => q.eq("batchId", batch._id))
-            .take(1);
-          if (remaining.length === 0) {
-            await ctx.db.delete(batch._id);
-            budget--;
-          }
-        }
-      }
-    }
-
-    /* 12. ai_stream_owners — bookkeeping for AI stream ownership. Rows
-     *     here outlive the underlying stream blob (which the persistent-
-     *     text-streaming component cleans up on its own schedule), but
-     *     without this branch they accumulate forever when a project is
-     *     deleted. */
-    if (budget > 0) {
-      const rows = await ctx.db
-        .query("ai_stream_owners")
-        .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
-        .take(budget);
-      for (const row of rows) {
-        await ctx.db.delete(row._id);
-        budget--;
-      }
-    }
-
-    /* 12b. document_links — the backlink graph for this project's documents.
-     *      Direct `by_projectId` index, so no need to walk the documents. */
-    if (budget > 0) {
-      const rows = await ctx.db
-        .query("document_links")
-        .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
-        .take(budget);
-      for (const row of rows) {
-        await ctx.db.delete(row._id);
-        budget--;
-      }
-    }
-
-    /* 12c. animations — user-authored .tsx components for this project. */
-    if (budget > 0) {
-      const rows = await ctx.db
-        .query("animations")
-        .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
-        .take(budget);
-      for (const row of rows) {
-        await ctx.db.delete(row._id);
-        budget--;
-      }
-    }
-
-    /* 13. project_stats — subtract from writing_stats.totalWords before
-     *     deleting so the user's lifetime total stays accurate. */
-    if (budget > 0) {
-      const rows = await ctx.db
-        .query("project_stats")
-        .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
-        .take(budget);
-      for (const row of rows) {
-        if (row.totalWords > 0) {
-          const userStats = await ctx.db
-            .query("writing_stats")
-            .withIndex("by_userId", (q) => q.eq("userId", row.userId))
-            .unique();
-          if (userStats) {
-            await ctx.db.patch(userStats._id, {
-              totalWords: Math.max(0, userStats.totalWords - row.totalWords),
-              updatedAt: Date.now(),
-            });
-          }
-        }
-        await ctx.db.delete(row._id);
-        budget--;
-      }
-    }
-
-    /* 13b. document_content — drain bodies before the parent documents so
-     *      a re-run never leaves orphaned content rows. */
-    if (budget > 0) {
-      const rows = await ctx.db
-        .query("document_content")
-        .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
-        .take(budget);
-      for (const row of rows) {
-        await ctx.db.delete(row._id);
-        budget--;
-      }
-    }
-
-    /* 14. documents */
-    if (budget > 0) {
-      const rows = await ctx.db
-        .query("documents")
-        .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
-        .take(budget);
-      for (const row of rows) {
-        await ctx.db.delete(row._id);
-        budget--;
-        documentsDeleted++;
-      }
-    }
-
+    const { documentsDeleted, mediaDeleted } = await wipeProjectRows(
+      ctx,
+      args.projectId,
+      args.batch,
+    );
     const remaining = await countProjectRemaining(ctx, args.projectId);
     return { remaining, documentsDeleted, mediaDeleted };
   },
 });
+
+/** Deletes `rows` and returns how many were removed, for budget accounting. */
+async function deleteRows(
+  ctx: MutationCtx,
+  rows: ReadonlyArray<{ _id: Id<TableNames> }>,
+): Promise<number> {
+  for (const row of rows) await ctx.db.delete(row._id);
+  return rows.length;
+}
+
+/**
+ * Readers for project-scoped tables that have no deletion-order constraints.
+ * Shared by the wipe (`take(budget)`) and `countProjectRemaining`
+ * (`take(1)`) so the two always cover the same tables.
+ */
+function looseProjectTables(
+  db: MutationCtx["db"],
+  projectId: Id<"projects">,
+): Array<(n: number) => Promise<Array<{ _id: Id<TableNames> }>>> {
+  return [
+    (n) =>
+      db
+        .query("social_posts")
+        .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+        .take(n),
+    (n) =>
+      db
+        .query("syndication_posts")
+        .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+        .take(n),
+    (n) =>
+      db
+        .query("deploy_verifications")
+        .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+        .take(n),
+    (n) =>
+      db
+        .query("deployment_targets")
+        .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+        .take(n),
+    (n) =>
+      db
+        .query("syndicationCredentials")
+        .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+        .take(n),
+    (n) =>
+      db
+        .query("snippets")
+        .withIndex("by_project", (q) => q.eq("projectId", projectId))
+        .take(n),
+    (n) =>
+      db
+        .query("animation_names")
+        .withIndex("by_project", (q) => q.eq("projectId", projectId))
+        .take(n),
+    (n) =>
+      db
+        .query("analytics_targets")
+        .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+        .take(n),
+    (n) =>
+      db
+        .query("analytics_snapshots")
+        .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+        .take(n),
+  ];
+}
+
+/**
+ * Deletes up to `budget` project-scoped rows in dependency order (workflow
+ * rows first, documents last; the project row itself is left to
+ * `_deleteProjectRow`). Returns the unspent budget so callers that walk
+ * several projects in one transaction (`selfDestruct._wipeChunk`) can share
+ * it.
+ */
+export async function wipeProjectRows(
+  ctx: MutationCtx,
+  projectId: Id<"projects">,
+  initialBudget: number,
+): Promise<{ budget: number; documentsDeleted: number; mediaDeleted: number }> {
+  let budget = initialBudget;
+  let documentsDeleted = 0;
+  let mediaDeleted = 0;
+
+  /* 1. scheduled_publishes via documents. Walks docs and decrements the
+   *    shared budget per scheduled_publish deleted so a project with many
+   *    docs × many SPs doesn't blow the per-transaction read/write limit
+   *    in a single chunk. Mirrors `selfDestruct._wipeChunk` step 1. */
+  if (budget > 0) {
+    const documents = await ctx.db
+      .query("documents")
+      .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+      .take(Math.min(budget + 1, 5000));
+    for (const doc of documents) {
+      if (budget <= 0) break;
+      const rows = await ctx.db
+        .query("scheduled_publishes")
+        .withIndex("by_documentId", (q) => q.eq("documentId", doc._id))
+        .take(budget);
+      for (const row of rows) {
+        await ctx.db.delete(row._id);
+        budget--;
+      }
+    }
+  }
+
+  /* 1b. publish_history_content — drained before `publish_history` so a
+   *     re-run never leaves an orphaned content row. */
+  if (budget > 0) {
+    const rows = await ctx.db
+      .query("publish_history_content")
+      .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+      .take(budget);
+    for (const row of rows) {
+      await ctx.db.delete(row._id);
+      budget--;
+    }
+  }
+
+  /* 2. publish_history */
+  if (budget > 0) {
+    const rows = await ctx.db
+      .query("publish_history")
+      .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+      .take(budget);
+    for (const row of rows) {
+      await ctx.db.delete(row._id);
+      budget--;
+    }
+  }
+
+  /* 2b. document_draft_content — drained before `document_drafts` so a
+   *     re-run never leaves an orphaned content row pointing at a
+   *     deleted draft. Mirrors the `document_content`/`documents`
+   *     ordering used at the end of this chunk (step 13b/14). */
+  if (budget > 0) {
+    const rows = await ctx.db
+      .query("document_draft_content")
+      .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+      .take(budget);
+    for (const row of rows) {
+      await ctx.db.delete(row._id);
+      budget--;
+    }
+  }
+
+  /* 3. document_drafts */
+  if (budget > 0) {
+    const rows = await ctx.db
+      .query("document_drafts")
+      .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+      .take(budget);
+    for (const row of rows) {
+      await ctx.db.delete(row._id);
+      budget--;
+    }
+  }
+
+  /* 4. document_research */
+  if (budget > 0) {
+    const rows = await ctx.db
+      .query("document_research")
+      .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+      .take(budget);
+    for (const row of rows) {
+      await ctx.db.delete(row._id);
+      budget--;
+    }
+  }
+
+  /* 4a2. document_snapshot_content — drained before `document_snapshots`
+   *      so a re-run never leaves an orphaned content row. */
+  if (budget > 0) {
+    const rows = await ctx.db
+      .query("document_snapshot_content")
+      .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+      .take(budget);
+    for (const row of rows) {
+      await ctx.db.delete(row._id);
+      budget--;
+    }
+  }
+
+  /* 4b. document_snapshots */
+  if (budget > 0) {
+    const rows = await ctx.db
+      .query("document_snapshots")
+      .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+      .take(budget);
+    for (const row of rows) {
+      await ctx.db.delete(row._id);
+      budget--;
+    }
+  }
+
+  /* 4c. ideas */
+  if (budget > 0) {
+    const rows = await ctx.db
+      .query("ideas")
+      .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+      .take(budget);
+    for (const row of rows) {
+      await ctx.db.delete(row._id);
+      budget--;
+    }
+  }
+
+  /* 4d. share_links */
+  if (budget > 0) {
+    const rows = await ctx.db
+      .query("share_links")
+      .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+      .take(budget);
+    for (const row of rows) {
+      await ctx.db.delete(row._id);
+      budget--;
+    }
+  }
+
+  /* 5. media */
+  if (budget > 0) {
+    const rows = await ctx.db
+      .query("media")
+      .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+      .take(budget);
+    for (const row of rows) {
+      await ctx.db.delete(row._id);
+      budget--;
+      mediaDeleted++;
+    }
+  }
+
+  /* 6. mediaErrorLog */
+  if (budget > 0) {
+    const rows = await ctx.db
+      .query("mediaErrorLog")
+      .withIndex("by_projectId_and_createdAt", (q) =>
+        q.eq("projectId", projectId),
+      )
+      .take(budget);
+    for (const row of rows) {
+      await ctx.db.delete(row._id);
+      budget--;
+    }
+  }
+
+  /* 7. mediaUsage */
+  if (budget > 0) {
+    const rows = await ctx.db
+      .query("mediaUsage")
+      .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+      .take(budget);
+    for (const row of rows) {
+      await ctx.db.delete(row._id);
+      budget--;
+    }
+  }
+
+  /* 8. credentials (vault entries already dropped in step B) */
+  if (budget > 0) {
+    const rows = await ctx.db
+      .query("mediaCredentials")
+      .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+      .take(budget);
+    for (const row of rows) {
+      await ctx.db.delete(row._id);
+      budget--;
+    }
+  }
+  if (budget > 0) {
+    const rows = await ctx.db
+      .query("aiCredentials")
+      .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+      .take(budget);
+    for (const row of rows) {
+      await ctx.db.delete(row._id);
+      budget--;
+    }
+  }
+  if (budget > 0) {
+    const rows = await ctx.db
+      .query("socialCredentials")
+      .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+      .take(budget);
+    for (const row of rows) {
+      await ctx.db.delete(row._id);
+      budget--;
+    }
+  }
+
+  /* 9. sync_conflicts */
+  if (budget > 0) {
+    const rows = await ctx.db
+      .query("sync_conflicts")
+      .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+      .take(budget);
+    for (const row of rows) {
+      await ctx.db.delete(row._id);
+      budget--;
+    }
+  }
+
+  /* 10. import_batches + outcomes */
+  if (budget > 0) {
+    const batches = await ctx.db
+      .query("import_batches")
+      .withIndex("by_projectId_and_createdAt", (q) =>
+        q.eq("projectId", projectId),
+      )
+      .take(budget);
+    for (const batch of batches) {
+      if (budget <= 0) break;
+      const outcomes = await ctx.db
+        .query("import_job_outcomes")
+        .withIndex("by_batchId", (q) => q.eq("batchId", batch._id))
+        .take(budget);
+      for (const outcome of outcomes) {
+        await ctx.db.delete(outcome._id);
+        budget--;
+      }
+      if (budget > 0) {
+        const remaining = await ctx.db
+          .query("import_job_outcomes")
+          .withIndex("by_batchId", (q) => q.eq("batchId", batch._id))
+          .take(1);
+        if (remaining.length === 0) {
+          await ctx.db.delete(batch._id);
+          budget--;
+        }
+      }
+    }
+  }
+
+  /* 11. delete_batches + outcomes */
+  if (budget > 0) {
+    const batches = await ctx.db
+      .query("delete_batches")
+      .withIndex("by_projectId_and_createdAt", (q) =>
+        q.eq("projectId", projectId),
+      )
+      .take(budget);
+    for (const batch of batches) {
+      if (budget <= 0) break;
+      const outcomes = await ctx.db
+        .query("delete_job_outcomes")
+        .withIndex("by_batchId", (q) => q.eq("batchId", batch._id))
+        .take(budget);
+      for (const outcome of outcomes) {
+        await ctx.db.delete(outcome._id);
+        budget--;
+      }
+      if (budget > 0) {
+        const remaining = await ctx.db
+          .query("delete_job_outcomes")
+          .withIndex("by_batchId", (q) => q.eq("batchId", batch._id))
+          .take(1);
+        if (remaining.length === 0) {
+          await ctx.db.delete(batch._id);
+          budget--;
+        }
+      }
+    }
+  }
+
+  /* 12. ai_stream_owners — bookkeeping for AI stream ownership. Rows
+   *     here outlive the underlying stream blob (which the persistent-
+   *     text-streaming component cleans up on its own schedule), but
+   *     without this branch they accumulate forever when a project is
+   *     deleted. */
+  if (budget > 0) {
+    const rows = await ctx.db
+      .query("ai_stream_owners")
+      .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+      .take(budget);
+    for (const row of rows) {
+      await ctx.db.delete(row._id);
+      budget--;
+    }
+  }
+
+  /* 12b. document_links — the backlink graph for this project's documents.
+   *      Direct `by_projectId` index, so no need to walk the documents. */
+  if (budget > 0) {
+    const rows = await ctx.db
+      .query("document_links")
+      .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+      .take(budget);
+    for (const row of rows) {
+      await ctx.db.delete(row._id);
+      budget--;
+    }
+  }
+
+  /* 12c. animations — user-authored .tsx components for this project. */
+  if (budget > 0) {
+    const rows = await ctx.db
+      .query("animations")
+      .withIndex("by_project", (q) => q.eq("projectId", projectId))
+      .take(budget);
+    for (const row of rows) {
+      await ctx.db.delete(row._id);
+      budget--;
+    }
+  }
+
+  /* 12d. Remaining project-scoped tables with no ordering constraints
+   *      (syndication/social outcomes, deploy rows, snippets, animation
+   *      names, syndication credentials, retired analytics tables). Vault
+   *      entries for the credential rows were already dropped in step B. */
+  for (const read of looseProjectTables(ctx.db, projectId)) {
+    if (budget <= 0) break;
+    budget -= await deleteRows(ctx, await read(budget));
+  }
+
+  /* 13. project_stats — subtract from writing_stats.totalWords before
+   *     deleting so the user's lifetime total stays accurate. */
+  if (budget > 0) {
+    const rows = await ctx.db
+      .query("project_stats")
+      .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+      .take(budget);
+    for (const row of rows) {
+      if (row.totalWords > 0) {
+        const userStats = await ctx.db
+          .query("writing_stats")
+          .withIndex("by_userId", (q) => q.eq("userId", row.userId))
+          .unique();
+        if (userStats) {
+          await ctx.db.patch(userStats._id, {
+            totalWords: Math.max(0, userStats.totalWords - row.totalWords),
+            updatedAt: Date.now(),
+          });
+        }
+      }
+      await ctx.db.delete(row._id);
+      budget--;
+    }
+  }
+
+  /* 13b. document_content — drain bodies before the parent documents so
+   *      a re-run never leaves orphaned content rows. */
+  if (budget > 0) {
+    const rows = await ctx.db
+      .query("document_content")
+      .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+      .take(budget);
+    for (const row of rows) {
+      await ctx.db.delete(row._id);
+      budget--;
+    }
+  }
+
+  /* 14. documents */
+  if (budget > 0) {
+    const rows = await ctx.db
+      .query("documents")
+      .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+      .take(budget);
+    for (const row of rows) {
+      await ctx.db.delete(row._id);
+      budget--;
+      documentsDeleted++;
+    }
+  }
+
+  return { budget, documentsDeleted, mediaDeleted };
+}
 
 /**
  * Final teardown. Idempotent — a re-run after partial failure is a no-op
@@ -1172,8 +1285,8 @@ export const _deleteProjectRow = internalMutation({
 });
 
 /** Counts still-pending rows across every project-scoped table. */
-async function countProjectRemaining(
-  ctx: { db: import("../_generated/server").MutationCtx["db"] },
+export async function countProjectRemaining(
+  ctx: { db: MutationCtx["db"] },
   projectId: Id<"projects">,
 ): Promise<number> {
   const heads = await Promise.all([
@@ -1279,6 +1392,7 @@ async function countProjectRemaining(
       .query("animations")
       .withIndex("by_project", (q) => q.eq("projectId", projectId))
       .take(1),
+    ...looseProjectTables(ctx.db, projectId).map((read) => read(1)),
   ]);
   let count = 0;
   for (const r of heads) count += r.length;
