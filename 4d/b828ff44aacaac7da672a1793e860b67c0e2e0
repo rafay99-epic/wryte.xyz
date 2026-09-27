@@ -1,0 +1,56 @@
+packages/backend/convex/mcp/handlers/documents.ts
+  s_afe331801d4351::t_c959e336c78efc 4-7,26-28,39-44
+packages/backend/convex/_lib/auth.ts
+  s_afe331801d4351::t_2605dd740caf02 47-48
+packages/backend/convex/mcp/tools.ts
+  s_afe331801d4351::t_7d09b781695494 4-12,18,43,46-49,52,55,57-61,206,304-305,333,346,361,374,412,526-529
+packages/backend/convex/mcp/authorize.ts
+  s_afe331801d4351::t_f126c22622dcf7 2,4-7,18-24,26-30,34-38,40-41,43-56,59-60,62-66,72,76-80,95,109-137
+packages/backend/convex/auth.config.ts
+  s_afe331801d4351::t_677108bcfce442 20-25,31-37
+packages/backend/convex/mcp/handlers/publishing.ts
+  s_afe331801d4351::t_c959e336c78efc 4-6
+apps/web/src/features/account-settings/components/mcp-tab.tsx
+  s_afe331801d4351::t_a6fa0f0cbd9ea0 3,34,43,49,55,62,69
+packages/backend/convex/mcp/handlers/resources.ts
+  s_afe331801d4351::t_21f3832f2b8cd3 1-47
+packages/backend/convex/mcp/handlers/content.ts
+  s_afe331801d4351::t_c959e336c78efc 2-3,5-7,20-25
+packages/backend/convex/mcp/handlers/animations.ts
+  s_afe331801d4351::t_7d09b781695494 28-35
+apps/web/src/features/account-settings/hooks/use-mcp-tab.ts
+  s_afe331801d4351::t_e4fedeb22d913a 5,20-22,26-30,44-46,60
+packages/backend/convex/mcp/handlers/projects.ts
+  s_afe331801d4351::t_21f3832f2b8cd3 1-6,8,13-30,35-36
+apps/web/src/components/mcp/mcp-client-setup.tsx
+  s_afe331801d4351::t_3507c5926ed4e7 12,35-50,61,165
+packages/backend/convex/mcp/gate.ts
+  s_afe331801d4351::t_2605dd740caf02 16-18
+packages/backend/convex/mcp/scopes.ts
+  s_afe331801d4351::t_f842522e44f68d 68-73
+packages/backend/convex/http.ts
+  s_afe331801d4351::t_2605dd740caf02 9,38,42-43,61-68,115-118,128-129,138-141,143-144
+packages/backend/convex/mcp/resources.ts
+  s_afe331801d4351::t_8937142cfce2f0 15-22,24-25,32,45-46,55-61,87-88,90-95,158-164,171,174,176-178,193-194,196-201
+packages/backend/convex/mcp/maintenance.ts
+  s_afe331801d4351::t_b4ad4a17fdf9e7 13-18,38-39,41-49,55-56,58-60,69-70,72-78
+  s_afe331801d4351::t_13570358250c79 40
+packages/backend/convex/mcp/grants.ts
+  s_afe331801d4351::t_3a4a0b3fd9be3e 12,72-73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "4db828ff44aacaac7da672a1793e860b67c0e2e0",
+  "prompts": {},
+  "sessions": {
+    "s_afe331801d4351": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "57228730-cc80-4f5a-bfb4-bbd4ee82af55",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
