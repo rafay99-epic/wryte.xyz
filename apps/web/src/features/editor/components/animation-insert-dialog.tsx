@@ -6,6 +6,8 @@ import type {
   AnimationCheckLevel,
   AnimationLanguage,
 } from "@wryte/backend/_lib/animationChecks";
+import { compileAnimation } from "@wryte/logic/lib/animations/compile-animation";
+import { starterSource } from "@wryte/logic/lib/animations/templates";
 import { Button } from "@wryte/ui/button";
 import { Input } from "@wryte/ui/input";
 import { Label } from "@wryte/ui/label";
@@ -29,14 +31,12 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { wrapAnimation } from "@/components/animations/animation-boundary";
 import {
   type DeletableAnimation,
   DeleteAnimationDialog,
 } from "@/components/animations/delete-animation-dialog";
 import { useAnimationChecks } from "../hooks/use-animation-checks";
-import { wrapAnimation } from "../lib/animations/animation-boundary";
-import { compileAnimation } from "../lib/animations/compile-animation";
-import { starterSource } from "../lib/animations/templates";
 import {
   AnimationCheckBadge,
   AnimationDiagnostics,

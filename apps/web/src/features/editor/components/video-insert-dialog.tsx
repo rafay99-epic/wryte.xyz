@@ -7,6 +7,10 @@ import {
   useProjectMediaLibrary,
 } from "@wryte/logic/hooks/use-project-media-library";
 import { useUploadLimit } from "@wryte/logic/hooks/use-upload-limit";
+import {
+  isVideoFilename,
+  videoEmbedMarkup,
+} from "@wryte/logic/lib/editor/video";
 import { formatMb } from "@wryte/logic/lib/upload-limits";
 import { Button } from "@wryte/ui/button";
 import { Input } from "@wryte/ui/input";
@@ -26,7 +30,6 @@ import { useAction, useQuery } from "convex/react";
 import { Check, Film, Loader2, Search, Upload } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { isVideoFilename, videoEmbedMarkup } from "../lib/video";
 
 type VideoInsertDialogProps = {
   open: boolean;

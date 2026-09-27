@@ -2,6 +2,7 @@
 
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
+import { detectWikiTrigger } from "@wryte/logic/lib/editor/wiki-link";
 import { cn } from "@wryte/logic/lib/utils";
 import { usePaginatedQuery, useQuery } from "convex/react";
 import { AnimatePresence, motion } from "framer-motion";
@@ -17,7 +18,6 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { useTriggerMenu } from "../hooks/use-slash-menu";
-import { detectWikiTrigger } from "../lib/wiki-link";
 import { useEditorContext } from "./editor-context";
 
 type WikiLinkMenuProps = {

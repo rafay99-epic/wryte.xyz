@@ -44,6 +44,7 @@ export type MdxModule = { default: React.ComponentType };
 export type MdxComponentProps = Record<string, unknown> & {
   children?: ReactNode;
 };
+export type MdxComponentMap = Record<string, React.ElementType>;
 
 /* ------------------------------------------------------------------ */
 /*  React scope — injected into compiled MDX so hooks/imports work     */
@@ -116,21 +117,9 @@ function getPlaceholder(name: string): React.ComponentType<MdxComponentProps> {
 /*  Styled component overrides for standard HTML elements              */
 /* ------------------------------------------------------------------ */
 
-const baseComponents: Record<string, React.ComponentType<MdxComponentProps>> = {
-  // Embed components (iframe + Twitter blockquote) are typed for
-  // react-markdown's strict per-tag props; MDX passes a loose prop bag, which
-  // is runtime-compatible (they destructure known keys). The cast bridges the
-  // two type models without duplicating the rendering logic.
-  ...(embedComponents as unknown as Record<
-    string,
-    React.ComponentType<MdxComponentProps>
-  >),
-  // Shared code/pre overrides (with the ` ```mermaid ` → diagram intercept).
-  // Same loose-prop bridge as the embed overrides above.
-  ...(codeComponents as unknown as Record<
-    string,
-    React.ComponentType<MdxComponentProps>
-  >),
+const baseComponents: MdxComponentMap = {
+  ...embedComponents,
+  ...codeComponents,
   video: (props: MdxComponentProps) => (
     <VideoEmbed {...(props as React.VideoHTMLAttributes<HTMLVideoElement>)} />
   ),
@@ -189,10 +178,10 @@ const COMPONENT_TAG_RE = /<([A-Z]\w*)/g;
 export function buildComponentMap(
   source: string,
   userComponents: Record<string, React.ComponentType<MdxComponentProps>> = {},
-): Record<string, React.ComponentType<MdxComponentProps>> {
+): MdxComponentMap {
   // User-authored animations register ahead of the placeholder loop so a
   // known `<Anim />` renders live instead of falling to the dashed stub.
-  const map: Record<string, React.ComponentType<MdxComponentProps>> = {
+  const map: MdxComponentMap = {
     ...baseComponents,
     ...userComponents,
   };
@@ -215,7 +204,7 @@ const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor as new (
 
 export async function compileMdx(
   source: string,
-  components: Record<string, React.ComponentType<MdxComponentProps>>,
+  components: MdxComponentMap,
 ): Promise<MdxModule> {
   const stripped = stripReactImports(source);
 

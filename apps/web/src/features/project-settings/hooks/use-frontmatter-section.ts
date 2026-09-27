@@ -2,10 +2,12 @@ import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
 import { useDetectFrontmatter } from "@wryte/logic/hooks/use-github";
 import {
+  DEFAULT_FRONTMATTER_FIELDS,
   FIELD_TYPE_OPTIONS,
   type FrontmatterField,
   type FrontmatterFieldType,
 } from "@wryte/logic/types/frontmatter";
+import type { ProjectData } from "@wryte/logic/types/project-settings";
 import { useMutation } from "convex/react";
 import yaml from "js-yaml";
 import {
@@ -17,7 +19,6 @@ import {
   useState,
 } from "react";
 import { toast } from "sonner";
-import { DEFAULT_FIELDS, type ProjectData } from "../types";
 
 /** Coerces a detected type string to a known field type, defaulting to string. */
 function normalizeDetectedType(type: string): FrontmatterFieldType {
@@ -92,10 +93,10 @@ export function useFrontmatterSection({
       try {
         return JSON.parse(project.frontmatterSchema) as FrontmatterField[];
       } catch {
-        return DEFAULT_FIELDS;
+        return DEFAULT_FRONTMATTER_FIELDS;
       }
     }
-    return DEFAULT_FIELDS;
+    return DEFAULT_FRONTMATTER_FIELDS;
   }, [project.frontmatterSchema]);
 
   const [fields, setFields] = useState<FrontmatterField[]>(initialFields);

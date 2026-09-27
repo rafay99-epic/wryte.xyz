@@ -27,6 +27,7 @@ import {
   type BoardColumnDef,
   DEFAULT_BOARD_COLUMNS,
 } from "@wryte/logic/types/board";
+import type { ContentItem } from "@wryte/logic/types/content";
 import { Button, buttonVariants } from "@wryte/ui/button";
 import { Skeleton } from "@wryte/ui/skeleton";
 import { useAction, useMutation, useQuery } from "convex/react";
@@ -40,7 +41,6 @@ import { SyncConflictsBanner } from "@/components/editor/sync-conflicts-banner";
 import { BoardSettingsDialog } from "@/features/content-dashboard/components/board-settings-dialog";
 import { ContentDashboard } from "@/features/content-dashboard/components/content-dashboard";
 import type { ViewFilter } from "@/features/content-dashboard/components/content-empty-state";
-import type { ContentItem } from "@/features/content-dashboard/components/content-table-row";
 import {
   DeleteDocumentDialog,
   type DeleteTarget,
@@ -50,10 +50,10 @@ import {
   type RemoteDeleteTarget,
 } from "@/features/content-dashboard/components/delete-remote-file-dialog";
 import { FileImportSheet } from "@/features/content-dashboard/components/file-import-sheet";
-import { useBulkDelete } from "@/features/content-dashboard/hooks/use-bulk-delete";
-import { useBulkImport } from "@/features/content-dashboard/hooks/use-bulk-import";
 import { ScheduleDialog } from "@/features/editor/components/schedule-dialog";
 import { CreateDocumentDialog } from "@/features/new-project-document/components/create-document-dialog";
+import { useBulkDelete } from "@/features/project-detail/hooks/use-bulk-delete";
+import { useBulkImport } from "@/features/project-detail/hooks/use-bulk-import";
 
 /** A file entry returned from the GitHub Contents API. */
 type RemoteFile = ContentFile;

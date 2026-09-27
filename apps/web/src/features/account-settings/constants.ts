@@ -1,4 +1,4 @@
-import type { ShortcutCategory } from "@wryte/logic/stores/shortcuts-store";
+import type { SettingsTab } from "@wryte/logic/types/account-settings";
 import {
   CheckCircle2,
   Clock,
@@ -13,16 +13,6 @@ import {
   User,
   XCircle,
 } from "lucide-react";
-
-export type SettingsTab =
-  | "account"
-  | "profile"
-  | "appearance"
-  | "media"
-  | "mcp"
-  | "shortcuts"
-  | "support"
-  | "self-destruct";
 
 /**
  * Account settings panes. `keywords` mirrors the project-settings registry so
@@ -116,18 +106,6 @@ export const TABS: {
     icon: Skull,
     keywords: ["delete account", "wipe", "erase", "gdpr", "danger", "close"],
   },
-];
-
-export const CATEGORY_LABELS: Record<ShortcutCategory, string> = {
-  general: "General",
-  navigation: "Navigation",
-  editor: "Editor",
-};
-
-export const CATEGORY_ORDER: ShortcutCategory[] = [
-  "general",
-  "navigation",
-  "editor",
 ];
 
 export const STATUS_STYLES: Record<

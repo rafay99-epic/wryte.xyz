@@ -1,10 +1,10 @@
+import { resolveMcpEndpoint } from "@wryte/logic/lib/mcp-endpoint";
 import { Badge } from "@wryte/ui/badge";
 import { Card, CardDescription, CardTitle } from "@wryte/ui/card";
 import { ArrowRight, Plug, Sparkles } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { McpClientSetup } from "@/components/mcp/mcp-client-setup";
-import { resolveMcpEndpoint } from "@/features/account-settings/lib/mcp-endpoint";
 import { DocsIcon } from "@/features/docs/components/docs-icon";
 import { DocsShell } from "@/features/docs/components/docs-shell";
 import { DOC_PAGES } from "@/features/docs/registry";

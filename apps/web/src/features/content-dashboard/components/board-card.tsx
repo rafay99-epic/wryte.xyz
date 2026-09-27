@@ -4,8 +4,10 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { smoothTransition, staggerItem } from "@wryte/logic/lib/motion";
 import { cn } from "@wryte/logic/lib/utils";
+import { formatWordCount } from "@wryte/logic/lib/word-count";
 import { useBoardStore } from "@wryte/logic/stores/board-store";
 import type { BoardColumnDef } from "@wryte/logic/types/board";
+import type { ContentItem } from "@wryte/logic/types/content";
 import { Button } from "@wryte/ui/button";
 import {
   DropdownMenu,
@@ -35,8 +37,7 @@ import { useDocumentActions } from "@/features/content-dashboard/hooks/use-docum
 import { useHoverPreview } from "@/features/content-dashboard/hooks/use-hover-preview";
 import { useInlineRename } from "@/features/content-dashboard/hooks/use-inline-rename";
 import { useTagEditor } from "@/features/content-dashboard/hooks/use-tag-editor";
-import { CardInner, formatWordCount } from "./card-inner";
-import type { ContentItem } from "./content-table-row";
+import { CardInner } from "./card-inner";
 
 type BoardCardProps = {
   item: ContentItem;

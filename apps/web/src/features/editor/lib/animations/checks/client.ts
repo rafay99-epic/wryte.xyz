@@ -1,5 +1,9 @@
 import type { AnimationLanguage } from "@wryte/backend/_lib/animationChecks";
-import type { ActiveCheckLevel, CheckRequest, CheckResponse } from "./protocol";
+import type {
+  ActiveCheckLevel,
+  CheckRequest,
+  CheckResponse,
+} from "@wryte/logic/lib/animations/checks/protocol";
 
 type Pending = (result: CheckResponse["result"]) => void;
 

@@ -3,10 +3,13 @@ import type { Id } from "@wryte/backend/_generated/dataModel";
 import type { AnimationLanguage } from "@wryte/backend/_lib/animationChecks";
 import type { ContentFormat } from "@wryte/logic/lib/content-format";
 import { getFileExtension } from "@wryte/logic/lib/content-format";
+import type {
+  AnimationChecksPolicy,
+  ProjectData,
+} from "@wryte/logic/types/project-settings";
 import { useMutation } from "convex/react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import type { AnimationChecksPolicy, ProjectData } from "../types";
 
 const CHECKS_OFF: AnimationChecksPolicy = { level: "off", blockPublish: true };
 

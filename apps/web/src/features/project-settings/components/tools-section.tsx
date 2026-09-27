@@ -7,6 +7,7 @@ import {
   staggerContainer,
   staggerItem,
 } from "@wryte/logic/lib/motion";
+import type { ProjectData } from "@wryte/logic/types/project-settings";
 import { Button } from "@wryte/ui/button";
 import { useAction, useConvex } from "convex/react";
 import { motion } from "framer-motion";
@@ -22,7 +23,6 @@ import {
 import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
-import type { ProjectData } from "../types";
 import { SectionHeader } from "./shared";
 
 export function ToolsSection({

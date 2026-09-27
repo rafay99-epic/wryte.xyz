@@ -2,17 +2,18 @@
 
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
+import {
+  buildPublishChecklist,
+  type ChecklistResult,
+  type KnownDoc,
+} from "@wryte/logic/lib/editor/publish-checklist";
 import type { ValidatableField } from "@wryte/logic/lib/frontmatter-detection/validate";
+import { parseFrontmatterSchema } from "@wryte/logic/lib/parse-frontmatter";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
 import { DEFAULT_FRONTMATTER_FIELDS } from "@wryte/logic/types/frontmatter";
 import { useConvex } from "convex/react";
 import { useEffect, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
-import {
-  buildPublishChecklist,
-  type ChecklistResult,
-  type KnownDoc,
-} from "../lib/publish-checklist";
 
 /** Bounded one-shot fetch — resolves internal links without a subscription. */
 const KNOWN_DOCS_LIMIT = 500;
@@ -27,23 +28,6 @@ type UsePublishChecklistArgs = {
   frontmatterSchema?: string | undefined;
   contentFormat?: "md" | "mdx" | undefined;
 };
-
-/**
- * Parse the project's stored frontmatter schema into the minimal shape the
- * validator needs. Falls back to sensible blog defaults when the project has
- * no custom schema or the JSON is malformed.
- */
-function parseSchemaFields(schemaJson?: string): ValidatableField[] {
-  if (!schemaJson) return DEFAULT_FRONTMATTER_FIELDS;
-  try {
-    const parsed = JSON.parse(schemaJson) as ValidatableField[];
-    return Array.isArray(parsed) && parsed.length > 0
-      ? parsed
-      : DEFAULT_FRONTMATTER_FIELDS;
-  } catch {
-    return DEFAULT_FRONTMATTER_FIELDS;
-  }
-}
 
 /**
  * Computes the pre-publish checklist for the currently open document.
@@ -101,7 +85,11 @@ export function usePublishChecklist({
   }, [open, projectId, convex]);
 
   const schema = useMemo(
-    () => parseSchemaFields(frontmatterSchema),
+    () =>
+      parseFrontmatterSchema<ValidatableField>(
+        frontmatterSchema,
+        DEFAULT_FRONTMATTER_FIELDS,
+      ),
     [frontmatterSchema],
   );
 

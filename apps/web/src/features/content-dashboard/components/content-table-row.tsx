@@ -30,8 +30,6 @@ import {
 import { useDocumentActions } from "@/features/content-dashboard/hooks/use-document-actions";
 import { TagBadges } from "./tag-badges";
 
-export type { ContentItem };
-
 type ContentTableRowProps = {
   item: ContentItem;
   isImporting: boolean;

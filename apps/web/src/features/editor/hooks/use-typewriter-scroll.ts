@@ -1,8 +1,8 @@
 "use client";
 
+import { caretRect } from "@wryte/logic/lib/dom/textarea-caret";
+import { getScrollParent } from "@wryte/logic/lib/dom-utils";
 import { type RefObject, useEffect } from "react";
-import { caretRect } from "../lib/caret/textarea-caret";
-import { getScrollParent } from "../lib/scroll";
 
 /**
  * Typewriter scrolling for focus mode: keeps the caret line vertically

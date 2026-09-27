@@ -2,10 +2,14 @@
 
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
+import { isAiEligibleField } from "@wryte/logic/lib/editor/frontmatter-ai";
 import { ARRAY_FIELD_NAMES } from "@wryte/logic/lib/frontmatter-detection/registry";
 import { validateFrontmatter } from "@wryte/logic/lib/frontmatter-detection/validate";
 import { generateSlug } from "@wryte/logic/lib/markdown";
-import { getTagFieldName } from "@wryte/logic/lib/parse-frontmatter";
+import {
+  getTagFieldName,
+  parseFrontmatterSchema,
+} from "@wryte/logic/lib/parse-frontmatter";
 import { humanizeFieldName } from "@wryte/logic/lib/utils";
 import type { FrontmatterFieldType } from "@wryte/logic/types/frontmatter";
 import { Badge } from "@wryte/ui/badge";
@@ -44,10 +48,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { TagChipsInput } from "@/components/forms/tag-chips-input";
-import {
-  FrontmatterAiDrawer,
-  isAiEligibleField,
-} from "./frontmatter-ai-drawer";
+import { FrontmatterAiDrawer } from "./frontmatter-ai-drawer";
 import { FrontmatterImageField } from "./frontmatter-image-field";
 import { FrontmatterSearchPreview } from "./frontmatter-search-preview";
 import {
@@ -80,16 +81,6 @@ const DEFAULT_FIELDS: SchemaField[] = [
   { name: "description", type: "text", label: "Description" },
   { name: "tags", type: "tags", label: "Tags" },
 ];
-
-function parseSchema(schemaString: string | undefined): SchemaField[] {
-  if (!schemaString) return DEFAULT_FIELDS;
-  try {
-    const parsed = JSON.parse(schemaString) as SchemaField[];
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_FIELDS;
-  } catch {
-    return DEFAULT_FIELDS;
-  }
-}
 
 function fieldIcon(type: FrontmatterFieldType) {
   switch (type) {
@@ -419,12 +410,15 @@ export function FrontmatterEditor({
   const updateDocument = useMutation(api.cms.documents.update);
 
   const fields = useMemo(
-    () => parseSchema(project?.frontmatterSchema).filter((f) => !f.hidden),
+    () =>
+      parseFrontmatterSchema(project?.frontmatterSchema, DEFAULT_FIELDS).filter(
+        (f) => !f.hidden,
+      ),
     [project?.frontmatterSchema],
   );
 
   const allFields = useMemo(
-    () => parseSchema(project?.frontmatterSchema),
+    () => parseFrontmatterSchema(project?.frontmatterSchema, DEFAULT_FIELDS),
     [project?.frontmatterSchema],
   );
 

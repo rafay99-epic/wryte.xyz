@@ -7,6 +7,12 @@ import {
 } from "@wryte/backend/cms/_lib/documentContent";
 import { useDebouncedValue } from "@wryte/logic/hooks/use-debounced-value";
 import { useIsMacPlatform } from "@wryte/logic/hooks/use-is-mac-platform";
+import {
+  getRecentDocOpens,
+  openBoost,
+  recordDocOpen,
+} from "@wryte/logic/lib/frecency";
+import { scoreItem } from "@wryte/logic/lib/fuzzy";
 import { splitShortcutKeys } from "@wryte/logic/lib/shortcuts";
 import { cn } from "@wryte/logic/lib/utils";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
@@ -40,8 +46,6 @@ import {
   useRef,
   useState,
 } from "react";
-import { getRecentDocOpens, openBoost, recordDocOpen } from "./lib/frecency";
-import { scoreItem } from "./lib/fuzzy";
 import {
   accountSettingsEntries,
   projectSettingsEntries,

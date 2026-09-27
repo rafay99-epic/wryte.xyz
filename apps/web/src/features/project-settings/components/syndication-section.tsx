@@ -8,6 +8,7 @@ import {
 } from "@wryte/backend/syndication/_lib/providers";
 import { staggerContainer, staggerItem } from "@wryte/logic/lib/motion";
 import { cn } from "@wryte/logic/lib/utils";
+import type { ProjectData } from "@wryte/logic/types/project-settings";
 import { Button } from "@wryte/ui/button";
 import { InfoHint } from "@wryte/ui/info-hint";
 import { Input } from "@wryte/ui/input";
@@ -28,7 +29,6 @@ import {
   type SyndicationRow,
   useSyndicationSection,
 } from "../hooks/use-syndication-section";
-import type { ProjectData } from "../types";
 import { Divider, FieldGroup, SaveButton, SectionHeader } from "./shared";
 
 export function SyndicationSection({

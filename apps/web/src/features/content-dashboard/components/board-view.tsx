@@ -18,6 +18,7 @@ import type { Id } from "@wryte/backend/_generated/dataModel";
 import type { ParsedFrontmatter } from "@wryte/logic/lib/parse-frontmatter";
 import { useBoardStore } from "@wryte/logic/stores/board-store";
 import type { BoardColumnDef } from "@wryte/logic/types/board";
+import type { ContentItem } from "@wryte/logic/types/content";
 import { Button } from "@wryte/ui/button";
 import { useAction, useMutation } from "convex/react";
 import { Plus } from "lucide-react";
@@ -27,7 +28,6 @@ import { useShallow } from "zustand/react/shallow";
 import { useBoardKeyboardNav } from "@/features/content-dashboard/hooks/use-board-keyboard-nav";
 import { BoardCard } from "./board-card";
 import { BoardColumn } from "./board-column";
-import type { ContentItem } from "./content-table-row";
 
 const REMOTE_COLUMN: BoardColumnDef = {
   id: "remote",

@@ -1,7 +1,9 @@
 "use client";
 
+import { compileAnimation } from "@wryte/logic/lib/animations/compile-animation";
 import type React from "react";
 import { useEffect, useMemo, useState } from "react";
+import { wrapAnimation } from "@/components/animations/animation-boundary";
 import { ChangelogMarkdown } from "@/components/changelog/changelog-markdown";
 import {
   buildComponentMap,
@@ -10,8 +12,6 @@ import {
   MdxErrorBoundary,
   type MdxModule,
 } from "@/components/markdown/mdx-runtime";
-import { wrapAnimation } from "@/features/editor/lib/animations/animation-boundary";
-import { compileAnimation } from "@/features/editor/lib/animations/compile-animation";
 
 /**
  * MDX renderer for the public share preview — the same pipeline as the

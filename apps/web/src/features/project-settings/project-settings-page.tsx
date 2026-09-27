@@ -4,6 +4,7 @@ import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
 import { useHashTab } from "@wryte/logic/hooks/use-hash-tab";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
+import type { SettingsTab } from "@wryte/logic/types/project-settings";
 import { useQuery } from "convex/react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
@@ -23,8 +24,7 @@ import { SharingSection } from "./components/sharing-section";
 import { SocialSection } from "./components/social-section";
 import { SyndicationSection } from "./components/syndication-section";
 import { ToolsSection } from "./components/tools-section";
-import type { SettingsTab } from "./types";
-import { TABS } from "./types";
+import { TABS } from "./tabs";
 
 /** Stable identity for `useHashTab`'s dependency — never rebuilt per render. */
 const TAB_IDS: readonly SettingsTab[] = TABS.map((t) => t.id);

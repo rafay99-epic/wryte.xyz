@@ -8,7 +8,6 @@
     "start": "next start",
     "stamp-version": "bun scripts/stamp-version.ts",
     "type": "tsc --noEmit",
-    "test": "bun test tests",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:report": "playwright show-report",
@@ -50,7 +49,6 @@
     "rehype-sanitize": "^6.0.0",
     "remark-gfm": "^4.0.1",
     "sonner": "^2.0.8",
-    "sucrase": "^3.35.1",
     "typescript": "^6.0.3",
     "zustand": "^5.0.15"
   },

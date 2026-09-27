@@ -1,5 +1,6 @@
 "use client";
 
+import { remarkSourceLines } from "@wryte/logic/lib/editor/source-lines";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
 import { motion } from "framer-motion";
 import { useDeferredValue, useMemo } from "react";
@@ -16,7 +17,6 @@ import {
 } from "@/components/markdown/embed-overrides";
 import { VideoEmbed } from "@/components/markdown/video-embed";
 import { usePreviewJump } from "../hooks/use-preview-jump";
-import { remarkSourceLines } from "../lib/source-lines";
 
 /**
  * Base sanitize schema extended with `<video>` (raw HTML parsed by

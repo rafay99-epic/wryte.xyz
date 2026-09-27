@@ -10,6 +10,7 @@ import {
   useSearchStore,
 } from "@wryte/logic/stores/search-store";
 import type { BoardColumnDef } from "@wryte/logic/types/board";
+import type { ContentItem } from "@wryte/logic/types/content";
 import { Badge } from "@wryte/ui/badge";
 import { Button } from "@wryte/ui/button";
 import {
@@ -57,7 +58,6 @@ import {
   type BulkImportResultLite,
 } from "./bulk-import-dialog";
 import { ContentEmptyState, type ViewFilter } from "./content-empty-state";
-import type { ContentItem } from "./content-table-row";
 import { TableView } from "./table-view";
 import { TagFilterBar } from "./tag-filter-bar";
 import { ViewModeSwitcher } from "./view-mode-switcher";

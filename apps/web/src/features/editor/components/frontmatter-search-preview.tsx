@@ -1,15 +1,15 @@
 "use client";
 
-import { cn } from "@wryte/logic/lib/utils";
-import { AnimatePresence, motion } from "framer-motion";
-import { AlertTriangle, ChevronRight, Globe, ImageOff } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
 import {
   buildDisplayUrl,
   checkDescription,
   checkTitle,
   pickImageValue,
-} from "@/features/editor/lib/seo-preview";
+} from "@wryte/logic/lib/editor/seo-preview";
+import { cn } from "@wryte/logic/lib/utils";
+import { AnimatePresence, motion } from "framer-motion";
+import { AlertTriangle, ChevronRight, Globe, ImageOff } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type FrontmatterSearchPreviewProps = {
   /** Live frontmatter values from the visual editor. */

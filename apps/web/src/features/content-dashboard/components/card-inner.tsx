@@ -2,8 +2,9 @@ import {
   getAgeLevel,
   relativeTimeCompact,
 } from "@wryte/logic/lib/relative-time";
+import { formatWordCount } from "@wryte/logic/lib/word-count";
 import type { BoardColumnDef } from "@wryte/logic/types/board";
-import type { ContentItem } from "./content-table-row";
+import type { ContentItem } from "@wryte/logic/types/content";
 import { TagBadges } from "./tag-badges";
 
 const AGE_COLORS: Record<ReturnType<typeof getAgeLevel>, string> = {
@@ -11,11 +12,6 @@ const AGE_COLORS: Record<ReturnType<typeof getAgeLevel>, string> = {
   aging: "text-amber-500",
   stale: "text-red-400",
 };
-
-export function formatWordCount(count: number): string {
-  if (count >= 1000) return `${(count / 1000).toFixed(1)}k`;
-  return String(count);
-}
 
 export function CardInner({
   item,

@@ -1,5 +1,6 @@
 "use client";
 
+import { wordsPerMinute } from "@wryte/logic/lib/editor/sprint";
 import { cn } from "@wryte/logic/lib/utils";
 import { countWords } from "@wryte/logic/lib/word-count";
 import { useEditorPreferencesStore } from "@wryte/logic/stores/editor-preferences-store";
@@ -12,7 +13,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@wryte/ui/tooltip";
 import { Timer } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { wordsPerMinute } from "../lib/sprint";
 
 const WORD_PRESETS = [250, 500, 750] as const;
 const MINUTE_PRESETS = [15, 25, 45] as const;

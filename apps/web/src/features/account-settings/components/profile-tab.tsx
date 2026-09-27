@@ -6,6 +6,12 @@ import {
   staggerContainer,
   staggerItem,
 } from "@wryte/logic/lib/motion";
+import {
+  ACCENT_KEYS,
+  accentHex,
+  isCustomAccent,
+  PROFILE_ACCENTS,
+} from "@wryte/logic/lib/profile-accents";
 import { cn } from "@wryte/logic/lib/utils";
 import { Button } from "@wryte/ui/button";
 import { Input } from "@wryte/ui/input";
@@ -30,12 +36,6 @@ import {
   X,
 } from "lucide-react";
 import { useState } from "react";
-import {
-  ACCENT_KEYS,
-  accentHex,
-  isCustomAccent,
-  PROFILE_ACCENTS,
-} from "@/features/profile/accents";
 import { MAX_BIO, MAX_LINKS, useProfileTab } from "../hooks/use-profile-tab";
 import { Divider, SectionHeader } from "./shared";
 

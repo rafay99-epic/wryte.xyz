@@ -1,6 +1,7 @@
 "use client";
 
 import { useResolvedTheme } from "@wryte/logic/hooks/use-resolved-theme";
+import type { Mermaid } from "mermaid";
 import { useEffect, useId, useRef, useState } from "react";
 
 /**
@@ -21,20 +22,12 @@ import { useEffect, useId, useRef, useState } from "react";
  * the source settles.
  */
 
-type MermaidApi = {
-  initialize: (config: Record<string, unknown>) => void;
-  render: (
-    id: string,
-    text: string,
-  ) => Promise<{ svg: string; bindFunctions?: (el: Element) => void }>;
-};
+let mermaidPromise: Promise<Mermaid> | null = null;
 
-let mermaidPromise: Promise<MermaidApi> | null = null;
-
-function loadMermaid(): Promise<MermaidApi> {
+function loadMermaid(): Promise<Mermaid> {
   if (!mermaidPromise) {
     mermaidPromise = import("mermaid").then((mod) => {
-      const mermaid = mod.default as unknown as MermaidApi;
+      const mermaid = mod.default;
       mermaid.initialize({
         startOnLoad: false,
         securityLevel: "strict",

@@ -1,6 +1,9 @@
+import {
+  listEnterAction,
+  listIndentAction,
+} from "@wryte/logic/lib/editor/lists";
 import { useShortcutsStore } from "@wryte/logic/stores/shortcuts-store";
 import { type RefObject, useEffect, useRef } from "react";
-import { listEnterAction, listIndentAction } from "../lib/lists";
 
 /** Callbacks for shortcuts whose behavior lives in the parent component. */
 type KeyboardShortcutCallbacks = {

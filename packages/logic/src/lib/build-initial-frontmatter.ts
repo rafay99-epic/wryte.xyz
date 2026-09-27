@@ -1,3 +1,4 @@
+import { parseFrontmatterSchema } from "@wryte/logic/lib/parse-frontmatter";
 import type { FrontmatterFieldType } from "@wryte/logic/types/frontmatter";
 
 type SchemaField = {
@@ -70,16 +71,6 @@ const PER_POST_FIELD_NAMES = new Set([
   "featured",
 ]);
 
-function parseSchema(schemaJson: string | undefined | null): SchemaField[] {
-  if (!schemaJson) return DEFAULT_FIELDS;
-  try {
-    const parsed = JSON.parse(schemaJson) as SchemaField[];
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_FIELDS;
-  } catch {
-    return DEFAULT_FIELDS;
-  }
-}
-
 /**
  * Builds a JSON string of initial frontmatter values for a newly created
  * document. Pre-fills title and slug from the creation dialog, today's
@@ -93,7 +84,7 @@ export function buildInitialFrontmatter(
   slug: string,
   projectConfig?: ProjectAuthorConfig,
 ): string {
-  const fields = parseSchema(schemaJson);
+  const fields = parseFrontmatterSchema(schemaJson, DEFAULT_FIELDS);
   const values: Record<string, string | boolean> = {};
 
   const todayDate = new Date().toISOString().slice(0, 10); // YYYY-MM-DD

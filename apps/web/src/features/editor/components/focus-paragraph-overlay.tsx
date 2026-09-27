@@ -1,8 +1,8 @@
 "use client";
 
+import { caretRect } from "@wryte/logic/lib/dom/textarea-caret";
+import { paragraphBounds } from "@wryte/logic/lib/editor/paragraph";
 import { useEffect, useState } from "react";
-import { caretRect } from "../lib/caret/textarea-caret";
-import { paragraphBounds } from "../lib/paragraph";
 import { useEditorContext } from "./editor-context";
 
 type OverlayBounds = { top: number; bottom: number };

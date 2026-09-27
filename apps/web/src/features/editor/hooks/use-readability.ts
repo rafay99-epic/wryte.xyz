@@ -1,8 +1,8 @@
+import { analyze } from "@wryte/logic/lib/readability/analyze";
+import type { ReadabilityResult } from "@wryte/logic/lib/readability/types";
+import { analyzeAsync } from "@wryte/logic/lib/readability/worker-client";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
 import { useEffect, useRef, useState } from "react";
-import { analyze } from "../lib/readability/analyze";
-import type { ReadabilityResult } from "../lib/readability/types";
-import { analyzeAsync } from "../lib/readability/worker-client";
 
 const DEBOUNCE_MS = 300;
 /** ~8k words — above this we route analysis to the worker. */

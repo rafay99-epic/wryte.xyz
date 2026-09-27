@@ -2,6 +2,7 @@
 
 import { useUser } from "@clerk/nextjs";
 import { fadeSlideUp, smoothTransition } from "@wryte/logic/lib/motion";
+import { wordsThisWeek } from "@wryte/logic/lib/weekly-progress";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
 import { Skeleton } from "@wryte/ui/skeleton";
 import { motion } from "framer-motion";
@@ -28,7 +29,6 @@ import { TodaysProgress } from "./components/todays-progress";
 import { UpcomingSchedule } from "./components/upcoming-schedule";
 import { WritingStreak } from "./components/writing-streak";
 import { useDashboardStats } from "./hooks/use-dashboard-stats";
-import { wordsThisWeek } from "./lib/weekly-progress";
 
 function getGreeting(): string {
   const hour = new Date().getHours();

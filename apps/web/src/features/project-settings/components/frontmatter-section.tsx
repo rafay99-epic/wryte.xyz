@@ -8,6 +8,7 @@ import {
 } from "@wryte/logic/lib/motion";
 import { cn } from "@wryte/logic/lib/utils";
 import type { FrontmatterField } from "@wryte/logic/types/frontmatter";
+import type { ProjectData } from "@wryte/logic/types/project-settings";
 import { Button } from "@wryte/ui/button";
 import {
   Dialog,
@@ -44,7 +45,6 @@ import {
 import { useState } from "react";
 import { ConfirmActionDialog } from "@/components/settings/confirm-action-dialog";
 import { useFrontmatterSection } from "../hooks/use-frontmatter-section";
-import type { ProjectData } from "../types";
 import { Divider, SaveButton, SectionHeader } from "./shared";
 
 export function FrontmatterSection({

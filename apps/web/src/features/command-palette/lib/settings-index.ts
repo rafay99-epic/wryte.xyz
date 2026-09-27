@@ -10,8 +10,8 @@
  * existing fuzzy scorer, so settings search costs nothing and tolerates typos
  * (which server-side full-text search does not).
  */
-import { TABS as ACCOUNT_TABS } from "@/features/account-settings/types";
-import { TABS as PROJECT_TABS } from "@/features/project-settings/types";
+import { TABS as ACCOUNT_TABS } from "@/features/account-settings/constants";
+import { TABS as PROJECT_TABS } from "@/features/project-settings/tabs";
 
 export type SettingsEntry = {
   id: string;

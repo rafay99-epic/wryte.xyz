@@ -7,8 +7,8 @@
  * that look the token up server-side.
  */
 
-import { getGithubToken } from "@wryte/logic/lib/github-helpers";
 import { NextResponse } from "next/server";
+import { getGithubToken } from "@/app/api/github/_lib/github-helpers";
 
 export async function GET() {
   try {

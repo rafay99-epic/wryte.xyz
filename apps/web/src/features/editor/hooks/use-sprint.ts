@@ -1,5 +1,6 @@
 "use client";
 
+import { formatClock, wordsPerMinute } from "@wryte/logic/lib/editor/sprint";
 import { countWords } from "@wryte/logic/lib/word-count";
 import {
   type SprintEndReason,
@@ -9,7 +10,6 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useShallow } from "zustand/react/shallow";
-import { formatClock, wordsPerMinute } from "../lib/sprint";
 
 /** Live, derived view of the active sprint for the HUD. */
 export type SprintSnapshot = {

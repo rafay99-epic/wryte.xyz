@@ -13,8 +13,8 @@ import { Skeleton } from "@wryte/ui/skeleton";
 import { Textarea } from "@wryte/ui/textarea";
 import { motion } from "framer-motion";
 import { HelpCircle, Loader2, MessageSquare, Send } from "lucide-react";
+import { STATUS_STYLES } from "../constants";
 import { useSupportTab } from "../hooks/use-support-tab";
-import { STATUS_STYLES } from "../types";
 import { Divider, SectionHeader } from "./shared";
 
 export function SupportTab() {

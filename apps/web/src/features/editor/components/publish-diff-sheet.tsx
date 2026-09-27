@@ -2,6 +2,12 @@
 
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
+import {
+  type DiffRow,
+  diffLines,
+  diffStats,
+  foldUnchanged,
+} from "@wryte/logic/lib/editor/diff";
 import { relativeTime } from "@wryte/logic/lib/relative-time";
 import { cn } from "@wryte/logic/lib/utils";
 import { Button } from "@wryte/ui/button";
@@ -17,7 +23,6 @@ import {
 import { useQuery } from "convex/react";
 import { Loader2, RotateCcw } from "lucide-react";
 import { Fragment, useMemo } from "react";
-import { type DiffRow, diffLines, diffStats, foldUnchanged } from "../lib/diff";
 
 type PublishDiffSheetProps = {
   historyId: Id<"publish_history"> | null;

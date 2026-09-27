@@ -1,6 +1,7 @@
 "use client";
 
 import { SCOPES, type Scope } from "@wryte/backend/mcp/scopes";
+import { resolveMcpEndpoint } from "@wryte/logic/lib/mcp-endpoint";
 import {
   smoothTransition,
   staggerContainer,
@@ -27,7 +28,6 @@ import {
   McpClientSetup,
 } from "@/components/mcp/mcp-client-setup";
 import { useMcpTab } from "../hooks/use-mcp-tab";
-import { resolveMcpEndpoint } from "../lib/mcp-endpoint";
 import { Divider, SectionHeader } from "./shared";
 
 type Capability = {

@@ -1,5 +1,7 @@
 "use client";
 
+import { caretRect } from "@wryte/logic/lib/dom/textarea-caret";
+import { getScrollParent } from "@wryte/logic/lib/dom-utils";
 import {
   createContext,
   type ReactNode,
@@ -8,8 +10,6 @@ import {
   useContext,
   useRef,
 } from "react";
-import { caretRect } from "../lib/caret/textarea-caret";
-import { getScrollParent } from "../lib/scroll";
 
 /**
  * Shape of the editor context value shared across all editor sub-components.

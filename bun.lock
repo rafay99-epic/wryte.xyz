@@ -62,7 +62,6 @@
         "rehype-sanitize": "^6.0.0",
         "remark-gfm": "^4.0.1",
         "sonner": "^2.0.8",
-        "sucrase": "^3.35.1",
         "typescript": "^6.0.3",
         "zustand": "^5.0.15",
       },
@@ -118,7 +117,6 @@
       "name": "@wryte/logic",
       "version": "1.6.6",
       "dependencies": {
-        "@clerk/nextjs": "^7.9.1",
         "@pilio/gemini-watermark-remover": "^1.0.41",
         "@tanstack/react-query": "^5.102.8",
         "@wryte/backend": "workspace:*",

@@ -1,5 +1,6 @@
 "use client";
 
+import { accentHex } from "@wryte/logic/lib/profile-accents";
 import { relativeTime } from "@wryte/logic/lib/relative-time";
 import { cn } from "@wryte/logic/lib/utils";
 import {
@@ -21,7 +22,6 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { ActivityHeatmap } from "@/features/dashboard/components/activity-heatmap";
-import { accentHex } from "./accents";
 
 type PostItem = {
   title: string;

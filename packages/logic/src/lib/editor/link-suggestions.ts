@@ -3,7 +3,7 @@
  * already holds. Finds unlinked mentions of other documents' titles so the
  * research panel can offer one-click wiki-linking.
  */
-import { stripForAnalysis } from "@/features/editor/lib/style-lint";
+import { stripForAnalysis } from "@wryte/logic/lib/editor/style-lint";
 
 export type LinkTargetDoc = {
   _id: string;

@@ -3,7 +3,7 @@
  * Run: bun scripts/weekly-progress.test.ts
  */
 import assert from "node:assert/strict";
-import { wordsThisWeek } from "../src/features/dashboard/lib/weekly-progress";
+import { wordsThisWeek } from "@wryte/logic/lib/weekly-progress";
 
 const now = new Date(2026, 6, 17); // 2026-07-17, local
 

@@ -3,10 +3,12 @@
 import type { Id } from "@wryte/backend/_generated/dataModel";
 import { staggerContainer, staggerItem } from "@wryte/logic/lib/motion";
 import {
+  bufferServiceLabel,
   buildPublishedUrl,
   defaultPostUrlPrefix,
 } from "@wryte/logic/lib/social-template";
 import { cn } from "@wryte/logic/lib/utils";
+import type { ProjectData } from "@wryte/logic/types/project-settings";
 import { Button } from "@wryte/ui/button";
 import { Input } from "@wryte/ui/input";
 import { Switch } from "@wryte/ui/switch";
@@ -22,7 +24,6 @@ import {
 import { useState } from "react";
 import { ConfirmActionDialog } from "@/components/settings/confirm-action-dialog";
 import { useSocialSection } from "../hooks/use-social-section";
-import { bufferServiceLabel, type ProjectData } from "../types";
 import { Divider, FieldGroup, SaveButton, SectionHeader } from "./shared";
 
 export function SocialSection({

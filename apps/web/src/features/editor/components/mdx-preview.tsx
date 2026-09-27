@@ -2,11 +2,13 @@
 
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
+import { compileAnimation } from "@wryte/logic/lib/animations/compile-animation";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
 import { useQuery } from "convex/react";
 import { motion } from "framer-motion";
 import type React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { wrapAnimation } from "@/components/animations/animation-boundary";
 import {
   buildComponentMap,
   CompileError,
@@ -16,8 +18,6 @@ import {
   type MdxModule,
 } from "@/components/markdown/mdx-runtime";
 import { usePreviewJump } from "../hooks/use-preview-jump";
-import { wrapAnimation } from "../lib/animations/animation-boundary";
-import { compileAnimation } from "../lib/animations/compile-animation";
 
 const DEBOUNCE_MS = 300;
 

@@ -1,8 +1,8 @@
 "use client";
 
+import { resolveDoubleClickOffset } from "@wryte/logic/lib/editor/source-lines";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
 import { type MouseEvent, useCallback } from "react";
-import { resolveDoubleClickOffset } from "../lib/source-lines";
 
 /**
  * Double-click-to-edit for the preview panes (markdown and MDX).

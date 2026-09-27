@@ -1,12 +1,16 @@
 import type { VirtualTypeScriptEnvironment } from "@typescript/vfs";
 import type { AnimationDiagnostic } from "@wryte/backend/_lib/animationChecks";
+import type {
+  CheckRequest,
+  CheckResponse,
+  TypecheckState,
+} from "@wryte/logic/lib/animations/checks/protocol";
 import type ts from "typescript";
 import { runContractChecks } from "./contract";
 import {
   ANIMATION_ENTRY_FILE,
   createAnimationEnvironment,
 } from "./environment";
-import type { CheckRequest, CheckResponse, TypecheckState } from "./protocol";
 
 let tsModule: Promise<typeof ts> | null = null;
 let environment: Promise<VirtualTypeScriptEnvironment> | null = null;

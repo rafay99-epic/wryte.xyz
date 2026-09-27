@@ -22,27 +22,30 @@
 import { Octokit } from "@octokit/rest";
 import {
   type ConfigFile,
-  configCandidatePaths,
   type DetectionResult,
   detectSchema,
   identifyFramework,
   type RawSampleFile,
 } from "@wryte/logic/lib/frontmatter-detection/index";
 import {
+  hasConfig,
+  MD_RE,
+  normalizePath,
+  SAMPLE_LIMIT,
+  selectConfigEntries,
+  selectSampleEntries,
+} from "@wryte/logic/lib/frontmatter-detection/sampling";
+import { NextResponse } from "next/server";
+import {
   getGithubToken,
   parseRepoString,
-} from "@wryte/logic/lib/github-helpers";
-import { NextResponse } from "next/server";
+} from "@/app/api/github/_lib/github-helpers";
 
 type DetectRequest = {
   repo: string;
   branch: string;
   contentPath: string;
 };
-
-/** Hard caps that keep a single detection cheap regardless of repo size. */
-const SAMPLE_LIMIT = 12;
-const CONFIG_LIMIT = 4;
 
 type TreeEntry = {
   path?: string;
@@ -200,11 +203,6 @@ export async function POST(request: Request) {
   }
 }
 
-/** Strips leading/trailing slashes so tree paths join cleanly. */
-function normalizePath(path: string): string {
-  return path.trim().replace(/^\/+/, "").replace(/\/+$/, "");
-}
-
 /** Resolves a branch (or ref/sha) to a commit SHA for the tree call. */
 async function resolveCommitSha(
   octokit: Octokit,
@@ -214,66 +212,6 @@ async function resolveCommitSha(
 ): Promise<string> {
   const { data } = await octokit.repos.getBranch({ owner, repo, branch });
   return data.commit.sha;
-}
-
-const MD_RE = /\.mdx?$/i;
-
-/**
- * Picks up to SAMPLE_LIMIT markdown blobs under the content path. Deprioritizes
- * Hugo section pages / template-ish files (`_index.md`, names starting with
- * `_`) so the sample reflects real posts.
- */
-function selectSampleEntries(
-  blobs: Array<{ path: string; sha: string }>,
-  contentPath: string,
-): Array<{ path: string; sha: string }> {
-  const prefix = `${contentPath}/`;
-  const candidates = blobs.filter(
-    (b) =>
-      (b.path === contentPath || b.path.startsWith(prefix)) &&
-      MD_RE.test(b.path),
-  );
-
-  candidates.sort((a, b) => {
-    const ra = sampleRank(a.path);
-    const rb = sampleRank(b.path);
-    if (ra !== rb) return ra - rb;
-    return a.path.localeCompare(b.path);
-  });
-
-  return candidates.slice(0, SAMPLE_LIMIT);
-}
-
-function sampleRank(path: string): number {
-  const name = path.slice(path.lastIndexOf("/") + 1).toLowerCase();
-  if (name === "_index.md" || name === "index.md" || name === "index.mdx")
-    return 2;
-  if (name.startsWith("_")) return 1;
-  return 0;
-}
-
-/** Config/archetype blobs that exist in the repo, capped. */
-function selectConfigEntries(
-  blobs: Array<{ path: string; sha: string }>,
-  framework: ReturnType<typeof identifyFramework>,
-): Array<{ path: string; sha: string }> {
-  const candidates = new Set(configCandidatePaths(framework));
-  if (candidates.size === 0) return [];
-  const byPath = new Map(blobs.map((b) => [b.path, b]));
-  const result: Array<{ path: string; sha: string }> = [];
-  for (const path of candidates) {
-    const blob = byPath.get(path);
-    if (blob) result.push(blob);
-    if (result.length >= CONFIG_LIMIT) break;
-  }
-  return result;
-}
-
-function hasConfig(
-  blobs: Array<{ path: string; sha: string }>,
-  framework: ReturnType<typeof identifyFramework>,
-): boolean {
-  return selectConfigEntries(blobs, framework).length > 0;
 }
 
 /** Fetches blob contents by SHA in parallel; skips any that fail. */

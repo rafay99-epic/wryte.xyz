@@ -1,10 +1,10 @@
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
 import { getMediaProvider, type MediaProvider } from "@wryte/logic/types/media";
+import type { ProjectData } from "@wryte/logic/types/project-settings";
 import { useMutation } from "convex/react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import type { ProjectData } from "../types";
 
 export function useMediaSection({
   projectId,

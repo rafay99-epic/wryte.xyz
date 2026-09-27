@@ -1,11 +1,11 @@
 "use client";
 
+import { parseOutline } from "@wryte/logic/lib/editor/outline";
 import { cn } from "@wryte/logic/lib/utils";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
 import { AnimatePresence, motion } from "framer-motion";
 import { X } from "lucide-react";
 import { useMemo } from "react";
-import { parseOutline } from "../lib/outline";
 import { useEditorContext } from "./editor-context";
 
 type OutlinePanelProps = {

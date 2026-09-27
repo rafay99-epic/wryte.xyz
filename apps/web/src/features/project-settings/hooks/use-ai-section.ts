@@ -1,10 +1,14 @@
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
 import { getProvider, isProviderId } from "@wryte/logic/types/ai";
+import type {
+  AiProviderId,
+  AiSettingsPatch,
+  ProjectData,
+} from "@wryte/logic/types/project-settings";
 import { useMutation } from "convex/react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import type { AiProviderId, AiSettingsPatch, ProjectData } from "../types";
 
 export function useAiSection({
   projectId,

@@ -4,6 +4,7 @@ import { useUser } from "@clerk/nextjs";
 import { api } from "@wryte/backend/_generated/api";
 import { useHashTab } from "@wryte/logic/hooks/use-hash-tab";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
+import type { SettingsTab } from "@wryte/logic/types/account-settings";
 import { useQuery } from "convex/react";
 import { useEffect } from "react";
 import { SettingsShell } from "@/components/settings/settings-shell";
@@ -16,8 +17,7 @@ import { SelfDestructTab } from "./components/self-destruct-tab";
 import { SettingsSkeleton } from "./components/shared";
 import { ShortcutsTab } from "./components/shortcuts-tab";
 import { SupportTab } from "./components/support-tab";
-import type { SettingsTab } from "./types";
-import { TABS } from "./types";
+import { TABS } from "./constants";
 
 /** Stable identity for `useHashTab`'s dependency — never rebuilt per render. */
 const TAB_IDS: readonly SettingsTab[] = TABS.map((t) => t.id);

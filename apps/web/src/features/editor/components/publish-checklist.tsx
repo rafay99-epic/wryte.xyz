@@ -2,6 +2,7 @@
 
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
+import type { ChecklistSeverity } from "@wryte/logic/lib/editor/publish-checklist";
 import { cn } from "@wryte/logic/lib/utils";
 import { Button } from "@wryte/ui/button";
 import { Label } from "@wryte/ui/label";
@@ -16,7 +17,6 @@ import {
 import { useState } from "react";
 import { toast } from "sonner";
 import { usePublishChecklist } from "../hooks/use-publish-checklist";
-import type { ChecklistSeverity } from "../lib/publish-checklist";
 
 type PublishChecklistProps = {
   open: boolean;

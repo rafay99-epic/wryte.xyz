@@ -1,9 +1,9 @@
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
+import { setsEqual } from "@wryte/logic/lib/sets";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { setsEqual } from "../components/shared";
 
 export type BufferChannel = { id: string; service: string; name: string };
 

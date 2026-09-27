@@ -2,6 +2,7 @@
 
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
+import type { LinkSuggestion } from "@wryte/logic/lib/editor/link-suggestions";
 import { cn } from "@wryte/logic/lib/utils";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
 import { Badge } from "@wryte/ui/badge";
@@ -31,7 +32,6 @@ import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import { useLinkSuggestions } from "@/features/editor/hooks/use-link-suggestions";
-import type { LinkSuggestion } from "@/features/editor/lib/link-suggestions";
 import { useEditorContext } from "./editor-context";
 
 type ResearchPanelProps = {

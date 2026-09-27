@@ -86,3 +86,16 @@ export function getTagFieldName(schemaJson?: string): string {
     return "tags";
   }
 }
+
+export function parseFrontmatterSchema<T>(
+  schemaJson: string | undefined | null,
+  fallback: T[],
+): T[] {
+  if (!schemaJson) return fallback;
+  try {
+    const parsed = JSON.parse(schemaJson) as T[];
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : fallback;
+  } catch {
+    return fallback;
+  }
+}

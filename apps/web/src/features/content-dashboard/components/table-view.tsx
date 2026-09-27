@@ -3,8 +3,9 @@
 import { staggerContainer } from "@wryte/logic/lib/motion";
 import type { ParsedFrontmatter } from "@wryte/logic/lib/parse-frontmatter";
 import type { BoardColumnDef } from "@wryte/logic/types/board";
+import type { ContentItem } from "@wryte/logic/types/content";
 import { motion } from "framer-motion";
-import { type ContentItem, ContentTableRow } from "./content-table-row";
+import { ContentTableRow } from "./content-table-row";
 
 type TableViewProps = {
   items: ContentItem[];

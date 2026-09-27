@@ -8,12 +8,15 @@ import {
 } from "@wryte/logic/lib/motion";
 import { splitShortcutKeys } from "@wryte/logic/lib/shortcuts";
 import { cn } from "@wryte/logic/lib/utils";
+import {
+  CATEGORY_LABELS,
+  CATEGORY_ORDER,
+} from "@wryte/logic/types/account-settings";
 import { Button } from "@wryte/ui/button";
 import { KbdGroup } from "@wryte/ui/kbd";
 import { AnimatePresence, motion } from "framer-motion";
 import { AlertCircle, Keyboard, RotateCcw, XCircle } from "lucide-react";
 import { useShortcutsTab } from "../hooks/use-shortcuts-tab";
-import { CATEGORY_LABELS, CATEGORY_ORDER } from "../types";
 import { SectionHeader } from "./shared";
 
 export function ShortcutsTab() {

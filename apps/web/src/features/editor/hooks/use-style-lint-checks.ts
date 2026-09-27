@@ -1,5 +1,8 @@
+import {
+  STYLE_LINT_CHECKS,
+  type StyleLintCheckId,
+} from "@wryte/logic/lib/editor/style-lint";
 import { useCallback, useEffect, useState } from "react";
-import { STYLE_LINT_CHECKS, type StyleLintCheckId } from "../lib/style-lint";
 
 const STORAGE_KEY = "wryte:style-lint-checks";
 

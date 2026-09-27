@@ -1,8 +1,8 @@
 import { api } from "@wryte/backend/_generated/api";
+import { accentHex } from "@wryte/logic/lib/profile-accents";
 import { ConvexHttpClient } from "convex/browser";
 import type { FunctionReturnType } from "convex/server";
 import { ImageResponse } from "next/og";
-import { accentHex } from "@/features/profile/accents";
 
 export const alt = "Writing profile on Wryte";
 export const size = { width: 1200, height: 630 };

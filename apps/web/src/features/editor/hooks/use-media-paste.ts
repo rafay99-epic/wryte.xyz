@@ -10,6 +10,7 @@ import {
   MAX_BATCH_IMAGES,
   runUploadPool,
 } from "@wryte/logic/lib/batch-image-upload";
+import { videoEmbedMarkup } from "@wryte/logic/lib/editor/video";
 import { describeSavings } from "@wryte/logic/lib/image-compression/index";
 import { formatMb } from "@wryte/logic/lib/upload-limits";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
@@ -17,7 +18,6 @@ import { useAction } from "convex/react";
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { useEditorContext } from "../components/editor-context";
-import { videoEmbedMarkup } from "../lib/video";
 
 const URL_RE = /^https?:\/\/\S+$/i;
 

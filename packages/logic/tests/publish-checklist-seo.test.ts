@@ -3,7 +3,7 @@
  * Run: bun scripts/publish-checklist-seo.test.ts
  */
 import assert from "node:assert/strict";
-import { buildPublishChecklist } from "../src/features/editor/lib/publish-checklist";
+import { buildPublishChecklist } from "@wryte/logic/lib/editor/publish-checklist";
 
 function run(opts: { title?: string; raw?: string }) {
   const { items } = buildPublishChecklist({

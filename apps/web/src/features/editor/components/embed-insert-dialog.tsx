@@ -7,6 +7,7 @@ import {
   providerById,
   SUPPORTED_PROVIDERS,
 } from "@wryte/backend/integrations/oembedProviders";
+import { embedMarkup } from "@wryte/logic/lib/editor/embed";
 import { Button } from "@wryte/ui/button";
 import { Input } from "@wryte/ui/input";
 import { Label } from "@wryte/ui/label";
@@ -27,7 +28,6 @@ import {
   MessageCircle,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { embedMarkup } from "../lib/embed";
 
 type EmbedInsertDialogProps = {
   open: boolean;

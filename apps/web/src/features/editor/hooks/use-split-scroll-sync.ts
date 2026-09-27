@@ -1,8 +1,8 @@
 "use client";
 
+import { caretRect } from "@wryte/logic/lib/dom/textarea-caret";
+import { lineOfIndex } from "@wryte/logic/lib/editor/source-lines";
 import { useCallback, useEffect, useRef } from "react";
-import { caretRect } from "../lib/caret/textarea-caret";
-import { lineOfIndex } from "../lib/source-lines";
 
 type Pane = "editor" | "preview";
 

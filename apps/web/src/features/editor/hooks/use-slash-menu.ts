@@ -1,3 +1,5 @@
+import { caretRect } from "@wryte/logic/lib/dom/textarea-caret";
+import { detectTrigger } from "@wryte/logic/lib/editor/slash-trigger";
 import {
   type RefObject,
   useCallback,
@@ -5,8 +7,6 @@ import {
   useRef,
   useState,
 } from "react";
-import { caretRect } from "../lib/caret/textarea-caret";
-import { detectTrigger } from "../lib/slash/trigger";
 
 type CaretPosition = {
   /** Viewport coords of the caret's line top + its height (for below/above placement). */

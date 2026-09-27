@@ -1,12 +1,12 @@
-import { useEditorStore } from "@wryte/logic/stores/editor-store";
-import { useCallback, useEffect, useRef } from "react";
-import { toast } from "sonner";
-import { useShallow } from "zustand/react/shallow";
 import {
   clearRecovery,
   readRecovery,
   writeRecovery,
-} from "../lib/recovery-buffer";
+} from "@wryte/logic/lib/editor/recovery-buffer";
+import { useEditorStore } from "@wryte/logic/stores/editor-store";
+import { useCallback, useEffect, useRef } from "react";
+import { toast } from "sonner";
+import { useShallow } from "zustand/react/shallow";
 
 const DEBOUNCE_MS = 3000;
 /** Min interval between recovery-buffer writes while typing. */

@@ -12,11 +12,14 @@ wryte.xyz/
 │   │   │   │   ├── (marketing)/    #     Public: landing, how-it-works, changelog, preview
 │   │   │   │   ├── (app)/          #     Authenticated: dashboard, editor, projects, settings
 │   │   │   │   └── api/            #     Route handlers (GitHub proxy, tokens)
+│   │   │   │       └── github/_lib/ #      Route-only helpers (Clerk GitHub token)
 │   │   │   ├── components/         #   App-specific UI
 │   │   │   │   ├── layout/         #     Shell: sidebar, header, navigation
 │   │   │   │   ├── providers/      #     Theme, Convex, query, toasts
 │   │   │   │   ├── markdown/       #     MDX runtime, embeds, mermaid
-│   │   │   │   └── …               #     dialogs, forms, diff, editor, animations
+│   │   │   │   ├── animations/     #     Animation error boundary, delete dialog
+│   │   │   │   ├── editor/         #     Sync-conflict banner (+ its hook)
+│   │   │   │   └── …               #     dialogs, forms, diff
 │   │   │   ├── features/           #   Feature modules (see below)
 │   │   │   └── middleware.ts       #   Clerk route protection
 │   │   ├── e2e/                    #   Playwright specs
@@ -40,13 +43,19 @@ wryte.xyz/
 │   ├── ui/                         # @wryte/ui — presentational primitives
 │   │   └── src/                    #   button, dialog, select, tabs… (one per file)
 │   │
-│   ├── logic/                      # @wryte/logic — shared non-UI logic
-│   │   └── src/
-│   │       ├── lib/                #   utils, seo, markdown, frontmatter detection,
-│   │       │                       #   image compression, watermark removal, timezone
-│   │       ├── hooks/              #   Cross-feature React hooks
-│   │       ├── stores/             #   Zustand stores (editor, board, calendar, search…)
-│   │       └── types/              #   Shared type definitions
+│   ├── logic/                      # @wryte/logic — shared non-UI logic (.ts only)
+│   │   ├── src/
+│   │   │   ├── lib/                #   Pure helpers: utils, seo, escape, fuzzy, frecency,
+│   │   │   │   │                   #   timezone, profile accents, MCP endpoint, weekly progress
+│   │   │   │   ├── editor/         #     Editor text logic: outline, lists, diff, lint, publish checklist
+│   │   │   │   ├── readability/    #     Readability analysis and its Web Worker
+│   │   │   │   ├── animations/     #     Animation compiler (sucrase), templates, check protocol
+│   │   │   │   ├── dom/            #     Framework-free DOM measurement (textarea caret)
+│   │   │   │   └── frontmatter-detection/, image-compression/, watermark-removal/
+│   │   │   ├── hooks/              #   Cross-feature React hooks
+│   │   │   ├── stores/             #   Zustand stores (editor, board, calendar, search…)
+│   │   │   └── types/              #   Shared types (content, frontmatter, project and account settings)
+│   │   └── tests/                  #   bun test suites
 │   │
 │   └── backend/                    # @wryte/backend — Convex
 │       ├── convex/
@@ -75,7 +84,10 @@ wryte.xyz/
 ## Feature modules
 
 `apps/web/src/features/` holds one folder per product surface. Each owns its
-own `components/`, `hooks/`, and `lib/`:
+own `components/` and `hooks/`. Pure logic lives in `@wryte/logic`; a feature
+keeps a `lib/` only for code tied to web-only dependencies (lucide icons, the
+TypeScript compiler API, `node:fs`), e.g. `editor/lib/slash/commands.ts` and
+`editor/lib/animations/checks/`.
 
 | Module | What it is |
 |--------|-----------|
@@ -127,6 +139,9 @@ HTTP. An import that reverses the arrow is a design problem, not a config one.
 | A hook used by two unrelated features | `packages/logic/src/hooks/` |
 | A generic, presentation-only primitive | `packages/ui/src/` |
 | A pure function or store | `packages/logic/src/lib/` or `…/stores/` |
+| A type or icon-free constant shared across files | `packages/logic/src/types/` |
+| Logic that needs icons, `node:fs`, or the TS compiler | `apps/web/src/features/<feature>/lib/` |
+| A helper used only by API routes | `apps/web/src/app/api/<area>/_lib/` |
 | A query, mutation, or action | `packages/backend/convex/<domain>/` |
 | Electron main-process behaviour | `apps/desktop/src/` |
 

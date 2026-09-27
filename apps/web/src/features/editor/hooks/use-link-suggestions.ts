@@ -2,14 +2,14 @@
 
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
-import { useEditorStore } from "@wryte/logic/stores/editor-store";
-import { useConvex } from "convex/react";
-import { useEffect, useState } from "react";
 import {
   findLinkSuggestions,
   type LinkSuggestion,
   type LinkTargetDoc,
-} from "@/features/editor/lib/link-suggestions";
+} from "@wryte/logic/lib/editor/link-suggestions";
+import { useEditorStore } from "@wryte/logic/stores/editor-store";
+import { useConvex } from "convex/react";
+import { useEffect, useState } from "react";
 
 /** How long after the last keystroke before re-scanning. */
 const SCAN_DEBOUNCE_MS = 1000;

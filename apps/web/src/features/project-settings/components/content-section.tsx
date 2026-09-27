@@ -8,12 +8,12 @@ import {
   staggerItem,
 } from "@wryte/logic/lib/motion";
 import { cn } from "@wryte/logic/lib/utils";
+import type { ProjectData } from "@wryte/logic/types/project-settings";
 import { Input } from "@wryte/ui/input";
 import { motion } from "framer-motion";
 import { Check, FolderTree } from "lucide-react";
 import { SaveBar } from "@/components/settings/save-bar";
 import { useContentSection } from "../hooks/use-content-section";
-import type { ProjectData } from "../types";
 import { FieldGroup, SectionHeader, ToggleRow } from "./shared";
 
 export function ContentSection({

@@ -11,6 +11,7 @@ import type { ParsedFrontmatter } from "@wryte/logic/lib/parse-frontmatter";
 import { cn } from "@wryte/logic/lib/utils";
 import { useBoardStore } from "@wryte/logic/stores/board-store";
 import type { BoardColumnDef } from "@wryte/logic/types/board";
+import type { ContentItem } from "@wryte/logic/types/content";
 import { Badge } from "@wryte/ui/badge";
 import { Button } from "@wryte/ui/button";
 import { motion } from "framer-motion";
@@ -24,7 +25,6 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { BoardCard } from "./board-card";
-import type { ContentItem } from "./content-table-row";
 
 /** Number of cards shown per page in a single column. */
 const COLUMN_PAGE_SIZE = 8;

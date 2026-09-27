@@ -31,6 +31,7 @@ import {
   type MediaCredentialStatus,
   type MediaProviderEntry,
 } from "@wryte/logic/types/media";
+import type { ProjectData } from "@wryte/logic/types/project-settings";
 import { Button } from "@wryte/ui/button";
 import { InfoHint } from "@wryte/ui/info-hint";
 import { Input } from "@wryte/ui/input";
@@ -51,7 +52,6 @@ import { CredentialFieldsForm } from "@/components/forms/credential-fields-form"
 import { ConfirmActionDialog } from "@/components/settings/confirm-action-dialog";
 import { SaveBar } from "@/components/settings/save-bar";
 import { useMediaSection } from "../hooks/use-media-section";
-import type { ProjectData } from "../types";
 import { FieldGroup, RowList, SectionHeader, SettingsGroup } from "./shared";
 
 export function MediaSection({

@@ -1,11 +1,11 @@
 "use client";
 
+import { caretRect } from "@wryte/logic/lib/dom/textarea-caret";
 import { cn } from "@wryte/logic/lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
 import { Bold, Italic, Link, type LucideIcon, Sparkles } from "lucide-react";
 import { memo, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { caretRect } from "../lib/caret/textarea-caret";
 import { useEditorContext } from "./editor-context";
 
 export type SelectionRange = { text: string; start: number; end: number };

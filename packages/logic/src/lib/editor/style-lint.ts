@@ -11,7 +11,11 @@
  * `readability/heuristics.ts`.
  */
 
-import { isAdverb, isBeVerb, isPastParticiple } from "./readability/heuristics";
+import {
+  isAdverb,
+  isBeVerb,
+  isPastParticiple,
+} from "@wryte/logic/lib/readability/heuristics";
 import {
   type CodeRange,
   findCodeRanges,
@@ -20,7 +24,7 @@ import {
   splitSentences,
   tokenizeWords,
   type WordToken,
-} from "./readability/segment";
+} from "@wryte/logic/lib/readability/segment";
 
 export type StyleLintCheckId =
   | "passive-voice"

@@ -2,6 +2,7 @@
 
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
+import { compileAnimation } from "@wryte/logic/lib/animations/compile-animation";
 import { buildInitialFrontmatter } from "@wryte/logic/lib/build-initial-frontmatter";
 import { parseFrontmatter } from "@wryte/logic/lib/frontmatter-detection/parse";
 import { generateSlug } from "@wryte/logic/lib/markdown";
@@ -28,8 +29,7 @@ import {
 } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { wrapAnimation } from "@/features/editor/lib/animations/animation-boundary";
-import { compileAnimation } from "@/features/editor/lib/animations/compile-animation";
+import { wrapAnimation } from "@/components/animations/animation-boundary";
 
 type ContentItem = {
   kind: "content";

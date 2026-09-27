@@ -5,11 +5,11 @@
  */
 
 import { Octokit } from "@octokit/rest";
+import { NextResponse } from "next/server";
 import {
   getGithubToken,
   parseRepoString,
-} from "@wryte/logic/lib/github-helpers";
-import { NextResponse } from "next/server";
+} from "@/app/api/github/_lib/github-helpers";
 import { githubStatus } from "@/app/api/github/_lib/github-status";
 
 /**

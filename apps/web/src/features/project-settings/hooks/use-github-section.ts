@@ -1,10 +1,13 @@
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
 import { useGithubBranches } from "@wryte/logic/hooks/use-github";
+import type {
+  ProjectData,
+  VerifyStatus,
+} from "@wryte/logic/types/project-settings";
 import { useAction, useMutation } from "convex/react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import type { ProjectData, VerifyStatus } from "../types";
 
 type UseGithubSectionParams = {
   projectId: Id<"projects">;

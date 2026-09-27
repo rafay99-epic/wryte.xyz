@@ -7,6 +7,10 @@ import {
   staggerItem,
 } from "@wryte/logic/lib/motion";
 import { cn } from "@wryte/logic/lib/utils";
+import type {
+  ProjectData,
+  VerifyStatus,
+} from "@wryte/logic/types/project-settings";
 import { Button } from "@wryte/ui/button";
 import { Input } from "@wryte/ui/input";
 import {
@@ -28,7 +32,6 @@ import {
 } from "lucide-react";
 import { SaveBar } from "@/components/settings/save-bar";
 import { useGithubSection } from "../hooks/use-github-section";
-import type { ProjectData, VerifyStatus } from "../types";
 import { Divider, FieldGroup, SaveButton, SectionHeader } from "./shared";
 
 type GitHubSectionProps = {

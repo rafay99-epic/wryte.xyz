@@ -1,12 +1,4 @@
-import type { Doc } from "@wryte/backend/_generated/dataModel";
-import type { AnimationCheckLevel } from "@wryte/backend/_lib/animationChecks";
-import type { CompressionSettings } from "@wryte/logic/lib/image-compression/index";
-import type { AiProvider } from "@wryte/logic/types/ai";
-import type {
-  FrontmatterField,
-  FrontmatterFieldType,
-} from "@wryte/logic/types/frontmatter";
-import type { MediaProvider } from "@wryte/logic/types/media";
+import type { SettingsTab } from "@wryte/logic/types/project-settings";
 import {
   Code2,
   FolderTree,
@@ -21,68 +13,6 @@ import {
   Sparkles,
   Wrench,
 } from "lucide-react";
-
-export type {
-  AiProvider,
-  CompressionSettings,
-  FrontmatterField,
-  FrontmatterFieldType,
-  MediaProvider,
-};
-
-export type AnimationChecksPolicy = {
-  level: AnimationCheckLevel;
-  blockPublish: boolean;
-};
-
-/** The `projects` row as served to the settings pages. */
-export type ProjectData = Doc<"projects">;
-
-export const DEFAULT_FIELDS: FrontmatterField[] = [
-  {
-    name: "title",
-    type: "string",
-    required: true,
-    defaultValue: "",
-    options: "",
-  },
-  {
-    name: "description",
-    type: "text",
-    required: false,
-    defaultValue: "",
-    options: "",
-  },
-  { name: "date", type: "date", required: true, defaultValue: "", options: "" },
-  {
-    name: "tags",
-    type: "tags",
-    required: false,
-    defaultValue: "",
-    options: "",
-  },
-  {
-    name: "draft",
-    type: "boolean",
-    required: false,
-    defaultValue: "true",
-    options: "",
-  },
-];
-
-export type SettingsTab =
-  | "general"
-  | "github"
-  | "content"
-  | "publishing"
-  | "frontmatter"
-  | "media"
-  | "ai"
-  | "editor"
-  | "social"
-  | "syndication"
-  | "sharing"
-  | "tools";
 
 export const TABS: {
   id: SettingsTab;
@@ -217,10 +147,3 @@ export const TABS: {
     keywords: ["export", "backup", "links", "check", "zip"],
   },
 ];
-
-export { bufferServiceLabel } from "@wryte/logic/lib/social-template";
-
-export type VerifyStatus = "idle" | "verifying" | "connected" | "error";
-
-export type AiProviderId = NonNullable<Doc<"projects">["aiProvider"]>;
-export type AiSettingsPatch = Pick<Doc<"projects">, "aiProvider" | "aiModel">;

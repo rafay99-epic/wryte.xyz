@@ -1,11 +1,11 @@
 "use client";
 
+import { formatClock } from "@wryte/logic/lib/editor/sprint";
 import { cn } from "@wryte/logic/lib/utils";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
 import { Check, Pause, Play, Square, X } from "lucide-react";
 import type { ReactNode } from "react";
 import { useSprint } from "../hooks/use-sprint";
-import { formatClock } from "../lib/sprint";
 
 /**
  * Compact floating pill shown while a sprint is running/paused/just

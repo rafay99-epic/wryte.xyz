@@ -7,6 +7,8 @@ import type {
   AnimationCheckStatus,
   AnimationLanguage,
 } from "@wryte/backend/_lib/animationChecks";
+import { compileAnimation } from "@wryte/logic/lib/animations/compile-animation";
+import { starterSource } from "@wryte/logic/lib/animations/templates";
 import { cn } from "@wryte/logic/lib/utils";
 import { Button, buttonVariants } from "@wryte/ui/button";
 import { Input } from "@wryte/ui/input";
@@ -38,6 +40,7 @@ import {
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { wrapAnimation } from "@/components/animations/animation-boundary";
 import {
   type DeletableAnimation,
   DeleteAnimationDialog,
@@ -48,9 +51,6 @@ import {
 } from "@/features/editor/components/animation-diagnostics";
 import { CodeEditor } from "@/features/editor/components/code-editor";
 import { useAnimationChecks } from "@/features/editor/hooks/use-animation-checks";
-import { wrapAnimation } from "@/features/editor/lib/animations/animation-boundary";
-import { compileAnimation } from "@/features/editor/lib/animations/compile-animation";
-import { starterSource } from "@/features/editor/lib/animations/templates";
 
 const COMPILE_DEBOUNCE_MS = 400;
 

@@ -3,7 +3,7 @@
 import type { Id } from "@wryte/backend/_generated/dataModel";
 import { AlertTriangle, ArrowRight } from "lucide-react";
 import Link from "next/link";
-import { useSyncConflicts } from "@/features/sync-conflicts/hooks/use-sync-conflicts";
+import { useSyncConflicts } from "@/components/editor/hooks/use-sync-conflicts";
 
 /**
  * Persistent banner shown above the project dashboard when there are
