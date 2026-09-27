@@ -117,7 +117,7 @@ plaintext keys.
 - In development it probes ports 3000–3002 and attaches to the running dev server.
 - In production it loads `https://wryte.xyz`.
 - It owns native concerns only: window state, application menu, menu-bar tray,
-  auto-update via `electron-updater`, connectivity and task worker processes,
+  auto-update via `electron-updater`, a connectivity worker process,
   and offline/loading screens.
 
 This is why it imports nothing from `apps/web` — the web app is a URL to it, not
