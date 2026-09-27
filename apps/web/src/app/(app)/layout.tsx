@@ -117,7 +117,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             // height-constrained and manages its own overflow.
             className="min-w-0 flex-1 overflow-y-auto slim-scrollbar"
           >
-            {isAuthenticated ? children : null}
+            {children}
           </main>
         </div>
 
