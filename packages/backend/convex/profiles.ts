@@ -17,6 +17,7 @@ import type { Doc } from "./_generated/dataModel";
 import type { QueryCtx } from "./_generated/server";
 import { mutation, query } from "./_generated/server";
 import { getAuthedUserOrNull } from "./_lib/auth";
+import type { DocPatch } from "./_lib/docPatch";
 import { buildPublishedUrl } from "./_lib/publishedUrl";
 import { getRateLimitKey, rateLimiter } from "./_lib/rateLimits";
 
@@ -140,149 +141,147 @@ async function assembleProfile(
   user: Doc<"users">,
   username: string,
 ): Promise<ProfileResult> {
-  {
-    // Published posts across every project the user owns. Only those whose
-    // project has a siteUrl are linkable — a profile link that 404s is worse
-    // than an omitted post.
-    const docs = await ctx.db
-      .query("documents")
-      .withIndex("by_userId_and_status", (q) =>
-        q.eq("userId", user._id).eq("status", "published"),
-      )
-      .order("desc")
-      .take(200);
+  // Published posts across every project the user owns. Only those whose
+  // project has a siteUrl are linkable — a profile link that 404s is worse
+  // than an omitted post.
+  const docs = await ctx.db
+    .query("documents")
+    .withIndex("by_userId_and_status", (q) =>
+      q.eq("userId", user._id).eq("status", "published"),
+    )
+    .order("desc")
+    .take(200);
 
-    type ProjectInfo = {
-      siteUrl?: string;
-      name: string;
-      postUrlPrefix?: string;
-      framework?: string;
-    };
-    const projectCache = new Map<string, ProjectInfo | null>();
-    const resolveProject = async (
-      projectId: (typeof docs)[number]["projectId"],
-    ): Promise<ProjectInfo | null> => {
-      const cached = projectCache.get(projectId);
-      if (cached !== undefined) return cached;
-      const p = await ctx.db.get(projectId);
-      const info: ProjectInfo | null = p
-        ? {
-            name: p.name,
-            ...(p.siteUrl !== undefined ? { siteUrl: p.siteUrl } : {}),
-            ...(p.postUrlPrefix !== undefined
-              ? { postUrlPrefix: p.postUrlPrefix }
-              : {}),
-            ...(p.framework !== undefined ? { framework: p.framework } : {}),
-          }
-        : null;
-      projectCache.set(projectId, info);
-      return info;
-    };
+  type ProjectInfo = {
+    siteUrl?: string;
+    name: string;
+    postUrlPrefix?: string;
+    framework?: string;
+  };
+  const projectCache = new Map<string, ProjectInfo | null>();
+  const resolveProject = async (
+    projectId: (typeof docs)[number]["projectId"],
+  ): Promise<ProjectInfo | null> => {
+    const cached = projectCache.get(projectId);
+    if (cached !== undefined) return cached;
+    const p = await ctx.db.get(projectId);
+    const info: ProjectInfo | null = p
+      ? {
+          name: p.name,
+          ...(p.siteUrl !== undefined ? { siteUrl: p.siteUrl } : {}),
+          ...(p.postUrlPrefix !== undefined
+            ? { postUrlPrefix: p.postUrlPrefix }
+            : {}),
+          ...(p.framework !== undefined ? { framework: p.framework } : {}),
+        }
+      : null;
+    projectCache.set(projectId, info);
+    return info;
+  };
 
-    // One pass over published docs: collect linkable posts, tally tags for the
-    // topics cloud, and the distinct sites they live on.
-    const linkable: (PostItem & {
-      documentId: string;
-      siteUrl: string;
-      siteName: string;
-    })[] = [];
-    const tagCounts = new Map<string, number>();
-    for (const doc of docs) {
-      if (doc.trashedAt !== undefined) continue;
-      const project = await resolveProject(doc.projectId);
-      if (!project?.siteUrl) continue;
-      for (const tag of doc.tags ?? []) {
-        const t = tag.trim();
-        if (t) tagCounts.set(t, (tagCounts.get(t) ?? 0) + 1);
-      }
-      linkable.push({
-        documentId: doc._id,
-        siteUrl: project.siteUrl,
-        siteName: project.name,
-        title: doc.title,
-        url: toAbsolute(
-          buildPublishedUrl({
-            siteUrl: project.siteUrl,
-            slug: doc.slug,
-            postUrlPrefix: project.postUrlPrefix,
-            framework: project.framework,
-          }),
-        ),
-        publishedAt: doc.publishedAt ?? doc.updatedAt,
-        projectName: project.name,
-      });
+  // One pass over published docs: collect linkable posts, tally tags for the
+  // topics cloud, and the distinct sites they live on.
+  const linkable: (PostItem & {
+    documentId: string;
+    siteUrl: string;
+    siteName: string;
+  })[] = [];
+  const tagCounts = new Map<string, number>();
+  for (const doc of docs) {
+    if (doc.trashedAt !== undefined) continue;
+    const project = await resolveProject(doc.projectId);
+    if (!project?.siteUrl) continue;
+    for (const tag of doc.tags ?? []) {
+      const t = tag.trim();
+      if (t) tagCounts.set(t, (tagCounts.get(t) ?? 0) + 1);
     }
-    linkable.sort((a, b) => b.publishedAt - a.publishedAt);
-
-    const toPostItem = (p: (typeof linkable)[number]): PostItem => ({
-      title: p.title,
-      url: p.url,
-      publishedAt: p.publishedAt,
-      projectName: p.projectName,
+    linkable.push({
+      documentId: doc._id,
+      siteUrl: project.siteUrl,
+      siteName: project.name,
+      title: doc.title,
+      url: toAbsolute(
+        buildPublishedUrl({
+          siteUrl: project.siteUrl,
+          slug: doc.slug,
+          postUrlPrefix: project.postUrlPrefix,
+          framework: project.framework,
+        }),
+      ),
+      publishedAt: doc.publishedAt ?? doc.updatedAt,
+      projectName: project.name,
     });
-
-    // Featured post — pinned to the top and removed from the main list.
-    let featured: PostItem | undefined;
-    if (user.featuredDocumentId) {
-      const match = linkable.find(
-        (p) => p.documentId === user.featuredDocumentId,
-      );
-      if (match) featured = toPostItem(match);
-    }
-
-    const posts = linkable
-      .filter((p) => p.documentId !== user.featuredDocumentId)
-      .slice(0, MAX_POSTS)
-      .map(toPostItem);
-
-    // Distinct sites (homepages), for the "Visit site" buttons.
-    const siteMap = new Map<string, string>();
-    for (const p of linkable) {
-      const abs = toAbsolute(p.siteUrl);
-      if (!siteMap.has(abs)) siteMap.set(abs, p.siteName);
-    }
-    const sites = [...siteMap.entries()]
-      .slice(0, 5)
-      .map(([url, name]) => ({ name, url }));
-
-    const topics = [...tagCounts.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 10)
-      .map(([tag]) => tag);
-
-    const result: ProfileResult = {
-      username,
-      name: user.name,
-      ...(user.imageUrl !== undefined ? { imageUrl: user.imageUrl } : {}),
-      ...(user.bio ? { bio: user.bio } : {}),
-      joinedAt: user.createdAt,
-      ...(user.profileAccent ? { accent: user.profileAccent } : {}),
-      ...(user.feedUrl ? { feedUrl: user.feedUrl } : {}),
-      socialLinks: parseSocialLinks(user.socialLinks),
-      sites,
-      topics,
-      ...(featured ? { featured } : {}),
-      posts,
-    };
-
-    if (user.profileShowStats === true) {
-      const stats = await ctx.db
-        .query("writing_stats")
-        .withIndex("by_userId", (q) => q.eq("userId", user._id))
-        .unique();
-      if (stats) {
-        result.stats = {
-          totalPublished: stats.totalPublished,
-          totalWords: stats.totalWords,
-          currentStreak: stats.currentStreak,
-          longestStreak: stats.longestStreak,
-        };
-        result.heatmap = stats.recentActivity;
-      }
-    }
-
-    return result;
   }
+  linkable.sort((a, b) => b.publishedAt - a.publishedAt);
+
+  const toPostItem = (p: (typeof linkable)[number]): PostItem => ({
+    title: p.title,
+    url: p.url,
+    publishedAt: p.publishedAt,
+    projectName: p.projectName,
+  });
+
+  // Featured post — pinned to the top and removed from the main list.
+  let featured: PostItem | undefined;
+  if (user.featuredDocumentId) {
+    const match = linkable.find(
+      (p) => p.documentId === user.featuredDocumentId,
+    );
+    if (match) featured = toPostItem(match);
+  }
+
+  const posts = linkable
+    .filter((p) => p.documentId !== user.featuredDocumentId)
+    .slice(0, MAX_POSTS)
+    .map(toPostItem);
+
+  // Distinct sites (homepages), for the "Visit site" buttons.
+  const siteMap = new Map<string, string>();
+  for (const p of linkable) {
+    const abs = toAbsolute(p.siteUrl);
+    if (!siteMap.has(abs)) siteMap.set(abs, p.siteName);
+  }
+  const sites = [...siteMap.entries()]
+    .slice(0, 5)
+    .map(([url, name]) => ({ name, url }));
+
+  const topics = [...tagCounts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
+    .map(([tag]) => tag);
+
+  const result: ProfileResult = {
+    username,
+    name: user.name,
+    ...(user.imageUrl !== undefined ? { imageUrl: user.imageUrl } : {}),
+    ...(user.bio ? { bio: user.bio } : {}),
+    joinedAt: user.createdAt,
+    ...(user.profileAccent ? { accent: user.profileAccent } : {}),
+    ...(user.feedUrl ? { feedUrl: user.feedUrl } : {}),
+    socialLinks: parseSocialLinks(user.socialLinks),
+    sites,
+    topics,
+    ...(featured ? { featured } : {}),
+    posts,
+  };
+
+  if (user.profileShowStats === true) {
+    const stats = await ctx.db
+      .query("writing_stats")
+      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .unique();
+    if (stats) {
+      result.stats = {
+        totalPublished: stats.totalPublished,
+        totalWords: stats.totalWords,
+        currentStreak: stats.currentStreak,
+        longestStreak: stats.longestStreak,
+      };
+      result.heatmap = stats.recentActivity;
+    }
+  }
+
+  return result;
 }
 
 /**
@@ -424,7 +423,7 @@ export const updateProfile = mutation({
     const user = await getAuthedUserOrNull(ctx);
     if (!user) throw new ConvexError({ message: "Not authenticated" });
 
-    const patch: Record<string, unknown> = {};
+    const patch: DocPatch<"users"> = {};
 
     if (args.profileAccent !== undefined) {
       // A preset key, or a custom #rrggbb from the color wheel.
@@ -432,7 +431,7 @@ export const updateProfile = mutation({
       if (!ACCENT_KEYS.has(args.profileAccent) && !isHex) {
         throw new ConvexError({ message: "Invalid accent color." });
       }
-      patch["profileAccent"] = isHex
+      patch.profileAccent = isHex
         ? args.profileAccent.toLowerCase()
         : args.profileAccent;
     }
@@ -452,18 +451,18 @@ export const updateProfile = mutation({
           });
         }
       }
-      patch["feedUrl"] = feedUrl || undefined;
+      patch.feedUrl = feedUrl || undefined;
     }
 
     if (args.featuredDocumentId !== undefined) {
       if (args.featuredDocumentId === null) {
-        patch["featuredDocumentId"] = undefined;
+        patch.featuredDocumentId = undefined;
       } else {
         const doc = await ctx.db.get(args.featuredDocumentId);
         if (!doc || doc.userId !== user._id) {
           throw new ConvexError({ message: "That post isn't yours." });
         }
-        patch["featuredDocumentId"] = args.featuredDocumentId;
+        patch.featuredDocumentId = args.featuredDocumentId;
       }
     }
 
@@ -474,7 +473,7 @@ export const updateProfile = mutation({
           message: `Bio must be ${MAX_BIO} characters or fewer.`,
         });
       }
-      patch["bio"] = bio || undefined;
+      patch.bio = bio || undefined;
     }
 
     if (args.socialLinks !== undefined) {
@@ -497,9 +496,7 @@ export const updateProfile = mutation({
         }
         cleaned.push({ label, url });
       }
-      patch["socialLinks"] = cleaned.length
-        ? JSON.stringify(cleaned)
-        : undefined;
+      patch.socialLinks = cleaned.length ? JSON.stringify(cleaned) : undefined;
     }
 
     if (args.profilePublic !== undefined) {

@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { internalMutation, mutation, query } from "../_generated/server";
+import { mutation, query } from "../_generated/server";
 
 export const current = query({
   args: {},
@@ -53,16 +53,5 @@ export const stamp = mutation({
       throw new Error("Invalid stamp secret");
     }
     await writeStamp(ctx, { version: args.version, build: args.build });
-  },
-});
-
-/** Internal twin for use from other Convex functions (no secret needed). */
-export const _stamp = internalMutation({
-  args: {
-    version: v.string(),
-    build: v.string(),
-  },
-  handler: async (ctx, args) => {
-    await writeStamp(ctx, args);
   },
 });

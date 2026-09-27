@@ -130,32 +130,30 @@ export async function restoreTrashedForUser(
   user: Doc<"users">,
   documentId: Id<"documents">,
 ) {
-  {
-    await rateLimiter.limit(ctx, "documents:restoreFromTrash", {
-      key: user.tokenIdentifier,
-      throws: true,
-    });
+  await rateLimiter.limit(ctx, "documents:restoreFromTrash", {
+    key: user.tokenIdentifier,
+    throws: true,
+  });
 
-    const doc = await loadTrashedDocForUser(ctx, user, documentId);
+  const doc = await loadTrashedDocForUser(ctx, user, documentId);
 
-    await ctx.db.patch(doc._id, {
-      trashedAt: undefined,
-      updatedAt: Date.now(),
-    });
+  await ctx.db.patch(doc._id, {
+    trashedAt: undefined,
+    updatedAt: Date.now(),
+  });
 
-    await adjustDocumentCount(ctx, doc.projectId, 1);
-    await scheduleWordActivity(ctx, {
-      userId: doc.userId,
-      projectId: doc.projectId,
-      wordCountDelta: doc.wordCount ?? 0,
-    });
-    await scheduleStatusChange(ctx, {
-      projectId: doc.projectId,
-      userId: doc.userId,
-      oldStatus: null,
-      newStatus: doc.status,
-    });
-  }
+  await adjustDocumentCount(ctx, doc.projectId, 1);
+  await scheduleWordActivity(ctx, {
+    userId: doc.userId,
+    projectId: doc.projectId,
+    wordCountDelta: doc.wordCount ?? 0,
+  });
+  await scheduleStatusChange(ctx, {
+    projectId: doc.projectId,
+    userId: doc.userId,
+    oldStatus: null,
+    newStatus: doc.status,
+  });
 }
 
 /**
@@ -307,6 +305,9 @@ export const emptyTrash = mutation({
  */
 const NEVER_DELETE_THRESHOLD_DAYS = 36500;
 
+/** Projects visited per `_cleanupExpired` transaction. */
+const PROJECT_PAGE_SIZE = 100;
+
 /**
  * Daily cron entry point. For each project, queries only the docs
  * whose `trashedAt` is in `(0, cutoff]` via the
@@ -314,22 +315,25 @@ const NEVER_DELETE_THRESHOLD_DAYS = 36500;
  * client-side filter over fresh docs. Projects with "Never" retention
  * are skipped before the query even fires.
  *
- * Per-run cap of 100 documents to stay safely inside Convex's mutation
- * transaction budget. Reduced from the pre-cascade 500: each document
- * can now also drain up to `PER_CALL_CAP` (see `purgeDocumentArtifacts`)
- * dependent artifact rows, not just its own two rows, so the per-run
- * document cap has to shrink accordingly. Anything beyond rolls into
- * the next day's run; trash cleanup isn't urgent enough to need
- * workpool fan-out.
+ * Walks projects one page (`PROJECT_PAGE_SIZE`) per transaction and
+ * self-reschedules with the next cursor until every project is visited.
+ * Per-transaction cap of 100 documents to stay safely inside Convex's
+ * mutation transaction budget. Reduced from the pre-cascade 500: each
+ * document can now also drain up to `PER_CALL_CAP` (see
+ * `purgeDocumentArtifacts`) dependent artifact rows, not just its own two
+ * rows, so the per-run document cap has to shrink accordingly. When a page
+ * hits the cap, the same page runs again in a fresh transaction, so the
+ * whole expired backlog drains in one cron tick.
  *
- * Cost model: 1 projects.collect() + 1 indexed query per project
- * (skipping "Never" retention projects) + N purge-then-delete calls
- * bounded by PER_RUN_CAP. Cheap even at thousands of projects.
+ * Cost model per transaction: 1 page of projects + 1 indexed query per
+ * project (skipping "Never" retention projects) + N purge-then-delete
+ * calls bounded by PER_RUN_CAP.
  */
 export const _cleanupExpired = internalMutation({
-  args: {},
+  args: { cursor: v.optional(v.union(v.string(), v.null())) },
   handler: async (
     ctx,
+    args,
   ): Promise<{
     projectsScanned: number;
     projectsSkipped: number;
@@ -342,11 +346,18 @@ export const _cleanupExpired = internalMutation({
     let pending = 0;
     let projectsSkipped = 0;
 
-    const projects = await ctx.db.query("projects").take(1000);
+    const cursor = args.cursor ?? null;
+    const {
+      page: projects,
+      isDone,
+      continueCursor,
+    } = await ctx.db
+      .query("projects")
+      .paginate({ numItems: PROJECT_PAGE_SIZE, cursor });
     // Shared artifact budget across every document this run — same
     // rationale as `emptyTrash`: stacked per-document purges must not
-    // multiply past transaction limits. Docs not reached roll into
-    // tomorrow's run.
+    // multiply past transaction limits. Docs not reached are picked up by
+    // the re-run of this page scheduled below.
     let artifactBudget = 400;
 
     for (const project of projects) {
@@ -394,6 +405,17 @@ export const _cleanupExpired = internalMutation({
         await ctx.db.delete(d._id);
         deleted += 1;
       }
+    }
+
+    const capped = deleted >= PER_RUN_CAP || artifactBudget <= 0;
+    if (capped) {
+      await ctx.scheduler.runAfter(0, internal.cms.trash._cleanupExpired, {
+        cursor,
+      });
+    } else if (!isDone) {
+      await ctx.scheduler.runAfter(0, internal.cms.trash._cleanupExpired, {
+        cursor: continueCursor,
+      });
     }
 
     return {

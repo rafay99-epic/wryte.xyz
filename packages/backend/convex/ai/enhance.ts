@@ -15,12 +15,7 @@ import {
 import { v } from "convex/values";
 import { components, internal } from "../_generated/api";
 import type { Doc } from "../_generated/dataModel";
-import {
-  internalQuery,
-  type MutationCtx,
-  mutation,
-  query,
-} from "../_generated/server";
+import { type MutationCtx, mutation, query } from "../_generated/server";
 import { getAuthedUserOrNull, getCurrentUser } from "../_lib/auth";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
 import type { AiProvider } from "./_lib/providers";
@@ -34,10 +29,10 @@ const streaming = new PersistentTextStreaming(
 );
 
 /* ------------------------------------------------------------------ */
-/*  System prompt (exported for UI display)                            */
+/*  System prompts                                                     */
 /* ------------------------------------------------------------------ */
 
-export const ENHANCE_SYSTEM_PROMPT = `You are an expert writing editor. Improve the provided markdown content while preserving the author's voice, intent, and meaning.
+const ENHANCE_SYSTEM_PROMPT = `You are an expert writing editor. Improve the provided markdown content while preserving the author's voice, intent, and meaning.
 
 Guidelines:
 - Fix grammar, spelling, and punctuation errors
@@ -50,7 +45,7 @@ Guidelines:
 - Return ONLY the improved markdown content, nothing else
 - If the content is already well-written, make minimal changes`;
 
-export const FINAL_DRAFT_SYSTEM_PROMPT = `You are an expert long-form blog editor. Turn the provided working article, draft snapshots, and research notes into a polished final markdown draft.
+const FINAL_DRAFT_SYSTEM_PROMPT = `You are an expert long-form blog editor. Turn the provided working article, draft snapshots, and research notes into a polished final markdown draft.
 
 Guidelines:
 - Use the research and prior drafts as context, not as text to dump verbatim
@@ -81,7 +76,7 @@ export function getFinalDraftSystemPrompt(contentFormat?: string): string {
 
 /**
  * Centralised guard for every AI mutation:
- *  - asserts the caller owns the project
+ *  - asserts the caller owns the project (and returns the caller)
  *  - confirms `aiProvider` / `aiModel` are configured
  *  - confirms a credential row exists for that provider with `status === "active"`
  *
@@ -91,6 +86,7 @@ async function resolveProjectAndCredential(
   ctx: MutationCtx,
   projectId: Doc<"projects">["_id"],
 ): Promise<{
+  user: Doc<"users">;
   project: Doc<"projects">;
   provider: AiProvider;
   model: string;
@@ -144,6 +140,7 @@ async function resolveProjectAndCredential(
   }
 
   return {
+    user,
     project,
     provider,
     model,
@@ -188,8 +185,7 @@ export const createEnhanceStream = mutation({
     // Deployment-wide backstop (no key → shared bucket across all users).
     await rateLimiter.limit(ctx, "ai:global", { throws: true });
 
-    const user = await getCurrentUser(ctx);
-    const { project, provider, model, vaultSecretId } =
+    const { user, project, provider, model, vaultSecretId } =
       await resolveProjectAndCredential(ctx, args.projectId);
     // Per-provider deployment-wide cap (keyed by provider id).
     await rateLimiter.limit(ctx, "ai:provider", {
@@ -223,10 +219,9 @@ export const getStreamBody = query({
     const user = await getAuthedUserOrNull(ctx);
     if (!user) return null;
 
-    const streamIdStr = args.streamId as string;
     const owner = await ctx.db
       .query("ai_stream_owners")
-      .withIndex("by_streamId", (q) => q.eq("streamId", streamIdStr))
+      .withIndex("by_streamId", (q) => q.eq("streamId", args.streamId))
       .unique();
     if (!owner || owner.userId !== user._id) return null;
 
@@ -249,8 +244,7 @@ export const createInlineEnhanceStream = mutation({
     });
     await rateLimiter.limit(ctx, "ai:global", { throws: true });
 
-    const user = await getCurrentUser(ctx);
-    const { project, provider, model, vaultSecretId } =
+    const { user, project, provider, model, vaultSecretId } =
       await resolveProjectAndCredential(ctx, args.projectId);
     // Per-provider deployment-wide cap (keyed by provider id).
     await rateLimiter.limit(ctx, "ai:provider", {
@@ -294,6 +288,7 @@ async function gatherExistingTags(
   const docs = await ctx.db
     .query("documents")
     .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
+    .order("desc")
     .take(200);
 
   const tags = new Set<string>();
@@ -321,8 +316,7 @@ export const createFrontmatterStream = mutation({
     });
     await rateLimiter.limit(ctx, "ai:global", { throws: true });
 
-    const user = await getCurrentUser(ctx);
-    const { project, provider, model, vaultSecretId } =
+    const { user, project, provider, model, vaultSecretId } =
       await resolveProjectAndCredential(ctx, args.projectId);
     // Per-provider deployment-wide cap (keyed by provider id).
     await rateLimiter.limit(ctx, "ai:provider", {
@@ -375,8 +369,8 @@ export const createFinalDraftStream = mutation({
     });
     await rateLimiter.limit(ctx, "ai:global", { throws: true });
 
-    const user = await getCurrentUser(ctx);
     const {
+      user,
       project: aiProject,
       provider,
       model,
@@ -530,22 +524,5 @@ export const isAiReady = query({
       return { ready: false, reason: "rotating", provider, model };
     }
     return { ready: true, provider, model };
-  },
-});
-
-/**
- * Internal query to fetch a project's AI configuration. Kept for any
- * legacy HTTP-action path that might still call it; new code should go
- * through `resolveProjectAndCredential` above.
- */
-export const getProjectAiConfig = internalQuery({
-  args: { projectId: v.id("projects") },
-  handler: async (ctx, args) => {
-    const project = await ctx.db.get(args.projectId);
-    if (!project) return null;
-    return {
-      aiProvider: project.aiProvider,
-      aiModel: project.aiModel,
-    };
   },
 });

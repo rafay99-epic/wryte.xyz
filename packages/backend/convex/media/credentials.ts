@@ -394,6 +394,22 @@ export const rotate = action({
     const priorStatus: "active" | "invalid" =
       cred.status === "invalid" ? "invalid" : "active";
 
+    // Store the new secret before the workflow starts so only its vault id
+    // is journaled as a workflow argument, never the plaintext. The workflow
+    // deletes this entry again if verification fails.
+    const created = await ctx.runAction(
+      internal.integrations.secretStore._create,
+      {
+        value: secret,
+        meta: {
+          userId: cred.userId,
+          projectId: args.projectId,
+          provider: args.provider,
+          label: `${args.provider}-creds-rotated`,
+        },
+      },
+    );
+
     await ctx.runMutation(internal.media.credentialsDb._setStatus, {
       credentialId: cred._id,
       status: "rotating" as const,
@@ -402,18 +418,36 @@ export const rotate = action({
     const kickArgs: {
       credentialId: Id<"mediaCredentials">;
       provider: ProviderName;
-      newSecret: string;
+      newVaultSecretId: string;
+      newVersionId?: string;
       priorStatus: "active" | "invalid";
     } = {
       credentialId: cred._id,
       provider: args.provider,
-      newSecret: secret,
+      newVaultSecretId: created.id,
       priorStatus,
     };
-    const workflowId: string = await ctx.runMutation(
-      internal.workflows.rotateCredential.kickRotation,
-      kickArgs,
-    );
+    if (created.versionId !== undefined) {
+      kickArgs.newVersionId = created.versionId;
+    }
+    let workflowId: string;
+    try {
+      workflowId = await ctx.runMutation(
+        internal.workflows.rotateCredential.kickRotation,
+        kickArgs,
+      );
+    } catch (err) {
+      // No workflow will run, so undo the "rotating" status and the new
+      // vault entry here instead.
+      await ctx.runMutation(internal.media.credentialsDb._setStatus, {
+        credentialId: cred._id,
+        status: priorStatus,
+      });
+      await ctx.runAction(internal.integrations.secretStore._delete, {
+        id: created.id,
+      });
+      throw err;
+    }
 
     return { workflowId, credentialId: cred._id };
   },
@@ -475,6 +509,7 @@ async function loadOwnedCredential(
   provider: ProviderName,
 ): Promise<{
   _id: Id<"mediaCredentials">;
+  userId: Id<"users">;
   vaultSecretId: string;
   status: "active" | "invalid" | "verifying" | "rotating";
 }> {
@@ -502,6 +537,7 @@ async function loadOwnedCredential(
   }
   return {
     _id: cred._id,
+    userId: cred.userId,
     vaultSecretId: cred.vaultSecretId,
     status: cred.status,
   };

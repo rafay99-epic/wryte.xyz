@@ -200,16 +200,15 @@ function validateSource(raw: string): string {
 /* ------------------------------------------------------------------ */
 
 /**
- * Card list for the gallery — only name + date, no source.
- * Reads the `animation_names` table (~50 bytes/row).
+ * Card list for the gallery — returns only id, name, and date; the client
+ * fetches source per card on demand. Reads full `animations` rows (source
+ * included), bounded by MAX_ANIMATIONS.
  */
 export const listNames = query({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
     const project = await ownedProjectForQuery(ctx, args.projectId);
     if (!project) return [];
-    // Query the main table but only project metadata + index,
-    // the client fetches source per-card on demand.
     const rows = await ctx.db
       .query("animations")
       .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
@@ -326,8 +325,10 @@ export const usage = query({
   }> => {
     const project = await ownedProjectForQuery(ctx, args.projectId);
     if (!project) return { posts: [], truncated: false };
+    // No stored animation can have a non-PascalCase name, so nothing can
+    // reference one. Checking here also keeps the name regex-safe below.
+    if (!NAME_RE.test(args.name)) return { posts: [], truncated: false };
 
-    // Name is validated PascalCase ([A-Za-z0-9]+) so it's regex-safe.
     // `<Name` followed by whitespace, `/`, or `>` — never matches a longer
     // component name that shares the prefix.
     const tagRe = new RegExp(`<${args.name}[\\s/>]`);
@@ -352,8 +353,8 @@ export const usage = query({
 
 /**
  * Lightweight name-existence check. Scans only the `animation_names` table
- * (tiny docs, no source body) so scanning 50k names costs ~50KB of reads
- * instead of ~5GB. Returns a Set-like record of existing names.
+ * (~50-byte rows, no source body), so even a project at MAX_ANIMATIONS reads
+ * ~10KB instead of up to ~20MB of source. Returns the existing names.
  *
  * Powers the import sheet's conflict detection and any other surface that
  * needs to check name collisions without pulling the full animation list.
@@ -366,29 +367,8 @@ export const checkNames = query({
     const rows = await ctx.db
       .query("animation_names")
       .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
-      .collect();
+      .take(MAX_ANIMATIONS);
     return rows.map((r) => r.name);
-  },
-});
-
-/**
- * Resolve an animation name to its `_id` — light single-index-lookup query
- * (no source body fetched). Powers the "Replace" conflict-resolution option
- * in the import sheet.
- */
-export const getIdByName = query({
-  args: { projectId: v.id("projects"), name: v.string() },
-  returns: v.union(v.id("animations"), v.null()),
-  handler: async (ctx, args): Promise<Id<"animations"> | null> => {
-    const project = await ownedProjectForQuery(ctx, args.projectId);
-    if (!project) return null;
-    const row = await ctx.db
-      .query("animations")
-      .withIndex("by_project_and_name", (q) =>
-        q.eq("projectId", args.projectId).eq("name", args.name),
-      )
-      .unique();
-    return row?._id ?? null;
   },
 });
 

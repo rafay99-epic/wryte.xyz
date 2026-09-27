@@ -7,13 +7,15 @@
 
 import { ConvexError, v } from "convex/values";
 import { internalAction } from "../_generated/server";
+import { secretStore } from "../integrations/secretStore";
 import { credentialProviderValidator } from "../media/_lib/providers";
 import { getAdapter } from "../providers/registry";
 
+/** Reads the pending secret from the vault and pings the provider with it. */
 export const verifyNewSecret = internalAction({
   args: {
     provider: credentialProviderValidator,
-    secret: v.string(),
+    vaultSecretId: v.string(),
   },
   handler: async (
     _ctx,
@@ -21,7 +23,7 @@ export const verifyNewSecret = internalAction({
   ): Promise<{ ok: true } | { ok: false; code: string; message: string }> => {
     const adapter = getAdapter(args.provider);
     try {
-      await adapter.ping(args.secret);
+      await adapter.ping(await secretStore.read(args.vaultSecretId));
       return { ok: true };
     } catch (err) {
       // Adapters that already normalised the failure carry the code and a

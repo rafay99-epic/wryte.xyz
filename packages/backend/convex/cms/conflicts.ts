@@ -20,6 +20,7 @@ import { v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import { internalMutation, mutation, query } from "../_generated/server";
 import { getAuthedUserOrNull, getCurrentUser } from "../_lib/auth";
+import type { DocPatch } from "../_lib/docPatch";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
 import { countWords } from "../_lib/wordCount";
 import {
@@ -61,17 +62,17 @@ export const _create = internalMutation({
     const openConflict = existing[0];
 
     if (openConflict) {
-      const patch: Record<string, unknown> = {
+      const patch: DocPatch<"sync_conflicts"> = {
         remoteSha: args.remoteSha,
         remoteContent: args.remoteContent,
         localContentSnapshot: args.localContentSnapshot,
         detectedAt: now,
       };
       if (args.remoteFrontmatter !== undefined) {
-        patch["remoteFrontmatter"] = args.remoteFrontmatter;
+        patch.remoteFrontmatter = args.remoteFrontmatter;
       }
       if (args.localFrontmatterSnapshot !== undefined) {
-        patch["localFrontmatterSnapshot"] = args.localFrontmatterSnapshot;
+        patch.localFrontmatterSnapshot = args.localFrontmatterSnapshot;
       }
       await ctx.db.patch(openConflict._id, patch);
       return openConflict._id;
@@ -278,7 +279,7 @@ export const resolveUseGithub = mutation({
       ...(doc.contentId ? { contentId: doc.contentId } : {}),
     });
 
-    const patch: Record<string, unknown> = {
+    const patch: DocPatch<"documents"> = {
       excerpt: buildExcerpt(remoteContent),
       wordCount: countWords(remoteContent),
       githubSha: conflict.remoteSha,
@@ -286,11 +287,11 @@ export const resolveUseGithub = mutation({
       updatedAt: now,
     };
     if (conflict.remoteFrontmatter !== undefined) {
-      patch["frontmatter"] = conflict.remoteFrontmatter;
+      patch.frontmatter = conflict.remoteFrontmatter;
     }
     // Backfill the pointer for pre-migration docs that didn't have one yet.
     if (doc.contentId === undefined) {
-      patch["contentId"] = contentId;
+      patch.contentId = contentId;
     }
 
     await ctx.db.patch(conflict.documentId, patch);
@@ -380,7 +381,7 @@ export const resolveMerge = mutation({
       ...(doc.contentId ? { contentId: doc.contentId } : {}),
     });
 
-    const patch: Record<string, unknown> = {
+    const patch: DocPatch<"documents"> = {
       excerpt: buildExcerpt(args.mergedContent),
       wordCount: countWords(args.mergedContent),
       githubSha: conflict.remoteSha,
@@ -388,11 +389,11 @@ export const resolveMerge = mutation({
       updatedAt: now,
     };
     if (args.mergedFrontmatter !== undefined) {
-      patch["frontmatter"] = args.mergedFrontmatter;
+      patch.frontmatter = args.mergedFrontmatter;
     }
     // Backfill the pointer for pre-migration docs that didn't have one yet.
     if (doc.contentId === undefined) {
-      patch["contentId"] = contentId;
+      patch.contentId = contentId;
     }
 
     await ctx.db.patch(conflict.documentId, patch);
@@ -412,27 +413,5 @@ export const resolveMerge = mutation({
       remoteFrontmatter: undefined,
       localFrontmatterSnapshot: undefined,
     });
-  },
-});
-
-/**
- * Discard a conflict without applying either side. Used when the
- * underlying document has been deleted or the user no longer cares.
- * The next sync will re-detect if both sides are still in conflict.
- */
-export const dismiss = mutation({
-  args: { conflictId: v.id("sync_conflicts") },
-  handler: async (ctx, args) => {
-    const key = await getRateLimitKey(ctx);
-    await rateLimiter.limit(ctx, "conflicts:resolve", { key, throws: true });
-
-    const user = await getCurrentUser(ctx);
-    const conflict = await ctx.db.get(args.conflictId);
-    if (!conflict) return;
-    const project = await ctx.db.get(conflict.projectId);
-    if (!project || project.userId !== user._id) {
-      throw new Error("Unauthorized");
-    }
-    await ctx.db.delete(args.conflictId);
   },
 });

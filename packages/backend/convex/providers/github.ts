@@ -1,7 +1,7 @@
 /**
  * GitHub provider — uploads binaries directly into the configured repo
  * at the project's `mediaPath`. Extracted from the legacy publish-time
- * migration in `convex/github.ts`.
+ * migration in `integrations/github.ts`.
  *
  * `mediaPath` is the only user-defined knob — e.g. `public/images` (Astro),
  * `static/images` (SvelteKit), `assets` (Hugo). The function strips a

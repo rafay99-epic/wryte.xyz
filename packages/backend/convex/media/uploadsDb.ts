@@ -57,22 +57,6 @@ export const listForProject = query({
   },
 });
 
-export const getUsage = query({
-  args: { projectId: v.id("projects") },
-  handler: async (ctx, args) => {
-    const user = await getAuthedUserOrNull(ctx);
-    if (!user) return null;
-    const project = await ctx.db.get(args.projectId);
-    if (!project || project.userId !== user._id) return null;
-
-    const usage = await ctx.db
-      .query("mediaUsage")
-      .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
-      .unique();
-    return usage;
-  },
-});
-
 /* ------------------------------------------------------------------ */
 /*  Internal queries                                                    */
 /* ------------------------------------------------------------------ */
@@ -94,11 +78,6 @@ export const _findOwnedProject = internalQuery({
     if (!project || project.userId !== user._id) return null;
     return { project, userId: user._id };
   },
-});
-
-export const _getById = internalQuery({
-  args: { mediaId: v.id("media") },
-  handler: async (ctx, args) => ctx.db.get(args.mediaId),
 });
 
 export const _findByProviderAndExternalId = internalQuery({
@@ -133,16 +112,6 @@ export const _getCredential = internalQuery({
       .withIndex("by_projectId_and_provider", (q) =>
         q.eq("projectId", args.projectId).eq("provider", args.provider),
       )
-      .unique();
-  },
-});
-
-export const _readUsage = internalQuery({
-  args: { projectId: v.id("projects") },
-  handler: async (ctx, args) => {
-    return await ctx.db
-      .query("mediaUsage")
-      .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
       .unique();
   },
 });

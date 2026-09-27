@@ -9,6 +9,7 @@
 import { v } from "convex/values";
 import { internalMutation, internalQuery, query } from "../_generated/server";
 import { getAuthedUserOrNull } from "../_lib/auth";
+import type { DocPatch } from "../_lib/docPatch";
 import {
   CREDENTIAL_PROVIDER_IDS,
   credentialProviderValidator,
@@ -19,44 +20,6 @@ import {
 } from "./_lib/providers";
 
 const PROVIDER_VALIDATOR = credentialProviderValidator;
-
-/**
- * Public read for the settings UI. Never returns the secret — only the
- * opaque status fields the UI needs to render verification chips.
- */
-export const getPublicConfig = query({
-  args: {
-    projectId: v.id("projects"),
-    provider: PROVIDER_VALIDATOR,
-  },
-  handler: async (ctx, args) => {
-    const user = await getAuthedUserOrNull(ctx);
-    if (!user) return null;
-
-    const project = await ctx.db.get(args.projectId);
-    if (!project || project.userId !== user._id) return null;
-
-    const cred = await ctx.db
-      .query("mediaCredentials")
-      .withIndex("by_projectId_and_provider", (q) =>
-        q.eq("projectId", args.projectId).eq("provider", args.provider),
-      )
-      .unique();
-    if (!cred) return null;
-
-    return {
-      _id: cred._id,
-      provider: cred.provider,
-      publicConfig: cred.publicConfig,
-      status: cred.status,
-      lastVerifiedAt: cred.lastVerifiedAt,
-      lastVerifyError: cred.lastVerifyError,
-      rotatedAt: cred.rotatedAt,
-      createdAt: cred.createdAt,
-      updatedAt: cred.updatedAt,
-    };
-  },
-});
 
 /**
  * Lists all configured credentials for a project. Returns at most one entry
@@ -207,15 +170,15 @@ export const _replaceVaultId = internalMutation({
     clearPublicConfig: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    const patch: Record<string, unknown> = {
+    const patch: DocPatch<"mediaCredentials"> = {
       vaultSecretId: args.newVaultSecretId,
       status: "verifying" as const,
       updatedAt: Date.now(),
     };
     if (args.newVersionId !== undefined) {
-      patch["vaultVersionId"] = args.newVersionId;
+      patch.vaultVersionId = args.newVersionId;
     }
-    if (args.clearPublicConfig) patch["publicConfig"] = undefined;
+    if (args.clearPublicConfig) patch.publicConfig = undefined;
     await ctx.db.patch(args.credentialId, patch);
   },
 });
@@ -233,17 +196,17 @@ export const _setStatus = internalMutation({
     lastVerifiedAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const patch: Record<string, unknown> = {
+    const patch: DocPatch<"mediaCredentials"> = {
       status: args.status,
       updatedAt: Date.now(),
     };
     if (args.lastVerifyError !== undefined) {
-      patch["lastVerifyError"] = args.lastVerifyError;
+      patch.lastVerifyError = args.lastVerifyError;
     } else if (args.status === "active") {
-      patch["lastVerifyError"] = undefined;
+      patch.lastVerifyError = undefined;
     }
     if (args.lastVerifiedAt !== undefined) {
-      patch["lastVerifiedAt"] = args.lastVerifiedAt;
+      patch.lastVerifiedAt = args.lastVerifiedAt;
     }
     await ctx.db.patch(args.credentialId, patch);
   },
@@ -257,7 +220,7 @@ export const _markRotated = internalMutation({
   },
   handler: async (ctx, args) => {
     const now = Date.now();
-    const patch: Record<string, unknown> = {
+    const patch: DocPatch<"mediaCredentials"> = {
       vaultSecretId: args.newVaultSecretId,
       status: "active" as const,
       rotatedAt: now,
@@ -266,10 +229,10 @@ export const _markRotated = internalMutation({
       updatedAt: now,
     };
     if (args.newVersionId !== undefined) {
-      patch["vaultVersionId"] = args.newVersionId;
+      patch.vaultVersionId = args.newVersionId;
     }
     // Rotation is also when the legacy plaintext mirror gets dropped.
-    patch["publicConfig"] = undefined;
+    patch.publicConfig = undefined;
     await ctx.db.patch(args.credentialId, patch);
   },
 });

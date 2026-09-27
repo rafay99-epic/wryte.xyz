@@ -1510,95 +1510,6 @@ export const bulkPublish = action({
 });
 
 /**
- * Uploads a media file (image, etc.) to the project's GitHub repo.
- *
- * @deprecated Use `convex/media.ts:upload` with `mediaStorageMode === "github"`.
- * Kept temporarily for the legacy media library "Upload" tab that may still
- * exist in older client builds.
- */
-export const uploadMediaToGithub = action({
-  args: {
-    projectId: v.id("projects"),
-    fileName: v.string(),
-    base64Content: v.string(),
-    contentType: v.string(),
-  },
-  returns: v.string(),
-  handler: async (ctx, args): Promise<string> => {
-    const key = await getRateLimitKey(ctx);
-    await rateLimiter.limit(ctx, "github:uploadMedia", { key, throws: true });
-
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Not authenticated");
-    }
-
-    const project = await ctx.runQuery(internal.cms.projects.internalGet, {
-      projectId: args.projectId,
-    });
-    if (!project) {
-      throw new Error("Project not found");
-    }
-
-    const user = await ctx.runQuery(internal.account.users.internalGet, {
-      userId: project.userId,
-    });
-    if (!user) {
-      throw new Error("User not found");
-    }
-
-    const token = await resolveToken(ctx, user._id);
-
-    if (!project.githubRepo) {
-      throw new Error("GitHub repository not configured");
-    }
-
-    const { owner, repo } = parseRepoString(project.githubRepo);
-    const branch = project.githubBranch ?? "main";
-    const mediaPath = normalizeRepoPath(project.mediaPath ?? "public/images");
-    const filePath = joinRepoPath(mediaPath, args.fileName);
-
-    const octokit = new Octokit({ auth: token });
-
-    let existingSha: string | undefined;
-    try {
-      const { data } = await octokit.repos.getContent({
-        owner,
-        repo,
-        path: filePath,
-        ref: branch,
-      });
-      if (!Array.isArray(data) && data.type === "file") {
-        existingSha = data.sha;
-      }
-    } catch (error: unknown) {
-      const err = error as { status?: number; message?: string };
-      if (err.status !== 404) {
-        throw new Error(
-          `Failed to check existing file: ${err.message ?? "Unknown error"}`,
-        );
-      }
-    }
-
-    await octokit.repos.createOrUpdateFileContents({
-      owner,
-      repo,
-      path: filePath,
-      message: `Upload media: ${args.fileName}`,
-      content: args.base64Content,
-      branch,
-      ...(existingSha ? { sha: existingSha } : {}),
-    });
-
-    // Strip "public/" prefix for the URL since static sites serve from root.
-    const urlBase = mediaPath.startsWith("public/")
-      ? mediaPath.slice("public/".length)
-      : mediaPath;
-    return `/${urlBase}/${args.fileName}`;
-  },
-});
-
-/**
  * Resolves the project + user + GitHub token + Octokit client needed to
  * import files from a repo. Shared by the single-file and batch import
  * actions so they spend the same auth/setup cost exactly once.
@@ -1853,7 +1764,7 @@ export const importFileFromGithub = action({
 /**
  * Workpool job — imports a single file and is dispatched once per file by
  * {@link startBulkImport}. Internal-only: the public entry point creates
- * the `import_batches` row and enqueues these in `convex/importPool.ts`.
+ * the `import_batches` row and enqueues these on `importPool` (`_pools/import.ts`).
  *
  * The job intentionally does NOT touch the batch row directly — that's
  * the responsibility of the workpool's `onComplete` callback so success

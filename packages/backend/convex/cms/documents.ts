@@ -14,6 +14,7 @@ import {
   query,
 } from "../_generated/server";
 import { getAuthedUserOrNull, getCurrentUser } from "../_lib/auth";
+import type { DocPatch } from "../_lib/docPatch";
 import { adjustDocumentCount } from "../_lib/documentCount";
 import {
   scheduleStatusChange,
@@ -137,6 +138,7 @@ export const list = query({
         .withIndex("by_projectId_and_status", (q) =>
           q.eq("projectId", args.projectId).eq("status", status),
         )
+        .order("desc")
         .take(2000);
       documents = raw.filter((d) => d.trashedAt === undefined);
     } else {
@@ -147,6 +149,7 @@ export const list = query({
         .withIndex("by_projectId_and_trashedAt", (q) =>
           q.eq("projectId", args.projectId).eq("trashedAt", undefined),
         )
+        .order("desc")
         .take(500);
     }
 
@@ -228,46 +231,13 @@ export const searchForLink = query({
 
 /**
  * Title search for MCP clients (`wryte_documents_search`), scoped to one
- * project or across every project the caller owns.
+ * project or across every project `userId` owns. Title-only by design: body
+ * search costs a full-body read per hit, so it lives in `searchContent`
+ * behind the palette's explicit, debounced, capped path instead.
  *
- * Backed by the `search_title` index that already exists for the editor's
- * `[[` link menu, so this adds a query, not an index. It is **title-only** by
- * design: body search costs a full-body read per hit, so it lives in
- * `searchContent` behind the palette's explicit, debounced, capped path rather
- * than on an agent tool that might call it in a loop.
- *
- * Both paths filter *inside* the index — by `projectId` when scoped, by
- * `userId` otherwise — so a search is a single indexed read and no other
- * tenant's titles are ever loaded into memory.
+ * Filters inside the `search_title` index — by `projectId` when scoped, by
+ * `userId` otherwise — so no other tenant's titles are ever loaded.
  */
-export const search = query({
-  args: {
-    term: v.string(),
-    projectId: v.optional(v.id("projects")),
-    limit: v.optional(v.number()),
-  },
-  returns: v.object({
-    results: v.array(
-      v.object({
-        _id: v.id("documents"),
-        projectId: v.id("projects"),
-        projectName: v.string(),
-        title: v.string(),
-        slug: v.string(),
-        status: v.string(),
-        updatedAt: v.number(),
-        wordCount: v.optional(v.number()),
-      }),
-    ),
-  }),
-  handler: async (ctx, args) => {
-    const user = await getAuthedUserOrNull(ctx);
-    if (!user) return { results: [] };
-    return await searchDocumentsForUser(ctx, user._id, args);
-  },
-});
-
-/** `search`'s body with the actor passed in explicitly. */
 export async function searchDocumentsForUser(
   ctx: QueryCtx,
   userId: Id<"users">,
@@ -510,16 +480,25 @@ export const listRecent = query({
     const limit = args.limit ?? 5;
     const pid = args.projectId;
 
+    if (pid) {
+      const project = await ctx.db.get(pid);
+      if (!project || project.userId !== user._id) return [];
+    }
+
+    // Newest-created first so the bounded window holds recent docs rather
+    // than the oldest 200.
     const documents = pid
       ? await ctx.db
           .query("documents")
           .withIndex("by_projectId_and_trashedAt", (q) =>
             q.eq("projectId", pid).eq("trashedAt", undefined),
           )
+          .order("desc")
           .take(200)
       : await ctx.db
           .query("documents")
           .withIndex("by_userId", (q) => q.eq("userId", user._id))
+          .order("desc")
           .take(200);
 
     // Metadata projection — consumers (command palette, dashboard recents) only
@@ -545,7 +524,9 @@ export const listRecent = query({
  *
  * One subscription replaces per-keystroke server searches: the client
  * matches locally, so typing in the palette never costs a function call.
- * Metadata projection only (~100 bytes/row), never bodies or excerpts.
+ * Returns a metadata projection only (~100 bytes/row), never bodies or
+ * excerpts. The read itself still pays for full document rows (excerpt
+ * and frontmatter included), just not `document_content`.
  */
 export const listPalette = query({
   args: {},
@@ -564,12 +545,15 @@ export const listPalette = query({
     const user = await getAuthedUserOrNull(ctx);
     if (!user) return [];
 
-    // ponytail: hard cap at 1000 rows — at ~100 bytes each that's a 100 KB
-    // read. Paginate or move to a server-side search index if a library
-    // ever outgrows this.
+    // ponytail: hard cap at 1000 rows, newest-created first so a library
+    // past the cap drops its oldest docs, not its newest. Rows include
+    // excerpt/frontmatter, so this can be a few hundred KB of reads.
+    // Paginate or move to a server-side search index if a library ever
+    // outgrows this.
     const documents = await ctx.db
       .query("documents")
       .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .order("desc")
       .take(1000);
 
     return documents
@@ -631,29 +615,6 @@ export async function documentWithContentForUser(
   if (document.trashedAt !== undefined) return null;
   const content = await readContent(ctx, document);
   return { ...document, content };
-}
-
-/** `getBySlug`'s body with the actor passed in explicitly. */
-async function documentBySlugForUser(
-  ctx: QueryCtx,
-  userId: Id<"users">,
-  projectId: Id<"projects">,
-  slug: string,
-) {
-  const project = await ctx.db.get(projectId);
-  if (!project || project.userId !== userId) return null;
-
-  const matches = await ctx.db
-    .query("documents")
-    .withIndex("by_projectId_and_slug", (q) =>
-      q.eq("projectId", projectId).eq("slug", slug),
-    )
-    .take(10);
-
-  const match = matches.find((d) => d.trashedAt === undefined);
-  if (!match) return null;
-  const content = await readContent(ctx, match);
-  return { ...match, content };
 }
 
 /** `listForLink`'s body with the actor passed in explicitly. */
@@ -747,40 +708,38 @@ export async function backlinksForUser(
   userId: Id<"users">,
   documentId: Id<"documents">,
 ) {
-  {
-    const document = await ctx.db.get(documentId);
-    if (!document) return [];
-    const project = await ctx.db.get(document.projectId);
-    if (!project || project.userId !== userId) return [];
+  const document = await ctx.db.get(documentId);
+  if (!document) return [];
+  const project = await ctx.db.get(document.projectId);
+  if (!project || project.userId !== userId) return [];
 
-    const edges = await ctx.db
-      .query("document_links")
-      .withIndex("by_targetDocumentId", (q) =>
-        q.eq("targetDocumentId", documentId),
-      )
-      .take(50);
+  const edges = await ctx.db
+    .query("document_links")
+    .withIndex("by_targetDocumentId", (q) =>
+      q.eq("targetDocumentId", documentId),
+    )
+    .take(50);
 
-    const rows: {
-      _id: Id<"documents">;
-      title: string;
-      status: string;
-      updatedAt: number;
-    }[] = [];
-    for (const edge of edges) {
-      const source = await ctx.db.get(edge.sourceDocumentId);
-      // Skip dangling edges and trashed sources — a trashed document
-      // shouldn't advertise itself as linking here.
-      if (!source || source.trashedAt !== undefined) continue;
-      rows.push({
-        _id: source._id,
-        title: source.title,
-        status: source.status,
-        updatedAt: source.updatedAt,
-      });
-    }
-
-    return rows.sort((a, b) => b.updatedAt - a.updatedAt);
+  const rows: {
+    _id: Id<"documents">;
+    title: string;
+    status: string;
+    updatedAt: number;
+  }[] = [];
+  for (const edge of edges) {
+    const source = await ctx.db.get(edge.sourceDocumentId);
+    // Skip dangling edges and trashed sources — a trashed document
+    // shouldn't advertise itself as linking here.
+    if (!source || source.trashedAt !== undefined) continue;
+    rows.push({
+      _id: source._id,
+      title: source.title,
+      status: source.status,
+      updatedAt: source.updatedAt,
+    });
   }
+
+  return rows.sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
 /**
@@ -945,130 +904,128 @@ export async function updateDocumentForUser(
     boardPosition?: number;
   },
 ): Promise<null> {
-  {
-    await rateLimiter.limit(ctx, "documents:update", {
-      key: user.tokenIdentifier,
-      throws: true,
-    });
+  await rateLimiter.limit(ctx, "documents:update", {
+    key: user.tokenIdentifier,
+    throws: true,
+  });
 
-    const document = await verifyDocumentOwnership(
-      ctx,
-      args.documentId,
-      user._id,
-    );
+  const document = await verifyDocumentOwnership(
+    ctx,
+    args.documentId,
+    user._id,
+  );
 
-    // Status transitions that require side-effects (workflow scheduling /
-    // cancellation, publish history, social cross-post) must go through
-    // their dedicated APIs. Direct writes here would leave the workflow
-    // queue out of sync with the document's apparent state — e.g. a doc
-    // could appear scheduled with no firing workflow, or appear published
-    // with no publish_history row.
-    if (args.status !== undefined) {
-      if (args.status === "scheduled") {
-        throw new Error(
-          "Use scheduling.schedule to move a document into the scheduled state.",
-        );
-      }
-      if (args.status === "published") {
-        throw new Error(
-          "Use the publish action to publish a document; update cannot set status to 'published' directly.",
-        );
-      }
-    }
-
-    if (args.content !== undefined) {
-      // Convex serializes documents as UTF-8 and enforces a 1MB per-document
-      // ceiling. A `.length` check would be off by ~3× for CJK or emoji-
-      // heavy content (UTF-16 code units vs UTF-8 bytes), so compute the
-      // real byte size before comparing to the cap.
-      const byteLength = new TextEncoder().encode(args.content).byteLength;
-      if (byteLength > MAX_CONTENT_BYTES) {
-        throw new Error(
-          `Document content is too large (max ${String(Math.round(MAX_CONTENT_BYTES / 1024))} KB).`,
-        );
-      }
-    }
-
-    // Defense-in-depth lock: if the doc has an unresolved sync
-    // conflict, edits are not allowed. The editor UI also blocks the
-    // flow, but autosave fires from background timers and stale tabs,
-    // so we re-check here to keep the divergence from compounding. The
-    // `by_documentId_unresolved` index reads only OPEN conflicts (normally
-    // zero rows) instead of paging through resolved audit history.
-    const openConflict = await ctx.db
-      .query("sync_conflicts")
-      .withIndex("by_documentId_unresolved", (q) =>
-        q.eq("documentId", args.documentId).eq("resolvedAt", undefined),
-      )
-      .first();
-    if (openConflict) {
+  // Status transitions that require side-effects (workflow scheduling /
+  // cancellation, publish history, social cross-post) must go through
+  // their dedicated APIs. Direct writes here would leave the workflow
+  // queue out of sync with the document's apparent state — e.g. a doc
+  // could appear scheduled with no firing workflow, or appear published
+  // with no publish_history row.
+  if (args.status !== undefined) {
+    if (args.status === "scheduled") {
       throw new Error(
-        "This document has a pending sync conflict. Resolve it before making changes.",
+        "Use scheduling.schedule to move a document into the scheduled state.",
       );
     }
-
-    const { documentId, content, ...updates } = args;
-    const fieldsToUpdate: Record<string, unknown> = { updatedAt: Date.now() };
-
-    // `content` is handled separately (it lives in `document_content`); every
-    // other provided field is a plain metadata patch.
-    for (const [key, value] of Object.entries(updates)) {
-      if (value !== undefined) {
-        fieldsToUpdate[key] = value;
-      }
+    if (args.status === "published") {
+      throw new Error(
+        "Use the publish action to publish a document; update cannot set status to 'published' directly.",
+      );
     }
-
-    let wordCountDelta = 0;
-    if (content !== undefined) {
-      const newWordCount = countWords(content);
-      fieldsToUpdate["wordCount"] = newWordCount;
-      fieldsToUpdate["excerpt"] = buildExcerpt(content);
-      wordCountDelta = newWordCount - (document.wordCount ?? 0);
-      // Pass the denormalized pointer so `writeContent` patches the body
-      // row directly instead of re-reading it first. This `update` path
-      // already patches the `documents` row every call, so when the pointer
-      // isn't set yet we fold the returned id into that same patch — no
-      // extra write.
-      const contentId = await writeContent(ctx, {
-        documentId,
-        projectId: document.projectId,
-        userId: user._id,
-        content,
-        ...(document.contentId ? { contentId: document.contentId } : {}),
-      });
-      // Persist when missing OR stale — a stale pointer self-heals inside
-      // `writeContent`, but if it's never written back every future
-      // autosave pays the full-body index read.
-      if (document.contentId !== contentId) {
-        fieldsToUpdate["contentId"] = contentId;
-      }
-    }
-
-    await ctx.db.patch(documentId, fieldsToUpdate);
-
-    // Flush-path only: recompute the backlink graph when the MAIN body was
-    // provided (manual save / metadata flush). Deliberately absent from
-    // `autosaveBody` so link resolution never rides the 3s hot path.
-    if (content !== undefined) {
-      await syncDocumentLinks(ctx, document, content);
-    }
-
-    await scheduleWordActivity(ctx, {
-      userId: user._id,
-      projectId: document.projectId,
-      wordCountDelta,
-    });
-
-    if (args.status !== undefined && args.status !== document.status) {
-      await scheduleStatusChange(ctx, {
-        projectId: document.projectId,
-        userId: user._id,
-        oldStatus: document.status,
-        newStatus: args.status,
-      });
-    }
-    return null;
   }
+
+  if (args.content !== undefined) {
+    // Convex serializes documents as UTF-8 and enforces a 1MB per-document
+    // ceiling. A `.length` check would be off by ~3× for CJK or emoji-
+    // heavy content (UTF-16 code units vs UTF-8 bytes), so compute the
+    // real byte size before comparing to the cap.
+    const byteLength = new TextEncoder().encode(args.content).byteLength;
+    if (byteLength > MAX_CONTENT_BYTES) {
+      throw new Error(
+        `Document content is too large (max ${String(Math.round(MAX_CONTENT_BYTES / 1024))} KB).`,
+      );
+    }
+  }
+
+  // Defense-in-depth lock: if the doc has an unresolved sync
+  // conflict, edits are not allowed. The editor UI also blocks the
+  // flow, but autosave fires from background timers and stale tabs,
+  // so we re-check here to keep the divergence from compounding. The
+  // `by_documentId_unresolved` index reads only OPEN conflicts (normally
+  // zero rows) instead of paging through resolved audit history.
+  const openConflict = await ctx.db
+    .query("sync_conflicts")
+    .withIndex("by_documentId_unresolved", (q) =>
+      q.eq("documentId", args.documentId).eq("resolvedAt", undefined),
+    )
+    .first();
+  if (openConflict) {
+    throw new Error(
+      "This document has a pending sync conflict. Resolve it before making changes.",
+    );
+  }
+
+  const { documentId, content, ...updates } = args;
+  const fieldsToUpdate: Record<string, unknown> = { updatedAt: Date.now() };
+
+  // `content` is handled separately (it lives in `document_content`); every
+  // other provided field is a plain metadata patch.
+  for (const [key, value] of Object.entries(updates)) {
+    if (value !== undefined) {
+      fieldsToUpdate[key] = value;
+    }
+  }
+
+  let wordCountDelta = 0;
+  if (content !== undefined) {
+    const newWordCount = countWords(content);
+    fieldsToUpdate["wordCount"] = newWordCount;
+    fieldsToUpdate["excerpt"] = buildExcerpt(content);
+    wordCountDelta = newWordCount - (document.wordCount ?? 0);
+    // Pass the denormalized pointer so `writeContent` patches the body
+    // row directly instead of re-reading it first. This `update` path
+    // already patches the `documents` row every call, so when the pointer
+    // isn't set yet we fold the returned id into that same patch — no
+    // extra write.
+    const contentId = await writeContent(ctx, {
+      documentId,
+      projectId: document.projectId,
+      userId: user._id,
+      content,
+      ...(document.contentId ? { contentId: document.contentId } : {}),
+    });
+    // Persist when missing OR stale — a stale pointer self-heals inside
+    // `writeContent`, but if it's never written back every future
+    // autosave pays the full-body index read.
+    if (document.contentId !== contentId) {
+      fieldsToUpdate["contentId"] = contentId;
+    }
+  }
+
+  await ctx.db.patch(documentId, fieldsToUpdate);
+
+  // Flush-path only: recompute the backlink graph when the MAIN body was
+  // provided (manual save / metadata flush). Deliberately absent from
+  // `autosaveBody` so link resolution never rides the 3s hot path.
+  if (content !== undefined) {
+    await syncDocumentLinks(ctx, document, content);
+  }
+
+  await scheduleWordActivity(ctx, {
+    userId: user._id,
+    projectId: document.projectId,
+    wordCountDelta,
+  });
+
+  if (args.status !== undefined && args.status !== document.status) {
+    await scheduleStatusChange(ctx, {
+      projectId: document.projectId,
+      userId: user._id,
+      oldStatus: document.status,
+      newStatus: args.status,
+    });
+  }
+  return null;
 }
 
 /**
@@ -1185,55 +1142,53 @@ async function duplicateDocumentForUser(
   user: Doc<"users">,
   args: { documentId: Id<"documents"> },
 ): Promise<{ documentId: Id<"documents">; title: string }> {
-  {
-    await rateLimiter.limit(ctx, "documents:duplicate", {
-      key: user.tokenIdentifier,
-      throws: true,
-    });
+  await rateLimiter.limit(ctx, "documents:duplicate", {
+    key: user.tokenIdentifier,
+    throws: true,
+  });
 
-    const doc = await verifyDocumentOwnership(ctx, args.documentId, user._id);
+  const doc = await verifyDocumentOwnership(ctx, args.documentId, user._id);
 
-    const now = Date.now();
-    const newTitle = `${doc.title} (copy)`;
-    const newSlug = `${doc.slug}-copy-${Date.now().toString(36)}`;
+  const now = Date.now();
+  const newTitle = `${doc.title} (copy)`;
+  const newSlug = `${doc.slug}-copy-${Date.now().toString(36)}`;
 
-    const sourceContent = await readContent(ctx, doc);
-    const wc = countWords(sourceContent);
-    const newId = await ctx.db.insert("documents", {
-      projectId: doc.projectId,
-      userId: user._id,
-      title: newTitle,
-      slug: newSlug,
-      excerpt: buildExcerpt(sourceContent),
-      wordCount: wc,
-      status: doc.status,
-      createdAt: now,
-      updatedAt: now,
-      ...(doc.frontmatter ? { frontmatter: doc.frontmatter } : {}),
-      ...(doc.tags ? { tags: doc.tags } : {}),
-    });
-    const newContentId = await writeContent(ctx, {
-      documentId: newId,
-      projectId: doc.projectId,
-      userId: user._id,
-      content: sourceContent,
-    });
-    // Persist the pointer at creation time (cheap — the row was just
-    // inserted) so future autosaves skip the read-before-write.
-    await ctx.db.patch(newId, { contentId: newContentId });
-    await scheduleWordActivity(ctx, {
-      userId: user._id,
-      projectId: doc.projectId,
-      wordCountDelta: wc,
-    });
-    await scheduleStatusChange(ctx, {
-      projectId: doc.projectId,
-      userId: user._id,
-      oldStatus: null,
-      newStatus: doc.status,
-    });
-    return { documentId: newId, title: newTitle };
-  }
+  const sourceContent = await readContent(ctx, doc);
+  const wc = countWords(sourceContent);
+  const newId = await ctx.db.insert("documents", {
+    projectId: doc.projectId,
+    userId: user._id,
+    title: newTitle,
+    slug: newSlug,
+    excerpt: buildExcerpt(sourceContent),
+    wordCount: wc,
+    status: doc.status,
+    createdAt: now,
+    updatedAt: now,
+    ...(doc.frontmatter ? { frontmatter: doc.frontmatter } : {}),
+    ...(doc.tags ? { tags: doc.tags } : {}),
+  });
+  const newContentId = await writeContent(ctx, {
+    documentId: newId,
+    projectId: doc.projectId,
+    userId: user._id,
+    content: sourceContent,
+  });
+  // Persist the pointer at creation time (cheap — the row was just
+  // inserted) so future autosaves skip the read-before-write.
+  await ctx.db.patch(newId, { contentId: newContentId });
+  await scheduleWordActivity(ctx, {
+    userId: user._id,
+    projectId: doc.projectId,
+    wordCountDelta: wc,
+  });
+  await scheduleStatusChange(ctx, {
+    projectId: doc.projectId,
+    userId: user._id,
+    oldStatus: null,
+    newStatus: doc.status,
+  });
+  return { documentId: newId, title: newTitle };
 }
 
 /**
@@ -1263,40 +1218,38 @@ async function updateStatusForUser(
   user: Doc<"users">,
   args: ObjectType<typeof updateStatusArgs>,
 ): Promise<null> {
-  {
-    await rateLimiter.limit(ctx, "documents:updateStatus", {
-      key: user.tokenIdentifier,
-      throws: true,
-    });
+  await rateLimiter.limit(ctx, "documents:updateStatus", {
+    key: user.tokenIdentifier,
+    throws: true,
+  });
 
-    const doc = await verifyDocumentOwnership(ctx, args.documentId, user._id);
+  const doc = await verifyDocumentOwnership(ctx, args.documentId, user._id);
 
-    const now = Date.now();
-    const updates: Record<string, unknown> = {
-      status: args.status,
-      updatedAt: now,
-    };
+  const now = Date.now();
+  const updates: DocPatch<"documents"> = {
+    status: args.status,
+    updatedAt: now,
+  };
 
-    if (args.status === "published") {
-      updates["publishedAt"] = now;
-    }
-
-    if (doc.status === "scheduled" && args.status !== "scheduled") {
-      updates["scheduledAt"] = undefined;
-    }
-
-    await ctx.db.patch(args.documentId, updates);
-
-    if (args.status !== doc.status) {
-      await scheduleStatusChange(ctx, {
-        projectId: doc.projectId,
-        userId: user._id,
-        oldStatus: doc.status,
-        newStatus: args.status,
-      });
-    }
-    return null;
+  if (args.status === "published") {
+    updates.publishedAt = now;
   }
+
+  if (doc.status === "scheduled" && args.status !== "scheduled") {
+    updates.scheduledAt = undefined;
+  }
+
+  await ctx.db.patch(args.documentId, updates);
+
+  if (args.status !== doc.status) {
+    await scheduleStatusChange(ctx, {
+      projectId: doc.projectId,
+      userId: user._id,
+      oldStatus: doc.status,
+      newStatus: args.status,
+    });
+  }
+  return null;
 }
 
 /**
@@ -1326,134 +1279,37 @@ export async function trashDocumentForUser(
   user: Doc<"users">,
   args: { documentId: Id<"documents"> },
 ): Promise<null> {
-  {
-    await rateLimiter.limit(ctx, "documents:remove", {
-      key: user.tokenIdentifier,
-      throws: true,
-    });
+  await rateLimiter.limit(ctx, "documents:remove", {
+    key: user.tokenIdentifier,
+    throws: true,
+  });
 
-    const document = await verifyDocumentOwnership(
-      ctx,
-      args.documentId,
-      user._id,
-    );
+  const document = await verifyDocumentOwnership(
+    ctx,
+    args.documentId,
+    user._id,
+  );
 
-    await cascadeDeleteScheduledPublishesForDoc(ctx, args.documentId);
-    await ctx.db.patch(args.documentId, { trashedAt: Date.now() });
-    await adjustDocumentCount(ctx, document.projectId, -1);
-    await scheduleWordActivity(ctx, {
-      userId: user._id,
-      projectId: document.projectId,
-      wordCountDelta: -(document.wordCount ?? 0),
-    });
-    await scheduleStatusChange(ctx, {
-      projectId: document.projectId,
-      userId: user._id,
-      oldStatus: document.status,
-      newStatus: null,
-    });
-    return null;
-  }
+  await cascadeDeleteScheduledPublishesForDoc(ctx, args.documentId);
+  await ctx.db.patch(args.documentId, { trashedAt: Date.now() });
+  await adjustDocumentCount(ctx, document.projectId, -1);
+  await scheduleWordActivity(ctx, {
+    userId: user._id,
+    projectId: document.projectId,
+    wordCountDelta: -(document.wordCount ?? 0),
+  });
+  await scheduleStatusChange(ctx, {
+    projectId: document.projectId,
+    userId: user._id,
+    oldStatus: document.status,
+    newStatus: null,
+  });
+  return null;
 }
 
 /**
- * Imports a markdown file from GitHub into the project as a published document.
- * Uses `githubPath` for duplicate detection: if a document with the same GitHub
- * file path already exists in the project, it returns the existing document's ID
- * instead of creating a duplicate. This makes the import idempotent — safe to
- * retry or call multiple times for the same file.
- *
- * @requires Authentication + project ownership
- * @param args.githubPath - The file path in the repo, used as the dedup key.
- * @param args.githubSha - The Git blob SHA, used for future update detection.
- * @returns The document ID (existing or newly created).
- */
-export const importFromGithub = mutation({
-  args: {
-    projectId: v.id("projects"),
-    title: v.string(),
-    slug: v.string(),
-    content: v.string(),
-    frontmatter: v.optional(v.string()),
-    githubPath: v.string(),
-    githubSha: v.string(),
-  },
-  returns: v.id("documents"),
-  handler: async (ctx, args) => {
-    const key = await getRateLimitKey(ctx);
-    await rateLimiter.limit(ctx, "documents:importFromGithub", {
-      key,
-      throws: true,
-    });
-
-    const user = await getCurrentUser(ctx);
-
-    const project = await ctx.db.get(args.projectId);
-    if (!project) {
-      throw new Error("Project not found");
-    }
-    if (project.userId !== user._id) {
-      throw new Error("Unauthorized: you do not own this project");
-    }
-
-    // Dedup by (projectId, githubPath) so re-importing the same file is a
-    // no-op. Indexed lookup — O(log n), not O(n) over the whole project.
-    const duplicate = await ctx.db
-      .query("documents")
-      .withIndex("by_projectId_and_githubPath", (q) =>
-        q.eq("projectId", args.projectId).eq("githubPath", args.githubPath),
-      )
-      .unique();
-    if (duplicate) {
-      return duplicate._id;
-    }
-
-    const now = Date.now();
-
-    const wc = countWords(args.content);
-    const documentId = await ctx.db.insert("documents", {
-      projectId: args.projectId,
-      userId: user._id,
-      title: args.title,
-      slug: args.slug,
-      excerpt: buildExcerpt(args.content),
-      wordCount: wc,
-      status: "published",
-      githubPath: args.githubPath,
-      githubSha: args.githubSha,
-      githubSyncedAt: now,
-      publishedAt: now,
-      createdAt: now,
-      updatedAt: now,
-      ...(args.frontmatter !== undefined && { frontmatter: args.frontmatter }),
-    });
-    const contentId = await writeContent(ctx, {
-      documentId,
-      projectId: args.projectId,
-      userId: user._id,
-      content: args.content,
-    });
-    // Stamp the pointer at creation so later edits skip the read-before-write.
-    await ctx.db.patch(documentId, { contentId });
-    await adjustDocumentCount(ctx, args.projectId, 1);
-    await scheduleWordActivity(ctx, {
-      userId: user._id,
-      projectId: args.projectId,
-      wordCountDelta: wc,
-    });
-    await scheduleStatusChange(ctx, {
-      projectId: args.projectId,
-      userId: user._id,
-      oldStatus: null,
-      newStatus: "published",
-    });
-    return documentId;
-  },
-});
-
-/**
  * Auth-skipped internal twin of `importFromGithub` for the bulk-import
- * workpool job (`convex/github.ts:_importOneFromGithubJob`). The job has
+ * workpool job (`integrations/github.ts:_importOneFromGithubJob`). The job has
  * no user session — the parent `startBulkImport` action already verified
  * project ownership before enqueuing, so this mutation just trusts its
  * caller and gets out of the way. Same dedup-by-githubPath behaviour.
@@ -1525,39 +1381,6 @@ export const _importFromGithubInternal = internalMutation({
       newStatus: "published",
     });
     return id;
-  },
-});
-
-/**
- * Looks up a document by its slug within a project. Returns null for
- * unauthenticated/unauthorized users rather than throwing, so the client
- * can handle missing documents gracefully.
- *
- * @param args.projectId - The project to search within.
- * @param args.slug - The document slug to find.
- * @returns The matching document, or null.
- */
-export const getBySlug = query({
-  args: {
-    projectId: v.id("projects"),
-    slug: v.string(),
-  },
-  returns: v.union(v.null(), DOCUMENT_DOC_WITH_CONTENT),
-  handler: async (ctx, args) => {
-    const user = await getAuthedUserOrNull(ctx);
-    if (!user) return null;
-
-    // O(log n) lookup on the exact slug via `by_projectId_and_slug` instead
-    // of scanning up to 2000 metadata rows. Slugs aren't unique across the
-    // active/trashed split (a soft-deleted doc can share a slug with its
-    // replacement), so trash is filtered among the handful of exact matches
-    // and the body joined back only for the winner.
-    return await documentBySlugForUser(
-      ctx,
-      user._id,
-      args.projectId,
-      args.slug,
-    );
   },
 });
 
@@ -1638,45 +1461,6 @@ export const _listByIdsForProject = internalQuery({
 });
 
 /**
- * Internal mutation to update document content.
- * Used by the publish action to rewrite Convex media URLs to GitHub paths.
- */
-export const internalUpdate = internalMutation({
-  args: {
-    documentId: v.id("documents"),
-    content: v.string(),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    const doc = await ctx.db.get(args.documentId);
-    if (!doc) throw new Error("Document not found");
-    const contentId = await writeContent(ctx, {
-      documentId: args.documentId,
-      projectId: doc.projectId,
-      userId: doc.userId,
-      content: args.content,
-      ...(doc.contentId ? { contentId: doc.contentId } : {}),
-    });
-    const patch: Record<string, unknown> = {
-      excerpt: buildExcerpt(args.content),
-      updatedAt: Date.now(),
-    };
-    // Fold the pointer into this row's existing patch when it wasn't set yet.
-    if (doc.contentId === undefined) {
-      patch["contentId"] = contentId;
-    }
-    await ctx.db.patch(args.documentId, patch);
-    return null;
-  },
-});
-
-/**
- * Internal mutation called after a successful GitHub publish to record
- * the resulting file path, SHA, and publication timestamp on the document.
- * Keeping this separate from the GitHub action allows the action to remain
- * stateless while the mutation handles the database write transactionally.
- */
-/**
  * Moves a board card to a new column and position.
  * Used by the kanban board's drag-and-drop handler to update a document's
  * status and ordering in a single atomic operation.
@@ -1712,7 +1496,7 @@ export const moveCard = mutation({
       user._id,
     );
 
-    const updates: Record<string, unknown> = {
+    const updates: DocPatch<"documents"> = {
       status: args.targetStatus,
       boardPosition: clampedPosition,
       updatedAt: Date.now(),
@@ -1732,7 +1516,7 @@ export const moveCard = mutation({
         if (targetCol) {
           behavior = targetCol.behavior;
           if (targetCol.behavior === "publish") {
-            updates["publishedAt"] = Date.now();
+            updates.publishedAt = Date.now();
           }
         }
       } catch {
@@ -1741,7 +1525,7 @@ export const moveCard = mutation({
     } else {
       // No custom columns — use default behavior mapping
       if (args.targetStatus === "published") {
-        updates["publishedAt"] = Date.now();
+        updates.publishedAt = Date.now();
         behavior = "publish";
       } else if (args.targetStatus === "scheduled") {
         behavior = "schedule";
@@ -1785,36 +1569,40 @@ async function updateTagsForUser(
   user: Doc<"users">,
   args: ObjectType<typeof updateTagsArgs>,
 ): Promise<null> {
-  {
-    await rateLimiter.limit(ctx, "documents:updateTags", {
-      key: user.tokenIdentifier,
-      throws: true,
-    });
+  await rateLimiter.limit(ctx, "documents:updateTags", {
+    key: user.tokenIdentifier,
+    throws: true,
+  });
 
-    await verifyDocumentOwnership(ctx, args.documentId, user._id);
+  await verifyDocumentOwnership(ctx, args.documentId, user._id);
 
-    const doc = await ctx.db.get(args.documentId);
+  const doc = await ctx.db.get(args.documentId);
 
-    // Update tags in frontmatter JSON to keep in sync
-    let frontmatter: Record<string, unknown> = {};
-    if (doc?.frontmatter) {
-      try {
-        frontmatter = JSON.parse(doc.frontmatter);
-      } catch {
-        // Invalid JSON, start fresh
-      }
+  // Update tags in frontmatter JSON to keep in sync
+  let frontmatter: Record<string, unknown> = {};
+  if (doc?.frontmatter) {
+    try {
+      frontmatter = JSON.parse(doc.frontmatter);
+    } catch {
+      // Invalid JSON, start fresh
     }
-    frontmatter["tags"] = args.tags;
-
-    await ctx.db.patch(args.documentId, {
-      tags: args.tags,
-      frontmatter: JSON.stringify(frontmatter),
-      updatedAt: Date.now(),
-    });
-    return null;
   }
+  frontmatter["tags"] = args.tags;
+
+  await ctx.db.patch(args.documentId, {
+    tags: args.tags,
+    frontmatter: JSON.stringify(frontmatter),
+    updatedAt: Date.now(),
+  });
+  return null;
 }
 
+/**
+ * Internal mutation called after a successful GitHub publish to record
+ * the resulting file path, SHA, and publication timestamp on the document.
+ * Keeping this separate from the GitHub action allows the action to remain
+ * stateless while the mutation handles the database write transactionally.
+ */
 export const internalUpdateAfterPublish = internalMutation({
   args: {
     documentId: v.id("documents"),
@@ -1826,7 +1614,7 @@ export const internalUpdateAfterPublish = internalMutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     const doc = await ctx.db.get(args.documentId);
-    const patch: Record<string, unknown> = {
+    const patch: DocPatch<"documents"> = {
       githubPath: args.githubPath,
       githubSyncedAt: Date.now(),
       status: args.status,
@@ -1834,7 +1622,7 @@ export const internalUpdateAfterPublish = internalMutation({
       updatedAt: Date.now(),
     };
     if (args.githubSha !== undefined) {
-      patch["githubSha"] = args.githubSha;
+      patch.githubSha = args.githubSha;
     }
     await ctx.db.patch(args.documentId, patch);
 
@@ -1963,30 +1751,28 @@ export async function publishHistoryForUser(
   userId: Id<"users">,
   documentId: Id<"documents">,
 ) {
-  {
-    const document = await ctx.db.get(documentId);
-    if (!document) return [];
-    const project = await ctx.db.get(document.projectId);
-    if (!project || project.userId !== userId) return [];
+  const document = await ctx.db.get(documentId);
+  if (!document) return [];
+  const project = await ctx.db.get(document.projectId);
+  if (!project || project.userId !== userId) return [];
 
-    const history = await ctx.db
-      .query("publish_history")
-      .withIndex("by_documentId", (q) => q.eq("documentId", documentId))
-      .order("desc")
-      .take(100);
+  const history = await ctx.db
+    .query("publish_history")
+    .withIndex("by_documentId", (q) => q.eq("documentId", documentId))
+    .order("desc")
+    .take(100);
 
-    return history.map((h) => ({
-      _id: h._id,
-      commitSha: h.commitSha,
-      ...(h.commitUrl !== undefined ? { commitUrl: h.commitUrl } : {}),
-      commitMessage: h.commitMessage,
-      githubPath: h.githubPath,
-      titleSnapshot: h.titleSnapshot,
-      isUpdate: h.isUpdate,
-      ...(h.isBulk !== undefined ? { isBulk: h.isBulk } : {}),
-      createdAt: h.createdAt,
-    }));
-  }
+  return history.map((h) => ({
+    _id: h._id,
+    commitSha: h.commitSha,
+    ...(h.commitUrl !== undefined ? { commitUrl: h.commitUrl } : {}),
+    commitMessage: h.commitMessage,
+    githubPath: h.githubPath,
+    titleSnapshot: h.titleSnapshot,
+    isUpdate: h.isUpdate,
+    ...(h.isBulk !== undefined ? { isBulk: h.isBulk } : {}),
+    createdAt: h.createdAt,
+  }));
 }
 
 const PUBLISH_SNAPSHOT = v.object({
@@ -2081,63 +1867,61 @@ async function rollbackDocumentForUser(
   user: Doc<"users">,
   args: { documentId: Id<"documents">; historyId: Id<"publish_history"> },
 ) {
-  {
-    await rateLimiter.limit(ctx, "documents:rollbackToVersion", {
-      key: user.tokenIdentifier,
-      throws: true,
-    });
+  await rateLimiter.limit(ctx, "documents:rollbackToVersion", {
+    key: user.tokenIdentifier,
+    throws: true,
+  });
 
-    const document = await ctx.db.get(args.documentId);
-    if (!document) throw new Error("Document not found");
-    const project = await ctx.db.get(document.projectId);
-    if (!project || project.userId !== user._id) {
-      throw new Error("Unauthorized");
-    }
-
-    const historyEntry = await ctx.db.get(args.historyId);
-    if (!historyEntry || historyEntry.documentId !== args.documentId) {
-      throw new Error(
-        "History entry not found or does not belong to this document",
-      );
-    }
-
-    // Body + frontmatter live in `publish_history_content`.
-    const contentRow = await ctx.db
-      .query("publish_history_content")
-      .withIndex("by_publishId", (q) => q.eq("publishId", args.historyId))
-      .unique();
-    if (!contentRow) {
-      throw new Error(
-        "Publish snapshot content is missing; cannot roll back to this version.",
-      );
-    }
-    const content = contentRow.content;
-    const frontmatter = contentRow.frontmatter;
-
-    const newContentId = await writeContent(ctx, {
-      documentId: args.documentId,
-      projectId: document.projectId,
-      userId: document.userId,
-      content,
-      ...(document.contentId ? { contentId: document.contentId } : {}),
-    });
-    const patch: Record<string, unknown> = {
-      title: historyEntry.titleSnapshot,
-      excerpt: buildExcerpt(content),
-      wordCount: countWords(content),
-      frontmatter,
-      updatedAt: Date.now(),
-    };
-    if (document.contentId === undefined) {
-      patch["contentId"] = newContentId;
-    }
-    await ctx.db.patch(args.documentId, patch);
-
-    return {
-      title: historyEntry.titleSnapshot,
-      restoredFrom: historyEntry.createdAt,
-    };
+  const document = await ctx.db.get(args.documentId);
+  if (!document) throw new Error("Document not found");
+  const project = await ctx.db.get(document.projectId);
+  if (!project || project.userId !== user._id) {
+    throw new Error("Unauthorized");
   }
+
+  const historyEntry = await ctx.db.get(args.historyId);
+  if (!historyEntry || historyEntry.documentId !== args.documentId) {
+    throw new Error(
+      "History entry not found or does not belong to this document",
+    );
+  }
+
+  // Body + frontmatter live in `publish_history_content`.
+  const contentRow = await ctx.db
+    .query("publish_history_content")
+    .withIndex("by_publishId", (q) => q.eq("publishId", args.historyId))
+    .unique();
+  if (!contentRow) {
+    throw new Error(
+      "Publish snapshot content is missing; cannot roll back to this version.",
+    );
+  }
+  const content = contentRow.content;
+  const frontmatter = contentRow.frontmatter;
+
+  const newContentId = await writeContent(ctx, {
+    documentId: args.documentId,
+    projectId: document.projectId,
+    userId: document.userId,
+    content,
+    ...(document.contentId ? { contentId: document.contentId } : {}),
+  });
+  const patch: DocPatch<"documents"> = {
+    title: historyEntry.titleSnapshot,
+    excerpt: buildExcerpt(content),
+    wordCount: countWords(content),
+    frontmatter,
+    updatedAt: Date.now(),
+  };
+  if (document.contentId === undefined) {
+    patch.contentId = newContentId;
+  }
+  await ctx.db.patch(args.documentId, patch);
+
+  return {
+    title: historyEntry.titleSnapshot,
+    restoredFrom: historyEntry.createdAt,
+  };
 }
 
 /**
@@ -2173,28 +1957,29 @@ export async function calendarForUser(
   userId: Id<"users">,
   projectId: Id<"projects">,
 ) {
-  {
-    const project = await ctx.db.get(projectId);
-    if (!project || project.userId !== userId) return [];
+  const project = await ctx.db.get(projectId);
+  if (!project || project.userId !== userId) return [];
 
-    const documents = await ctx.db
-      .query("documents")
-      .withIndex("by_projectId_and_trashedAt", (q) =>
-        q.eq("projectId", projectId).eq("trashedAt", undefined),
-      )
-      .take(500);
+  const documents = await ctx.db
+    .query("documents")
+    .withIndex("by_projectId_and_trashedAt", (q) =>
+      q.eq("projectId", projectId).eq("trashedAt", undefined),
+    )
+    .order("desc")
+    .take(500);
 
-    return documents.map((d) => ({
-      _id: d._id,
-      title: d.title,
-      slug: d.slug,
-      status: d.status,
-      ...(d.scheduledAt !== undefined ? { scheduledAt: d.scheduledAt } : {}),
-      ...(d.publishedAt !== undefined ? { publishedAt: d.publishedAt } : {}),
-      updatedAt: d.updatedAt,
-      createdAt: d.createdAt,
-    }));
-  }
+  // Read newest-first so a project past the cap keeps its recent docs, then
+  // restore ascending creation order for callers.
+  return documents.reverse().map((d) => ({
+    _id: d._id,
+    title: d.title,
+    slug: d.slug,
+    status: d.status,
+    ...(d.scheduledAt !== undefined ? { scheduledAt: d.scheduledAt } : {}),
+    ...(d.publishedAt !== undefined ? { publishedAt: d.publishedAt } : {}),
+    updatedAt: d.updatedAt,
+    createdAt: d.createdAt,
+  }));
 }
 
 /**
@@ -2229,50 +2014,44 @@ export const listForCalendarAllProjects = query({
 
 /** `listForCalendarAllProjects`'s body with the actor passed in explicitly. */
 async function allProjectsCalendarForUser(ctx: QueryCtx, userId: Id<"users">) {
-  {
-    const projects = await ctx.db
-      .query("projects")
-      .withIndex("by_userId", (q) => q.eq("userId", userId))
-      .take(25);
+  const projects = await ctx.db
+    .query("projects")
+    .withIndex("by_userId", (q) => q.eq("userId", userId))
+    .take(25);
 
-    const rows: Array<{
-      _id: Id<"documents">;
-      projectId: Id<"projects">;
-      projectName: string;
-      title: string;
-      status: string;
-      scheduledAt?: number;
-      publishedAt?: number;
-    }> = [];
+  const rows: Array<{
+    _id: Id<"documents">;
+    projectId: Id<"projects">;
+    projectName: string;
+    title: string;
+    status: string;
+    scheduledAt?: number;
+    publishedAt?: number;
+  }> = [];
 
-    for (const project of projects) {
-      const documents = await ctx.db
-        .query("documents")
-        .withIndex("by_projectId_and_trashedAt", (q) =>
-          q.eq("projectId", project._id).eq("trashedAt", undefined),
-        )
-        .take(300);
-      for (const d of documents) {
-        if (d.scheduledAt === undefined && d.publishedAt === undefined) {
-          continue;
-        }
-        rows.push({
-          _id: d._id,
-          projectId: project._id,
-          projectName: project.name,
-          title: d.title,
-          status: d.status,
-          ...(d.scheduledAt !== undefined
-            ? { scheduledAt: d.scheduledAt }
-            : {}),
-          ...(d.publishedAt !== undefined
-            ? { publishedAt: d.publishedAt }
-            : {}),
-        });
+  for (const project of projects) {
+    const documents = await ctx.db
+      .query("documents")
+      .withIndex("by_projectId_and_trashedAt", (q) =>
+        q.eq("projectId", project._id).eq("trashedAt", undefined),
+      )
+      .take(300);
+    for (const d of documents) {
+      if (d.scheduledAt === undefined && d.publishedAt === undefined) {
+        continue;
       }
+      rows.push({
+        _id: d._id,
+        projectId: project._id,
+        projectName: project.name,
+        title: d.title,
+        status: d.status,
+        ...(d.scheduledAt !== undefined ? { scheduledAt: d.scheduledAt } : {}),
+        ...(d.publishedAt !== undefined ? { publishedAt: d.publishedAt } : {}),
+      });
     }
-    return rows;
   }
+  return rows;
 }
 
 /**
@@ -2310,35 +2089,33 @@ async function staleDocumentsForUser(
   userId: Id<"users">,
   args: { projectId: Id<"projects">; olderThanMonths?: number },
 ) {
-  {
-    const project = await ctx.db.get(args.projectId);
-    if (!project || project.userId !== userId) {
-      return [];
-    }
-
-    const months = Math.min(24, Math.max(1, args.olderThanMonths ?? 6));
-    const cutoff = Date.now() - months * 30 * 24 * 60 * 60 * 1000;
-
-    const published = await ctx.db
-      .query("documents")
-      .withIndex("by_projectId_and_status", (q) =>
-        q.eq("projectId", args.projectId).eq("status", "published"),
-      )
-      .take(500);
-
-    return published
-      .filter((d) => d.trashedAt === undefined && d.updatedAt < cutoff)
-      .sort((a, b) => a.updatedAt - b.updatedAt)
-      .slice(0, 10)
-      .map((d) => ({
-        _id: d._id,
-        title: d.title,
-        slug: d.slug,
-        updatedAt: d.updatedAt,
-        ...(d.publishedAt !== undefined ? { publishedAt: d.publishedAt } : {}),
-        ...(d.wordCount !== undefined ? { wordCount: d.wordCount } : {}),
-      }));
+  const project = await ctx.db.get(args.projectId);
+  if (!project || project.userId !== userId) {
+    return [];
   }
+
+  const months = Math.min(24, Math.max(1, args.olderThanMonths ?? 6));
+  const cutoff = Date.now() - months * 30 * 24 * 60 * 60 * 1000;
+
+  const published = await ctx.db
+    .query("documents")
+    .withIndex("by_projectId_and_status", (q) =>
+      q.eq("projectId", args.projectId).eq("status", "published"),
+    )
+    .take(500);
+
+  return published
+    .filter((d) => d.trashedAt === undefined && d.updatedAt < cutoff)
+    .sort((a, b) => a.updatedAt - b.updatedAt)
+    .slice(0, 10)
+    .map((d) => ({
+      _id: d._id,
+      title: d.title,
+      slug: d.slug,
+      updatedAt: d.updatedAt,
+      ...(d.publishedAt !== undefined ? { publishedAt: d.publishedAt } : {}),
+      ...(d.wordCount !== undefined ? { wordCount: d.wordCount } : {}),
+    }));
 }
 
 /* ------------------------------------------------------------------ */
@@ -2346,7 +2123,7 @@ async function staleDocumentsForUser(
 /* ------------------------------------------------------------------ */
 
 /**
- * Creates the `import_batches` row that `convex/github.ts:startBulkImport`
+ * Creates the `import_batches` row that `integrations/github.ts:startBulkImport`
  * uses to track progress. Internal-only because the caller has already
  * resolved auth + ownership in the parent action.
  */
@@ -2893,7 +2670,7 @@ export const _upsertImportedDocument = internalMutation({
 
     if (args.mode === "fastForward" && existing) {
       const oldWc = existing.wordCount ?? 0;
-      const patch: Record<string, unknown> = {
+      const patch: DocPatch<"documents"> = {
         title: args.title,
         slug: args.slug,
         excerpt: buildExcerpt(args.content),
@@ -2903,7 +2680,7 @@ export const _upsertImportedDocument = internalMutation({
         updatedAt: now,
       };
       if (args.frontmatter !== undefined) {
-        patch["frontmatter"] = args.frontmatter;
+        patch.frontmatter = args.frontmatter;
       }
       const contentId = await writeContent(ctx, {
         documentId: existing._id,
@@ -2913,7 +2690,7 @@ export const _upsertImportedDocument = internalMutation({
         ...(existing.contentId ? { contentId: existing.contentId } : {}),
       });
       if (existing.contentId === undefined) {
-        patch["contentId"] = contentId;
+        patch.contentId = contentId;
       }
       await ctx.db.patch(existing._id, patch);
       await scheduleWordActivity(ctx, {
@@ -2926,7 +2703,7 @@ export const _upsertImportedDocument = internalMutation({
 
     if (existing) {
       const oldWc = existing.wordCount ?? 0;
-      const patch: Record<string, unknown> = {
+      const patch: DocPatch<"documents"> = {
         excerpt: buildExcerpt(args.content),
         wordCount: newWc,
         githubSha: args.githubSha,
@@ -2934,7 +2711,7 @@ export const _upsertImportedDocument = internalMutation({
         updatedAt: now,
       };
       if (args.frontmatter !== undefined) {
-        patch["frontmatter"] = args.frontmatter;
+        patch.frontmatter = args.frontmatter;
       }
       const contentId = await writeContent(ctx, {
         documentId: existing._id,
@@ -2944,7 +2721,7 @@ export const _upsertImportedDocument = internalMutation({
         ...(existing.contentId ? { contentId: existing.contentId } : {}),
       });
       if (existing.contentId === undefined) {
-        patch["contentId"] = contentId;
+        patch.contentId = contentId;
       }
       await ctx.db.patch(existing._id, patch);
       await scheduleWordActivity(ctx, {

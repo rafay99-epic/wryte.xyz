@@ -50,34 +50,15 @@ export async function researchForUser(
   userId: Id<"users">,
   documentId: Id<"documents">,
 ) {
-  {
-    await verifyDocumentOwnership(ctx, documentId, userId);
+  await verifyDocumentOwnership(ctx, documentId, userId);
 
-    const items = await ctx.db
-      .query("document_research")
-      .withIndex("by_documentId", (q) => q.eq("documentId", documentId))
-      .take(200);
+  const items = await ctx.db
+    .query("document_research")
+    .withIndex("by_documentId", (q) => q.eq("documentId", documentId))
+    .take(200);
 
-    return items.sort((a, b) => b.updatedAt - a.updatedAt);
-  }
+  return items.sort((a, b) => b.updatedAt - a.updatedAt);
 }
-
-export const listSelectedForAi = query({
-  args: { documentId: v.id("documents"), limit: v.optional(v.number()) },
-  handler: async (ctx, args) => {
-    const user = await getAuthedUserOrNull(ctx);
-    if (!user) return [];
-    await verifyDocumentOwnership(ctx, args.documentId, user._id);
-
-    return await ctx.db
-      .query("document_research")
-      .withIndex("by_documentId_and_selectedForAi", (q) =>
-        q.eq("documentId", args.documentId).eq("selectedForAi", true),
-      )
-      .order("desc")
-      .take(Math.min(args.limit ?? 20, 30));
-  },
-});
 
 export const create = mutation({
   args: {
@@ -107,35 +88,31 @@ export async function createResearchForUser(
     selectedForAi?: boolean;
   },
 ) {
-  {
-    await rateLimiter.limit(ctx, "documentResearch:create", {
-      key: user.tokenIdentifier,
-      throws: true,
-    });
+  await rateLimiter.limit(ctx, "documentResearch:create", {
+    key: user.tokenIdentifier,
+    throws: true,
+  });
 
-    const document = await verifyDocumentOwnership(
-      ctx,
-      args.documentId,
-      user._id,
-    );
-    const now = Date.now();
+  const document = await verifyDocumentOwnership(
+    ctx,
+    args.documentId,
+    user._id,
+  );
+  const now = Date.now();
 
-    return await ctx.db.insert("document_research", {
-      documentId: args.documentId,
-      projectId: document.projectId,
-      userId: user._id,
-      type: args.type,
-      title: args.title.trim() || "Untitled research",
-      content: args.content,
-      ...(args.url?.trim() ? { url: args.url.trim() } : {}),
-      ...(args.sourceName?.trim()
-        ? { sourceName: args.sourceName.trim() }
-        : {}),
-      selectedForAi: args.selectedForAi ?? true,
-      createdAt: now,
-      updatedAt: now,
-    });
-  }
+  return await ctx.db.insert("document_research", {
+    documentId: args.documentId,
+    projectId: document.projectId,
+    userId: user._id,
+    type: args.type,
+    title: args.title.trim() || "Untitled research",
+    content: args.content,
+    ...(args.url?.trim() ? { url: args.url.trim() } : {}),
+    ...(args.sourceName?.trim() ? { sourceName: args.sourceName.trim() } : {}),
+    selectedForAi: args.selectedForAi ?? true,
+    createdAt: now,
+    updatedAt: now,
+  });
 }
 
 export const update = mutation({
@@ -166,38 +143,36 @@ export async function updateResearchForUser(
     selectedForAi?: boolean;
   },
 ) {
-  {
-    await rateLimiter.limit(ctx, "documentResearch:update", {
-      key: user.tokenIdentifier,
-      throws: true,
-    });
+  await rateLimiter.limit(ctx, "documentResearch:update", {
+    key: user.tokenIdentifier,
+    throws: true,
+  });
 
-    const item = await ctx.db.get(args.researchId);
-    if (!item || item.userId !== user._id) {
-      throw new Error("Research item not found");
-    }
-
-    const updates: {
-      type?: Doc<"document_research">["type"];
-      title?: string;
-      content?: string;
-      url?: string;
-      sourceName?: string;
-      selectedForAi?: boolean;
-      updatedAt: number;
-    } = { updatedAt: Date.now() };
-    if (args.type !== undefined) updates.type = args.type;
-    if (args.title !== undefined)
-      updates.title = args.title.trim() || "Untitled research";
-    if (args.content !== undefined) updates.content = args.content;
-    if (args.url !== undefined) updates.url = args.url.trim();
-    if (args.sourceName !== undefined)
-      updates.sourceName = args.sourceName.trim();
-    if (args.selectedForAi !== undefined)
-      updates.selectedForAi = args.selectedForAi;
-
-    await ctx.db.patch(args.researchId, updates);
+  const item = await ctx.db.get(args.researchId);
+  if (!item || item.userId !== user._id) {
+    throw new Error("Research item not found");
   }
+
+  const updates: {
+    type?: Doc<"document_research">["type"];
+    title?: string;
+    content?: string;
+    url?: string;
+    sourceName?: string;
+    selectedForAi?: boolean;
+    updatedAt: number;
+  } = { updatedAt: Date.now() };
+  if (args.type !== undefined) updates.type = args.type;
+  if (args.title !== undefined)
+    updates.title = args.title.trim() || "Untitled research";
+  if (args.content !== undefined) updates.content = args.content;
+  if (args.url !== undefined) updates.url = args.url.trim();
+  if (args.sourceName !== undefined)
+    updates.sourceName = args.sourceName.trim();
+  if (args.selectedForAi !== undefined)
+    updates.selectedForAi = args.selectedForAi;
+
+  await ctx.db.patch(args.researchId, updates);
 }
 
 export const toggleSelectedForAi = mutation({
@@ -233,16 +208,14 @@ export async function removeResearchForUser(
   user: Doc<"users">,
   args: { researchId: Id<"document_research"> },
 ) {
-  {
-    await rateLimiter.limit(ctx, "documentResearch:remove", {
-      key: user.tokenIdentifier,
-      throws: true,
-    });
+  await rateLimiter.limit(ctx, "documentResearch:remove", {
+    key: user.tokenIdentifier,
+    throws: true,
+  });
 
-    const item = await ctx.db.get(args.researchId);
-    if (!item || item.userId !== user._id) {
-      throw new Error("Research item not found");
-    }
-    await ctx.db.delete(args.researchId);
+  const item = await ctx.db.get(args.researchId);
+  if (!item || item.userId !== user._id) {
+    throw new Error("Research item not found");
   }
+  await ctx.db.delete(args.researchId);
 }

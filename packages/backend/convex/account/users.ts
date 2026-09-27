@@ -199,25 +199,6 @@ export const updateDefaultCompressionSettings = mutation({
 });
 
 /**
- * Stores the user's GitHub username for display and identification purposes.
- */
-export const updateGithubUsername = mutation({
-  args: { username: v.string() },
-  handler: async (ctx, args) => {
-    const key = await getRateLimitKey(ctx);
-    await rateLimiter.limit(ctx, "users:updateGithubUsername", {
-      key,
-      throws: true,
-    });
-
-    const user = await getCurrentUser(ctx);
-    await ctx.db.patch(user._id, {
-      githubUsername: args.username,
-    });
-  },
-});
-
-/**
  * Internal-only query to fetch a user by ID. Used by server-side actions
  * that already have a trusted userId and don't need to re-authenticate.
  */
@@ -243,7 +224,7 @@ export const internalGetByToken = internalQuery({
 
 /**
  * Lookup by Clerk user id, for MCP tools backed by actions. Actions have no
- * `ctx.db`, so `userFromCallerInAction` in `_lib/auth.ts` routes through here.
+ * `ctx.db`, so `requireCallerInAction` in `_lib/auth.ts` routes through here.
  */
 export const internalGetByClerkId = internalQuery({
   args: { clerkUserId: v.string() },

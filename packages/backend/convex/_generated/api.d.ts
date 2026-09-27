@@ -17,6 +17,7 @@ import type * as _lib_compression from "../_lib/compression.js";
 import type * as _lib_contentFormat from "../_lib/contentFormat.js";
 import type * as _lib_contentHash from "../_lib/contentHash.js";
 import type * as _lib_dateUtils from "../_lib/dateUtils.js";
+import type * as _lib_docPatch from "../_lib/docPatch.js";
 import type * as _lib_documentCount from "../_lib/documentCount.js";
 import type * as _lib_frontmatter from "../_lib/frontmatter.js";
 import type * as _lib_githubApp from "../_lib/githubApp.js";
@@ -67,7 +68,6 @@ import type * as integrations_oembedProviders from "../integrations/oembedProvid
 import type * as integrations_scheduling from "../integrations/scheduling.js";
 import type * as integrations_secretStore from "../integrations/secretStore.js";
 import type * as maintenance_retireExternalAnalytics from "../maintenance/retireExternalAnalytics.js";
-import type * as mcp_admin from "../mcp/admin.js";
 import type * as mcp_authorize from "../mcp/authorize.js";
 import type * as mcp_gate from "../mcp/gate.js";
 import type * as mcp_grants from "../mcp/grants.js";
@@ -78,6 +78,7 @@ import type * as mcp_handlers_drafts from "../mcp/handlers/drafts.js";
 import type * as mcp_handlers_nodeActions from "../mcp/handlers/nodeActions.js";
 import type * as mcp_handlers_projects from "../mcp/handlers/projects.js";
 import type * as mcp_handlers_publishing from "../mcp/handlers/publishing.js";
+import type * as mcp_handlers_resources from "../mcp/handlers/resources.js";
 import type * as mcp_maintenance from "../mcp/maintenance.js";
 import type * as mcp_resources from "../mcp/resources.js";
 import type * as mcp_scopes from "../mcp/scopes.js";
@@ -131,6 +132,7 @@ declare const fullApi: ApiFromModules<{
   "_lib/contentFormat": typeof _lib_contentFormat;
   "_lib/contentHash": typeof _lib_contentHash;
   "_lib/dateUtils": typeof _lib_dateUtils;
+  "_lib/docPatch": typeof _lib_docPatch;
   "_lib/documentCount": typeof _lib_documentCount;
   "_lib/frontmatter": typeof _lib_frontmatter;
   "_lib/githubApp": typeof _lib_githubApp;
@@ -181,7 +183,6 @@ declare const fullApi: ApiFromModules<{
   "integrations/scheduling": typeof integrations_scheduling;
   "integrations/secretStore": typeof integrations_secretStore;
   "maintenance/retireExternalAnalytics": typeof maintenance_retireExternalAnalytics;
-  "mcp/admin": typeof mcp_admin;
   "mcp/authorize": typeof mcp_authorize;
   "mcp/gate": typeof mcp_gate;
   "mcp/grants": typeof mcp_grants;
@@ -192,6 +193,7 @@ declare const fullApi: ApiFromModules<{
   "mcp/handlers/nodeActions": typeof mcp_handlers_nodeActions;
   "mcp/handlers/projects": typeof mcp_handlers_projects;
   "mcp/handlers/publishing": typeof mcp_handlers_publishing;
+  "mcp/handlers/resources": typeof mcp_handlers_resources;
   "mcp/maintenance": typeof mcp_maintenance;
   "mcp/resources": typeof mcp_resources;
   "mcp/scopes": typeof mcp_scopes;

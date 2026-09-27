@@ -61,12 +61,6 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     rate: 10,
     period: MINUTE,
   },
-  /** GitHub username update — same as token. */
-  "users:updateGithubUsername": {
-    kind: "fixed window",
-    rate: 10,
-    period: MINUTE,
-  },
   /** Account-wide default for image compression — rare, deliberate. */
   "users:updateDefaultCompressionSettings": {
     kind: "fixed window",
@@ -137,21 +131,6 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     period: MINUTE,
   },
   /**
-   * Per-document import mutation. The real concurrency gate is the
-   * `githubImportPool` workpool (`convex/_pools/import.ts`) which caps how
-   * many imports run at once. This bucket is intentionally generous so
-   * a user with 200+ posts isn't blocked by the rate limiter — the
-   * workpool's `maxParallelism` is what actually shapes throughput. A
-   * 60-token burst lets the first batch hit the database in parallel,
-   * then the bucket refills at ~10/second sustained.
-   */
-  "documents:importFromGithub": {
-    kind: "token bucket",
-    rate: 600,
-    period: MINUTE,
-    capacity: 60,
-  },
-  /**
    * Per-batch enqueue. Each batch can contain up to 200 file paths so
    * this is a "how many bulk imports per minute" cap, not a per-file
    * cap. Tight on purpose — accidentally clicking "Import" repeatedly
@@ -210,11 +189,6 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
   "documentDrafts:remove": {
     kind: "fixed window",
     rate: 20,
-    period: MINUTE,
-  },
-  "documentDrafts:restore": {
-    kind: "fixed window",
-    rate: 10,
     period: MINUTE,
   },
   "documentDrafts:updateContent": {
@@ -330,21 +304,6 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
   /* ------------------------------------------------------------------ */
 
   "boardColumns:updateColumns": {
-    kind: "fixed window",
-    rate: 20,
-    period: MINUTE,
-  },
-  "boardColumns:addColumn": {
-    kind: "fixed window",
-    rate: 20,
-    period: MINUTE,
-  },
-  "boardColumns:removeColumn": {
-    kind: "fixed window",
-    rate: 20,
-    period: MINUTE,
-  },
-  "boardColumns:reorderColumns": {
     kind: "fixed window",
     rate: 20,
     period: MINUTE,
@@ -700,11 +659,6 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     rate: 5,
     period: MINUTE,
   },
-  "github:uploadMedia": {
-    kind: "fixed window",
-    rate: 20,
-    period: MINUTE,
-  },
   /**
    * Imports are called in a loop when the user bulk-pulls existing posts
    * from a repo. A token bucket with a generous burst lets a typical
@@ -785,11 +739,6 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
   /* ------------------------------------------------------------------ */
 
   "writingStats:setGoal": {
-    kind: "fixed window",
-    rate: 10,
-    period: MINUTE,
-  },
-  "writingStats:setTimezone": {
     kind: "fixed window",
     rate: 10,
     period: MINUTE,
