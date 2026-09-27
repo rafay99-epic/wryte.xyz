@@ -13,6 +13,7 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
+import { usePreAuthRetry } from "@/components/layout/hooks/use-pre-auth-retry";
 
 export default function EditorError({
   error,
@@ -23,9 +24,13 @@ export default function EditorError({
 }) {
   const router = useRouter();
 
+  const pending = usePreAuthRetry(reset);
+
   useEffect(() => {
-    console.error("[EditorError]", error);
-  }, [error]);
+    if (!pending) console.error("[EditorError]", error);
+  }, [pending, error]);
+
+  if (pending) return null;
 
   return (
     <div className="flex h-full items-center justify-center p-6">
