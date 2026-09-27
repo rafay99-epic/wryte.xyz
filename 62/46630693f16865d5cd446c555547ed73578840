@@ -1,0 +1,25 @@
+apps/desktop/package.json
+  s_afe331801d4351::t_fa074e3591ce52 17,19-20
+bun.lock
+  s_afe331801d4351::t_3af66f8d1cbb1b 20,23,112,132,137,656-657,920-921,988,2472-2473
+packages/backend/package.json
+  s_afe331801d4351::t_7dc556bc9c730c 49
+packages/logic/package.json
+  s_afe331801d4351::t_7fec16af255a75 25,30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "6246630693f16865d5cd446c555547ed73578840",
+  "prompts": {},
+  "sessions": {
+    "s_afe331801d4351": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "57228730-cc80-4f5a-bfb4-bbd4ee82af55",
+        "model": "unknown"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
