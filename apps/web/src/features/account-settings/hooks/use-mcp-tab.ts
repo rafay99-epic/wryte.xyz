@@ -2,7 +2,7 @@
 
 import { api } from "@wryte/backend/_generated/api";
 import { useMutation, useQuery } from "convex/react";
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 /**
@@ -17,22 +17,17 @@ export function useMcpTab() {
   const granted = useQuery(api.mcp.grants.myGrant);
   const setGrant = useMutation(api.mcp.grants.setGrant);
 
+  // Local edits only. `null` means "no unsaved changes": the toggles show the
+  // server value, and follow it when it changes underneath us (another tab,
+  // another device).
   const [draft, setDraft] = useState<string[] | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Adopt the server value once it arrives, and whenever it changes underneath
-  // us (another tab, another device).
-  useEffect(() => {
-    if (granted) setDraft(granted);
-  }, [granted]);
-
-  const isDirty = useMemo(() => {
-    if (!granted || !draft) return false;
-    return (
-      granted.length !== draft.length ||
-      [...granted].sort().join() !== [...draft].sort().join()
-    );
-  }, [granted, draft]);
+  const current = draft ?? granted ?? [];
+  const isDirty =
+    draft !== null &&
+    granted !== undefined &&
+    [...granted].sort().join() !== [...draft].sort().join();
 
   const toggle = (scope: string, on: boolean) => {
     setDraft((prev) => {
@@ -46,6 +41,9 @@ export function useMcpTab() {
     setIsSaving(true);
     try {
       await setGrant({ scopes: draft });
+      // The query has already caught up by the time the mutation resolves, so
+      // dropping the draft hands the toggles back to the server value.
+      setDraft(null);
       toast.success("MCP capabilities updated", {
         description: "Takes effect on the agent's next tool call.",
       });
@@ -59,8 +57,7 @@ export function useMcpTab() {
   };
 
   return {
-    granted,
-    draft: draft ?? granted ?? [],
+    draft: current,
     isLoading: granted === undefined,
     isDirty,
     isSaving,

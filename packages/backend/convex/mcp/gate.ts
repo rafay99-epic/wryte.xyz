@@ -13,8 +13,9 @@
  * `wryte_documents_create` in a loop grows the audit table one row per attempt,
  * and we get billed for every one.
  *
- * Rejecting here instead costs a single rate-limiter write and touches nothing
- * else. Abuse becomes cheap to absorb rather than expensive to log.
+ * Rejecting here instead costs only the rate-limiter checks below (one per
+ * bucket consulted, at most three) and touches nothing else. Abuse becomes
+ * cheap to absorb rather than expensive to log.
  */
 import type { GenericActionCtx } from "convex/server";
 import type { DataModel } from "../_generated/dataModel";

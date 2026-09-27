@@ -6,7 +6,7 @@ import { httpRouter } from "convex/server";
 import { McpGateway, type RunMutationCtx } from "convex-mcp-gateway";
 import { components } from "./_generated/api";
 import { httpAction } from "./_generated/server";
-import { createAuthorize } from "./mcp/authorize";
+import { createAuthorizers } from "./mcp/authorize";
 import { preGate } from "./mcp/gate";
 import { resources, resourceTemplates } from "./mcp/resources";
 import { tools } from "./mcp/tools";
@@ -35,11 +35,12 @@ const gateway = new McpGateway(components.mcpGateway);
 /**
  * Server-level guidance returned in the MCP `initialize` result. This is the
  * cheapest place to teach the model how Wryte is shaped: one short paragraph
- * here beats repeating the same context across ~35 tool descriptions, all of
+ * here beats repeating the same context across every tool description, all of
  * which sit in the context window on every turn.
  *
  * Per the spec, clients MAY use it — so it's a strong hint, not a constraint.
- * Anything that must hold is enforced in `authorize` or the tools themselves.
+ * Anything that must hold is enforced in `./mcp/authorize.ts` or the tools
+ * themselves.
  */
 const INSTRUCTIONS = [
   "Wryte is a writing CMS. Work inside a project: list projects, then documents.",
@@ -56,6 +57,14 @@ const INSTRUCTIONS = [
  * lives in a component table, and `CONVEX_SITE_URL` is unavailable in
  * deploy-time hooks but present inside an `httpAction` — so the first request
  * is the only reliable place to set it.
+ *
+ * `resourceUrl` is pinned to `CONVEX_SITE_URL` rather than taken from the
+ * request, because it lands in one deployment-wide row: deriving it per request
+ * would let traffic arriving on a second hostname rewrite what every client is
+ * told. The request origin is only a fallback for runtimes that don't set the
+ * variable. If Convex is ever served from a custom domain, that domain must be
+ * what `CONVEX_SITE_URL` reports (and what the web app's
+ * `NEXT_PUBLIC_CONVEX_SITE_URL` advertises), or discovery will mismatch.
  *
  * The module-level flag makes this a no-op for the rest of the isolate's life;
  * a cold start pays one extra mutation.
@@ -103,10 +112,10 @@ async function ensureOAuthConfig(
     );
     return;
   }
-  // Origin comes from the request so the same code is correct on localhost and
-  // on the deployed `.convex.site` domain without an extra env var to keep in
-  // sync.
-  const resourceUrl = `${new URL(request.url).origin}${MCP_PATH}`;
+  const origin =
+    process.env["CONVEX_SITE_URL"]?.replace(/\/+$/, "") ??
+    new URL(request.url).origin;
+  const resourceUrl = `${origin}${MCP_PATH}`;
   if (configuredResourceUrl === resourceUrl) return;
   await gateway.setOAuthConfig(ctx, { authServerUrl, resourceUrl });
   configuredResourceUrl = resourceUrl;
@@ -116,7 +125,8 @@ const mcp = httpAction(async (ctx, request) => {
   // Runs before the gateway on purpose: the gateway spends writes (session
   // touch, and an audit row when a known tool is denied) before any policy is
   // applied, so unauthenticated and rate-limited traffic is rejected here,
-  // where it costs one rate-limiter write instead of three writes and an action.
+  // where it costs only the rate-limiter checks instead of three writes and an
+  // action.
   const blocked = await preGate(ctx, request);
   if (blocked) return blocked;
 
@@ -125,10 +135,13 @@ const mcp = httpAction(async (ctx, request) => {
   // and never touches the discovery route.
   await ensureOAuthConfig(ctx, request);
 
+  // Request-scoped: both close over one memoized capability-grant lookup, so
+  // the per-tool authorize calls behind a single `tools/list` cost one read.
+  const { authorize, authorizeResource } = createAuthorizers(ctx);
+
   return await gateway.handleMcpRequest(ctx, request, {
-    // Request-scoped: closes over a memoized capability-grant lookup, so the
-    // 37 authorize calls behind a single `tools/list` cost one database read.
-    authorize: createAuthorize(ctx),
+    authorize,
+    authorizeResource,
     tools,
     resources,
     resourceTemplates,

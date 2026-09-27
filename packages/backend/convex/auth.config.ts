@@ -17,19 +17,24 @@ export default {
      * by the same instance key as session tokens, so Convex verifies them
      * locally against the same JWKS — no introspection round trip.
      *
-     * Because Convex validates the Bearer *before* any function runs,
-     * `ctx.auth.getUserIdentity()` works inside every existing query and
-     * mutation. That is what lets MCP tools reuse the app's functions
-     * verbatim instead of re-implementing ownership checks.
+     * Only the `/mcp` `httpAction` actually needs this provider: `preGate`
+     * and the gateway read the caller via `ctx.auth.getUserIdentity()`
+     * there, and every tool and resource runs as an internal handler that
+     * receives the caller as an injected argument rather than through
+     * `ctx.auth` (except the board-columns resource, which still calls a
+     * public query from that `httpAction`; see `convex/mcp/resources.ts`).
      *
      * `applicationID` is deliberately absent: with Dynamic Client
      * Registration enabled, every MCP client gets its own `client_id`, so
      * the `aud` claim varies per client and cannot be pinned to one value.
      * The issuer is our own Clerk instance, so this widens the accepted
-     * set to *our* users' tokens only — never a third party's. Per-tool
-     * authorization is enforced from the `scope` claim in
-     * `convex/mcp/authorize.ts`; the token being valid is not the same as
-     * the token being allowed.
+     * set to *our* users' tokens only — never a third party's. MCP
+     * capability is enforced from the per-user grant (`users.mcpScopes`) in
+     * `convex/mcp/authorize.ts`, not from any token claim.
+     *
+     * Known gap: Convex applies auth config deployment-wide, so a token
+     * accepted here also authenticates the app's *public* functions as that
+     * user, outside the MCP capability grant.
      */
     {
       type: "customJwt",

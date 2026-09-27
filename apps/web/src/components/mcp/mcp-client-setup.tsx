@@ -9,7 +9,7 @@ import {
   TooltipTrigger,
 } from "@wryte/ui/tooltip";
 import { Check, Copy, ExternalLink, Sparkles } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ClaudeMark,
   CodexMark,
@@ -32,6 +32,22 @@ export function CopyIconButton({
   label: string;
 }) {
   const [copied, setCopied] = useState(false);
+  const resetTimer = useRef<number | undefined>(undefined);
+
+  useEffect(() => () => window.clearTimeout(resetTimer.current), []);
+
+  // Only claim "Copied" once the clipboard write actually succeeded; it can
+  // reject (permissions, insecure context), in which case nothing changes.
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+    } catch {
+      return;
+    }
+    setCopied(true);
+    window.clearTimeout(resetTimer.current);
+    resetTimer.current = window.setTimeout(() => setCopied(false), 1500);
+  };
 
   return (
     <Tooltip>
@@ -42,11 +58,7 @@ export function CopyIconButton({
             size="icon-sm"
             className="text-foreground/60 hover:text-primary dark:text-foreground/70"
             aria-label={label}
-            onClick={() => {
-              void navigator.clipboard.writeText(value);
-              setCopied(true);
-              window.setTimeout(() => setCopied(false), 1500);
-            }}
+            onClick={() => void copy()}
           />
         }
       >
@@ -150,10 +162,7 @@ export function McpClientSetup({
 }: McpClientSetupProps) {
   const displayEndpoint =
     endpoint ?? "https://<your-deployment>.convex.site/mcp";
-  const cursorUrl = useMemo(
-    () => (endpoint ? cursorInstallUrl(endpoint) : undefined),
-    [endpoint],
-  );
+  const cursorUrl = endpoint ? cursorInstallUrl(endpoint) : undefined;
 
   return (
     <TooltipProvider>

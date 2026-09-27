@@ -44,8 +44,8 @@ export function parseClerkUserId(tokenIdentifier: string): string | null {
  * callee can distinguish a component dispatch from a browser call, so internal
  * visibility is the enforcement mechanism.
  *
- * Throws (rather than returning null) because every one of the ~21 MCP handlers
- * wants the same outcome, and the message is the actionable one: this happens
+ * Throws (rather than returning null) because every MCP handler wants the same
+ * outcome, and the message is the actionable one: this happens
  * when someone authorizes an agent before ever signing in on the web, since the
  * `users` row is created by the web app's `users.getOrCreate`.
  */

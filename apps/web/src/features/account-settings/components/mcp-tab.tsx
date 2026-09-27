@@ -1,5 +1,6 @@
 "use client";
 
+import { SCOPES, type Scope } from "@wryte/backend/mcp/scopes";
 import {
   smoothTransition,
   staggerContainer,
@@ -30,7 +31,7 @@ import { resolveMcpEndpoint } from "../lib/mcp-endpoint";
 import { Divider, SectionHeader } from "./shared";
 
 type Capability = {
-  scope: string;
+  scope: Scope;
   label: string;
   description: string;
   icon: React.ElementType;
@@ -39,33 +40,33 @@ type Capability = {
 
 const CAPABILITIES: Capability[] = [
   {
-    scope: "wryte:read",
+    scope: SCOPES.read,
     label: "Read",
     description: "Projects, documents, research, calendar and stats.",
     icon: Terminal,
   },
   {
-    scope: "wryte:write",
+    scope: SCOPES.write,
     label: "Write",
     description: "Create and edit documents and research notes.",
     icon: PenLine,
   },
   {
-    scope: "wryte:publish",
+    scope: SCOPES.publish,
     label: "Publish",
     description: "Commit to GitHub and schedule or cancel publishing.",
     icon: Send,
     optional: true,
   },
   {
-    scope: "wryte:media",
+    scope: SCOPES.media,
     label: "Media",
     description: "Upload and list media through your storage provider.",
     icon: Image,
     optional: true,
   },
   {
-    scope: "wryte:trash",
+    scope: SCOPES.trash,
     label: "Trash",
     description: "Move documents to recoverable project trash.",
     icon: Trash2,

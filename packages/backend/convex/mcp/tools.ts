@@ -1,18 +1,21 @@
 /**
  * The MCP tool catalog.
  *
- * Every entry is a declaration over a Convex function that already exists and
- * is already used by the web app. Nothing here contains business logic, and
- * nothing here re-implements an ownership check — the wrapped function calls
- * `getCurrentUser(ctx)` / `getAuthedUserOrNull(ctx)` exactly as it does for a
- * browser request, because Convex validates the MCP client's Bearer token
- * before the function runs. That is the whole reason the catalog is this thin.
+ * Every entry is a declaration over an internal handler in `./handlers/`.
+ * Nothing here contains business logic, and nothing re-implements an ownership
+ * check: the gateway injects the verified caller through `identityArg`, the
+ * handler resolves it with `requireCaller`, and then delegates to the same
+ * `…ForUser` helper the web app's public function uses. Tools cannot use
+ * `ctx.auth` because the gateway dispatches them from inside its component,
+ * where Convex doesn't propagate identity (see `_lib/auth.ts → requireCaller`).
+ * Which caller may run which tool is decided by `metadata.scopes` in
+ * `./authorize.ts`; every tool must declare at least one.
  *
  * ## Three rules for adding a tool
  *
  * 1. **Descriptions are one line.** Every description is in the model's
  *    context on every turn. Shape knowledge belongs in `resources.ts` and the
- *    `initializeInstructions` string, not repeated 35 times here.
+ *    `initializeInstructions` string, not repeated in every tool here.
  *
  * 2. **Never wrap a query written for a reactive UI subscription.** Those
  *    return everything (`cms/documents.list` takes up to 500 rows *with*
@@ -37,35 +40,25 @@ import {
   mcpCallerValidator,
 } from "convex-mcp-gateway";
 import { internal } from "../_generated/api";
+import { RESEARCH_TYPE } from "./handlers/content";
 import { SCOPES, type WryteToolMetadata } from "./scopes";
 
-/** Typed metadata helper — keeps every declaration honest about its scope. */
-const meta = (m: WryteToolMetadata): WryteToolMetadata => m;
-
-const READ = meta({ scopes: [SCOPES.read] });
-const WRITE = meta({ scopes: [SCOPES.write] });
-const PUBLISH = meta({ scopes: [SCOPES.publish] });
-const MEDIA = meta({ scopes: [SCOPES.media] });
+const READ = { scopes: [SCOPES.read] } satisfies WryteToolMetadata;
+const WRITE = { scopes: [SCOPES.write] } satisfies WryteToolMetadata;
+const PUBLISH = { scopes: [SCOPES.publish] } satisfies WryteToolMetadata;
+const MEDIA = { scopes: [SCOPES.media] } satisfies WryteToolMetadata;
 
 /** Write tool whose args carry document/research prose. */
-const WRITE_BODY = meta({
+const WRITE_BODY = {
   scopes: [SCOPES.write],
   auditArgs: { redact: ["content", "frontmatter"] },
-});
+} satisfies WryteToolMetadata;
 
-/**
- * Mirrors `researchTypeValidator` in `cms/documentResearch.ts`. Declared here
- * rather than imported because that one is module-private; the compile-time
- * `args` check against the target function catches any drift immediately.
- */
-const RESEARCH_TYPE = v.union(
-  v.literal("note"),
-  v.literal("source"),
-  v.literal("quote"),
-  v.literal("outline"),
-  v.literal("idea"),
-  v.literal("ai_summary"),
-);
+/** Write tool whose args carry component source: never audited. */
+const WRITE_NO_AUDIT = {
+  scopes: [SCOPES.write],
+  auditArgs: false,
+} satisfies WryteToolMetadata;
 
 /**
  * The explicit `McpToolRegistration[]` annotation is required, not stylistic.
@@ -210,7 +203,7 @@ export const tools: McpToolRegistration[] = [
     identityArg: "caller",
     // Soft delete is the only deletion an agent can perform. `permanentDelete`
     // and `emptyTrash` are absent from this catalog on purpose.
-    metadata: meta({ scopes: [SCOPES.trash] }),
+    metadata: { scopes: [SCOPES.trash] } satisfies WryteToolMetadata,
   }),
 
   /* ---------------------------------------------------------------- */
@@ -308,7 +301,8 @@ export const tools: McpToolRegistration[] = [
 
   defineMcpQuery({
     name: "wryte_animations_list",
-    description: "List a project's animation components with their source.",
+    description:
+      "List a project's animation components (id, name, updatedAt). Fetch source with wryte_animations_get_source.",
     fn: internal.mcp.handlers.animations.list,
     args: { caller: mcpCallerValidator, projectId: v.id("projects") },
     identityArg: "caller",
@@ -336,7 +330,7 @@ export const tools: McpToolRegistration[] = [
       source: v.string(),
     },
     identityArg: "caller",
-    metadata: meta({ scopes: [SCOPES.write], auditArgs: false }),
+    metadata: WRITE_NO_AUDIT,
   }),
 
   defineMcpMutation({
@@ -349,7 +343,7 @@ export const tools: McpToolRegistration[] = [
       source: v.string(),
     },
     identityArg: "caller",
-    metadata: meta({ scopes: [SCOPES.write], auditArgs: false }),
+    metadata: WRITE_NO_AUDIT,
   }),
 
   defineMcpMutation({
@@ -364,7 +358,7 @@ export const tools: McpToolRegistration[] = [
       source: v.string(),
     },
     identityArg: "caller",
-    metadata: meta({ scopes: [SCOPES.write], auditArgs: false }),
+    metadata: WRITE_NO_AUDIT,
   }),
 
   defineMcpMutation({
@@ -377,7 +371,7 @@ export const tools: McpToolRegistration[] = [
   }),
 
   /* ---------------------------------------------------------------- */
-  /*  Research, ideas, snippets                                        */
+  /*  Research                                                         */
   /* ---------------------------------------------------------------- */
 
   defineMcpQuery({
@@ -415,6 +409,7 @@ export const tools: McpToolRegistration[] = [
     args: {
       caller: mcpCallerValidator,
       researchId: v.id("document_research"),
+      type: v.optional(RESEARCH_TYPE),
       title: v.optional(v.string()),
       content: v.optional(v.string()),
       url: v.optional(v.string()),
@@ -528,7 +523,10 @@ export const tools: McpToolRegistration[] = [
     identityArg: "caller",
     // Never audit the args: a base64 image in an audit row is pure write cost
     // and the row's other columns already say who uploaded what, and when.
-    metadata: meta({ scopes: [SCOPES.media], auditArgs: false }),
+    metadata: {
+      scopes: [SCOPES.media],
+      auditArgs: false,
+    } satisfies WryteToolMetadata,
   }),
 
   /* ---------------------------------------------------------------- */
