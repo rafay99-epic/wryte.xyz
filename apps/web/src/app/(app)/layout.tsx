@@ -18,11 +18,13 @@ import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { AppHeader } from "@/components/layout/app-header";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { useAppHotkeys } from "@/components/layout/hooks/use-app-hotkeys";
+import { QueryProvider } from "@/components/providers/query-provider";
 import { CommandPalette } from "@/features/command-palette/command-palette";
 
 /**
  * App shell with smooth sidebar animation, focus mode support,
- * command palette, and global keyboard shortcuts.
+ * command palette, and global keyboard shortcuts. Owns the React Query
+ * client: only the authenticated app uses it (GitHub API hooks).
  */
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useConvexAuth();
@@ -68,89 +70,94 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   // --- Main app chrome ---
   return (
-    <div className="relative flex h-screen overflow-hidden bg-background">
-      {/* Sidebar with smooth width transition */}
-      <motion.aside
-        className="shrink-0 overflow-hidden border-r border-border/50"
-        animate={{ width: sidebarOpen && !focusMode ? 260 : 0 }}
-        transition={{ type: "spring", stiffness: 400, damping: 35 }}
-      >
-        <Suspense fallback={<AppSidebarFallback />}>
-          <AppSidebar />
-        </Suspense>
-      </motion.aside>
+    <QueryProvider>
+      <div className="relative flex h-screen overflow-hidden bg-background">
+        {/* Sidebar with smooth width transition */}
+        <motion.aside
+          className="shrink-0 overflow-hidden border-r border-border/50"
+          animate={{ width: sidebarOpen && !focusMode ? 260 : 0 }}
+          transition={{ type: "spring", stiffness: 400, damping: 35 }}
+        >
+          <Suspense fallback={<AppSidebarFallback />}>
+            <AppSidebar />
+          </Suspense>
+        </motion.aside>
 
-      {/* Main content */}
-      <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Hide header in focus mode */}
+        {/* Main content */}
+        <div className="flex flex-1 flex-col overflow-hidden">
+          {/* Hide header in focus mode */}
+          <AnimatePresence>
+            {!focusMode && (
+              <motion.div
+                initial={false}
+                animate={{ height: 48, opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
+                className="shrink-0 overflow-hidden"
+              >
+                <Suspense fallback={<AppHeaderFallback />}>
+                  <AppHeader />
+                </Suspense>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <main
+            // `min-w-0` lets this flex item stay within the viewport instead of
+            // being stretched by wide content (e.g. the kanban board), so inner
+            // `overflow-x-auto` regions can actually scroll. Editor content is
+            // height-constrained and manages its own overflow.
+            className="min-w-0 flex-1 overflow-y-auto slim-scrollbar"
+          >
+            {children}
+          </main>
+        </div>
+
+        {/* Command Palette */}
+        <CommandPalette
+          open={commandPaletteOpen}
+          onOpenChange={setCommandPaletteOpen}
+        />
+
+        {/* Focus mode exit button — floating in bottom-right */}
         <AnimatePresence>
-          {!focusMode && (
+          {focusMode && (
             <motion.div
-              initial={false}
-              animate={{ height: 48, opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
-              className="shrink-0 overflow-hidden"
+              initial={{ opacity: 0, scale: 0.8, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.8, y: 10 }}
+              transition={{ duration: 0.2 }}
+              className="fixed bottom-4 right-4 z-50"
             >
-              <Suspense fallback={<AppHeaderFallback />}>
-                <AppHeader />
-              </Suspense>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={toggleFocusMode}
+                className="gap-1.5 rounded-full bg-background/80 px-3 shadow-lg backdrop-blur-md"
+              >
+                <Minimize2 className="size-3.5" />
+                <span className="text-xs">Exit Focus</span>
+                {focusKeys.length > 0 && (
+                  <KbdGroup keys={focusKeys} className="ml-1" />
+                )}
+              </Button>
             </motion.div>
           )}
         </AnimatePresence>
 
-        <main
-          // `min-w-0` lets this flex item stay within the viewport instead of
-          // being stretched by wide content (e.g. the kanban board), so inner
-          // `overflow-x-auto` regions can actually scroll. Editor content is
-          // height-constrained and manages its own overflow.
-          className="min-w-0 flex-1 overflow-y-auto slim-scrollbar"
-        >
-          {children}
-        </main>
-      </div>
-
-      {/* Command Palette */}
-      <CommandPalette
-        open={commandPaletteOpen}
-        onOpenChange={setCommandPaletteOpen}
-      />
-
-      {/* Focus mode exit button — floating in bottom-right */}
-      <AnimatePresence>
-        {focusMode && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.8, y: 10 }}
-            transition={{ duration: 0.2 }}
-            className="fixed bottom-4 right-4 z-50"
-          >
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={toggleFocusMode}
-              className="gap-1.5 rounded-full bg-background/80 px-3 shadow-lg backdrop-blur-md"
-            >
-              <Minimize2 className="size-3.5" />
-              <span className="text-xs">Exit Focus</span>
-              {focusKeys.length > 0 && (
-                <KbdGroup keys={focusKeys} className="ml-1" />
-              )}
-            </Button>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <AppAuthOverlay isAuthenticated={isAuthenticated} isLoading={isLoading} />
-
-      <Suspense fallback={null}>
-        <FocusModeRouteSync
-          focusMode={focusMode}
-          toggleFocusMode={toggleFocusMode}
+        <AppAuthOverlay
+          isAuthenticated={isAuthenticated}
+          isLoading={isLoading}
         />
-      </Suspense>
-    </div>
+
+        <Suspense fallback={null}>
+          <FocusModeRouteSync
+            focusMode={focusMode}
+            toggleFocusMode={toggleFocusMode}
+          />
+        </Suspense>
+      </div>
+    </QueryProvider>
   );
 }
 

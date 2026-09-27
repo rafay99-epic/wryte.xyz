@@ -15,29 +15,43 @@ export const SITE_AUTHOR_URL = "https://rafay99.com";
 export const SITE_TWITTER = "@rafay99-epic";
 export const SITE_GITHUB = "https://github.com/rafay99-epic/wryte.xyz";
 
-/** Public, indexable routes (relative paths). Used by sitemap + llms.txt. */
+/** Public, indexable routes (relative paths). Used by the sitemap. */
 export const PUBLIC_ROUTES = [
   { path: "/", changeFrequency: "weekly", priority: 1.0 },
+  { path: "/how-it-works", changeFrequency: "monthly", priority: 0.8 },
+  { path: "/docs", changeFrequency: "monthly", priority: 0.7 },
+  { path: "/changelog", changeFrequency: "weekly", priority: 0.6 },
+  { path: "/feature-requests", changeFrequency: "weekly", priority: 0.5 },
+  { path: "/contact", changeFrequency: "yearly", priority: 0.4 },
   { path: "/privacy", changeFrequency: "yearly", priority: 0.3 },
   { path: "/terms", changeFrequency: "yearly", priority: 0.3 },
 ] as const;
 
-/** App-only routes that must never be indexed. Used by robots.txt. */
-export const PRIVATE_ROUTE_PATTERNS = [
+/**
+ * Authenticated app route prefixes. `proxy.ts` requires a session for each
+ * (the prefix itself and everything below it); robots.txt disallows them.
+ */
+export const APP_ROUTE_PREFIXES = [
   "/dashboard",
-  "/dashboard/*",
+  "/articles",
+  "/calendar",
   "/editor",
-  "/editor/*",
   "/projects",
-  "/projects/*",
   "/settings",
-  "/settings/*",
-  "/sign-in",
-  "/sign-in/*",
-  "/sign-up",
-  "/sign-up/*",
-  "/api/*",
+  "/admin",
 ] as const;
+
+/** Clerk sign-in/up routes. Public, but signed-in users are redirected away. */
+export const AUTH_ROUTE_PREFIXES = ["/sign-in", "/sign-up"] as const;
+
+/** Routes that must never be indexed. Used by robots.txt. */
+export const PRIVATE_ROUTE_PATTERNS = [
+  ...[...APP_ROUTE_PREFIXES, ...AUTH_ROUTE_PREFIXES].flatMap((prefix) => [
+    prefix,
+    `${prefix}/*`,
+  ]),
+  "/api/*",
+];
 
 /**
  * LLM / AI-training crawlers we explicitly allow. Listing them by name (vs

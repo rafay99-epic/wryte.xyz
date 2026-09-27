@@ -11,13 +11,14 @@ import {
 } from "@/components/markdown/embed-overrides";
 
 /**
- * Server-rendered markdown component for changelog entries and draft share
+ * Markdown renderer for changelog entries, MCP docs, and draft share
  * previews.
  *
- * Mirrors the editor's `MarkdownPreview` styling but is a pure server
- * component — it ships zero JavaScript to the client, which keeps the
- * marketing changelog page light. Pair it with the typography classes
- * from `prose` on the parent element for consistent rendering.
+ * Mirrors the editor's `MarkdownPreview` styling. It has no client-only
+ * hooks, so it renders on the server when imported from a server component
+ * (docs pages); client components (changelog list, share preview) bundle it
+ * like any other client code. Pair it with the typography classes from
+ * `prose` on the parent element for consistent rendering.
  *
  * Sanitisation is intentionally strict: only `code` language classes, `hljs`
  * span classes, and the post-embed allowances (whitelisted embed iframes +

@@ -1,3 +1,4 @@
+import { absoluteUrl } from "@wryte/logic/lib/seo";
 import { Scale } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -8,6 +9,7 @@ import { AnimatedSection as Section } from "@/features/marketing/components/anim
 export const metadata: Metadata = {
   title: "Terms & Conditions",
   description: "The terms governing your use of Wryte.",
+  alternates: { canonical: absoluteUrl("/terms") },
 };
 
 export default function TermsPage() {

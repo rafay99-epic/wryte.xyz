@@ -48,7 +48,7 @@ export function OpenAIMark({ className }: MarkProps) {
 }
 
 /** OpenRouter doesn't publish a brand mark we can ship — we use an Orbit icon tile. */
-export function OpenRouterMark({ className }: MarkProps) {
+function OpenRouterMark({ className }: MarkProps) {
   return (
     <div
       className={cn(
@@ -67,7 +67,7 @@ export function OpenRouterMark({ className }: MarkProps) {
  * blue→purple→pink gradient. Self-contained gradient so it renders correctly
  * in both light and dark themes.
  */
-export function GeminiMark({ className }: MarkProps) {
+function GeminiMark({ className }: MarkProps) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -99,7 +99,7 @@ export function GeminiMark({ className }: MarkProps) {
 }
 
 /** Groq doesn't publish a shippable brand mark — a lightning tile nods to its fast LPU inference. */
-export function GroqMark({ className }: MarkProps) {
+function GroqMark({ className }: MarkProps) {
   return (
     <div
       className={cn(

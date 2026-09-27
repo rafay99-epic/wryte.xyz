@@ -13,6 +13,7 @@
 import { Octokit } from "@octokit/rest";
 import { getGithubToken } from "@wryte/logic/lib/github-helpers";
 import { type NextRequest, NextResponse } from "next/server";
+import { githubStatus } from "@/app/api/github/_lib/github-status";
 
 export async function GET(req: NextRequest) {
   const repo = req.nextUrl.searchParams.get("repo");
@@ -50,20 +51,18 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ branches, defaultBranch });
   } catch (err: unknown) {
-    if (err instanceof Error && "status" in err) {
-      const status = (err as { status?: number }).status;
-      if (status === 404) {
-        return NextResponse.json(
-          { error: "Repository not found or you don't have access to it" },
-          { status: 404 },
-        );
-      }
-      if (status === 401) {
-        return NextResponse.json(
-          { error: "GitHub account not connected", connected: false },
-          { status: 401 },
-        );
-      }
+    const status = githubStatus(err);
+    if (status === 404) {
+      return NextResponse.json(
+        { error: "Repository not found or you don't have access to it" },
+        { status: 404 },
+      );
+    }
+    if (status === 401) {
+      return NextResponse.json(
+        { error: "GitHub account not connected", connected: false },
+        { status: 401 },
+      );
     }
     return NextResponse.json(
       { error: "Failed to fetch branches" },

@@ -16,7 +16,6 @@ import {
 import { Toaster } from "@wryte/ui/sonner";
 import { DesktopChrome } from "@/components/layout/desktop-chrome";
 import { Providers } from "@/components/providers/convex-provider";
-import { QueryProvider } from "@/components/providers/query-provider";
 import { ServiceWorkerRegistration } from "@/components/providers/service-worker-registration";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 
@@ -164,11 +163,15 @@ export const viewport: Viewport = {
  * Applies the two Google Fonts as CSS custom properties on `<html>` so any
  * descendant can reference `var(--font-poppins)` or `var(--font-jetbrains-mono)`.
  *
- * Provider nesting order matters:
- *  1. `Providers` — sets up the Convex client and Clerk auth context.
- *  2. `ThemeProvider` — reads the persisted theme preference and applies it.
- *  3. `Toaster` — renders toast notifications app-wide (sits outside ThemeProvider
- *     so it is always mounted regardless of theme changes).
+ * Provider tree:
+ *  - `DesktopChrome` — Electron-only window chrome; renders outside the
+ *    providers because it needs neither auth nor data.
+ *  - `Providers` — Clerk auth context wrapping the Convex client; everything
+ *    below can use auth and Convex hooks.
+ *  - `ThemeProvider` — syncs the persisted theme mode onto `<html>`.
+ *  - `Toaster` and `ServiceWorkerRegistration` — siblings of the page tree so
+ *    they stay mounted across navigations.
+ * The React Query client lives in the `(app)` layout, its only consumer.
  */
 export default function RootLayout({
   children,
@@ -205,7 +208,8 @@ export default function RootLayout({
           href={`${SITE_URL}/rss.xml`}
         />
 
-        {/* JSON-LD structured data — Organization + WebSite + SoftwareApplication + FAQPage */}
+        {/* JSON-LD structured data — Organization + WebSite + SoftwareApplication.
+            The FAQPage entry lives on the landing page, the only page it describes. */}
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
@@ -246,44 +250,6 @@ export default function RootLayout({
                   },
                   description: SITE_DESCRIPTION,
                 },
-                {
-                  "@type": "FAQPage",
-                  "@id": `${SITE_URL}/#faq`,
-                  mainEntity: [
-                    {
-                      "@type": "Question",
-                      name: "What is Wryte?",
-                      acceptedAnswer: {
-                        "@type": "Answer",
-                        text: "Wryte is an editor-first content workflow tool for developers. Capture rough ideas in a markdown/MDX editor, refine drafts with AI, and publish straight to GitHub on a schedule.",
-                      },
-                    },
-                    {
-                      "@type": "Question",
-                      name: "Does Wryte support AI writing assistance?",
-                      acceptedAnswer: {
-                        "@type": "Answer",
-                        text: "Yes. Wryte supports Anthropic, OpenAI, and OpenRouter via user-supplied API keys (BYOK). Keys are encrypted in WorkOS Vault and read per-request.",
-                      },
-                    },
-                    {
-                      "@type": "Question",
-                      name: "Where is content published?",
-                      acceptedAnswer: {
-                        "@type": "Answer",
-                        text: "Content is published as clean commits to a GitHub repository and branch you configure per project. Scheduled publishes run on durable workflows with retries.",
-                      },
-                    },
-                    {
-                      "@type": "Question",
-                      name: "How much does Wryte cost?",
-                      acceptedAnswer: {
-                        "@type": "Answer",
-                        text: "Wryte is free. You bring your own AI and media provider keys, so you pay providers directly — Wryte never proxies usage.",
-                      },
-                    },
-                  ],
-                },
               ],
             }),
           }}
@@ -295,11 +261,9 @@ export default function RootLayout({
       >
         <DesktopChrome />
         <Providers>
-          <QueryProvider>
-            <ThemeProvider>{children}</ThemeProvider>
-            <Toaster />
-            <ServiceWorkerRegistration />
-          </QueryProvider>
+          <ThemeProvider>{children}</ThemeProvider>
+          <Toaster />
+          <ServiceWorkerRegistration />
         </Providers>
         <Analytics />
       </body>

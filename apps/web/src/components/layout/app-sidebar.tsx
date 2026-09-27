@@ -78,27 +78,10 @@ export function AppSidebar() {
     router.push("/dashboard");
   }
 
-  // Compute status counts for sidebar filter chips
-  const { sidebarFavorites, sidebarOthers } = useMemo(() => {
-    if (!projects) {
-      return {
-        sidebarFavorites: [] as {
-          _id: string;
-          name: string;
-          isFavorite?: boolean;
-        }[],
-        sidebarOthers: [] as {
-          _id: string;
-          name: string;
-          isFavorite?: boolean;
-        }[],
-      };
-    }
-    const sidebarFavorites = projects.filter((p) => p.isFavorite);
-    const sidebarOthers = projects.filter((p) => !p.isFavorite);
-    return { sidebarFavorites, sidebarOthers };
-  }, [projects]);
+  const sidebarFavorites = projects?.filter((p) => p.isFavorite) ?? [];
+  const sidebarOthers = projects?.filter((p) => !p.isFavorite) ?? [];
 
+  // Compute status counts for sidebar filter chips
   const statusCounts = useMemo(() => {
     if (!documents) return null;
     const counts: Record<string, number> = {};
@@ -106,12 +89,7 @@ export function AppSidebar() {
       counts[col.id] = 0;
     }
     for (const doc of documents) {
-      const status = doc.status ?? "draft";
-      if (counts[status] !== undefined) {
-        counts[status]++;
-      } else {
-        counts[status] = 1;
-      }
+      counts[doc.status] = (counts[doc.status] ?? 0) + 1;
     }
     return counts;
   }, [documents]);

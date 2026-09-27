@@ -240,20 +240,11 @@
   opacity: 1;
 }
 
-/* ── Gradient text helper ──────────────────────────────────────────── */
-.gradient-text {
-  background: linear-gradient(135deg, oklch(0.82 0.16 80), oklch(0.75 0.15 50));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
 /* ── Media library shimmer ─────────────────────────────────────────── */
 /*
  * A muted gradient that slides across an element while images are loading.
  * Used as a placeholder under media-library thumbnails so the grid never
- * shows a hard pop-in. Distinct from `.ai-shimmer` below, which is a
- * gradient on text for streaming responses.
+ * shows a hard pop-in.
  */
 @keyframes media-shimmer {
   0% {
@@ -279,57 +270,6 @@
     transparent 100%
   );
   animation: media-shimmer 1.4s ease-in-out infinite;
-}
-
-/* ── AI shimmer animation ──────────────────────────────────────────── */
-@keyframes shimmer {
-  0% {
-    background-position: -200% 0;
-  }
-  100% {
-    background-position: 200% 0;
-  }
-}
-.ai-shimmer {
-  background: linear-gradient(
-    90deg,
-    oklch(0.82 0.16 80) 0%,
-    oklch(0.75 0.18 50) 25%,
-    oklch(0.82 0.16 80) 50%,
-    oklch(0.75 0.18 50) 75%,
-    oklch(0.82 0.16 80) 100%
-  );
-  background-size: 200% 100%;
-  animation: shimmer 3s linear infinite;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-/* ── View mode indicator slide ─────────────────────────────────────── */
-@keyframes slideIndicator {
-  from {
-    opacity: 0;
-    transform: scale(0.95);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-/* ── Subtle pulse for unsaved indicator ────────────────────────────── */
-@keyframes subtlePulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
-  }
-}
-.pulse-subtle {
-  animation: subtlePulse 2s ease-in-out infinite;
 }
 
 /* ── Syntax highlighting (highlight.js) ────────────────────────────── */

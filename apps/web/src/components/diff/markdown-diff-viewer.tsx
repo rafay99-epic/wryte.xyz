@@ -65,11 +65,9 @@ const DIFF_VIEWER_VARS = {
 } as const;
 
 /**
- * Theme-aware style overrides shared by every ReactDiffViewer instance in the
- * app. Exported so callers that need to render the viewer directly can reuse
- * the exact same palette.
+ * Theme-aware style overrides for the ReactDiffViewer rendered below.
  */
-export const DIFF_VIEWER_STYLES: ReactDiffViewerStylesOverride = {
+const DIFF_VIEWER_STYLES: ReactDiffViewerStylesOverride = {
   variables: {
     dark: DIFF_VIEWER_VARS,
     light: DIFF_VIEWER_VARS,

@@ -9,8 +9,7 @@ import { notFound } from "next/navigation";
  */
 export async function requireAdminOr404(): Promise<void> {
   const user = await currentUser();
-  const role = (user?.publicMetadata as { role?: unknown } | null)?.role;
-  if (role !== "admin") {
+  if (user?.publicMetadata.role !== "admin") {
     notFound();
   }
 }

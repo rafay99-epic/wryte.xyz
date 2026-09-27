@@ -1,5 +1,6 @@
 import { api } from "@wryte/backend/_generated/api";
 import { ConvexHttpClient } from "convex/browser";
+import type { FunctionReturnType } from "convex/server";
 import { ImageResponse } from "next/og";
 import { accentHex } from "@/features/profile/accents";
 
@@ -25,7 +26,7 @@ export default async function OgImage({
     : "";
 
   const convexUrl = process.env["NEXT_PUBLIC_CONVEX_URL"];
-  let profile: Awaited<ReturnType<ConvexHttpClient["query"]>> | null = null;
+  let profile: FunctionReturnType<typeof api.profiles.getPublicProfile> = null;
   if (username && convexUrl) {
     try {
       profile = await new ConvexHttpClient(convexUrl).query(
@@ -37,20 +38,12 @@ export default async function OgImage({
     }
   }
 
-  const p = profile as {
-    name?: string;
-    username?: string;
-    bio?: string;
-    accent?: string;
-    stats?: { totalPublished: number; currentStreak: number };
-  } | null;
-
-  const accent = accentHex(p?.accent);
-  const name = p?.name ?? "Wryte";
-  const uname = p?.username ?? username;
-  const bio = p?.bio;
-  const published = p?.stats?.totalPublished;
-  const streak = p?.stats?.currentStreak;
+  const accent = accentHex(profile?.accent);
+  const name = profile?.name ?? "Wryte";
+  const uname = profile?.username ?? username;
+  const bio = profile?.bio;
+  const published = profile?.stats?.totalPublished;
+  const streak = profile?.stats?.currentStreak;
 
   return new ImageResponse(
     <div
