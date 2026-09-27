@@ -55,7 +55,6 @@ export function AccountTab({
         description="Your profile and connected services"
       />
 
-      {/* Profile card */}
       <motion.div variants={staggerItem} transition={smoothTransition}>
         <div className="flex items-center gap-4 rounded-xl border border-border/40 bg-card p-5">
           <Avatar className="size-14 ring-2 ring-border/30 ring-offset-2 ring-offset-background">
@@ -80,14 +79,12 @@ export function AccountTab({
 
       <Divider />
 
-      {/* GitHub connection */}
       <motion.div variants={staggerItem} transition={smoothTransition}>
         <GitHubConnection githubUsername={githubUsername} />
       </motion.div>
 
       <Divider />
 
-      {/* GitHub token fallback */}
       <motion.div variants={staggerItem} transition={smoothTransition}>
         <GitHubTokenInput />
       </motion.div>

@@ -2,6 +2,7 @@
 
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
+import type { ChecklistSeverity } from "@wryte/logic/lib/editor/publish-checklist";
 import { cn } from "@wryte/logic/lib/utils";
 import { Button } from "@wryte/ui/button";
 import { Label } from "@wryte/ui/label";
@@ -16,7 +17,6 @@ import {
 import { useState } from "react";
 import { toast } from "sonner";
 import { usePublishChecklist } from "../hooks/use-publish-checklist";
-import type { ChecklistSeverity } from "../lib/publish-checklist";
 
 type PublishChecklistProps = {
   open: boolean;
@@ -41,13 +41,6 @@ const SEVERITY_STYLES: Record<
   info: { icon: Info, className: "text-muted-foreground" },
 };
 
-/**
- * Pre-publish quality gate rendered inside the publish dialog. Runs a set of
- * pure, offline checks (frontmatter, alt text, internal links, work markers,
- * structure, length) and — on explicit request — the rate-limited external
- * link probe. Nothing here blocks publishing; it only surfaces easy-to-miss
- * problems while there's still time to fix them.
- */
 export function PublishChecklist({
   open,
   projectId,

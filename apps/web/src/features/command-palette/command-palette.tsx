@@ -7,6 +7,12 @@ import {
 } from "@wryte/backend/cms/_lib/documentContent";
 import { useDebouncedValue } from "@wryte/logic/hooks/use-debounced-value";
 import { useIsMacPlatform } from "@wryte/logic/hooks/use-is-mac-platform";
+import {
+  getRecentDocOpens,
+  openBoost,
+  recordDocOpen,
+} from "@wryte/logic/lib/frecency";
+import { scoreItem } from "@wryte/logic/lib/fuzzy";
 import { splitShortcutKeys } from "@wryte/logic/lib/shortcuts";
 import { cn } from "@wryte/logic/lib/utils";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
@@ -40,39 +46,25 @@ import {
   useRef,
   useState,
 } from "react";
-import { getRecentDocOpens, openBoost, recordDocOpen } from "./lib/frecency";
-import { scoreItem } from "./lib/fuzzy";
 import {
   accountSettingsEntries,
   projectSettingsEntries,
 } from "./lib/settings-index";
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
 type CommandItem = {
   id: string;
   label: string;
   description?: string | undefined;
-  /**
-   * Extra invisible haystack the fuzzy matcher searches alongside the label
-   * (slugs, tags, synonyms like "kanban" for the board). Never displayed.
-   */
   keywords?: string | undefined;
   icon: React.ElementType;
-  /** When true, pass fill="currentColor" (e.g. favorite star). */
   iconFilled?: boolean | undefined;
   shortcutId?: string | undefined;
   category: "action" | "project" | "article" | "navigation" | "setting";
-  /** 0..1 freshness for articles — small ranking boost, newest wins ties. */
   recency?: number | undefined;
-  /** Position in the recently-opened list (0 = last opened), if present. */
   openRank?: number | undefined;
   onSelect: () => void;
 };
 
-/** A command item plus the matched label indices for highlighting. */
 type RenderItem = CommandItem & { labelPositions?: number[] | undefined };
 
 type Section = { label: string; items: RenderItem[] };
@@ -84,11 +76,6 @@ type CommandPaletteProps = {
 
 type Category = CommandItem["category"];
 
-/**
- * Display order of category sections when the query is empty. Settings panes
- * are searchable but not listed at rest — 21 rows of them would bury the
- * projects and recent articles the idle view exists to surface.
- */
 const CATEGORY_ORDER: readonly Category[] = [
   "action",
   "navigation",
@@ -104,15 +91,9 @@ const CATEGORY_LABELS: Record<Category, string> = {
   setting: "Settings",
 };
 
-/** Articles shown in the idle (empty-query) state. */
 const IDLE_ARTICLE_COUNT = 10;
 
-/** Result rows kept after ranking — beyond this nobody scrolls. */
 const MAX_RESULTS = 50;
-
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
 
 export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const router = useRouter();
@@ -125,29 +106,11 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const pendingSelectionRef = useRef<(() => void) | null>(null);
 
-  // Input-modality refs: keep mouse hover from fighting keyboard nav.
-  // - isKeyboardNav stays true until the pointer is *actually* moved.
-  // - lastPointerPos filters synthetic pointermove events that fire when the
-  //   list scrolls under a stationary cursor — without this guard, those
-  //   events would reset the keyboard flag and let a stray mouseenter steal
-  //   the selection out from under the user.
   const isKeyboardNav = useRef(true);
   const lastPointerPos = useRef<{ x: number; y: number } | null>(null);
 
   const getKeys = useShortcutsStore((s) => s.getKeys);
   const activeProjectId = useEditorStore((s) => s.activeProjectId);
-
-  // ---------------------------------------------------------------------------
-  // Data sources — lazy: nothing is subscribed until the palette first opens,
-  // then the subscriptions stay warm for instant reopens. The document
-  // catalog is one metadata-only query; every keystroke after that is
-  // matched client-side and costs zero Convex calls.
-  //
-  // Body search is the one exception: article bodies live in a separate table
-  // so hot queries never read them, so they can only be searched server-side.
-  // That query is therefore debounced, length-gated, and capped — see
-  // `cms/documents.searchContent`.
-  // ---------------------------------------------------------------------------
 
   const [activated, setActivated] = useState(false);
   useEffect(() => {
@@ -160,8 +123,6 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     activated ? {} : "skip",
   );
 
-  // Debounced mirror of `query` — each distinct value is a distinct Convex
-  // subscription, so this is what keeps a fast typist from opening a dozen.
   const debouncedQuery = useDebouncedValue(
     query.trim(),
     CONTENT_SEARCH_DEBOUNCE_MS,
@@ -169,12 +130,10 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const contentTerm =
     debouncedQuery.length >= MIN_CONTENT_TERM ? debouncedQuery : "";
 
-  // Unscoped on purpose: the palette searches every project the user owns.
   const contentHits = useQuery(
     api.cms.documents.searchContent,
     activated && contentTerm ? { term: contentTerm } : "skip",
   );
-  /** True while a body search is in flight for the current query. */
   const contentPending = Boolean(contentTerm) && contentHits === undefined;
 
   const projectNames = useMemo(() => {
@@ -183,8 +142,6 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     return map;
   }, [projects]);
 
-  // Palette-open history (localStorage) — re-read each time the palette
-  // opens so this session's jumps affect this session's ranking.
   // biome-ignore lint/correctness/useExhaustiveDependencies: `open` is the refresh trigger
   const openRanks = useMemo(() => {
     const map = new Map<string, number>();
@@ -194,14 +151,9 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     return map;
   }, [open]);
 
-  // ---------------------------------------------------------------------------
-  // Build command items
-  // ---------------------------------------------------------------------------
-
   const commandItems = useMemo(() => {
     const items: CommandItem[] = [];
 
-    // Quick actions
     items.push({
       id: "action-new-article",
       label: "New Article",
@@ -300,9 +252,6 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       },
     });
 
-    // Settings panes — every account pane, plus the active project's panes.
-    // Derived from the arrays the settings shells themselves render from, so
-    // "api key", "watermark", or "delete account" all land on a real pane.
     const settingsEntries = [
       ...accountSettingsEntries(),
       ...(activeProjectId
@@ -326,7 +275,6 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       });
     }
 
-    // Projects
     if (projects) {
       for (const project of projects) {
         items.push({
@@ -345,8 +293,6 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       }
     }
 
-    // Articles — the full catalog, every project. The idle view slices the
-    // most recent few; searching ranks across all of them.
     if (documents) {
       const newest = documents[0]?.updatedAt ?? 0;
       const oldest = documents[documents.length - 1]?.updatedAt ?? 0;
@@ -373,17 +319,11 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     return items;
   }, [projects, documents, projectNames, openRanks, activeProjectId, router]);
 
-  // ---------------------------------------------------------------------------
-  // Filtering & ranking
-  // ---------------------------------------------------------------------------
-
   const { sections, flatItems } = useMemo(() => {
     const trimmed = query.trim();
     let sections: Section[];
 
     if (!trimmed) {
-      // Idle: grouped by category. Articles show palette-opened docs first
-      // (the ones you keep jumping to), then the rest by recency of edit.
       sections = CATEGORY_ORDER.flatMap((cat) => {
         let catItems = commandItems.filter((i) => i.category === cat);
         if (cat === "article") {
@@ -400,8 +340,6 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
           : [];
       });
     } else {
-      // Searching: one flat list ranked across every category — Raycast
-      // style. Articles get a small freshness boost to break score ties.
       const scored: { item: RenderItem; score: number }[] = [];
       for (const item of commandItems) {
         const haystack = [item.keywords, item.description]
@@ -420,10 +358,6 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
 
       sections = results.length ? [{ label: "Results", items: results }] : [];
 
-      // Body matches, as their own section below the client-ranked list. The
-      // two orderings are deliberately NOT merged: BM25 relevance and the
-      // fuzzy score aren't comparable numbers, and blending them would make
-      // the top row jump around as the debounced query lands.
       const alreadyRanked = new Set(results.map((item) => item.id));
       const contentItems: RenderItem[] = (contentHits ?? [])
         .filter((hit) => !alreadyRanked.has(`article-${hit.documentId}`))
@@ -447,11 +381,6 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     return { sections, flatItems: sections.flatMap((s) => s.items) };
   }, [commandItems, query, contentHits, router]);
 
-  /**
-   * Keep the current screen visible while the palette exits, then execute the
-   * command. This prevents route changes from showing through the translucent
-   * backdrop as a white flash and keeps hash-only settings jumps consistent.
-   */
   const selectItem = useCallback(
     (item: CommandItem) => {
       if (pendingSelectionRef.current) return;
@@ -461,13 +390,6 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     [onOpenChange],
   );
 
-  // ---------------------------------------------------------------------------
-  // Keyboard navigation
-  // ---------------------------------------------------------------------------
-
-  // Mirror reactive state into refs so the native keydown listener (attached
-  // once when the palette opens) always sees the latest values without
-  // needing to be detached and re-attached on every render.
   const flatItemsRef = useRef(flatItems);
   const selectedIndexRef = useRef(selectedIndex);
   useEffect(() => {
@@ -477,9 +399,6 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     selectedIndexRef.current = selectedIndex;
   }, [selectedIndex]);
 
-  // Native capture-phase listener on the wrapper so we can stopImmediatePropagation
-  // and prevent TanStack hotkeys (registered on document) from also firing
-  // on ArrowUp/Down/Enter/Escape while the palette is open.
   useEffect(() => {
     if (!open) return;
     const wrapper = wrapperRef.current;
@@ -540,7 +459,6 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     };
   }, [open, onOpenChange, selectItem]);
 
-  // Reset state every time the palette opens.
   useEffect(() => {
     if (open) {
       setQuery("");
@@ -553,15 +471,11 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     }
   }, [open]);
 
-  // Reset selection to the top whenever the search query changes.
   // biome-ignore lint/correctness/useExhaustiveDependencies: query is the trigger here, not a value read inside the effect
   useEffect(() => {
     setSelectedIndex(0);
   }, [query]);
 
-  // Clamp selection if filtering shrinks the list below the current index.
-  // Uses a functional updater so a list that *grows* (data loads in) doesn't
-  // disturb where the user has navigated.
   useEffect(() => {
     setSelectedIndex((prev) => {
       if (flatItems.length === 0) return 0;
@@ -569,8 +483,6 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     });
   }, [flatItems.length]);
 
-  // Keep the selected item in view as the user navigates. Instant (not smooth)
-  // so rapid key presses feel responsive — smooth would lag behind input.
   useEffect(() => {
     const list = listRef.current;
     if (!list) return;
@@ -584,10 +496,6 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     });
   }, [selectedIndex]);
 
-  // ---------------------------------------------------------------------------
-  // Render
-  // ---------------------------------------------------------------------------
-
   let runningIndex = 0;
 
   return (
@@ -600,7 +508,6 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     >
       {open && (
         <>
-          {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -610,7 +517,6 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
             onClick={() => onOpenChange(false)}
           />
 
-          {/* Panel */}
           <motion.div
             initial={{ opacity: 0, scale: 0.97, y: -8 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -623,7 +529,6 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
               data-testid="command-palette"
               className="overflow-hidden rounded-xl border border-border/50 bg-background shadow-2xl"
             >
-              {/* Search input */}
               <div className="flex items-center gap-3 border-b border-border/40 px-4 py-3">
                 <Search className="size-4 shrink-0 text-muted-foreground/70" />
                 <input
@@ -639,15 +544,10 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                 <Kbd>Esc</Kbd>
               </div>
 
-              {/* Results list */}
               <div
                 ref={listRef}
                 className="max-h-[min(420px,60vh)] overflow-y-auto overscroll-contain scroll-py-2 p-1.5"
                 onPointerMove={(e) => {
-                  // Only count *real* pointer movement. When the list scrolls
-                  // under a stationary cursor, the browser may fire pointermove
-                  // at identical client coords — ignore those so they don't
-                  // flip us out of keyboard-nav mode.
                   const last = lastPointerPos.current;
                   if (last && last.x === e.clientX && last.y === e.clientY) {
                     return;
@@ -737,10 +637,6 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                   ))
                 )}
 
-                {/* Body search lands after the client-side rows. Announce it
-                    rather than letting results appear to pop in at random —
-                    deliberately outside `flatItems`, so arrow keys and Enter
-                    can never land on a row that isn't there yet. */}
                 {contentPending && (
                   <div className="flex items-center gap-3 px-3 py-2 text-sm text-muted-foreground/60">
                     <FileSearch className="size-4 shrink-0 animate-pulse" />
@@ -749,7 +645,6 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                 )}
               </div>
 
-              {/* Footer hint */}
               <div className="flex items-center justify-between border-t border-border/40 bg-muted/20 px-4 py-2 text-[11px] text-muted-foreground/70">
                 <span className="flex items-center gap-1.5">
                   <Kbd>↑</Kbd>
@@ -771,11 +666,6 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   );
 }
 
-// ---------------------------------------------------------------------------
-// Match highlighting
-// ---------------------------------------------------------------------------
-
-/** Renders `text` with the fuzzy-matched characters emphasized. */
 function HighlightedText({
   text,
   positions,

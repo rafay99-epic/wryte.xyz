@@ -1,23 +1,3 @@
-/**
- * Feature requests — community-submitted ideas with public upvoting.
- *
- * Lives under `support/` (alongside `tickets.ts`) because both are
- * user-submitted feedback that admins triage; tickets are reactive
- * ("something broke"), feature requests are proactive ("please build
- * X"), but the moderation surface is similar.
- *
- * Reads are public — anyone can browse the board, even signed-out
- * visitors on the marketing site. `currentUserUpvoted` is derived
- * server-side per row so the client doesn't have to fetch the join
- * table separately.
- *
- * Writes require a Clerk-authenticated user:
- *   - `create` — submit a new request (rate-limited per acting user)
- *   - `toggleUpvote` — flips this user's vote on/off
- *
- * Admin writes (status updates, deletes) re-verify the admin role
- * server-side and are rate-limited independently.
- */
 import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
@@ -45,17 +25,6 @@ type PublicFeatureRequest = Doc<"feature_requests"> & {
   currentUserUpvoted: boolean;
 };
 
-/* ------------------------------------------------------------------ */
-/*  Public reads                                                       */
-/* ------------------------------------------------------------------ */
-
-/**
- * Paginated feature requests sorted by upvote count (descending).
- *
- * Returns `currentUserUpvoted` per row so the client can render the
- * upvote button in its correct on/off state without a second query.
- * Anonymous callers get `false` for every row.
- */
 export const list = query({
   args: {
     status: v.optional(STATUS_VALIDATOR),
@@ -88,10 +57,6 @@ export const list = query({
       };
     }
 
-    // Look up upvotes for exactly the rows on this page. The previous
-    // approach (.take(500) over all upvotes for this user) silently dropped
-    // upvotes beyond the cap, leaving heavy voters with false "not upvoted"
-    // markers on items they had actually upvoted.
     const upvotedFlags = await Promise.all(
       result.page.map((r) =>
         ctx.db
@@ -114,15 +79,6 @@ export const list = query({
   },
 });
 
-/* ------------------------------------------------------------------ */
-/*  Authenticated writes                                               */
-/* ------------------------------------------------------------------ */
-
-/**
- * Submits a new feature request. The author's identity is captured
- * server-side; the `authorName` comes from the Clerk JWT so the
- * client can't spoof someone else's name.
- */
 export const create = mutation({
   args: {
     title: v.string(),
@@ -164,14 +120,6 @@ export const create = mutation({
   },
 });
 
-/**
- * Flips the caller's upvote on a request. Updates the denormalized
- * `upvoteCount` on the parent row in the same transaction so the
- * counter never drifts from the join table.
- *
- * Returns the new `(upvoted, upvoteCount)` so the client can update
- * optimistically without re-fetching the list.
- */
 export const toggleUpvote = mutation({
   args: { featureRequestId: v.id("feature_requests") },
   handler: async (
@@ -225,10 +173,6 @@ export const toggleUpvote = mutation({
     return { upvoted: true, upvoteCount: next };
   },
 });
-
-/* ------------------------------------------------------------------ */
-/*  Admin                                                              */
-/* ------------------------------------------------------------------ */
 
 export const listAllForAdmin = action({
   args: {},
@@ -298,16 +242,11 @@ export const remove = action({
   },
 });
 
-/** Upvote rows deleted per `_delete` transaction. */
 const UPVOTE_DELETE_BATCH = 500;
 
 export const _delete = internalMutation({
   args: { id: v.id("feature_requests") },
   handler: async (ctx, args) => {
-    // Cascade — purge the join rows so the per-user upvote index stays
-    // accurate even after the parent row is gone. Bounded per transaction;
-    // a full batch reschedules itself, and the parent is deleted only once
-    // every upvote is gone.
     const upvotes = await ctx.db
       .query("feature_request_upvotes")
       .withIndex("by_featureRequestId", (q) =>

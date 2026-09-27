@@ -1,58 +1,35 @@
-/**
- * Provider registry for post embeds (oEmbed + constructed iframes).
- *
- * Pure data + helpers — no Convex imports — so it can be imported from both
- * the Convex `oembed` action (backend) and the Next.js frontend (sanitize
- * schema, dialog hints). Keep it that way: adding a provider here is the
- * single change needed to enable it end-to-end.
- */
-
 export type EmbedKind = "iframe" | "blockquote";
 export type EmbedAspect = "video" | "bar" | "fluid";
 
-/**
- * Provider-specific widget loader for blockquote embeds. Each provider's
- * loader exposes a readiness predicate (the global they set isn't always
- * the full API — TikTok sets a data object first, then `.lib` later) and a
- * render trigger that re-hydrates dynamically-inserted markup. The functions
- * touch `window` and are only ever called from the client (`social-embed`);
- * defining them here is safe because Convex never invokes them.
- */
 export type EmbedLoader = {
-  /** Widget loader script src (injected once, client-side). */
   src: string;
-  /** Stable id for the injected <script> tag (dedupes across mounts). */
   scriptId: string;
-  /** Returns true once the loader global is fully ready to render. */
   isReady: () => boolean;
-  /** Render (or re-render) the embed inside the given element. */
   render: (el: HTMLElement) => void;
 };
 
 export type OembedProvider = {
   id: string;
   label: string;
-  /** Matches the public post URL. */
   urlPattern: RegExp;
   embedKind: EmbedKind;
-  /** Layout hint for the iframe renderer. */
   aspect: EmbedAspect;
-  /** oEmbed endpoint builder, or null for construct-only providers. */
   oembed: ((postUrl: URL) => string) | null;
-  /** For construct-only providers: build the embed iframe src. */
   constructIframeSrc: ((postUrl: URL) => string) | null;
-  /** For iframe providers: matches the embed iframe src (without protocol). */
   iframeSrcPattern: RegExp | null;
-  /** Blockquote providers: the class that identifies this provider's embed markup. */
   blockquoteClass: string | null;
-  /** Blockquote providers: the widget loader that hydrates the markup. */
   loader: EmbedLoader | null;
 };
 
-/* ── Loader global typings (kept local; only the predicates read them) ── */
-
 type TwitterGlobal = { widgets: { load: (el?: HTMLElement) => void } };
 type TiktokGlobal = { lib: { render: (nodes: HTMLElement[]) => void } };
+
+declare global {
+  interface Window {
+    twttr?: TwitterGlobal;
+    tiktokEmbed?: TiktokGlobal;
+  }
+}
 
 export const PROVIDERS: readonly OembedProvider[] = [
   {
@@ -97,13 +74,9 @@ export const PROVIDERS: readonly OembedProvider[] = [
     loader: {
       src: "https://platform.twitter.com/widgets.js",
       scriptId: "twitter-widgets-loader",
-      isReady: () => {
-        const w = window as unknown as { twttr?: TwitterGlobal };
-        return Boolean(w.twttr?.widgets);
-      },
+      isReady: () => Boolean(window.twttr?.widgets),
       render: (el) => {
-        const w = window as unknown as { twttr?: TwitterGlobal };
-        const widgets = w.twttr?.widgets;
+        const widgets = window.twttr?.widgets;
         if (widgets) widgets.load(el);
       },
     },
@@ -122,13 +95,9 @@ export const PROVIDERS: readonly OembedProvider[] = [
     loader: {
       src: "https://www.tiktok.com/embed.js",
       scriptId: "tiktok-embed-loader",
-      isReady: () => {
-        const w = window as unknown as { tiktokEmbed?: TiktokGlobal };
-        return Boolean(w.tiktokEmbed?.lib);
-      },
+      isReady: () => Boolean(window.tiktokEmbed?.lib),
       render: (el) => {
-        const w = window as unknown as { tiktokEmbed?: TiktokGlobal };
-        const lib = w.tiktokEmbed?.lib;
+        const lib = window.tiktokEmbed?.lib;
         if (lib) lib.render([el]);
       },
     },
@@ -207,8 +176,6 @@ export const PROVIDERS: readonly OembedProvider[] = [
     urlPattern: /^https?:\/\/[a-z0-9.-]+\/@[^/]+\/[0-9]+/i,
     embedKind: "iframe",
     aspect: "fluid",
-    // Mastodon oEmbed varies per instance; the `/embed` path is the
-    // documented, portable iframe form — build it directly from the URL.
     oembed: null,
     constructIframeSrc: (u) => `${u.origin}${u.pathname}/embed`,
     iframeSrcPattern: /^[a-z0-9.-]+\/@[^/]+\/[0-9]+\/embed(?:[/?#]|$)/i,
@@ -217,7 +184,6 @@ export const PROVIDERS: readonly OembedProvider[] = [
   },
 ];
 
-/** Normalize a raw user URL. Returns null if it can't be parsed. */
 export function parsePostUrl(rawUrl: string): URL | null {
   try {
     return new URL(rawUrl.startsWith("http") ? rawUrl : `https://${rawUrl}`);
@@ -226,7 +192,6 @@ export function parsePostUrl(rawUrl: string): URL | null {
   }
 }
 
-/** Find the provider that handles a given post URL. */
 export function matchProvider(rawUrl: string): OembedProvider | null {
   const postUrl = parsePostUrl(rawUrl);
   if (!postUrl) return null;
@@ -236,7 +201,6 @@ export function matchProvider(rawUrl: string): OembedProvider | null {
   return null;
 }
 
-/** Find the provider whose embed iframe src matches (used by the renderer). */
 export function providerByIframeSrc(src: string): OembedProvider | null {
   const withoutProto = src.replace(/^https?:\/\//i, "");
   for (const p of PROVIDERS) {
@@ -245,11 +209,6 @@ export function providerByIframeSrc(src: string): OembedProvider | null {
   return null;
 }
 
-/**
- * Find the blockquote provider whose embed class appears in the given
- * className string (space-separated hast classes). Used by the renderer to
- * pick the right widget loader for hydration.
- */
 export function providerByBlockquoteClass(
   className: string,
 ): OembedProvider | null {
@@ -263,15 +222,9 @@ export function providerById(id: string): OembedProvider | null {
   return PROVIDERS.find((p) => p.id === id) ?? null;
 }
 
-/** Compact list for UI hints (e.g. "Supported: YouTube, Vimeo, …"). */
 export const SUPPORTED_PROVIDERS: readonly { id: string; label: string }[] =
   PROVIDERS.map((p) => ({ id: p.id, label: p.label }));
 
-/**
- * Combined regex matching every provider's embed iframe src. Used by
- * `rehype-sanitize` to whitelist iframe `src` values — the single source of
- * truth shared by the sanitize schema and the renderer's defense-in-depth.
- */
 const iframeSrcPatterns: string[] = [];
 for (const p of PROVIDERS) {
   if (p.iframeSrcPattern) iframeSrcPatterns.push(p.iframeSrcPattern.source);
@@ -281,7 +234,6 @@ export const ALLOWED_IFRAME_SRC_RE = new RegExp(
   "i",
 );
 
-/** Normalized result returned by the `oembed` action and consumed by the UI. */
 export type EmbedResult = {
   provider: string;
   url: string;
@@ -289,6 +241,5 @@ export type EmbedResult = {
   authorName: string | null;
   authorUrl: string | null;
   thumbnailUrl: string | null;
-  /** Raw HTML to insert into the markdown (iframe or blockquote, scripts stripped). */
   embedHtml: string;
 };

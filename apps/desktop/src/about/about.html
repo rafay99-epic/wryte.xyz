@@ -91,7 +91,6 @@
       if (v) document.getElementById("version").textContent = `Version ${v}`;
       document.getElementById("copyright").textContent =
         `\u00A9 ${y || ""} Syntax Lab Technology \u00B7 Abdul Rafay`;
-      // Route external links through the OS browser (handled in main via setWindowOpenHandler).
       for (const a of document.querySelectorAll("a[data-ext]")) {
         a.setAttribute("target", "_blank");
         a.setAttribute("rel", "noopener");

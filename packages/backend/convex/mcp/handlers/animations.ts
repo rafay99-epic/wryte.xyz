@@ -1,11 +1,3 @@
-/**
- * MCP handlers for animation (code component) operations.
- *
- * Same contract as `./documents.ts`: `internal*` only, actor injected by the
- * gateway via `identityArg`, zero business logic — every handler resolves the
- * caller and delegates to the helper the public function also uses, so the
- * two entry points cannot drift.
- */
 import { v } from "convex/values";
 import { mcpCallerValidator } from "convex-mcp-gateway";
 import { internalMutation, internalQuery } from "../../_generated/server";
@@ -19,8 +11,6 @@ import {
   updateAnimationForUser,
 } from "../../cms/animations";
 
-/* ------------------------------- reads -------------------------------- */
-
 export const list = internalQuery({
   args: { caller: mcpCallerValidator, projectId: v.id("projects") },
   handler: async (ctx, args) => {
@@ -30,8 +20,6 @@ export const list = internalQuery({
       user._id,
       args.projectId,
     );
-    // Metadata only: sources run to ~100 KB each, and an agent that needs one
-    // fetches it with `getSource`.
     return animations.map(({ source: _source, ...meta }) => meta);
   },
 });
@@ -43,8 +31,6 @@ export const getSource = internalQuery({
     return await animationSourceForUser(ctx, user._id, args.animationId);
   },
 });
-
-/* ------------------------------- writes ------------------------------- */
 
 export const create = internalMutation({
   args: {

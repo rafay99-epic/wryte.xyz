@@ -9,12 +9,6 @@ import Link from "next/link";
 import { useEffect } from "react";
 import { usePreAuthRetry } from "@/components/layout/hooks/use-pre-auth-retry";
 
-/**
- * Error boundary for the authenticated (app) route group.
- *
- * Renders within the app shell (sidebar + header remain visible) so
- * the user can navigate away or retry without a full-page reload.
- */
 export default function AppError({
   error,
   reset,

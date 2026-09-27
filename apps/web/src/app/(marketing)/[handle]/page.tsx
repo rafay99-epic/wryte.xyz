@@ -10,26 +10,11 @@ import {
 } from "@/features/profile/public-profile";
 import { ProfileLoading } from "./_components/profile-loading";
 
-/**
- * Public writing profile at `wryte.xyz/@username`.
- *
- * Next reserves a leading `@` on a *folder* name for parallel-route slots,
- * so this is a normal `[handle]` segment guarded to require the `@` prefix —
- * static routes (`/changelog`, `/contact`, …) win precedence, and the `@`
- * namespaces profiles away from them. Server-rendered (via ConvexHttpClient)
- * so the page and its OG metadata are crawlable, not a client shell.
- *
- * `?preview=<token>` renders the profile even while it's private (the token
- * is the credential — same idea as document share links), with a banner and
- * noindex so the private version never leaks into search.
- */
-
 type LoadResult = {
   profile: PublicProfileData;
   preview: { isPublic: boolean } | null;
 } | null;
 
-// Deduped across generateMetadata + the page render for one request.
 const loadProfile = cache(
   async (
     handleParam: string,
@@ -77,14 +62,11 @@ export async function generateMetadata({
     };
   }
   const { profile } = result;
-  // The root layout's title template appends the brand; OG/Twitter titles
-  // aren't templated, so they carry it explicitly.
   const title = `${profile.name} (@${profile.username})`;
   const socialTitle = `${title} · ${SITE_NAME}`;
   const description =
     profile.bio || `${profile.name}'s published writing on ${SITE_NAME}.`;
   const url = absoluteUrl(`/@${profile.username}`);
-  // A preview URL must never be indexed — it exposes a private profile.
   if (result.preview) {
     return { title: `${title} · Preview`, robots: { index: false } };
   }

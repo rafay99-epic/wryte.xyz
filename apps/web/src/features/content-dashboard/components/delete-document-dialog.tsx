@@ -29,11 +29,6 @@ type DeleteDocumentDialogProps = {
   projectId: Id<"projects">;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /**
-   * Fired after a successful delete (any mode). Lets callers running
-   * inside the editor route navigate away before the reactive `get`
-   * query returns null and renders the 404 state.
-   */
   onDeleted?: () => void;
 };
 

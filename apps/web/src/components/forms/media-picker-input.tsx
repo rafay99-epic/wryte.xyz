@@ -10,19 +10,11 @@ type MediaPickerInputProps = {
   id?: string;
   value: string;
   onChange: (value: string) => void;
-  /** Project context — required so the picker can list this project's media. */
   projectId: string;
   placeholder?: string;
   className?: string;
 };
 
-/**
- * Text input paired with a "Browse" button that opens the project's media
- * library so the user can pick an image without leaving the form. Shared
- * between project settings (Default Author Avatar) and the editor's
- * frontmatter `image` fields. No inline preview — the picker already shows
- * one and the inline thumbnail just clutters the form on every render.
- */
 export function MediaPickerInput({
   id,
   value,

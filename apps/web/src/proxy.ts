@@ -13,10 +13,6 @@ function matchesAnyRoutePrefix(
   return prefixes.some((prefix) => matchesRoutePrefix(pathname, prefix));
 }
 
-/**
- * Next.js 16 request boundary. Clerk auth stays here so protected navigation
- * redirects before route rendering, while public routes remain cacheable.
- */
 export default clerkMiddleware(async (auth, req) => {
   const { userId } = await auth();
   const pathname = req.nextUrl.pathname;

@@ -6,14 +6,6 @@ import {
   SITE_URL,
 } from "@wryte/logic/lib/seo";
 
-/**
- * `/llms.txt` — the short, link-style index defined by https://llmstxt.org
- *
- * Designed to be fetched by LLM crawlers and agentic tools that want a
- * concise map of the site. The long-form companion lives at
- * `/llms-full.txt` and contains the actual content.
- */
-
 const BODY = `# ${SITE_NAME}
 
 > ${SITE_DESCRIPTION}

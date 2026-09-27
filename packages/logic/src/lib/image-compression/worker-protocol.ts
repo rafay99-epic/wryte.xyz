@@ -1,11 +1,5 @@
 import type { ResolvedFormat } from "./types";
 
-/**
- * Message shapes for the compression worker. Defined separately from the
- * worker module so that `worker-client.ts` can import the types without
- * pulling the worker's runtime code into the main thread.
- */
-
 export type EncodeRequestMessage = {
   id: number;
   bitmap: ImageBitmap;

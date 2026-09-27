@@ -114,7 +114,8 @@ docs: update env variable table
 
 - Write clean, focused modules. Keep boundaries obvious between data layer, UI, and utilities.
 - Prefer small functions over large ones. Extract shared logic — don't duplicate across files.
-- No unnecessary comments. Code should be self-documenting. Only comment the **why** when it's non-obvious.
+- No comments and no JSDoc in source code. Names and types carry the meaning. The only allowed comments are tool directives: `biome-ignore <rule>: <reason>` and `/// <reference lib="..." />` in Web Workers.
+- Non-UI logic (parsers, formatters, lint rules, stores, shared types, worker clients) lives in `packages/logic`, not in `apps/web` features.
 
 ### Frontend
 

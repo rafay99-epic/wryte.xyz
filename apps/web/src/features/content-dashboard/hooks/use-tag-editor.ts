@@ -5,13 +5,6 @@ import type * as React from "react";
 import { useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
 
-/**
- * Shared tag-editing logic used by both the board card inline editor
- * and the TagEditorPopover. Owns the local tag list, input state,
- * add/remove mutations, and keyboard handling (Enter, comma, Backspace).
- *
- * Escape is NOT handled here — consumers attach their own close logic.
- */
 export function useTagEditor({
   documentId,
   initialTags,

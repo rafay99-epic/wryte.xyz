@@ -1,20 +1,15 @@
-import { useEditorStore } from "@wryte/logic/stores/editor-store";
-import { useCallback, useEffect, useRef } from "react";
-import { toast } from "sonner";
-import { useShallow } from "zustand/react/shallow";
 import {
   clearRecovery,
   readRecovery,
   writeRecovery,
-} from "../lib/recovery-buffer";
+} from "@wryte/logic/lib/editor/recovery-buffer";
+import { useEditorStore } from "@wryte/logic/stores/editor-store";
+import { useCallback, useEffect, useRef } from "react";
+import { toast } from "sonner";
+import { useShallow } from "zustand/react/shallow";
 
 const DEBOUNCE_MS = 3000;
-/** Min interval between recovery-buffer writes while typing. */
 const RECOVERY_WRITE_MS = 2000;
-// Ceiling on how long continuous typing can defer persistence. Without this,
-// a trailing debounce that keeps getting reset by every keystroke never
-// fires — the timer effect below shrinks its delay as this ceiling
-// approaches so a save is forced once it's hit, even mid-flow.
 const MAX_WAIT_MS = 30_000;
 const FAILURE_THRESHOLD = 3;
 
@@ -22,17 +17,7 @@ type AutosaveOptions = {
   targetId: string;
   content: string;
   title: string;
-  /**
-   * Frequent, cheap persistence of the body. Runs on the debounce timer.
-   * Should write ONLY the body (no metadata that invalidates list views).
-   */
   onSave: (content: string, title: string) => Promise<void>;
-  /**
-   * Coarse, heavier save that also refreshes derived metadata (word count,
-   * excerpt, updatedAt, stats). Runs on manual save and when leaving the
-   * editor, so the board/sidebar reflect the session's final state without
-   * being invalidated on every keystroke. Falls back to `onSave` when omitted.
-   */
   onFlush?: (content: string, title: string) => Promise<void>;
   enabled?: boolean;
 };
@@ -43,14 +28,10 @@ type AutosaveReturn = {
   saveNow: () => Promise<void>;
 };
 
-/** What's currently persisted server-side for a given save target. */
 type SavedSnapshot = { targetId: string; content: string; title: string };
 
-/** Outcome of a `performSave` attempt, used to drive the pending-flush flag. */
 type SaveResult = {
-  /** The store was left clean (dirty cleared) as a result of this call. */
   committed: boolean;
-  /** An actual network write happened (as opposed to a dirty-check skip). */
   wrote: boolean;
 };
 
@@ -81,28 +62,11 @@ export function useAutosave({
   const failureCountRef = useRef(0);
   const onSaveRef = useRef(onSave);
   const onFlushRef = useRef(onFlush);
-  // True when the body has been autosaved (via onSave) since the last
-  // metadata flush — so leaving the editor knows it still owes the
-  // board/sidebar a metadata refresh even though nothing is "dirty".
   const flushPendingRef = useRef(false);
-  // Monotonically increasing token per save attempt. After awaiting the
-  // mutation we check that our token is still the latest; otherwise a newer
-  // save kicked off mid-await and we drop the post-await side-effects to
-  // avoid marking the editor as clean against stale content.
   const saveSeqRef = useRef(0);
-  // Last content+title confirmed persisted for a given target. Lets
-  // performSave skip the network call entirely when a tick's content is
-  // byte-identical to what's already saved (e.g. typed then undone).
-  // Seeded from the initial props: a freshly loaded document/draft is, by
-  // definition, already in sync with the server.
   const lastSavedRef = useRef<SavedSnapshot>({ content, title, targetId });
-  // Wall-clock time the current dirty streak started (cleared once the
-  // store goes clean). Backs the max-wait ceiling below.
   const firstDirtyAtRef = useRef<number | null>(null);
   const prevTargetIdRef = useRef(targetId);
-  // Last committed `isDirty`. The unmount flush reads this instead of the
-  // store because the host page's `reset()` cleanup can run before ours and
-  // wipe the store's dirty flag.
   const isDirtyRef = useRef(isDirty);
 
   useEffect(() => {
@@ -111,12 +75,6 @@ export function useAutosave({
 
   useEffect(() => {
     latestRef.current = { content, title, targetId };
-    // Switching targets (main doc <-> draft) always goes through
-    // `initDocument` first, which loads the freshly-persisted snapshot for
-    // the new target — so a clean value IS the last-saved baseline for it.
-    // A switch that lands already dirty (e.g. applying an AI synthesis to
-    // Main) keeps the old target's baseline, whose mismatched targetId
-    // guarantees the next save actually writes.
     if (prevTargetIdRef.current !== targetId) {
       prevTargetIdRef.current = targetId;
       if (!isDirty) lastSavedRef.current = { content, title, targetId };
@@ -146,9 +104,6 @@ export function useAutosave({
       const snapshotContent = latestRef.current.content;
       const snapshotTitle = latestRef.current.title;
 
-      // Dirty-check skip: the store thinks there's unsaved work, but the
-      // current value is byte-identical to what's already persisted for
-      // this target (e.g. the user typed then undid). Nothing to write.
       const saved = lastSavedRef.current;
       const isUnchanged =
         saved.targetId === targetId &&
@@ -169,14 +124,9 @@ export function useAutosave({
       try {
         await saveFn(snapshotContent, snapshotTitle);
 
-        // A newer save started while we awaited — that call will handle the
-        // result. Touching state here would mark the editor clean against
-        // content the user has since moved past.
         if (seq !== saveSeqRef.current) return { committed: true, wrote: true };
 
         if (isMountedRef.current && latestRef.current.targetId === targetId) {
-          // What we just sent is now the persisted state for this target,
-          // regardless of whether newer edits have arrived meanwhile.
           lastSavedRef.current = {
             content: snapshotContent,
             title: snapshotTitle,
@@ -188,8 +138,6 @@ export function useAutosave({
           if (stillFresh) {
             markSaved();
             firstDirtyAtRef.current = null;
-            // Everything the user typed is confirmed server-side — the
-            // local recovery mirror has nothing left to protect.
             clearRecovery(targetId);
           } else {
             setSaving(false);
@@ -216,16 +164,11 @@ export function useAutosave({
     [targetId, setSaving, markSaved],
   );
 
-  // Debounced periodic save — persists the body cheaply (no metadata churn).
   const save = useCallback(async () => {
     const result = await performSave(onSaveRef.current);
     if (result.wrote) flushPendingRef.current = true;
   }, [performSave]);
 
-  // ── Local recovery buffer ─────────────────────────────────────────────
-  // A save lost to a dying connection or closed tab takes the words with
-  // it. Mirror the dirty buffer into localStorage (throttled while typing,
-  // unconditionally on pagehide) and offer to restore it on the next visit.
   const lastRecoveryWriteRef = useRef(0);
   const recoveryPromptedRef = useRef<string | null>(null);
 
@@ -239,8 +182,6 @@ export function useAutosave({
     return () => window.removeEventListener("pagehide", onPageHide);
   }, [enabled]);
 
-  // Offer to restore a leftover buffer once per target. The buffer only
-  // survives when a save never confirmed — a clean exit always clears it.
   useEffect(() => {
     if (!enabled) return;
     if (recoveryPromptedRef.current === targetId) return;
@@ -270,7 +211,6 @@ export function useAutosave({
     });
   }, [enabled, targetId]);
 
-  // Terminal save (manual Cmd+S) — also refreshes derived metadata.
   const flush = useCallback(async () => {
     const result = await performSave(onFlushRef.current ?? onSaveRef.current);
     if (result.wrote) flushPendingRef.current = false;
@@ -289,17 +229,10 @@ export function useAutosave({
     if (firstDirtyAtRef.current === null) {
       firstDirtyAtRef.current = Date.now();
     }
-    // Mirror the dirty buffer locally so a killed tab/connection can't take
-    // the words with it. Throttled — the sync JSON write is cheap but not
-    // free on large documents.
     if (Date.now() - lastRecoveryWriteRef.current > RECOVERY_WRITE_MS) {
       lastRecoveryWriteRef.current = Date.now();
       writeRecovery(targetId, content, title);
     }
-    // Shrink the delay as the max-wait ceiling approaches so continuous
-    // typing (which keeps resetting this timer) can't defer persistence
-    // indefinitely — the next reschedule fires almost immediately once
-    // MAX_WAIT_MS has elapsed since the dirty streak started.
     const elapsedSinceFirstDirty = Date.now() - firstDirtyAtRef.current;
     const delay = Math.max(
       0,
@@ -316,23 +249,15 @@ export function useAutosave({
     };
   }, [content, title, isDirty, save, enabled]);
 
-  // Flush on unmount (or when autosave turns off). Decides from the dirty
-  // flag rather than the debounce timer: the timer effect above is cleaned
-  // up first and has already cleared its handle by the time this runs.
   useEffect(() => {
     return () => {
       if (!enabled) return;
       const { content: c, title: t, targetId: id } = latestRef.current;
       const flushFn = onFlushRef.current ?? onSaveRef.current;
       const saved = lastSavedRef.current;
-      // Same dirty-check as performSave: an edit that reverted to the
-      // already-persisted value needs no full save.
       const hasUnsavedEdits =
         isDirtyRef.current &&
         !(saved.targetId === id && saved.content === c && saved.title === t);
-      // Leaving with unsaved edits → full save. Otherwise, if the body was
-      // autosaved but the documents row hasn't had its metadata refreshed
-      // yet, flush it now so the board/sidebar reflect the final state.
       if (hasUnsavedEdits) {
         flushPendingRef.current = false;
         void flushFn(c, t).catch((err) => {

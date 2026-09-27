@@ -1,31 +1,3 @@
-/**
- * ONE-SHOT SEED — delete `convex/_seed/featureRequests.ts` after running.
- *
- * Backfills the feature request board with the full Wryte feature
- * catalogue:
- *
- *   - **shipped** entries — everything that has already been built,
- *     pulled from the project's git history so the public board shows
- *     a record of work that landed even before the request board
- *     existed.
- *   - **in_progress / planned** entries — the next slate of work,
- *     drawn from the changelog roadmap.
- *   - **open** entries — outstanding community ideas that haven't been
- *     committed to a milestone yet.
- *
- * Triggered from the admin UI (`/admin/seed`) or:
- *
- *   bunx convex run _seed/featureRequests:seed
- *
- * Gated by `publicMetadata.role === "admin"` (see `convex/_lib/admin.ts`)
- * and rate-limited. Idempotent: each entry is keyed by `title`, so
- * re-runs skip already-present rows and report them under `skipped`.
- *
- * The admin who runs the seed is recorded as the Clerk user id on
- * every row, but the public `authorName` is fixed (see `AUTHOR_NAME`
- * below) so the seeded entries don't look like they were posted by
- * one specific person.
- */
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import { action, internalMutation } from "../_generated/server";
@@ -38,24 +10,12 @@ type SeedEntry = {
   title: string;
   description: string;
   status: SeedStatus;
-  /** Seed votes so the list isn't all zeros on day one. */
   upvoteCount: number;
 };
 
 const AUTHOR_NAME = "Wryte team";
 
-/**
- * Every entry sorted roughly by historical importance / community
- * traction. The vote counts are designed to give the public board a
- * believable spread on day one — shipped features carry the highest
- * counts (they're the proven wins), then in-progress, planned, and
- * open ideas in descending order.
- */
 const ENTRIES: SeedEntry[] = [
-  /* ---------------------------------------------------------------- */
-  /*  SHIPPED — derived from git history (v0.0.1 → v0.5.3)             */
-  /* ---------------------------------------------------------------- */
-
   {
     title: "Markdown editor with live preview",
     description:
@@ -337,10 +297,6 @@ const ENTRIES: SeedEntry[] = [
     upvoteCount: 14,
   },
 
-  /* ---------------------------------------------------------------- */
-  /*  IN PROGRESS — actively being built                               */
-  /* ---------------------------------------------------------------- */
-
   {
     title: "Real-time collaborative editing",
     description:
@@ -355,10 +311,6 @@ const ENTRIES: SeedEntry[] = [
     status: "in_progress",
     upvoteCount: 72,
   },
-
-  /* ---------------------------------------------------------------- */
-  /*  PLANNED — next slate of work                                     */
-  /* ---------------------------------------------------------------- */
 
   {
     title: "Bulk import from Notion",
@@ -381,10 +333,6 @@ const ENTRIES: SeedEntry[] = [
     status: "planned",
     upvoteCount: 42,
   },
-
-  /* ---------------------------------------------------------------- */
-  /*  OPEN — community wishlist, no milestone yet                      */
-  /* ---------------------------------------------------------------- */
 
   {
     title: "GitLab and Bitbucket publishing",
@@ -466,8 +414,6 @@ export const _seedInternal = internalMutation({
     let skipped = 0;
     const details: string[] = [];
 
-    // Pull every existing title once so we can dedupe in O(1) per
-    // entry instead of issuing a query per seed row.
     const existing = await ctx.db.query("feature_requests").take(1000);
     const existingTitles = new Set(existing.map((r) => r.title));
 
@@ -485,10 +431,6 @@ export const _seedInternal = internalMutation({
         status: entry.status,
         authorClerkUserId: args.authorClerkUserId,
         authorName: args.authorName,
-        // Seed votes live on the row; no `feature_request_upvotes`
-        // join rows are inserted, so real users still have to vote
-        // to be recorded as having voted and can't double-vote on
-        // top of the seed.
         upvoteCount: entry.upvoteCount,
         createdAt: now,
         updatedAt: now,

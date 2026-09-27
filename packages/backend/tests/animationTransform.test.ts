@@ -1,8 +1,3 @@
-/**
- * Golden checks for the publish-time animation transform — the one piece of
- * code that rewrites a user's post body. Run directly: `bun run
- * tests/animationTransform.test.ts`. Every assert throws on failure.
- */
 import assert from "node:assert/strict";
 import {
   relativeImportDir,
@@ -14,7 +9,6 @@ const ANIMS = {
   HarnessLoop: "export default function HarnessLoop(){return null}",
 };
 
-/* --- relative path math ------------------------------------------------ */
 assert.equal(
   relativeImportDir("src/content/blog", "src/components/blog"),
   "../../components/blog",
@@ -23,7 +17,6 @@ assert.equal(relativeImportDir("content", "components"), "../components");
 assert.equal(relativeImportDir("blog", "blog"), ".");
 assert.equal(relativeImportDir("", "src/anim"), "./src/anim");
 
-/* --- real tag: import + directive injected ------------------------------ */
 {
   const body = "# Hi\n\nSome text.\n\n<HarnessLoop />\n\nMore text.\n";
   const { body: out, components } = transformMdxWithAnimations(body, ANIMS, {
@@ -44,7 +37,6 @@ assert.equal(relativeImportDir("", "src/anim"), "./src/anim");
   assert.ok(components[0]?.fileContent.includes(WRYTE_MANAGED_MARKER));
 }
 
-/* --- tag inside a code fence is NOT a reference -------------------------- */
 {
   const body = "Example:\n\n```jsx\n<HarnessLoop />\n```\n\nNo real use.\n";
   const { body: out, components } = transformMdxWithAnimations(body, ANIMS, {
@@ -56,7 +48,6 @@ assert.equal(relativeImportDir("", "src/anim"), "./src/anim");
   assert.equal(components.length, 0, "no components committed");
 }
 
-/* --- inline code is NOT a reference -------------------------------------- */
 {
   const body = "Use `<HarnessLoop />` like this.\n";
   const { components } = transformMdxWithAnimations(body, ANIMS, {
@@ -67,7 +58,6 @@ assert.equal(relativeImportDir("", "src/anim"), "./src/anim");
   assert.equal(components.length, 0);
 }
 
-/* --- fence AND real usage: only the real tag rewritten ------------------- */
 {
   const body = "```\n<HarnessLoop />\n```\n\n<HarnessLoop />\n";
   const { body: out } = transformMdxWithAnimations(body, ANIMS, {
@@ -83,7 +73,6 @@ assert.equal(relativeImportDir("", "src/anim"), "./src/anim");
   );
 }
 
-/* --- author's own client: directive respected ----------------------------- */
 {
   const body = "<HarnessLoop client:load />\n";
   const { body: out } = transformMdxWithAnimations(body, ANIMS, {
@@ -95,7 +84,6 @@ assert.equal(relativeImportDir("", "src/anim"), "./src/anim");
   assert.ok(out.includes("client:load"), "author directive kept");
 }
 
-/* --- nextjs target: "use client" header, no tag directive ----------------- */
 {
   const body = "<HarnessLoop />\n";
   const { body: out, components } = transformMdxWithAnimations(body, ANIMS, {
@@ -110,7 +98,6 @@ assert.equal(relativeImportDir("", "src/anim"), "./src/anim");
   );
 }
 
-/* --- unknown capitalized tags ignored ------------------------------------ */
 {
   const body = "<SomethingElse />\n";
   const { body: out, components } = transformMdxWithAnimations(body, ANIMS, {
@@ -122,7 +109,6 @@ assert.equal(relativeImportDir("", "src/anim"), "./src/anim");
   assert.equal(components.length, 0);
 }
 
-/* --- language decides the published extension ------------------------- */
 {
   const tsx = transformMdxWithAnimations("<HarnessLoop />", ANIMS, {
     contentDir: "src/content/blog",

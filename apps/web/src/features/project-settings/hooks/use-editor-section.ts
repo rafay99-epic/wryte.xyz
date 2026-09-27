@@ -1,17 +1,10 @@
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
+import type { ProjectData } from "@wryte/logic/types/project-settings";
 import { useMutation } from "convex/react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import type { ProjectData } from "../types";
 
-/**
- * State + save for the per-project Editor feature toggles. The heavier
- * aids (readability lens, slash commands, snippets) default to OFF so the
- * editor stays maximally fast unless a user opts in; the lightweight
- * selection toolbar defaults to ON (it does no work until text is
- * selected). Mirrors `use-publishing-section.ts`.
- */
 export function useEditorSection({
   projectId,
   project,

@@ -1,12 +1,3 @@
-/**
- * Shared AI provider types — re-exported from the single source of truth in
- * `packages/backend/convex/ai/_lib/providers.ts`.
- *
- * The Convex backend validators, the schema, and this file all derive from the
- * same registry, so adding a provider there flows through to the frontend with
- * no edits here. Consumers import from `@wryte/logic/types/ai`.
- */
-
 import {
   type AiProvider,
   ALL_PROVIDERS,
@@ -33,14 +24,12 @@ export type AiCredentialStatus =
   | "invalid"
   | "rotating";
 
-/** Display labels used in dropdowns, badges, and toasts. */
 export const AI_PROVIDER_LABELS: Record<AiProvider, string> =
   Object.fromEntries(ALL_PROVIDERS.map((p) => [p.id, p.label])) as Record<
     AiProvider,
     string
   >;
 
-/** Friendly model labels, keyed by model id, across every provider. */
 export const AI_MODEL_LABELS: Record<string, string> = Object.fromEntries(
   ALL_PROVIDERS.flatMap((p) => p.models.map((m) => [m.value, m.label])),
 );

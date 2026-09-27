@@ -2,6 +2,11 @@
 
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
+import {
+  diffLines,
+  diffStats,
+  foldUnchanged,
+} from "@wryte/logic/lib/editor/diff";
 import { relativeTime } from "@wryte/logic/lib/relative-time";
 import { cn } from "@wryte/logic/lib/utils";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
@@ -18,7 +23,6 @@ import {
 import { useQuery } from "convex/react";
 import { Loader2, RotateCcw } from "lucide-react";
 import { Fragment, useMemo } from "react";
-import { diffLines, diffStats, foldUnchanged } from "../lib/diff";
 
 type SnapshotDiffSheetProps = {
   snapshotId: Id<"document_snapshots"> | null;
@@ -27,11 +31,6 @@ type SnapshotDiffSheetProps = {
   restoring: boolean;
 };
 
-/**
- * Diff between the current editor content and a snapshot, framed as "what
- * restoring would change": green lines are what the snapshot adds back,
- * red lines are what it removes.
- */
 export function SnapshotDiffSheet({
   snapshotId,
   onOpenChange,

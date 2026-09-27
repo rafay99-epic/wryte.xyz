@@ -25,7 +25,6 @@ type AiSynthesisDialogProps = {
   onOpenChange: (open: boolean) => void;
   documentId: string;
   projectId: string;
-  /** Flushes the active tab's unsaved edits before "Apply to Main" replaces it. */
   onRequestSave: () => Promise<void>;
 };
 
@@ -36,8 +35,6 @@ export function AiSynthesisDialog({
   projectId,
   onRequestSave,
 }: AiSynthesisDialogProps) {
-  // Actions only: the editor body/title are read via getState() in the
-  // handlers so a closed dialog doesn't re-render on every keystroke.
   const { initDocument, setActiveDraftId, setContent } = useEditorStore(
     useShallow((s) => ({
       initDocument: s.initDocument,
@@ -46,8 +43,6 @@ export function AiSynthesisDialog({
     })),
   );
 
-  // Subscriptions stay live from open until the close animation finishes,
-  // so the body doesn't empty out while fading away.
   const [isClosing, setIsClosing] = useState(false);
   const docArgs =
     open || isClosing ? { documentId: documentId as Id<"documents"> } : "skip";
@@ -72,9 +67,6 @@ export function AiSynthesisDialog({
   const [streamId, setStreamId] = useState<string | undefined>(undefined);
   const [isStarting, setIsStarting] = useState(false);
 
-  // Each open starts fresh: clear any previous stream and, once the drafts
-  // list is available, preselect every draft. Later list changes while open
-  // must not clobber the user's checkbox choices.
   const [prevOpen, setPrevOpen] = useState(open);
   const [selectionPending, setSelectionPending] = useState(open);
   if (open !== prevOpen) {
@@ -151,9 +143,6 @@ export function AiSynthesisDialog({
     finalDraftPrompt,
   ]);
 
-  // Replaces Main's body with the synthesis as an unsaved edit, so autosave
-  // persists it (initDocument alone would mark it clean and the page's
-  // server resync would immediately revert it).
   const handleApplyToMain = useCallback(async () => {
     if (!finalText.trim() || !document) return;
     try {

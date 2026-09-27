@@ -46,9 +46,6 @@ export function useProfileTab() {
     }
   }, [setMyUsername, clerkUsername]);
 
-  // Mirror the Clerk username into Convex once it's loaded (and whenever it
-  // changes). Client-side — Clerk is the source of truth and useUser already
-  // has it, so no server SDK call.
   useEffect(() => {
     if (!clerkLoaded) return;
     void setMyUsername({ username: clerkUsername }).catch(() => {});

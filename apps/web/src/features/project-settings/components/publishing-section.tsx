@@ -10,6 +10,7 @@ import {
   staggerContainer,
   staggerItem,
 } from "@wryte/logic/lib/motion";
+import type { ProjectData } from "@wryte/logic/types/project-settings";
 import { InfoHint } from "@wryte/ui/info-hint";
 import { Input } from "@wryte/ui/input";
 import { Switch } from "@wryte/ui/switch";
@@ -19,7 +20,6 @@ import { Check, Copy, Rocket } from "lucide-react";
 import { useState } from "react";
 import { SaveBar } from "@/components/settings/save-bar";
 import { usePublishingSection } from "../hooks/use-publishing-section";
-import type { ProjectData } from "../types";
 import {
   FieldGroup,
   MediaModeOption,
@@ -29,11 +29,9 @@ import {
   ToggleRow,
 } from "./shared";
 
-/** README badge markdown — image served from /badge.svg, click measured via /gh. */
 const BADGE_SNIPPET =
   "[![Published with Wryte](https://wryte.xyz/badge.svg)](https://wryte.xyz/gh?utm_medium=badge)";
 
-/** Copy box for the README badge snippet (share-link dialog's copy pattern). */
 function BadgeSnippet() {
   const [copied, setCopied] = useState(false);
 

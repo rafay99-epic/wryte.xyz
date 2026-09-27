@@ -5,16 +5,11 @@ import type { Id } from "@wryte/backend/_generated/dataModel";
 import { isInputFocused } from "@wryte/logic/lib/dom-utils";
 import { useBoardStore } from "@wryte/logic/stores/board-store";
 import type { BoardColumnDef } from "@wryte/logic/types/board";
+import type { ContentItem } from "@wryte/logic/types/content";
 import { useMutation } from "convex/react";
 import { useCallback, useMemo } from "react";
 import { toast } from "sonner";
-import type { ContentItem } from "@/features/content-dashboard/components/content-table-row";
 
-/**
- * Registers vim-style keyboard shortcuts for board navigation and
- * card movement. Shortcuts: j/k (up/down), h/l (left/right columns),
- * Enter (open), Escape (clear focus), m+1-9 (move to column N).
- */
 export function useBoardKeyboardNav({
   columns,
   grouped,

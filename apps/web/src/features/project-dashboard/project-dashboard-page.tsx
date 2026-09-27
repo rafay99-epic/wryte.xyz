@@ -50,7 +50,6 @@ export function ProjectDashboardPage({
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-8 lg:px-8">
-      {/* ── Header ──────────────────────────────────────────────── */}
       <motion.div
         variants={fadeSlideUp}
         initial="initial"
@@ -78,9 +77,6 @@ export function ProjectDashboardPage({
           )}
         </div>
         <div className="flex items-center gap-4">
-          {/* User-level streak (same lean editor-stats subscription the
-              toolbar already uses) — cadence belongs where the writing
-              happens, not only on the global dashboard. */}
           {editorStats && editorStats.currentStreak > 0 && (
             <WritingStreak
               currentStreak={editorStats.currentStreak}
@@ -104,7 +100,6 @@ export function ProjectDashboardPage({
         </div>
       </motion.div>
 
-      {/* ── Status counts ───────────────────────────────────────── */}
       <motion.div
         variants={fadeSlideUp}
         initial="initial"
@@ -161,7 +156,6 @@ export function ProjectDashboardPage({
         </div>
       </motion.div>
 
-      {/* ── Status distribution + word count ──────────────────── */}
       <motion.div
         variants={fadeSlideUp}
         initial="initial"
@@ -191,9 +185,7 @@ export function ProjectDashboardPage({
         </div>
       </motion.div>
 
-      {/* ── Main content area ───────────────────────────────────── */}
       <div className="grid gap-8 lg:grid-cols-[1fr_260px]">
-        {/* Left column */}
         <div className="space-y-8">
           {upcoming && upcoming.length > 0 && (
             <motion.div
@@ -259,7 +251,6 @@ export function ProjectDashboardPage({
           </motion.div>
         </div>
 
-        {/* Right sidebar */}
         <motion.div
           variants={fadeSlideUp}
           initial="initial"

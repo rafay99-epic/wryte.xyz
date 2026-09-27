@@ -1,48 +1,30 @@
-/**
- * GitHub Frontmatter Detection API Route
- *
- * Auto-detects a project's frontmatter schema from an existing content repo.
- * Unlike the old "sample the first markdown file" approach (which inferred a
- * field's type from a single value and mistyped list fields like `tags`), this
- * route feeds a framework-aware detection engine:
- *
- *   1. ONE recursive Git Trees API call enumerates the whole repo (cheap +
- *      scalable — replaces N directory walks).
- *   2. The framework is identified from the file tree (Astro/Hugo/Next/Jekyll/…).
- *   3. The framework's authoritative config (Astro Zod schema, Contentlayer
- *      fields, Hugo taxonomies, Jekyll defaults) is fetched if present.
- *   4. A BOUNDED, parallel sample of real posts is fetched.
- *   5. `detectSchema()` merges config (authoritative) with multi-file sample
- *      aggregation (majority type + required-by-frequency).
- *
- * Each request uses the caller's own GitHub token, so there's no shared
- * rate-limit bottleneck under concurrency.
- */
-
 import { Octokit } from "@octokit/rest";
 import {
   type ConfigFile,
-  configCandidatePaths,
   type DetectionResult,
   detectSchema,
   identifyFramework,
   type RawSampleFile,
 } from "@wryte/logic/lib/frontmatter-detection/index";
 import {
+  hasConfig,
+  MD_RE,
+  normalizePath,
+  SAMPLE_LIMIT,
+  selectConfigEntries,
+  selectSampleEntries,
+} from "@wryte/logic/lib/frontmatter-detection/sampling";
+import { NextResponse } from "next/server";
+import {
   getGithubToken,
   parseRepoString,
-} from "@wryte/logic/lib/github-helpers";
-import { NextResponse } from "next/server";
+} from "@/app/api/github/_lib/github-helpers";
 
 type DetectRequest = {
   repo: string;
   branch: string;
   contentPath: string;
 };
-
-/** Hard caps that keep a single detection cheap regardless of repo size. */
-const SAMPLE_LIMIT = 12;
-const CONFIG_LIMIT = 4;
 
 type TreeEntry = {
   path?: string;
@@ -93,7 +75,6 @@ export async function POST(request: Request) {
 
     const octokit = new Octokit({ auth: tokenResult.token });
 
-    // 1. Enumerate the repo with a single recursive tree call.
     let entries: TreeEntry[];
     let truncated = false;
     try {
@@ -131,12 +112,9 @@ export async function POST(request: Request) {
       .map((e) => e.path)
       .filter((p): p is string => typeof p === "string");
 
-    // 2. Identify framework + pick the markdown files to sample.
     const framework = identifyFramework(allPaths);
 
     let sampleEntries = selectSampleEntries(blobs, contentPath);
-    // Tree truncation only happens on very large repos; fall back to a direct
-    // directory listing of the content path so detection still works.
     if (sampleEntries.length === 0 && truncated) {
       sampleEntries = await fallbackListing(
         octokit,
@@ -157,14 +135,12 @@ export async function POST(request: Request) {
       );
     }
 
-    // 3+4. Fetch config + sample contents in parallel (bounded).
     const configEntries = selectConfigEntries(blobs, framework);
     const [configFiles, sampleFiles] = await Promise.all([
       fetchBlobs(octokit, owner, repoName, configEntries),
       fetchBlobs(octokit, owner, repoName, sampleEntries),
     ]);
 
-    // 5. Run the pure detection engine.
     const result: DetectionResult = detectSchema({
       framework,
       configFiles: configFiles as ConfigFile[],
@@ -189,7 +165,6 @@ export async function POST(request: Request) {
       basis: result.basis,
       sampledCount: result.sampledCount,
       sources: result.sources,
-      // Back-compat with the existing wizard, which reads `sourceFile`.
       sourceFile: result.sources[0] ?? null,
     });
   } catch {
@@ -200,12 +175,6 @@ export async function POST(request: Request) {
   }
 }
 
-/** Strips leading/trailing slashes so tree paths join cleanly. */
-function normalizePath(path: string): string {
-  return path.trim().replace(/^\/+/, "").replace(/\/+$/, "");
-}
-
-/** Resolves a branch (or ref/sha) to a commit SHA for the tree call. */
 async function resolveCommitSha(
   octokit: Octokit,
   owner: string,
@@ -216,67 +185,6 @@ async function resolveCommitSha(
   return data.commit.sha;
 }
 
-const MD_RE = /\.mdx?$/i;
-
-/**
- * Picks up to SAMPLE_LIMIT markdown blobs under the content path. Deprioritizes
- * Hugo section pages / template-ish files (`_index.md`, names starting with
- * `_`) so the sample reflects real posts.
- */
-function selectSampleEntries(
-  blobs: Array<{ path: string; sha: string }>,
-  contentPath: string,
-): Array<{ path: string; sha: string }> {
-  const prefix = `${contentPath}/`;
-  const candidates = blobs.filter(
-    (b) =>
-      (b.path === contentPath || b.path.startsWith(prefix)) &&
-      MD_RE.test(b.path),
-  );
-
-  candidates.sort((a, b) => {
-    const ra = sampleRank(a.path);
-    const rb = sampleRank(b.path);
-    if (ra !== rb) return ra - rb;
-    return a.path.localeCompare(b.path);
-  });
-
-  return candidates.slice(0, SAMPLE_LIMIT);
-}
-
-function sampleRank(path: string): number {
-  const name = path.slice(path.lastIndexOf("/") + 1).toLowerCase();
-  if (name === "_index.md" || name === "index.md" || name === "index.mdx")
-    return 2;
-  if (name.startsWith("_")) return 1;
-  return 0;
-}
-
-/** Config/archetype blobs that exist in the repo, capped. */
-function selectConfigEntries(
-  blobs: Array<{ path: string; sha: string }>,
-  framework: ReturnType<typeof identifyFramework>,
-): Array<{ path: string; sha: string }> {
-  const candidates = new Set(configCandidatePaths(framework));
-  if (candidates.size === 0) return [];
-  const byPath = new Map(blobs.map((b) => [b.path, b]));
-  const result: Array<{ path: string; sha: string }> = [];
-  for (const path of candidates) {
-    const blob = byPath.get(path);
-    if (blob) result.push(blob);
-    if (result.length >= CONFIG_LIMIT) break;
-  }
-  return result;
-}
-
-function hasConfig(
-  blobs: Array<{ path: string; sha: string }>,
-  framework: ReturnType<typeof identifyFramework>,
-): boolean {
-  return selectConfigEntries(blobs, framework).length > 0;
-}
-
-/** Fetches blob contents by SHA in parallel; skips any that fail. */
 async function fetchBlobs(
   octokit: Octokit,
   owner: string,
@@ -303,10 +211,6 @@ async function fetchBlobs(
   );
 }
 
-/**
- * Truncated-tree fallback: list the content directory directly (non-recursive)
- * and return its markdown files. Bounded by SAMPLE_LIMIT.
- */
 async function fallbackListing(
   octokit: Octokit,
   owner: string,

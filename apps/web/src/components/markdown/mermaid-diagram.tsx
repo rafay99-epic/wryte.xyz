@@ -1,40 +1,15 @@
 "use client";
 
 import { useResolvedTheme } from "@wryte/logic/hooks/use-resolved-theme";
+import type { Mermaid } from "mermaid";
 import { useEffect, useId, useRef, useState } from "react";
 
-/**
- * Client-side Mermaid renderer for ` ```mermaid ` fenced code blocks.
- *
- * Follows the same lazy-load discipline as `social-embed.tsx`: the `mermaid`
- * bundle (~500KB) is dynamically imported on first use and shared across every
- * diagram via a module-level promise, so it stays out of the main chunk and
- * off any page that has no diagrams.
- *
- * The diagram source stays plain text through the markdown pipeline
- * (rehype-sanitize never sees SVG); Mermaid produces the SVG here, after
- * sanitisation, with `securityLevel: "strict"` so its own output is sanitised.
- *
- * Rendering is debounced because the live editor preview re-renders on every
- * keystroke — partial/invalid syntax is the norm while typing, so the last
- * good SVG is kept on screen and transient parse errors are swallowed until
- * the source settles.
- */
+let mermaidPromise: Promise<Mermaid> | null = null;
 
-type MermaidApi = {
-  initialize: (config: Record<string, unknown>) => void;
-  render: (
-    id: string,
-    text: string,
-  ) => Promise<{ svg: string; bindFunctions?: (el: Element) => void }>;
-};
-
-let mermaidPromise: Promise<MermaidApi> | null = null;
-
-function loadMermaid(): Promise<MermaidApi> {
+function loadMermaid(): Promise<Mermaid> {
   if (!mermaidPromise) {
     mermaidPromise = import("mermaid").then((mod) => {
-      const mermaid = mod.default as unknown as MermaidApi;
+      const mermaid = mod.default;
       mermaid.initialize({
         startOnLoad: false,
         securityLevel: "strict",
@@ -53,7 +28,6 @@ type MermaidDiagramProps = {
 
 export function MermaidDiagram({ source }: MermaidDiagramProps) {
   const rawId = useId();
-  // `useId` yields colons, which are invalid in the DOM ids Mermaid derives.
   const baseId = `mermaid-${rawId.replace(/:/g, "")}`;
   const theme = useResolvedTheme();
   const seqRef = useRef(0);
@@ -71,8 +45,6 @@ export function MermaidDiagram({ source }: MermaidDiagramProps) {
 
     let cancelled = false;
     const timer = setTimeout(() => {
-      // Prepend a theme directive unless the author set their own init block,
-      // so diagrams follow the app's light/dark mode without global state.
       const themed = trimmed.includes("%%{init")
         ? trimmed
         : `%%{init: {'theme': '${theme === "dark" ? "dark" : "default"}'}}%%\n${trimmed}`;
@@ -97,7 +69,6 @@ export function MermaidDiagram({ source }: MermaidDiagramProps) {
     };
   }, [source, theme, baseId]);
 
-  // Nothing rendered yet and no error: first paint / empty source.
   if (svg === null && error === null) {
     return (
       <div className="not-prose my-6 flex justify-center py-8 text-sm text-muted-foreground/40">
@@ -106,7 +77,6 @@ export function MermaidDiagram({ source }: MermaidDiagramProps) {
     );
   }
 
-  // Hard failure with no previously-good render to fall back to.
   if (svg === null && error !== null) {
     return <MermaidError source={source} message={error} />;
   }

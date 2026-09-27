@@ -2,12 +2,6 @@
 
 import { useEffect } from "react";
 
-/**
- * Registers /sw.js in production. The build SHA rides the registration URL
- * as a query param — a new deploy changes the URL, the browser fetches the
- * new worker, and its activate step drops the previous deploy's caches.
- * Dev is excluded so HMR and the service worker never fight.
- */
 export function ServiceWorkerRegistration() {
   useEffect(() => {
     if (

@@ -7,9 +7,9 @@ import type {
   AnimationLanguage,
 } from "@wryte/backend/_lib/animationChecks";
 import { summarizeDiagnostics } from "@wryte/backend/_lib/animationChecks";
+import type { TypecheckState } from "@wryte/logic/lib/animations/checks/protocol";
 import { useEffect, useState } from "react";
 import { checkAnimationSource } from "../lib/animations/checks/client";
-import type { TypecheckState } from "../lib/animations/checks/protocol";
 
 const CHECK_DEBOUNCE_MS = 600;
 

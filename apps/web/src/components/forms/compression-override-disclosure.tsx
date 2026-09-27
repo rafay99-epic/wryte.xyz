@@ -6,19 +6,6 @@ import { ChevronDown, Wand2 } from "lucide-react";
 import { useState } from "react";
 import { CompressionSettingsForm } from "@/components/forms/compression-settings-form";
 
-/**
- * Per-upload override panel shown inside each upload dialog.
- *
- * Controlled component: parents own both `resolvedSettings` (the
- * inheritance-resolved defaults from `useImageCompression`) and `override`
- * (the active per-upload override, or `null` when inheriting). This avoids
- * a second `useQuery(api.account.users.get)` / `useQuery(api.cms.projects.get)`
- * subscription per dialog.
- *
- * The override panel collapses by default; expanding reveals a compact
- * form. Until the user explicitly clicks "Customize", the panel shows the
- * inherited settings as a summary and the upload uses them unchanged.
- */
 export function CompressionOverrideDisclosure({
   resolvedSettings,
   override,

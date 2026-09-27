@@ -120,7 +120,6 @@ export function FeatureRequestsAdmin() {
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-10">
-      {/* Header */}
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">
@@ -141,7 +140,6 @@ export function FeatureRequestsAdmin() {
         </Link>
       </div>
 
-      {/* Filter tabs + search */}
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-1 overflow-x-auto">
           {FILTER_TABS.map((tab) => (
@@ -183,7 +181,6 @@ export function FeatureRequestsAdmin() {
         </div>
       </div>
 
-      {/* List */}
       {loading && rows === null ? (
         <div className="space-y-2">
           {[0, 1, 2, 3, 4].map((i) => (

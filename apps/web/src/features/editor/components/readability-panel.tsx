@@ -1,5 +1,16 @@
 "use client";
 
+import { lintStructure } from "@wryte/logic/lib/editor/seo-lint";
+import {
+  groupFindingsByCheck,
+  STYLE_LINT_CHECKS,
+  type StyleLintCheckId,
+} from "@wryte/logic/lib/editor/style-lint";
+import type {
+  FlagType,
+  HardSentence,
+  ReadabilityStats,
+} from "@wryte/logic/lib/readability/types";
 import { cn } from "@wryte/logic/lib/utils";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
 import { Switch } from "@wryte/ui/switch";
@@ -9,17 +20,6 @@ import { useMemo, useState } from "react";
 import { useReadability } from "../hooks/use-readability";
 import { useStyleLint } from "../hooks/use-style-lint";
 import { useStyleLintChecks } from "../hooks/use-style-lint-checks";
-import type {
-  FlagType,
-  HardSentence,
-  ReadabilityStats,
-} from "../lib/readability/types";
-import { lintStructure } from "../lib/seo-lint";
-import {
-  groupFindingsByCheck,
-  STYLE_LINT_CHECKS,
-  type StyleLintCheckId,
-} from "../lib/style-lint";
 import { useEditorContext } from "./editor-context";
 
 type ReadabilityPanelProps = {
@@ -27,7 +27,6 @@ type ReadabilityPanelProps = {
   onClose: () => void;
 };
 
-/** Reading-ease band label + accent color from the Flesch score. */
 function easeBand(score: number): { label: string; className: string } {
   if (score >= 70) return { label: "Easy", className: "text-emerald-500" };
   if (score >= 60) return { label: "Plain", className: "text-green-500" };
@@ -45,9 +44,6 @@ const FLAG_LABELS: Record<FlagType, string> = {
 };
 
 export function ReadabilityPanel({ open, onClose }: ReadabilityPanelProps) {
-  // The shell subscribes to nothing high-frequency. The body — which holds the
-  // content subscription and runs analysis — mounts only inside `open`, so a
-  // closed (but enabled) panel does zero work per keystroke.
   return (
     <AnimatePresence>
       {open && (

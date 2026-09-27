@@ -39,7 +39,7 @@ fine.
 
 | Command | What it does |
 |---------|-------------|
-| `bun run test` | `turbo run test` — assertion suites in web and backend |
+| `bun run test` | `turbo run test`: unit suites in logic and backend |
 | `bun run test:e2e` | Playwright suite against a running app |
 | `bun run test:e2e:ui` | Playwright UI mode |
 | `bun run test:e2e:report` | Open the last HTML report |

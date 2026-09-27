@@ -2,11 +2,6 @@ import { PUBLIC_ROUTES, SITE_URL } from "@wryte/logic/lib/seo";
 import type { MetadataRoute } from "next";
 import { DOC_PAGES } from "@/features/docs/registry";
 
-/**
- * Generates `/sitemap.xml` at build time. Sourced from `PUBLIC_ROUTES` in
- * `@wryte/logic/lib/seo` (shared with robots.txt) plus every MCP doc page
- * from the docs registry.
- */
 export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date();
   const routes = PUBLIC_ROUTES.map((route) => ({

@@ -18,23 +18,10 @@ import {
   useSettingsDirty,
 } from "./settings-dirty-context";
 
-/**
- * Shared chrome for both settings surfaces (project + account):
- *
- *  - desktop: left tab rail with filter search; mobile: horizontal pill bar
- *  - scroll resets to the top on every tab change (previously the scroll
- *    offset survived the switch and users landed mid-page)
- *  - tab switches are guarded while any section reports unsaved changes
- *    (sections unmount on switch — without the guard, edits died silently)
- *
- * Tab content is provided via `renderTab`; the shell owns navigation only.
- */
-
 export type SettingsShellTab<Id extends string> = {
   id: Id;
   label: string;
   icon: React.ElementType;
-  /** Extra search terms beyond the label ("commit", "badge", …). */
   keywords?: string[];
 };
 
@@ -53,7 +40,6 @@ export function SettingsShell<Id extends string>({
   tabs: ReadonlyArray<SettingsShellTab<Id>>;
   activeTab: Id;
   onTabChange: (tab: Id) => void;
-  /** Unique framer layoutId for the active-tab pill of this shell. */
   layoutId: string;
   contentClassName?: string | undefined;
   children: React.ReactNode;
@@ -160,7 +146,6 @@ function SettingsShellInner<Id extends string>({
 
   return (
     <div className="flex h-full flex-col md:flex-row">
-      {/* Desktop rail */}
       <div className="hidden w-56 shrink-0 border-r border-border/40 bg-muted/20 p-4 pt-6 md:block">
         <h1 className="mb-1 px-3 text-lg font-semibold tracking-tight">
           {title}
@@ -187,12 +172,10 @@ function SettingsShellInner<Id extends string>({
         </nav>
       </div>
 
-      {/* Mobile pill bar */}
       <div className="flex shrink-0 gap-2 overflow-x-auto border-b border-border/40 bg-muted/20 px-4 py-3 md:hidden">
         {tabs.map((t) => tabButton(t, "pill"))}
       </div>
 
-      {/* Content */}
       <div ref={contentRef} className="flex-1 overflow-y-auto slim-scrollbar">
         <div
           className={cn(
@@ -214,7 +197,6 @@ function SettingsShellInner<Id extends string>({
         </div>
       </div>
 
-      {/* Unsaved-changes guard */}
       <Dialog
         open={pendingTab !== null}
         onOpenChange={(open) => {

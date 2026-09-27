@@ -7,19 +7,6 @@ import {
   stripComments,
 } from "./ast-utils";
 
-/**
- * Statically parses an Astro content-collection config (`src/content/config.ts`
- * or `src/content.config.ts`) into an authoritative field map. Astro's Zod
- * schema is the source of truth — `z.array(z.string())` means the field MUST be
- * a YAML list, which is exactly the constraint that broke publishing when
- * detection had only sampled a scalar value.
- *
- * Best-effort and never throws: anything it can't recognize maps to "string"
- * and the caller's sample aggregation refines it.
- *
- * @param contentPath repo-relative content dir, used to pick the matching
- *   collection (e.g. ".../content/blog" → the `blog` collection).
- */
 export function parseAstroConfig(
   source: string,
   contentPath?: string,
@@ -38,14 +25,12 @@ export function parseAstroConfig(
   return schema.size > 0 ? schema : null;
 }
 
-/** Locates the `z.object({ ... })` body of the relevant collection's schema. */
 function findCollectionSchemaBody(
   src: string,
   contentPath?: string,
 ): string | null {
   const target = collectionNameFromPath(contentPath);
 
-  // Capture every `const <name> = defineCollection(` and its position.
   const defRe =
     /(?:const|let|var)\s+([A-Za-z0-9_$]+)\s*=\s*defineCollection\s*\(/g;
   const collections: Array<{ name: string; schemaBody: string }> = [];
@@ -73,13 +58,10 @@ function findCollectionSchemaBody(
   return collections[0]?.schemaBody ?? null;
 }
 
-/** Extracts the `z.object({...})` body from a defineCollection args object. */
 function schemaObjectBody(defineArgs: string): string | null {
   const schemaIdx = defineArgs.search(/\bschema\s*:/);
   if (schemaIdx < 0) return null;
 
-  // From `schema:` onward, find the first `z.object(` (handles both
-  // `schema: z.object({...})` and `schema: ({ image }) => z.object({...})`).
   const after = defineArgs.slice(schemaIdx);
   const objMatch = after.search(/z\s*\.\s*object\s*\(/);
   if (objMatch < 0) return null;
@@ -88,7 +70,6 @@ function schemaObjectBody(defineArgs: string): string | null {
   const parenInner = extractBalanced(after, openParen);
   if (!parenInner) return null;
 
-  // The object literal is the `{...}` inside z.object( ... ).
   const braceIdx = parenInner.inner.indexOf("{");
   if (braceIdx < 0) return null;
   const obj = extractBalanced(parenInner.inner, braceIdx);
@@ -103,7 +84,6 @@ function collectionNameFromPath(contentPath?: string): string | null {
   return segments[segments.length - 1] ?? null;
 }
 
-/** Maps a single Zod field expression to a field type + required + options. */
 function mapZodExpr(expr: string): ConfigField {
   const required =
     !/\.optional\s*\(/.test(expr) &&
@@ -118,7 +98,6 @@ function mapZodExpr(expr: string): ConfigField {
 }
 
 function zodType(expr: string): FrontmatterFieldType {
-  // Order matters: composite/wrapped forms before the bare `z.string` fallback.
   if (/z\s*\.\s*array\s*\(/.test(expr) || /\.\s*array\s*\(\s*\)/.test(expr)) {
     return "tags";
   }
@@ -128,7 +107,6 @@ function zodType(expr: string): FrontmatterFieldType {
   if (/\.\s*datetime\s*\(/.test(expr)) return "datetime";
   if (/z\s*\.\s*(coerce\s*\.\s*)?date/.test(expr)) return "date";
   if (/\.\s*url\s*\(/.test(expr)) return "url";
-  // Astro's `image()` schema helper.
   if (/(^|[^.\w])image\s*\(/.test(expr)) return "image";
   return "string";
 }

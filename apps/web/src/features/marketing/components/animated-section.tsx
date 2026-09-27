@@ -10,12 +10,6 @@ type AnimatedSectionProps = {
   className?: string;
 };
 
-/**
- * Wraps children in a Framer Motion `<motion.div>` that fades + slides
- * in once scrolled into view. Used by the marketing pages (Server
- * Components) as a thin client island so animations work without making
- * the entire page client.
- */
 export function AnimatedSection({
   children,
   delay = 0,

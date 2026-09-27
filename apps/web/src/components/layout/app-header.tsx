@@ -50,10 +50,6 @@ import { PublishDialog } from "@/features/editor/components/publish-dialog";
 import { ScheduleDialog } from "@/features/editor/components/schedule-dialog";
 import { ShareLinkDialog } from "@/features/editor/components/share-link-dialog";
 
-/**
- * Editor header with article navigation arrows, bookmark, focus mode,
- * save status, and publish actions.
- */
 export function AppHeader() {
   const pathname = usePathname();
   const router = useRouter();
@@ -96,8 +92,6 @@ export function AppHeader() {
     activeProjectId ? { projectId: activeProjectId as Id<"projects"> } : "skip",
   );
 
-  // Fetch current document for bookmark state — metadata-only query so
-  // this always-mounted header never re-receives the body on autosave.
   const document = useQuery(
     api.cms.documents.getMeta,
     isEditorPage && documentId
@@ -105,14 +99,12 @@ export function AppHeader() {
       : "skip",
   );
 
-  // Board columns for status selector
   const boardColumns = useQuery(
     api.cms.boardColumns.getColumns,
     activeProjectId ? { projectId: activeProjectId as Id<"projects"> } : "skip",
   ) as BoardColumnDef[] | undefined;
   const columns = boardColumns ?? DEFAULT_BOARD_COLUMNS;
 
-  // Publish history for count display
   const publishHistory = useQuery(
     api.cms.documents.getPublishHistory,
     isEditorPage && documentId
@@ -121,10 +113,8 @@ export function AppHeader() {
   );
   const publishCount = publishHistory?.length ?? 0;
 
-  // Toggle bookmark mutation
   const toggleBookmark = useMutation(api.cms.documents.toggleBookmark);
 
-  // Status mutation
   const updateStatus = useMutation(api.cms.documents.updateStatus);
 
   const handleToggleBookmark = async () => {
@@ -139,7 +129,6 @@ export function AppHeader() {
     }
   };
 
-  // Query documents list for article navigation
   const documents = useQuery(
     api.cms.documents.list,
     activeProjectId && isEditorPage
@@ -147,7 +136,6 @@ export function AppHeader() {
       : "skip",
   );
 
-  // Article navigation: find current index and prev/next IDs
   const articleNav = useMemo(() => {
     if (!documents || !documentId) return null;
     const currentIndex = documents.findIndex((d) => d._id === documentId);
@@ -191,7 +179,6 @@ export function AppHeader() {
   return (
     <TooltipProvider>
       <header className="desktop-titlebar flex h-12 shrink-0 items-center justify-between border-b border-border/50 px-3">
-        {/* ── Left section ── */}
         <div className="flex items-center gap-2">
           <Tooltip>
             <TooltipTrigger
@@ -234,7 +221,6 @@ export function AppHeader() {
             </TooltipContent>
           </Tooltip>
 
-          {/* Article navigation — editor pages only */}
           {isEditorPage && articleNav && articleNav.total > 1 ? (
             <div className="flex items-center gap-1">
               <Tooltip>
@@ -301,7 +287,6 @@ export function AppHeader() {
               </Tooltip>
             </div>
           ) : isEditorPage ? (
-            /* Single doc: show breadcrumbs + focus button */
             <div className="flex items-center gap-2">
               <nav className="flex items-center gap-1 text-sm">
                 {activeProjectId && project && (
@@ -343,7 +328,6 @@ export function AppHeader() {
               </Tooltip>
             </div>
           ) : (
-            /* Non-editor breadcrumbs */
             <nav className="flex items-center gap-1 text-sm">
               {activeProjectId && project ? (
                 <Link
@@ -367,10 +351,8 @@ export function AppHeader() {
           )}
         </div>
 
-        {/* ── Right section ── */}
         {isEditorPage ? (
           <div className="flex items-center gap-1.5">
-            {/* Save status */}
             <AnimatePresence mode="wait">
               {saveStatusKey === "saving" && (
                 <motion.div
@@ -416,7 +398,6 @@ export function AppHeader() {
               )}
             </AnimatePresence>
 
-            {/* Bookmark / Star */}
             <Tooltip>
               <TooltipTrigger
                 render={
@@ -443,7 +424,6 @@ export function AppHeader() {
               </TooltipContent>
             </Tooltip>
 
-            {/* Publish History */}
             <Tooltip>
               <TooltipTrigger
                 render={
@@ -474,7 +454,6 @@ export function AppHeader() {
               </TooltipContent>
             </Tooltip>
 
-            {/* Status selector */}
             {document && (
               <DropdownMenu>
                 <DropdownMenuTrigger
@@ -527,7 +506,6 @@ export function AppHeader() {
               </DropdownMenu>
             )}
 
-            {/* Share preview link */}
             <Tooltip>
               <TooltipTrigger
                 render={
@@ -544,7 +522,6 @@ export function AppHeader() {
               <TooltipContent side="bottom">Share preview</TooltipContent>
             </Tooltip>
 
-            {/* Schedule */}
             <Tooltip>
               <TooltipTrigger
                 render={
@@ -561,9 +538,6 @@ export function AppHeader() {
               <TooltipContent side="bottom">Schedule publish</TooltipContent>
             </Tooltip>
 
-            {/* Delete — soft-deletes to project trash. Disabled until the
-                document query loads so we don't open the dialog without
-                title/github coordinates. */}
             <Tooltip>
               <TooltipTrigger
                 render={
@@ -581,7 +555,6 @@ export function AppHeader() {
               <TooltipContent side="bottom">Move to trash</TooltipContent>
             </Tooltip>
 
-            {/* Publish button — prominent */}
             <Button
               size="sm"
               onClick={() => setPublishOpen(true)}
@@ -627,8 +600,6 @@ export function AppHeader() {
                 open={deleteOpen}
                 onOpenChange={setDeleteOpen}
                 onDeleted={() => {
-                  // Navigate back to the project before the reactive `get`
-                  // query returns null and the editor flashes its 404.
                   router.push(`/projects/${activeProjectId}`);
                 }}
               />

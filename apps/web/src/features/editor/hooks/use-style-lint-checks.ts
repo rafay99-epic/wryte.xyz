@@ -1,5 +1,8 @@
+import {
+  STYLE_LINT_CHECKS,
+  type StyleLintCheckId,
+} from "@wryte/logic/lib/editor/style-lint";
 import { useCallback, useEffect, useState } from "react";
-import { STYLE_LINT_CHECKS, type StyleLintCheckId } from "../lib/style-lint";
 
 const STORAGE_KEY = "wryte:style-lint-checks";
 
@@ -23,17 +26,10 @@ function readStoredState(): CheckState {
         if (typeof value === "boolean") state[check.id] = value;
       }
     }
-  } catch {
-    // localStorage unavailable or corrupt — fall back to all-enabled.
-  }
+  } catch {}
   return state;
 }
 
-/**
- * Per-check enable/disable state for the Style section of the readability
- * panel, persisted to localStorage so it survives reloads. Defaults to every
- * check enabled. SSR-safe: starts from the default and hydrates on mount.
- */
 export function useStyleLintChecks(): {
   enabled: CheckState;
   toggle: (id: StyleLintCheckId) => void;
@@ -49,9 +45,7 @@ export function useStyleLintChecks(): {
       const next = { ...prev, [id]: !prev[id] };
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      } catch {
-        // localStorage unavailable — keep in-memory state only.
-      }
+      } catch {}
       return next;
     });
   }, []);

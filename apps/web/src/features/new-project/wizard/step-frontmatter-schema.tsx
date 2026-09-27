@@ -143,7 +143,6 @@ export function StepFrontmatterSchema({
 
   return (
     <div className="space-y-5">
-      {/* Detection status */}
       {state.detectedFromFile ? (
         <div className="flex items-center gap-2.5 rounded-lg bg-emerald-500/10 px-3 py-2.5">
           <CheckCircle2 className="size-4 shrink-0 text-emerald-500" />
@@ -162,7 +161,6 @@ export function StepFrontmatterSchema({
         </div>
       )}
 
-      {/* Field list */}
       <div className="space-y-2">
         {state.frontmatterFields.map((field, index) => (
           <div
@@ -172,7 +170,6 @@ export function StepFrontmatterSchema({
             <div className="flex items-center gap-2 p-3">
               <GripVertical className="size-3.5 shrink-0 text-muted-foreground/30" />
 
-              {/* Field Name */}
               <div className="min-w-0 flex-1">
                 <Input
                   placeholder="field_name"
@@ -186,7 +183,6 @@ export function StepFrontmatterSchema({
                 />
               </div>
 
-              {/* Type */}
               <Select
                 value={field.type}
                 onValueChange={(val) =>
@@ -207,7 +203,6 @@ export function StepFrontmatterSchema({
                 </SelectContent>
               </Select>
 
-              {/* Required toggle */}
               <div className="flex items-center gap-1.5">
                 <Label className="text-[10px] uppercase tracking-wider text-muted-foreground/50">
                   Req
@@ -221,7 +216,6 @@ export function StepFrontmatterSchema({
                 />
               </div>
 
-              {/* Delete */}
               <Button
                 variant="ghost"
                 size="icon-xs"
@@ -233,7 +227,6 @@ export function StepFrontmatterSchema({
               </Button>
             </div>
 
-            {/* Expandable details row */}
             {(field.defaultValue ||
               field.type === "select" ||
               field.type === "multiselect") && (
@@ -285,7 +278,6 @@ export function StepFrontmatterSchema({
         </Button>
       </div>
 
-      {/* YAML Preview */}
       <div className="space-y-2">
         <div className="flex items-center gap-1.5">
           <Code2 className="size-3 text-muted-foreground/50" />

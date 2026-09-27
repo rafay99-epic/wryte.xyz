@@ -2,11 +2,13 @@
 
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
+import { compileAnimation } from "@wryte/logic/lib/animations/compile-animation";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
 import { useQuery } from "convex/react";
 import { motion } from "framer-motion";
 import type React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { wrapAnimation } from "@/components/animations/animation-boundary";
 import {
   buildComponentMap,
   CompileError,
@@ -16,22 +18,12 @@ import {
   type MdxModule,
 } from "@/components/markdown/mdx-runtime";
 import { usePreviewJump } from "../hooks/use-preview-jump";
-import { wrapAnimation } from "../lib/animations/animation-boundary";
-import { compileAnimation } from "../lib/animations/compile-animation";
 
 const DEBOUNCE_MS = 300;
 
-/**
- * The editor's live MDX Read view. The compile/run machinery lives in the
- * shared `mdx-runtime` (also used by the public share preview); this
- * component adds the editor concerns — store subscription, debounce,
- * double-click-to-edit, and the project's animation components.
- */
 export function MdxPreview({
   animationsEnabled = false,
 }: {
-  /** Gate the animations subscription — projects without the feature
-   * configured must not pay the list's read cost on every session. */
   animationsEnabled?: boolean;
 }) {
   const content = useEditorStore((state) => state.content);
@@ -41,9 +33,6 @@ export function MdxPreview({
   const [error, setError] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout>>(null);
 
-  // Project animations, compiled once per source change (not per keystroke
-  // of the document — the memo only re-runs when the Convex rows change).
-  // A source that fails to compile falls back to the dashed placeholder.
   const animations = useQuery(
     api.cms.animations.list,
     animationsEnabled && activeProjectId

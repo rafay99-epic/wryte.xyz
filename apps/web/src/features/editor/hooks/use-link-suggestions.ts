@@ -2,16 +2,15 @@
 
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
-import { useEditorStore } from "@wryte/logic/stores/editor-store";
-import { useConvex } from "convex/react";
-import { useEffect, useState } from "react";
 import {
   findLinkSuggestions,
   type LinkSuggestion,
   type LinkTargetDoc,
-} from "@/features/editor/lib/link-suggestions";
+} from "@wryte/logic/lib/editor/link-suggestions";
+import { useEditorStore } from "@wryte/logic/stores/editor-store";
+import { useConvex } from "convex/react";
+import { useEffect, useState } from "react";
 
-/** How long after the last keystroke before re-scanning. */
 const SCAN_DEBOUNCE_MS = 1000;
 
 type UseLinkSuggestionsReturn = {
@@ -19,27 +18,17 @@ type UseLinkSuggestionsReturn = {
   loading: boolean;
 };
 
-/**
- * Unlinked-mention suggestions for the research panel.
- *
- * Cost model: ONE one-shot metadata query when the panel opens (the same
- * `listForCalendar` projection the calendar uses — titles/slugs only, no
- * bodies, no subscription). All scanning is client-side, debounced, and runs
- * only while the panel is open.
- */
 export function useLinkSuggestions(
   documentId: string,
   open: boolean,
 ): UseLinkSuggestionsReturn {
   const convex = useConvex();
   const projectId = useEditorStore((s) => s.activeProjectId);
-  // Subscribed only while open: a closed panel mustn't re-render per keystroke.
   const content = useEditorStore((s) => (open ? s.content : ""));
 
   const [docs, setDocs] = useState<LinkTargetDoc[] | null>(null);
   const [suggestions, setSuggestions] = useState<LinkSuggestion[]>([]);
 
-  // Fetch the project's document titles once per panel-open.
   useEffect(() => {
     if (!open || !projectId) {
       setDocs(null);
@@ -64,7 +53,6 @@ export function useLinkSuggestions(
     };
   }, [open, projectId, convex]);
 
-  // Debounced re-scan while the panel is open. The scan is pure local work.
   useEffect(() => {
     if (!open || docs === null) return;
     const timer = setTimeout(() => {

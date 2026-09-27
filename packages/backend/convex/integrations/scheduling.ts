@@ -1,11 +1,9 @@
-/**
- * Scheduled publishing system — uses Convex Workflows for durable,
- * retryable publish flows with precise timing.
- *
- * The workflow waits until the scheduled time, then publishes to GitHub
- * with automatic retry on failure. No cron polling needed.
- */
-import { type WorkflowId, WorkflowManager } from "@convex-dev/workflow";
+import {
+  vResultValidator,
+  vWorkflowId,
+  type WorkflowId,
+  WorkflowManager,
+} from "@convex-dev/workflow";
 import { v } from "convex/values";
 import { components, internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
@@ -14,10 +12,6 @@ import { internalMutation, mutation, query } from "../_generated/server";
 import { getAuthedUserOrNull, getCurrentUser } from "../_lib/auth";
 import { scheduleStatusChange } from "../_lib/projectStats";
 import { rateLimiter } from "../_lib/rateLimits";
-
-/* ------------------------------------------------------------------ */
-/*  Workflow manager                                                    */
-/* ------------------------------------------------------------------ */
 
 export const publishWorkflowManager = new WorkflowManager(components.workflow, {
   workpoolOptions: {
@@ -30,18 +24,6 @@ export const publishWorkflowManager = new WorkflowManager(components.workflow, {
   },
 });
 
-/* ------------------------------------------------------------------ */
-/*  Workflow definition                                                 */
-/* ------------------------------------------------------------------ */
-
-/**
- * Durable workflow that waits until the scheduled time, then publishes
- * the document to GitHub. Each step is persisted — if the server restarts,
- * the workflow resumes from the last completed step.
- *
- * Retry: the GitHub publish action retries up to 3× with exponential backoff
- * (5s → 10s → 20s). If all retries fail, `onComplete` marks the record as failed.
- */
 export const scheduledPublishWorkflow = publishWorkflowManager.define({
   args: {
     publishId: v.id("scheduled_publishes"),
@@ -50,19 +32,12 @@ export const scheduledPublishWorkflow = publishWorkflowManager.define({
     socialPostText: v.optional(v.string()),
   },
   handler: async (step, args) => {
-    // Step 1: Wait until the scheduled time, then mark as "processing"
     await step.runMutation(
       internal.integrations.scheduling.updatePublishStatus,
       { publishId: args.publishId, status: "processing" },
       { runAt: args.scheduledAt },
     );
 
-    // Step 2: Publish to GitHub. The action resolves the GitHub token
-    // server-side at fire-time (Clerk OAuth → vault PAT → legacy plaintext),
-    // so workflows fire correctly regardless of how long after scheduling
-    // they wake up. publishedAtMs is the user's *intended* publish time —
-    // we pass it so the resulting frontmatter's pubDate reflects the time
-    // the user picked, not the (often few-second-later) workflow fire time.
     const publishArgs: {
       documentId: typeof args.documentId;
       publishedAtMs: number;
@@ -81,7 +56,6 @@ export const scheduledPublishWorkflow = publishWorkflowManager.define({
       },
     );
 
-    // Step 3: Mark as completed
     await step.runMutation(
       internal.integrations.scheduling.updatePublishStatus,
       {
@@ -92,18 +66,6 @@ export const scheduledPublishWorkflow = publishWorkflowManager.define({
   },
 });
 
-/* ------------------------------------------------------------------ */
-/*  Public queries                                                       */
-/* ------------------------------------------------------------------ */
-
-/**
- * Returns the most-recent `scheduled_publishes` record for a document, or
- * null if none exist. Used by the editor to surface workflow state — pending,
- * processing, completed, or failed (with the error reason) — so the author
- * can tell *why* a scheduled post hasn't gone live yet.
- *
- * Auth: the document must be owned by the calling user; otherwise null.
- */
 export const getLatestForDocument = query({
   args: { documentId: v.id("documents") },
   handler: async (ctx, args) => {
@@ -127,20 +89,6 @@ export const getLatestForDocument = query({
   },
 });
 
-/* ------------------------------------------------------------------ */
-/*  Public mutations                                                    */
-/* ------------------------------------------------------------------ */
-
-/**
- * Schedules a document for future publishing at a specific timestamp.
- * Replaces any existing pending scheduled publish for the same document
- * (only one pending publish per document at a time). Starts a durable
- * workflow that will execute at the scheduled time.
- *
- * @requires Authentication + document ownership
- * @param args.documentId - The document to schedule.
- * @param args.scheduledAt - Unix timestamp (ms) for when to publish. Must be in the future.
- */
 export const schedule = mutation({
   args: {
     documentId: v.id("documents"),
@@ -151,8 +99,6 @@ export const schedule = mutation({
     await scheduleForUser(ctx, await getCurrentUser(ctx), args),
 });
 
-/** `schedule`'s body with the actor passed in explicitly. Shared with the MCP
- *  handler, which has no `ctx.auth` — see `_lib/auth.ts → requireCaller`. */
 export async function scheduleForUser(
   ctx: MutationCtx,
   user: Doc<"users">,
@@ -185,7 +131,6 @@ export async function scheduleForUser(
     throw new Error("Social post text is too long (max 2000 characters).");
   }
 
-  // Cancel any existing pending workflows for this document
   const existing = await ctx.db
     .query("scheduled_publishes")
     .withIndex("by_documentId", (q) => q.eq("documentId", args.documentId))
@@ -194,15 +139,11 @@ export async function scheduleForUser(
 
   for (const sp of existing) {
     if (sp.status === "pending" || sp.status === "processing") {
-      // Cancel the workflow if it exists
       if (sp.workflowId) {
         try {
           await publishWorkflowManager.cancel(ctx, sp.workflowId as WorkflowId);
-        } catch {
-          // Workflow may already be completed/canceled — safe to ignore
-        }
+        } catch {}
       }
-      // Record may have been deleted by the workflow's onComplete callback
       const stillExists = await ctx.db.get(sp._id);
       if (stillExists) {
         await ctx.db.delete(sp._id);
@@ -210,7 +151,6 @@ export async function scheduleForUser(
     }
   }
 
-  // Create the scheduled publish record
   const insertDoc: {
     documentId: Id<"documents">;
     scheduledAt: number;
@@ -226,11 +166,6 @@ export async function scheduleForUser(
   if (args.socialPostText) insertDoc.socialPostText = args.socialPostText;
   const publishId = await ctx.db.insert("scheduled_publishes", insertDoc);
 
-  // Start the durable workflow. The workflow no longer carries a
-  // credential — `publishToGithub` resolves a fresh token from Clerk
-  // (or vault) at fire-time, which is what makes long-term schedules
-  // reliable even when the captured-at-schedule-time token would have
-  // expired.
   const workflowArgs: {
     publishId: Id<"scheduled_publishes">;
     documentId: Id<"documents">;
@@ -252,12 +187,10 @@ export async function scheduleForUser(
     },
   );
 
-  // Store the workflow ID for cancellation
   await ctx.db.patch(publishId, { workflowId: workflowId as string });
 
   const oldStatus = document.status;
 
-  // Update document status to "scheduled"
   await ctx.db.patch(args.documentId, {
     status: "scheduled",
     scheduledAt: args.scheduledAt,
@@ -272,21 +205,12 @@ export async function scheduleForUser(
   });
 }
 
-/**
- * Cancels all pending scheduled publishes for a document and reverts its
- * status back to "draft". Only deletes records with "pending" status —
- * completed or failed records are kept for audit purposes.
- *
- * @requires Authentication + document ownership
- * @param args.documentId - The document whose schedule to cancel.
- */
 export const cancel = mutation({
   args: { documentId: v.id("documents") },
   handler: async (ctx, args) =>
     await cancelScheduleForUser(ctx, await getCurrentUser(ctx), args),
 });
 
-/** `cancel`'s body with the actor passed in explicitly. */
 export async function cancelScheduleForUser(
   ctx: MutationCtx,
   user: Doc<"users">,
@@ -315,16 +239,11 @@ export async function cancelScheduleForUser(
 
   for (const sp of scheduledPublishes) {
     if (sp.status === "pending" || sp.status === "processing") {
-      // Cancel the workflow if it exists
       if (sp.workflowId) {
         try {
           await publishWorkflowManager.cancel(ctx, sp.workflowId as WorkflowId);
-        } catch {
-          // Workflow may already be completed/canceled — safe to ignore
-        }
+        } catch {}
       }
-      // Record may have been deleted by the workflow's onComplete callback
-      // (same race the schedule mutation guards against above).
       const stillExists = await ctx.db.get(sp._id);
       if (stillExists) {
         await ctx.db.delete(sp._id);
@@ -346,15 +265,6 @@ export async function cancelScheduleForUser(
   });
 }
 
-/* ------------------------------------------------------------------ */
-/*  Internal mutations (used by workflow steps)                         */
-/* ------------------------------------------------------------------ */
-
-/**
- * Updates a scheduled publish record's status.
- * Called by workflow steps to track progress through the
- * pending → processing → completed/failed lifecycle.
- */
 export const updatePublishStatus = internalMutation({
   args: {
     publishId: v.id("scheduled_publishes"),
@@ -368,7 +278,7 @@ export const updatePublishStatus = internalMutation({
   },
   handler: async (ctx, args) => {
     const record = await ctx.db.get(args.publishId);
-    if (!record) return; // Record was deleted (e.g. canceled)
+    if (!record) return;
 
     await ctx.db.patch(args.publishId, {
       status: args.status,
@@ -377,10 +287,6 @@ export const updatePublishStatus = internalMutation({
   },
 });
 
-/**
- * Reverts a scheduled document to draft after its workflow failed or was
- * canceled, keeping `project_stats` counts in step with the status change.
- */
 async function revertScheduledToDraft(
   ctx: MutationCtx,
   doc: Doc<"documents">,
@@ -398,32 +304,20 @@ async function revertScheduledToDraft(
   });
 }
 
-/**
- * Called by the workflow's `onComplete` callback. Handles final state updates
- * when the workflow finishes — whether it succeeded, failed, or was canceled.
- *
- * On failure: marks the scheduled_publishes record as "failed" with error.
- * On cancel: reverts the document back to "draft" status.
- */
 export const onPublishComplete = internalMutation({
   args: {
-    workflowId: v.string(),
-    context: v.any(),
-    result: v.any(),
+    workflowId: vWorkflowId,
+    context: v.object({
+      publishId: v.id("scheduled_publishes"),
+      documentId: v.id("documents"),
+    }),
+    result: vResultValidator,
   },
   handler: async (ctx, args) => {
-    const { publishId, documentId } = args.context as {
-      publishId: Id<"scheduled_publishes">;
-      documentId: Id<"documents">;
-    };
-
-    const result = args.result as
-      | { kind: "success"; returnValue: unknown }
-      | { kind: "failed"; error: string }
-      | { kind: "canceled" };
+    const { publishId, documentId } = args.context;
+    const { result } = args;
 
     if (result.kind === "failed") {
-      // Mark as failed with the error message
       const record = await ctx.db.get(publishId);
       if (record) {
         await ctx.db.patch(record._id, {
@@ -431,12 +325,6 @@ export const onPublishComplete = internalMutation({
           error: result.error,
         });
       }
-      // Revert the document to draft so the editor stops showing "scheduled"
-      // indefinitely. The user can re-schedule once they've fixed whatever
-      // caused the failure (e.g. expired GitHub token, wrong repo path).
-      // We don't revert if a NEWER schedule has been created in the meantime
-      // (rescheduling races): only revert if this publish is the current
-      // active one.
       const doc = await ctx.db.get(documentId);
       if (doc && doc.status === "scheduled") {
         const otherActive = await ctx.db
@@ -454,13 +342,9 @@ export const onPublishComplete = internalMutation({
         }
       }
     } else if (result.kind === "canceled") {
-      // Only revert to draft if this specific publish record still exists
-      // (if user rescheduled, the old record was already deleted and a new
-      // one was created — we should NOT revert the document to draft)
       const record = await ctx.db.get(publishId);
       if (record) {
         await ctx.db.delete(record._id);
-        // Only revert doc status if no other pending/processing schedules exist
         const otherSchedules = await ctx.db
           .query("scheduled_publishes")
           .withIndex("by_documentId", (q) => q.eq("documentId", documentId))
@@ -477,6 +361,5 @@ export const onPublishComplete = internalMutation({
         }
       }
     }
-    // On success: the workflow already marked it as "completed" in its last step
   },
 });

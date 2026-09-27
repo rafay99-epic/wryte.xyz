@@ -1,17 +1,3 @@
-/**
- * Per-project reusable text snippets — backend module (standalone).
- *
- * Snippets live in their own table so a project can hold thousands without
- * bloating the hot `projects` document. This module exposes:
- *  - `list`   — paginated, for the Project Settings manager.
- *  - `search` — top-N full-text matches, for the editor's `/` menu (gated +
- *               debounced on the client so it only runs while the submenu is open).
- *  - `create` / `update` / `remove` — granular CRUD, each rate-limited.
- *
- * `projects.snippetCount` is maintained transactionally here (insert/delete) so
- * the `/` menu can decide visibility — and the settings UI can render a counter
- * — without an extra read. Treat `undefined` as 0.
- */
 import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
@@ -20,13 +6,11 @@ import { mutation, query } from "../_generated/server";
 import { getAuthedUserOrNull, getCurrentUser } from "../_lib/auth";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
 
-/* Caps — mirror `src/types/snippets.ts` (keep the two in sync). */
 const MAX_SNIPPETS = 1000;
 const MAX_SNIPPET_NAME = 60;
 const MAX_SNIPPET_CONTENT = 8000;
 const SNIPPET_SEARCH_LIMIT = 20;
 
-/** Lightweight client shape — full docs carry fields the UI doesn't need. */
 type SnippetView = { _id: Id<"snippets">; name: string; content: string };
 const toView = (d: Doc<"snippets">): SnippetView => ({
   _id: d._id,
@@ -34,11 +18,6 @@ const toView = (d: Doc<"snippets">): SnippetView => ({
   content: d.content,
 });
 
-/* ------------------------------------------------------------------ */
-/*  Ownership helpers                                                   */
-/* ------------------------------------------------------------------ */
-
-/** Read-only ownership resolution for queries (never writes). Null = no access. */
 async function ownedProjectForQuery(
   ctx: QueryCtx,
   projectId: Id<"projects">,
@@ -50,7 +29,6 @@ async function ownedProjectForQuery(
   return project;
 }
 
-/** Mutation ownership check — throws on missing project / non-owner. */
 async function requireOwnedProject(
   ctx: MutationCtx,
   projectId: Id<"projects">,
@@ -64,10 +42,6 @@ async function requireOwnedProject(
   return project;
 }
 
-/* ------------------------------------------------------------------ */
-/*  Validation                                                          */
-/* ------------------------------------------------------------------ */
-
 function normalizeName(raw: string): string {
   const name = raw.trim();
   if (!name) throw new Error("Snippet name is required");
@@ -79,7 +53,6 @@ function normalizeName(raw: string): string {
   return name;
 }
 
-/** Content keeps its whitespace/formatting verbatim — only the size is capped. */
 function validateContent(raw: string): string {
   if (raw.length > MAX_SNIPPET_CONTENT) {
     throw new Error(
@@ -89,14 +62,6 @@ function validateContent(raw: string): string {
   return raw;
 }
 
-/* ------------------------------------------------------------------ */
-/*  Queries                                                             */
-/* ------------------------------------------------------------------ */
-
-/**
- * Paginated list for the settings manager. Newest first. Returns lightweight
- * views (id + name + content) — enough to edit each row inline.
- */
 export const list = query({
   args: {
     projectId: v.id("projects"),
@@ -116,12 +81,6 @@ export const list = query({
   },
 });
 
-/**
- * Editor `/` menu lookup. Empty term → the most recent snippets (a useful
- * "recents" list before the user types). Non-empty term → top full-text matches
- * on the name. Capped at `SNIPPET_SEARCH_LIMIT`; returns full content so paste
- * needs no follow-up fetch.
- */
 export const search = query({
   args: { projectId: v.id("projects"), term: v.string() },
   handler: async (ctx, args): Promise<SnippetView[]> => {
@@ -147,10 +106,6 @@ export const search = query({
     return matches.map(toView);
   },
 });
-
-/* ------------------------------------------------------------------ */
-/*  Mutations                                                           */
-/* ------------------------------------------------------------------ */
 
 export const create = mutation({
   args: {
@@ -217,7 +172,7 @@ export const remove = mutation({
     await rateLimiter.limit(ctx, "snippets:remove", { key, throws: true });
 
     const snippet = await ctx.db.get(args.snippetId);
-    if (!snippet) return null; // idempotent
+    if (!snippet) return null;
     const project = await requireOwnedProject(ctx, snippet.projectId);
 
     await ctx.db.delete(args.snippetId);

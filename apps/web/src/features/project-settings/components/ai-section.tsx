@@ -5,6 +5,10 @@ import type { Id } from "@wryte/backend/_generated/dataModel";
 import { staggerContainer, staggerItem } from "@wryte/logic/lib/motion";
 import { cn } from "@wryte/logic/lib/utils";
 import { ALL_PROVIDERS, getProvider } from "@wryte/logic/types/ai";
+import type {
+  AiProviderId,
+  ProjectData,
+} from "@wryte/logic/types/project-settings";
 import { Button } from "@wryte/ui/button";
 import { Input } from "@wryte/ui/input";
 import { Skeleton } from "@wryte/ui/skeleton";
@@ -17,7 +21,6 @@ import { AI_PROVIDER_MARKS } from "@/components/branding/provider-logos";
 import { ConfirmActionDialog } from "@/components/settings/confirm-action-dialog";
 import { SaveBar } from "@/components/settings/save-bar";
 import { useAiSection } from "../hooks/use-ai-section";
-import type { AiProviderId, ProjectData } from "../types";
 import { Divider, FieldGroup, SectionHeader, SettingsGroup } from "./shared";
 
 export function AiSection({
@@ -202,9 +205,6 @@ function PromptTemplatesEditor({ projectId }: { projectId: Id<"projects"> }) {
   const [isAdding, setIsAdding] = useState(false);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
-  // Edits made within one debounce window, keyed by template id. Each save
-  // merges ALL of them over the latest server snapshot, so a second edit
-  // inside the window can't drop the first.
   const pendingEditsRef = useRef(
     new Map<string, Partial<Record<"name" | "prompt", string>>>(),
   );
@@ -228,7 +228,6 @@ function PromptTemplatesEditor({ projectId }: { projectId: Id<"projects"> }) {
     });
   }, [updateTemplates, projectId]);
 
-  // Leaving the page mid-debounce saves right away instead of dropping it.
   useEffect(() => flushEdits, [flushEdits]);
 
   const handleAdd = useCallback(async () => {

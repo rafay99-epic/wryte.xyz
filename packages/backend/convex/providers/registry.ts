@@ -1,15 +1,3 @@
-/**
- * Provider adapters — one object per storage backend, behind one interface.
- *
- * This is the only place that knows how a given provider uploads, lists,
- * deletes or verifies. `media/uploads.ts` and `media/credentials.ts` pick an
- * adapter by id and call it; neither has a per-provider branch. Adding a
- * backend means adding an entry here plus an id in `media/_lib/providers.ts`.
- *
- * Adapters take a {@link ProviderContext}, never a Convex `Doc`: the provider
- * layer stays free of the database schema, and `media/providerResolution.ts`
- * owns the mapping (project row → context, credential row → secret).
- */
 "use node";
 
 import type {
@@ -34,11 +22,6 @@ import {
 } from "./shared";
 import * as uploadthing from "./uploadthing";
 
-/**
- * The subset of a project an adapter is allowed to see. Deliberately a plain
- * struct rather than `Doc<"projects">` so `convex/providers/*` never imports
- * the schema.
- */
 export type ProjectMediaConfig = {
   slug: string;
   mediaPath?: string | undefined;
@@ -48,14 +31,12 @@ export type ProjectMediaConfig = {
 
 export type ProviderContext = {
   project: ProjectMediaConfig;
-  /** Vault secret for `vault` providers; the GitHub OAuth token for `github`. */
   secret: string;
 };
 
 export type AdapterUploadInput = {
   buffer: Buffer;
   mime: string;
-  /** Already reduced to a single safe path segment by the caller. */
   filename: string;
 };
 
@@ -77,11 +58,6 @@ export type AdapterListResult = {
   nextCursor: string | null;
 };
 
-/**
- * What identifies an object to delete. `externalId` is whatever the provider's
- * upload returned (file key / public_id / repo path / object key); `sha` is
- * GitHub's blob SHA, supplied when the caller already has it from a listing.
- */
 export type AdapterDeleteRef = {
   externalId: string;
   sha?: string | undefined;
@@ -89,12 +65,7 @@ export type AdapterDeleteRef = {
 
 export type ProviderAdapter = {
   readonly id: MediaProvider;
-  /**
-   * Rejects a malformed secret before it reaches the vault. Called on save and
-   * on rotate so a bad blob never becomes the stored credential.
-   */
   validateSecret(raw: string): void;
-  /** Cheapest call that proves the credential works. Secret-only by design — the rotation workflow verifies a candidate secret with no project in hand. */
   ping(secret: string): Promise<void>;
   upload(
     cx: ProviderContext,
@@ -105,15 +76,6 @@ export type ProviderAdapter = {
   mapError(err: unknown): MediaErrorCode;
 };
 
-/* ------------------------------------------------------------------ */
-/*  Helpers shared by adapters                                         */
-/* ------------------------------------------------------------------ */
-
-/**
- * Destination prefix for the object-store providers. `mediaPath` is the
- * user's per-project setting; the slug keeps uploads namespaced when it's
- * unset so two projects on one account never collide.
- */
 function destinationPrefix(project: ProjectMediaConfig): string {
   return normalizeKeyPrefix(project.mediaPath ?? project.slug);
 }
@@ -136,15 +98,9 @@ function githubSpec(project: ProjectMediaConfig): github.GhRepoSpec {
   };
 }
 
-/* ------------------------------------------------------------------ */
-/*  Adapters                                                           */
-/* ------------------------------------------------------------------ */
-
 const githubAdapter: ProviderAdapter = {
   id: "github",
-  validateSecret() {
-    // GitHub rides the user's OAuth token — there is no stored secret to check.
-  },
+  validateSecret() {},
   ping() {
     return Promise.reject(
       new Error(
@@ -162,8 +118,6 @@ const githubAdapter: ProviderAdapter = {
   },
   async list(cx) {
     const items = await github.listFiles(cx.secret, githubSpec(cx.project));
-    // The Contents API returns the whole directory in one response — there is
-    // nothing to page through.
     return {
       items: items.map((item) => ({
         externalId: item.externalId,
@@ -177,13 +131,10 @@ const githubAdapter: ProviderAdapter = {
   },
   async remove(cx, ref) {
     const spec = githubSpec(cx.project);
-    // Deleting a blob needs its current SHA. Callers that listed first pass it
-    // in; the rest resolve it here so neither caller carries the fallback.
     let sha = ref.sha;
     if (!sha) {
       const items = await github.listFiles(cx.secret, spec);
       sha = items.find((item) => item.externalId === ref.externalId)?.sha;
-      // Already gone from the repo — nothing left to delete.
       if (!sha) return;
     }
     await github.deleteFile(cx.secret, spec, ref.externalId, sha);
@@ -208,7 +159,6 @@ const uploadthingAdapter: ProviderAdapter = {
     return { url: res.url, externalId: res.externalId, bytes: res.bytes };
   },
   async list(cx, opts) {
-    // UploadThing pages by offset, so the cursor is the next offset.
     const offset = opts.cursor ? Number(opts.cursor) : 0;
     const { items, hasMore } = await uploadthing.listFiles(cx.secret, {
       limit: opts.limit,

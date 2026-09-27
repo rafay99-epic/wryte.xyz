@@ -1,7 +1,3 @@
-/**
- * Golden checks for the animation publish gate. Run directly:
- * `bun run tests/animationChecks.test.ts`. Every assert throws on failure.
- */
 import assert from "node:assert/strict";
 import type { AnimationCheckRecord } from "../convex/_lib/animationChecks";
 import {

@@ -1,3 +1,4 @@
+import { escapeXml } from "@wryte/logic/lib/escape";
 import {
   absoluteUrl,
   SITE_AUTHOR,
@@ -14,15 +15,6 @@ type FeedEntry = {
   description: string;
   publishedAt: number | undefined;
 };
-
-function escapeXml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
-}
 
 function renderItem(entry: FeedEntry): string {
   const link = absoluteUrl(`/changelog`);

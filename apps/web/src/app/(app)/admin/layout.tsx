@@ -14,11 +14,6 @@ export default function AdminLayout({
   );
 }
 
-/**
- * Clerk's Backend API lookup is request-specific and intentionally uncached.
- * Keeping it inside this boundary lets Next prefetch the admin loading shell
- * while ensuring no protected content is streamed before authorization.
- */
 async function AuthorizedAdminContent({
   children,
 }: {

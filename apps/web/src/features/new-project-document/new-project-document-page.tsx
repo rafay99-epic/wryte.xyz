@@ -23,13 +23,6 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
-/**
- * Redesigned "New Article" page with a clean, immersive UI.
- *
- * Features a large title input as the hero element, an auto-generated slug
- * preview, and a prominent CTA. The layout uses the full content area
- * for a focused, distraction-free creation experience.
- */
 export function NewProjectDocumentPage({
   projectId: rawProjectId,
 }: {
@@ -47,7 +40,6 @@ export function NewProjectDocumentPage({
   const [isSlugEditing, setIsSlugEditing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Set active project in sidebar on mount
   useEffect(() => {
     useEditorStore.getState().setActiveProjectId(projectId);
   }, [projectId]);
@@ -67,7 +59,6 @@ export function NewProjectDocumentPage({
     setSlug(generateSlug(value));
   }, []);
 
-  // Derive the full file path preview
   const filePath = useMemo(() => {
     const contentDir = project?.contentPath || "content/blog";
     const s = slug || "my-new-post";
@@ -125,7 +116,6 @@ export function NewProjectDocumentPage({
     router,
   ]);
 
-  // Submit on Enter in the title field
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key === "Enter" && !e.shiftKey) {
@@ -138,7 +128,6 @@ export function NewProjectDocumentPage({
 
   return (
     <div className="flex h-full flex-col">
-      {/* Top bar — subtle breadcrumb */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -156,10 +145,8 @@ export function NewProjectDocumentPage({
         <span className="text-xs font-medium text-foreground">New Article</span>
       </motion.div>
 
-      {/* Main content — centered, spacious */}
       <div className="flex flex-1 items-center justify-center px-6">
         <div className="w-full max-w-xl">
-          {/* Icon + heading */}
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
@@ -177,7 +164,6 @@ export function NewProjectDocumentPage({
             </p>
           </motion.div>
 
-          {/* Title input — the hero */}
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
@@ -202,7 +188,6 @@ export function NewProjectDocumentPage({
               />
             </div>
 
-            {/* Slug row */}
             <div className="flex items-center gap-2">
               <div className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-border/40 bg-muted/30 px-3 py-2.5">
                 <Hash className="size-3.5 shrink-0 text-muted-foreground/50" />
@@ -232,7 +217,6 @@ export function NewProjectDocumentPage({
               </div>
             </div>
 
-            {/* File path preview */}
             {slug && (
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
@@ -248,7 +232,6 @@ export function NewProjectDocumentPage({
             )}
           </motion.div>
 
-          {/* Actions */}
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
@@ -284,7 +267,6 @@ export function NewProjectDocumentPage({
             </Button>
           </motion.div>
 
-          {/* Keyboard hint */}
           <motion.p
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}

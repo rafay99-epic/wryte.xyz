@@ -1,10 +1,3 @@
-/**
- * Post-embed resolver. Given a social post URL, identifies the provider,
- * fetches its oEmbed data server-side (no CORS, no client secrets), and
- * returns portable raw HTML to drop into the markdown — mirroring the
- * `<video>` embed pattern. Runs in the default Convex runtime; `fetch` needs
- * no Node. Auth-gated and rate-limited like the link checker.
- */
 import { v } from "convex/values";
 import { action } from "../_generated/server";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";

@@ -8,11 +8,6 @@ type Props = Omit<ImageProps, "src" | "alt"> & {
   alt?: string;
 };
 
-/**
- * Theme-aware brand icon. Reads `BRAND.icon` from the central registry and
- * resolves the per-theme variant on the client. Drop-in replacement for
- * `<Image src="/wryte-icon.png" />`.
- */
 export function BrandIcon({ alt, ...props }: Props) {
   const theme = useResolvedTheme();
   const src = resolveBrandAsset(BRAND.icon, theme);

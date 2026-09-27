@@ -3,11 +3,6 @@
 import { Popover, PopoverContent, PopoverTrigger } from "@wryte/ui/popover";
 import { Info } from "lucide-react";
 
-/**
- * The ⓘ affordance behind the settings copy diet: the visible UI keeps one
- * short line, and the full explanation lives here — read on demand instead
- * of read past. Keep trigger targets ≥ tap size via padding, not icon size.
- */
 export function InfoHint({ children }: { children: React.ReactNode }) {
   return (
     <Popover>

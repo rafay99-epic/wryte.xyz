@@ -10,10 +10,6 @@ import {
   wryteWaySteps,
 } from "@/features/marketing/constants";
 
-/* ------------------------------------------------------------------ */
-/*  Verdict icon                                                        */
-/* ------------------------------------------------------------------ */
-
 function Verdict({ cell }: { cell: Cell }) {
   const config = {
     yes: {
@@ -50,14 +46,9 @@ function Verdict({ cell }: { cell: Cell }) {
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  The "git dance" diff narrative                                      */
-/* ------------------------------------------------------------------ */
-
 function DiffNarrative() {
   return (
     <div className="grid gap-4 lg:grid-cols-2">
-      {/* Old way (red) */}
       <motion.div
         initial={{ opacity: 0, x: -16 }}
         whileInView={{ opacity: 1, x: 0 }}
@@ -83,7 +74,6 @@ function DiffNarrative() {
         </div>
       </motion.div>
 
-      {/* Wryte way (green) */}
       <motion.div
         initial={{ opacity: 0, x: 16 }}
         whileInView={{ opacity: 1, x: 0 }}
@@ -112,10 +102,6 @@ function DiffNarrative() {
     </div>
   );
 }
-
-/* ------------------------------------------------------------------ */
-/*  Feature matrix                                                      */
-/* ------------------------------------------------------------------ */
 
 function FeatureMatrix() {
   return (
@@ -201,10 +187,6 @@ function FeatureMatrix() {
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  Section                                                             */
-/* ------------------------------------------------------------------ */
-
 export function ComparisonSection() {
   return (
     <section
@@ -230,7 +212,6 @@ export function ComparisonSection() {
           <FeatureMatrix />
         </div>
 
-        {/* Payload-specific callout */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}

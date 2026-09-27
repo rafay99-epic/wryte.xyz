@@ -5,10 +5,6 @@ import { BrandIcon } from "@/components/branding/brand-icon";
 import { MagneticButton } from "@/features/marketing/components/magnetic-button";
 import { type DiffLine, heroDiffLines } from "@/features/marketing/constants";
 
-/* ------------------------------------------------------------------ */
-/*  Diff card                                                          */
-/* ------------------------------------------------------------------ */
-
 const GUTTER: Record<DiffLine["kind"], string> = {
   add: "+",
   remove: "-",
@@ -68,7 +64,6 @@ function HeroDiffCard() {
       className="animated-border relative w-full max-w-[520px]"
     >
       <div className="relative overflow-hidden rounded-2xl border border-foreground/[0.12] bg-background/80 shadow-2xl shadow-black/20 backdrop-blur-xl dark:border-foreground/[0.07] dark:bg-foreground/[0.02]">
-        {/* Title bar */}
         <div className="flex items-center gap-2 border-b border-foreground/[0.07] px-4 py-3">
           <div className="flex gap-1.5">
             <span className="size-2.5 rounded-full bg-foreground/15" />
@@ -84,14 +79,12 @@ function HeroDiffCard() {
           </span>
         </div>
 
-        {/* Diff body */}
         <div className="py-2">
           {heroDiffLines.map((line, i) => (
             <DiffRow key={`${line.kind}-${i}`} line={line} index={i} />
           ))}
         </div>
 
-        {/* Commit footer */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -116,10 +109,6 @@ function HeroDiffCard() {
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  Hero                                                               */
-/* ------------------------------------------------------------------ */
-
 export function HeroDiff({
   isSignedIn,
   onScrollTo,
@@ -140,7 +129,6 @@ export function HeroDiff({
       ref={heroRef}
       className="relative flex min-h-screen items-center overflow-hidden px-6 pt-28 pb-20"
     >
-      {/* Ambient glows */}
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute left-1/4 top-1/3 h-[520px] w-[520px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-amber-500/[0.08] blur-[120px]" />
         <div className="absolute right-1/4 top-2/3 h-[400px] w-[400px] rounded-full bg-emerald-500/[0.05] blur-[120px]" />
@@ -151,7 +139,6 @@ export function HeroDiff({
         style={{ opacity, y }}
         className="relative mx-auto grid w-full max-w-[1180px] items-center gap-12 lg:grid-cols-[1.05fr_1fr] lg:gap-10"
       >
-        {/* Copy */}
         <div className="text-center lg:text-left">
           <motion.div
             initial={{ opacity: 0, y: 16 }}
@@ -226,7 +213,6 @@ export function HeroDiff({
           </motion.p>
         </div>
 
-        {/* Diff card */}
         <div className="flex justify-center lg:justify-end">
           <HeroDiffCard />
         </div>

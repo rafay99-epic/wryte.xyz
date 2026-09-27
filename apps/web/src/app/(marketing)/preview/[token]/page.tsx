@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Suspense, use } from "react";
 import { PreviewLoading, PreviewPage } from "./preview-page";
 
-// Share links are unlisted by design — keep crawlers away from them.
 export const metadata: Metadata = {
   title: "Draft preview",
   robots: { index: false, follow: false },

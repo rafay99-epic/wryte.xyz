@@ -70,7 +70,6 @@ export function AppearanceTab() {
                     : "border-border/40 bg-card hover:border-border hover:bg-muted/30",
                 )}
               >
-                {/* Mini preview */}
                 <div
                   className={cn(
                     "flex h-16 w-full flex-col gap-1.5 rounded-lg border p-2 transition-transform duration-200 group-hover:scale-[1.02]",
@@ -114,7 +113,6 @@ export function AppearanceTab() {
                   </span>
                 </div>
 
-                {/* Active indicator dot */}
                 {isActive && (
                   <motion.div
                     layoutId="themeIndicator"

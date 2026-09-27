@@ -1,14 +1,3 @@
-/**
- * Centralized 16-color palette for board columns, tags, and status badges.
- *
- * Each color provides a full set of Tailwind classes for light and dark mode:
- * - accent: column top-border highlight
- * - badge: count chips and status badges
- * - cardHover: subtle card background tint
- * - dot: color picker swatch circle
- * - ring: focus/selected outline
- */
-
 export const BOARD_COLORS = [
   "gray",
   "red",
@@ -31,15 +20,10 @@ export const BOARD_COLORS = [
 export type BoardColor = (typeof BOARD_COLORS)[number];
 
 export type ColorClasses = {
-  /** Column top-border accent: e.g. "border-t-blue-500" */
   accent: string;
-  /** Badge/count background: e.g. "bg-blue-500/10 text-blue-600 dark:text-blue-400" */
   badge: string;
-  /** Subtle card hover tint */
   cardHover: string;
-  /** Small dot swatch for color picker */
   dot: string;
-  /** Ring for focus/selected state */
   ring: string;
 };
 
@@ -158,7 +142,6 @@ export const COLOR_MAP: Record<BoardColor, ColorClasses> = {
   },
 };
 
-/** Helper to get classes for a color key with fallback to gray. */
 export function getColorClasses(color: string): ColorClasses {
   return COLOR_MAP[color as BoardColor] ?? COLOR_MAP.gray;
 }

@@ -4,8 +4,10 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { smoothTransition, staggerItem } from "@wryte/logic/lib/motion";
 import { cn } from "@wryte/logic/lib/utils";
+import { formatWordCount } from "@wryte/logic/lib/word-count";
 import { useBoardStore } from "@wryte/logic/stores/board-store";
 import type { BoardColumnDef } from "@wryte/logic/types/board";
+import type { ContentItem } from "@wryte/logic/types/content";
 import { Button } from "@wryte/ui/button";
 import {
   DropdownMenu,
@@ -35,8 +37,7 @@ import { useDocumentActions } from "@/features/content-dashboard/hooks/use-docum
 import { useHoverPreview } from "@/features/content-dashboard/hooks/use-hover-preview";
 import { useInlineRename } from "@/features/content-dashboard/hooks/use-inline-rename";
 import { useTagEditor } from "@/features/content-dashboard/hooks/use-tag-editor";
-import { CardInner, formatWordCount } from "./card-inner";
-import type { ContentItem } from "./content-table-row";
+import { CardInner } from "./card-inner";
 
 type BoardCardProps = {
   item: ContentItem;
@@ -46,12 +47,6 @@ type BoardCardProps = {
   allProjectTags?: string[] | undefined;
   selected?: boolean | undefined;
   onSelect?: ((checked: boolean) => void) | undefined;
-  /**
-   * True when any card is currently selected. In this "selection mode" a
-   * plain card click toggles the card's selection instead of opening it —
-   * mirrors Notion/Gmail, so users can't accidentally open a document while
-   * picking several.
-   */
   selectionActive?: boolean | undefined;
   onOpen: () => void;
   onDelete?: (() => void) | undefined;
@@ -171,11 +166,6 @@ function DraggableBoardCard({
   } = useSortable({
     id: sortableId,
     data: { item, columnId },
-    // While a rename or tag edit is open the card must stop being a drag
-    // handle — otherwise selecting text in the input (pointer moves > the
-    // sensor's 5px constraint) starts dragging the card, and Space/Enter
-    // keystrokes feed the keyboard sensor. This is what tore cards apart
-    // mid-rename.
     disabled: isEditing,
   });
   const tagEditor = useTagEditor({ documentId: item.id, initialTags: tags });
@@ -207,13 +197,6 @@ function DraggableBoardCard({
     opacity: isDragging || isBeingDragged ? 0.4 : 1,
   };
 
-  // Click behavior:
-  //  • renaming / editing tags → swallow the click
-  //  • already in selection mode, OR a modifier-click (⌘/Ctrl/Shift) →
-  //    toggle this card's selection. The modifier path lets you START a
-  //    selection from anywhere on the card without hunting for the tiny
-  //    checkbox (Finder/Gmail/Notion convention).
-  //  • otherwise → open the document
   const handleCardClick =
     rename.isRenaming || isEditingTags
       ? undefined
@@ -250,9 +233,6 @@ function DraggableBoardCard({
         onClick={handleCardClick}
         {...(isEditing ? {} : listeners)}
       >
-        {/* Preview popover — portaled to escape column overflow clipping.
-            Suppressed while editing: the pointer necessarily hovers the card
-            being renamed, and the popover would sit right on top of it. */}
         {previewRect &&
           item.excerpt &&
           !isDragging &&
@@ -274,7 +254,6 @@ function DraggableBoardCard({
             document.body,
           )}
 
-        {/* Action menu */}
         <div className="absolute right-2 top-2 opacity-0 transition-opacity group-hover:opacity-100">
           <DropdownMenu>
             <DropdownMenuTrigger
@@ -384,11 +363,7 @@ function DraggableBoardCard({
           </DropdownMenu>
         </div>
 
-        {/* Card content with optional checkbox */}
         <div className="flex items-start gap-2">
-          {/* Padded <label> = generous click target without shifting
-              layout; toggles the checkbox natively. stopPropagation keeps
-              the click from opening the card instead. */}
           {onSelect && (
             <label
               className={cn(
@@ -429,9 +404,6 @@ function DraggableBoardCard({
                   onBlur={() => void rename.saveRename()}
                   className="min-w-0 flex-1 rounded border border-input bg-transparent px-1.5 py-0.5 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-ring"
                 />
-                {/* preventDefault on mousedown keeps focus in the input, so
-                    its onBlur (which saves) can't fire before these clicks —
-                    without it, X would save the rename instead of cancelling. */}
                 <Button
                   variant="ghost"
                   size="icon-xs"
@@ -461,7 +433,6 @@ function DraggableBoardCard({
               />
             )}
 
-            {/* Inline tag editing */}
             {isEditingTags && !rename.isRenaming && (
               <div
                 className="mt-2 space-y-1.5"
@@ -547,7 +518,6 @@ function StaticBoardCard({
   onOpen: () => void;
   onDeleteRemote?: (() => void) | undefined;
 }) {
-  // Selection mode OR a modifier-click toggles selection; plain click opens.
   const handleCardClick = (e: ReactMouseEvent) => {
     if (onSelect && (selectionActive || e.metaKey || e.ctrlKey || e.shiftKey)) {
       e.preventDefault();

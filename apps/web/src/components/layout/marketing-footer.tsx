@@ -2,9 +2,6 @@ import { APP_RELEASE_LABEL } from "@wryte/logic/lib/release";
 import Link from "next/link";
 import { BrandIcon } from "@/components/branding/brand-icon";
 
-// Keep prerender output deterministic. The footer is pulled into both Server
-// and Client Component trees, so reading the clock here would invalidate the
-// static shell and could also cross a year boundary during hydration.
 const COPYRIGHT_YEAR = process.env["NEXT_PUBLIC_BUILD_YEAR"] ?? "2026";
 
 const footerLinks = {

@@ -8,18 +8,6 @@ import { Label } from "@wryte/ui/label";
 import { Eye, EyeOff } from "lucide-react";
 import { useState } from "react";
 
-/**
- * Renders a storage provider's credential inputs from its registry entry.
- *
- * There is deliberately no per-provider branch here: the shape of the form is
- * data (`entry.fields`), so connecting a new provider is a registry entry, not
- * another copy of this JSX. Used by both project settings and the new-project
- * wizard.
- *
- * Secret fields render as password inputs behind a single reveal toggle, and
- * their placeholder changes once a credential exists so it's clear that leaving
- * them blank keeps the stored value.
- */
 export function CredentialFieldsForm({
   entry,
   values,
@@ -30,9 +18,7 @@ export function CredentialFieldsForm({
   entry: MediaProviderEntry;
   values: CredentialValues;
   onChange: (key: string, value: string) => void;
-  /** A credential is already stored — secrets are being replaced, not set. */
   hasExisting?: boolean;
-  /** Namespaces input ids so two forms can coexist on one page. */
   idPrefix: string;
 }) {
   const [showSecrets, setShowSecrets] = useState(false);
@@ -49,9 +35,6 @@ export function CredentialFieldsForm({
         const id = `${idPrefix}-${field.key}`;
         const label =
           field.secret && hasExisting ? `Replace ${field.label}` : field.label;
-        // Secret fields arrive blank because stored secrets never leave the
-        // server. Blank means "keep what's saved", so the placeholder has to
-        // say that rather than look like an empty required field.
         const placeholder =
           field.secret && hasExisting
             ? "Unchanged — type to replace"
@@ -71,8 +54,6 @@ export function CredentialFieldsForm({
                   </span>
                 )}
               </Label>
-              {/* Behind the ⓘ, not under the input: a five-field form with a
-                  paragraph per field is unreadable. */}
               {field.hint && <InfoHint>{field.hint}</InfoHint>}
             </span>
             <div className="relative">

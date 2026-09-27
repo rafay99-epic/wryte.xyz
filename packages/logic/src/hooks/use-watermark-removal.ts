@@ -10,23 +10,11 @@ import { useQuery } from "convex/react";
 import { useCallback, useState } from "react";
 
 type UseWatermarkRemovalResult = {
-  /**
-   * Remove the Gemini watermark from an image file. Skips processing
-   * when the project setting is disabled. Returns the original file
-   * unchanged when no watermark is detected.
-   */
   removeWatermark: (file: File) => Promise<WatermarkResult>;
-  /** True while the watermark detection/removal is running. */
   isRemoving: boolean;
-  /** Whether watermark removal is enabled for this project. */
   enabled: boolean;
 };
 
-/**
- * Resolves the per-project `autoWatermarkRemoval` setting (default: enabled)
- * and exposes a `removeWatermark` convenience that short-circuits when the
- * feature is disabled.
- */
 export function useWatermarkRemoval(
   projectId: Id<"projects">,
 ): UseWatermarkRemovalResult {

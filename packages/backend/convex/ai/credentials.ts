@@ -1,19 +1,3 @@
-/**
- * aiCredentials — per-project AI provider key management.
- *
- * Mirrors the public surface of `media/credentials`:
- *   - `setCredentials` (first-time save + verify)
- *   - `rotate` (replace the key; verifies before swapping)
- *   - `testCredentials` (re-verify the stored key)
- *   - `deleteCredentials` (remove vault entry + row)
- *
- * All non-action helpers live in `credentialsDb.ts` (Convex can't put a
- * mutation inside a `"use node"` file).
- *
- * Verification = a cheap `models.list()` call against each provider. That
- * call doesn't consume any tokens, so users aren't charged just for saving
- * a key.
- */
 "use node";
 
 import Anthropic from "@anthropic-ai/sdk";
@@ -31,15 +15,6 @@ import {
   providerValidator,
 } from "./_lib/providers";
 
-/* ------------------------------------------------------------------ */
-/*  Public actions                                                      */
-/* ------------------------------------------------------------------ */
-
-/**
- * First-time AI credential set. Stores the API key in the vault and runs
- * a verification ping. On invalid keys the row still gets written with
- * `status: "invalid"` so the UI can render the error.
- */
 export const setCredentials = action({
   args: {
     projectId: v.id("projects"),
@@ -83,9 +58,6 @@ export const setCredentials = action({
       { projectId: args.projectId, provider: args.provider },
     );
 
-    // Verify-first. When we're replacing an existing credential, we must
-    // not destroy the working vault entry just because the user mistyped
-    // a new key — leave the old row intact and surface the error instead.
     const verify = await runProviderPing(args.provider, secret);
     if (existing && !verify.ok) {
       return {
@@ -130,9 +102,7 @@ export const setCredentials = action({
         await ctx.runAction(internal.integrations.secretStore._delete, {
           id: existing.vaultSecretId,
         });
-      } catch {
-        // Orphan vault entries can be cleaned up out-of-band.
-      }
+      } catch {}
     } else {
       const insertArgs: {
         projectId: Id<"projects">;
@@ -178,7 +148,6 @@ export const setCredentials = action({
   },
 });
 
-/** Re-verify the stored key with a cheap `models.list()` ping. */
 export const testCredentials = action({
   args: {
     projectId: v.id("projects"),
@@ -214,11 +183,6 @@ export const testCredentials = action({
   },
 });
 
-/**
- * Replace the stored key. Verify-then-swap-then-delete-old: if verification
- * of the new key fails we keep the old vault entry in place and report the
- * error, so the user never ends up with no working key.
- */
 export const rotate = action({
   args: {
     projectId: v.id("projects"),
@@ -246,19 +210,14 @@ export const rotate = action({
       throw new ConvexError({ message: "API key is required." });
     }
 
-    // Snapshot the prior status so a failed rotation can revert correctly.
-    // Previously we always reverted to "active", which incorrectly promoted
-    // rows whose stored key was already known-bad ("invalid").
     const priorStatus: "active" | "invalid" =
       cred.status === "invalid" ? "invalid" : "active";
 
-    // Mark as rotating up front so the UI can react.
     await ctx.runMutation(internal.ai.credentialsDb._setStatus, {
       credentialId: cred._id,
       status: "rotating" as const,
     });
 
-    // Verify before storing — bail early if the new key is junk.
     const verify = await runProviderPing(args.provider, newSecret);
     if (!verify.ok) {
       await ctx.runMutation(internal.ai.credentialsDb._setStatus, {
@@ -304,19 +263,12 @@ export const rotate = action({
       await ctx.runAction(internal.integrations.secretStore._delete, {
         id: cred.vaultSecretId,
       });
-    } catch {
-      // Orphan — non-fatal.
-    }
+    } catch {}
 
     return { credentialId: cred._id, ok: true };
   },
 });
 
-/**
- * Delete the credential. Refuses if the project's active `aiProvider`
- * still points to this provider — user must switch first to avoid leaving
- * the AI in a non-functional state.
- */
 export const deleteCredentials = action({
   args: {
     projectId: v.id("projects"),
@@ -344,18 +296,12 @@ export const deleteCredentials = action({
       await ctx.runAction(internal.integrations.secretStore._delete, {
         id: cred.vaultSecretId,
       });
-    } catch {
-      // Best-effort.
-    }
+    } catch {}
     await ctx.runMutation(internal.ai.credentialsDb._delete, {
       credentialId: cred._id,
     });
   },
 });
-
-/* ------------------------------------------------------------------ */
-/*  Helpers                                                              */
-/* ------------------------------------------------------------------ */
 
 async function loadOwnedCredential(
   ctx: ActionCtx,
@@ -396,11 +342,6 @@ async function loadOwnedCredential(
   };
 }
 
-/**
- * Provider verification. All three SDKs expose `models.list()` which is a
- * cheap HTTP call that doesn't consume any tokens — perfect for verifying
- * a key without charging the user.
- */
 async function runProviderPing(
   provider: AiProvider,
   apiKey: string,
@@ -412,7 +353,6 @@ async function runProviderPing(
       await client.models.list({ limit: 1 });
     } else if (entry.kind === "gemini-native") {
       const ai = new GoogleGenAI({ apiKey });
-      // Free, no-token call — fetches one page of models to verify the key.
       await ai.models.list({ config: { pageSize: 1 } });
     } else {
       const client = new OpenAI({

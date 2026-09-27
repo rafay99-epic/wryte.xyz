@@ -1,20 +1,9 @@
-/**
- * Non-Node database helpers for `ai/credentials`.
- *
- * Mirrors `convex/media/credentialsDb.ts` exactly — split out so the
- * Node-only action file can call into these via `ctx.runQuery` /
- * `ctx.runMutation`.
- */
 import { v } from "convex/values";
 import { internalMutation, internalQuery, query } from "../_generated/server";
 import { getAuthedUserOrNull } from "../_lib/auth";
 import type { DocPatch } from "../_lib/docPatch";
 import { providerValidator } from "./_lib/providers";
 
-/**
- * Public read for the settings UI. Never returns the secret — only the
- * fields the UI needs to render verification chips.
- */
 export const getPublicConfig = query({
   args: {
     projectId: v.id("projects"),
@@ -47,10 +36,6 @@ export const getPublicConfig = query({
     };
   },
 });
-
-/* ------------------------------------------------------------------ */
-/*  Internal queries / mutations                                         */
-/* ------------------------------------------------------------------ */
 
 export const _findByProjectAndProvider = internalQuery({
   args: {

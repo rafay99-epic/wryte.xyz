@@ -5,35 +5,18 @@ import dynamic from "next/dynamic";
 import type { ReactElement } from "react";
 import type { ReactDiffViewerStylesOverride } from "react-diff-viewer-continued";
 
-// react-diff-viewer-continued is ~1.2 MB and only renders on rarely-hit
-// surfaces (conflict resolution, draft compare) — load it lazily so it
-// never ships in the main app bundle.
 const ReactDiffViewer = dynamic(() => import("react-diff-viewer-continued"), {
   ssr: false,
   loading: () => <Skeleton className="h-64 w-full rounded-lg" />,
 });
 
-/**
- * Diff viewer palette wired to the app's CSS theme tokens. Every value is a
- * `var(--*)` reference, so the diff inherits whichever theme is active on
- * `<html>` and re-themes automatically when the user toggles dark/light — no
- * `useTheme()` re-renders needed. Added/removed highlights use semi-transparent
- * emerald/destructive overlays so they read on both light and dark surfaces
- * without inventing a separate palette.
- *
- * The same overrides are sent to both `variables.light` and `variables.dark`
- * so the library's internal `useDarkTheme` switch doesn't pull in its default
- * white panel for either branch.
- */
 const DIFF_VIEWER_VARS = {
-  // Surfaces — pull straight from app tokens.
   diffViewerBackground: "var(--card)",
   diffViewerColor: "var(--card-foreground)",
   diffViewerTitleBackground: "var(--muted)",
   diffViewerTitleColor: "var(--foreground)",
   diffViewerTitleBorderColor: "var(--border)",
 
-  // Gutter (line-number column) — slightly darker than the surface.
   gutterBackground: "var(--muted)",
   gutterBackgroundDark: "var(--muted)",
   gutterColor: "var(--muted-foreground)",
@@ -44,8 +27,6 @@ const DIFF_VIEWER_VARS = {
   highlightBackground: "var(--accent)",
   highlightGutterBackground: "var(--accent)",
 
-  // Added (right side / new lines) — emerald wash that respects the current
-  // background instead of stamping a hard green panel.
   addedBackground: "color-mix(in oklab, var(--card) 85%, oklch(0.7 0.16 145))",
   addedColor: "var(--foreground)",
   wordAddedBackground:
@@ -54,7 +35,6 @@ const DIFF_VIEWER_VARS = {
     "color-mix(in oklab, var(--muted) 80%, oklch(0.7 0.16 145))",
   addedGutterColor: "var(--foreground)",
 
-  // Removed (left side / old lines) — destructive wash, same trick.
   removedBackground: "color-mix(in oklab, var(--card) 85%, var(--destructive))",
   removedColor: "var(--foreground)",
   wordRemovedBackground:
@@ -64,9 +44,6 @@ const DIFF_VIEWER_VARS = {
   removedGutterColor: "var(--foreground)",
 } as const;
 
-/**
- * Theme-aware style overrides for the ReactDiffViewer rendered below.
- */
 const DIFF_VIEWER_STYLES: ReactDiffViewerStylesOverride = {
   variables: {
     dark: DIFF_VIEWER_VARS,
@@ -78,26 +55,14 @@ const DIFF_VIEWER_STYLES: ReactDiffViewerStylesOverride = {
 };
 
 type MarkdownDiffViewerProps = {
-  /** Left-hand ("old") content. */
   oldValue: string;
-  /** Right-hand ("new") content. */
   newValue: string;
-  /** Title above the left column. */
   leftTitle?: string | ReactElement;
-  /** Title above the right column. */
   rightTitle?: string | ReactElement;
-  /** Split (two-column) vs unified view. Defaults to split. */
   splitView?: boolean;
-  /** Hide the line-number gutters. Defaults to showing them. */
   hideLineNumbers?: boolean;
 };
 
-/**
- * Thin, theme-aware wrapper around `react-diff-viewer-continued`. Owns the
- * lazy import and the shared CSS-variable palette so every diff surface in the
- * app (sync-conflict resolution, side-by-side draft compare) renders with an
- * identical, theme-following look. Callers only pass the two sides + titles.
- */
 export function MarkdownDiffViewer({
   oldValue,
   newValue,
@@ -111,12 +76,7 @@ export function MarkdownDiffViewer({
       oldValue={oldValue}
       newValue={newValue}
       splitView={splitView}
-      // `useDarkTheme` only selects which `variables` block the library reads;
-      // both blocks reference identical CSS variables, so the choice doesn't
-      // matter — the theme follows `<html class="dark">` automatically.
       useDarkTheme={false}
-      // Only forward titles when provided — the library's prop types are not
-      // `undefined`-tolerant under `exactOptionalPropertyTypes`.
       {...(leftTitle !== undefined ? { leftTitle } : {})}
       {...(rightTitle !== undefined ? { rightTitle } : {})}
       hideLineNumbers={hideLineNumbers}

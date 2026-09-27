@@ -1,23 +1,3 @@
-/**
- * Public media actions: upload, list, delete.
- *
- * All uploads go directly to a project's storage provider — no Convex file
- * storage staging, no publish-time migration. These actions are the only
- * server-side entry point; the browser never talks to UploadThing, Cloudinary
- * or R2 directly, so credentials never leave Convex.
- *
- * Every provider-specific detail lives in `convex/providers/registry.ts`, and
- * *which* provider handles a request lives in `./providerResolution.ts`. What
- * remains here is the part that is identical for all of them: auth, quotas,
- * rate limits, filename hardening, bookkeeping and error normalisation.
- *
- * A project can have several providers connected at once. Requests take an
- * optional `provider`; without one they route to the project's default
- * (`mediaStorageMode`).
- *
- * Errors are normalised to `MediaErrorCode`s and propagated via `ConvexError`
- * so the client renders one of the friendly toasts in `src/lib/media-errors.ts`.
- */
 "use node";
 
 import { ConvexError, v } from "convex/values";
@@ -43,15 +23,6 @@ import {
   tryResolveProvider,
 } from "./providerResolution";
 
-/**
- * Resolves the acting user from `ctx.auth` inside an action.
- *
- * Media actions previously used `identity.tokenIdentifier` directly for both
- * rate limiting and the owned-project lookup. Resolving the `users` row once
- * instead lets the same bodies be reused by the MCP handlers, which are handed
- * an already-resolved caller because component-dispatched tools have no
- * `ctx.auth` — see `_lib/auth.ts → requireCallerInAction`.
- */
 async function requireUserFromAuth(ctx: ActionCtx): Promise<Doc<"users">> {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) throw new Error("Not authenticated");
@@ -62,7 +33,6 @@ async function requireUserFromAuth(ctx: ActionCtx): Promise<Doc<"users">> {
   return user;
 }
 
-/** Loads the project, asserting the caller owns it. */
 async function requireOwnedProject(
   ctx: ActionCtx,
   user: Doc<"users">,
@@ -76,19 +46,6 @@ async function requireOwnedProject(
   return owned;
 }
 
-/**
- * Reduces an untrusted filename to a single safe path segment. The result is
- * concatenated into provider URLs, object keys and GitHub repo paths
- * (`${mediaPath}/${filename}`), so any directory-traversal sequence would let
- * a caller escape the configured media directory.
- *
- * Rules:
- *  - Take only the last segment after splitting on both `/` and `\`
- *  - Reject NUL bytes outright (no realistic legitimate use)
- *  - Reject `.`, `..`, or empty results
- *  - Cap at 255 chars (long enough for any reasonable upload, short enough to
- *    fit any filesystem)
- */
 function sanitizeFilename(input: string): string {
   if (input.includes("\0")) {
     throw new ConvexError({
@@ -112,10 +69,6 @@ function sanitizeFilename(input: string): string {
   return lastSegment;
 }
 
-/* ------------------------------------------------------------------ */
-/*  Upload                                                              */
-/* ------------------------------------------------------------------ */
-
 export const upload = action({
   args: {
     projectId: v.id("projects"),
@@ -123,15 +76,12 @@ export const upload = action({
     mime: v.string(),
     filename: v.string(),
     documentId: v.optional(v.id("documents")),
-    /** Destination override. Omit to use the project's default provider. */
     provider: v.optional(mediaProviderValidator),
   },
   handler: async (ctx, args) =>
     await uploadForUser(ctx, await requireUserFromAuth(ctx), args),
 });
 
-/** `upload`'s body with the actor passed in explicitly. Shared with the MCP
- *  handler — see `requireUserFromAuth` above. */
 export async function uploadForUser(
   ctx: ActionCtx,
   user: Doc<"users">,
@@ -151,7 +101,6 @@ export async function uploadForUser(
 }> {
   const key = user.tokenIdentifier;
 
-  // ── Cheap checks first ──
   if (args.bytes.byteLength > QUOTAS.MAX_UPLOAD_BYTES) {
     throw new ConvexError({
       code: "FILE_TOO_LARGE" as MediaErrorCode,
@@ -165,13 +114,8 @@ export async function uploadForUser(
     });
   }
 
-  // Path traversal guard. The filename is concatenated into provider URLs,
-  // object keys and GitHub repo paths — a `../` segment would let a caller
-  // escape the configured media directory and overwrite e.g.
-  // `.github/workflows/*`.
   const safeFilename = sanitizeFilename(args.filename);
 
-  // Rate limits — user, concurrency, and the global circuit breaker.
   await rateLimiter.limit(ctx, "media:upload", { key, throws: true });
   await rateLimiter.limit(ctx, "media:uploadConcurrency", {
     key,
@@ -184,7 +128,6 @@ export async function uploadForUser(
 
   const owned = await requireOwnedProject(ctx, user, args.projectId);
 
-  // Per-project size limit (clamped to the absolute ceiling above).
   const projectMax =
     typeof owned.project.maxUploadBytes === "number" &&
     owned.project.maxUploadBytes > 0
@@ -197,7 +140,6 @@ export async function uploadForUser(
     });
   }
 
-  // Project-level quota.
   const quota = await ctx.runQuery(internal.media.uploadsDb._quotaCheck, {
     projectId: args.projectId,
     incomingBytes: args.bytes.byteLength,
@@ -218,8 +160,6 @@ export async function uploadForUser(
     });
   }
 
-  // Named before the try block so the error path can attribute failures even
-  // when resolution itself is what threw.
   const provider = resolveProviderName(owned.project, args.provider);
 
   try {
@@ -268,23 +208,8 @@ export async function uploadForUser(
   }
 }
 
-/* ------------------------------------------------------------------ */
-/*  Upload (base64) — MCP entry point                                    */
-/* ------------------------------------------------------------------ */
-
-/** Standard or URL-safe base64 alphabet with at most two trailing `=`. */
 const BASE64_RE = /^[A-Za-z0-9+/_-]+={0,2}$/;
 
-/**
- * Base64 twin of {@link uploadForUser}, for the MCP handler (the actor is
- * passed in explicitly — see `requireUserFromAuth` above).
- *
- * `upload` takes `v.bytes()`, which has no representation in JSON-RPC, and a
- * base64 string is a far better argument for a language model to produce than
- * Convex's `{"$bytes": …}` envelope. Deliberately a thin decode-and-delegate:
- * provider routing, quota checks, path-traversal guards, rate limits and error
- * normalisation all stay in `uploadForUser`.
- */
 export async function uploadBase64ForUser(
   ctx: ActionCtx,
   user: Doc<"users">,
@@ -302,9 +227,6 @@ export async function uploadBase64ForUser(
   provider: MediaProvider;
   externalId: string;
 }> {
-  // Reject oversized payloads before decoding: base64 inflates by ~4/3, so
-  // checking the encoded length first avoids allocating a buffer we're only
-  // going to throw away. `upload` re-checks the true byte length anyway.
   const approxBytes = Math.floor((args.base64.length * 3) / 4);
   if (approxBytes > QUOTAS.MAX_UPLOAD_BYTES) {
     throw new ConvexError({
@@ -313,10 +235,6 @@ export async function uploadBase64ForUser(
     });
   }
 
-  // Node's decoder silently skips invalid characters, so a truncated or
-  // mangled payload would otherwise upload as a corrupt image rather than
-  // failing loudly. Validate the alphabet and length first; line-wrapping
-  // whitespace is tolerated.
   const base64 = args.base64.replace(/\s+/g, "");
   const unpadded = base64.replace(/=+$/, "");
   const validBase64 =
@@ -332,9 +250,6 @@ export async function uploadBase64ForUser(
   }
   const buffer = Buffer.from(base64, "base64");
 
-  // Calls the shared body directly rather than `ctx.runAction(api...upload)`:
-  // one fewer action hop per upload, and it works for an MCP caller, where
-  // dispatching back through a public action would lose the identity again.
   return await uploadForUser(ctx, user, {
     projectId: args.projectId,
     bytes: buffer.buffer.slice(
@@ -348,23 +263,17 @@ export async function uploadBase64ForUser(
   });
 }
 
-/* ------------------------------------------------------------------ */
-/*  List                                                                 */
-/* ------------------------------------------------------------------ */
-
 export const list = action({
   args: {
     projectId: v.id("projects"),
     cursor: v.optional(v.string()),
     limit: v.optional(v.number()),
-    /** Which connected provider to browse. Omit for the project's default. */
     provider: v.optional(mediaProviderValidator),
   },
   handler: async (ctx, args) =>
     await listMediaForUser(ctx, await requireUserFromAuth(ctx), args),
 });
 
-/** `list`'s body with the actor passed in explicitly. */
 export async function listMediaForUser(
   ctx: ActionCtx,
   user: Doc<"users">,
@@ -386,8 +295,6 @@ export async function listMediaForUser(
   const provider = resolveProviderName(owned.project, args.provider);
 
   try {
-    // A provider that isn't connected yet lists as empty rather than failing —
-    // the UI renders its "connect this provider" state from that.
     const resolved = await tryResolveProvider(ctx, {
       project: owned.project,
       userId: owned.userId,
@@ -412,25 +319,11 @@ export async function listMediaForUser(
   }
 }
 
-/* ------------------------------------------------------------------ */
-/*  Delete                                                              */
-/* ------------------------------------------------------------------ */
-
-/**
- * Delete a media file by provider + externalId. Used by the media library
- * page, where listings come straight from the provider — many of those files
- * have no row in our `media` table (e.g. files uploaded to the same bucket
- * outside this app).
- *
- * `sha` is an optimisation, not a requirement: GitHub deletes need the current
- * blob SHA, and passing the one from the listing saves the adapter a lookup.
- */
 export const deleteByRef = action({
   args: {
     projectId: v.id("projects"),
     provider: mediaProviderValidator,
     externalId: v.string(),
-    /** GitHub blob SHA from the listing. Ignored by other providers. */
     sha: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<void> => {
@@ -465,7 +358,6 @@ export const deleteByRef = action({
       );
     }
 
-    // Best-effort: remove any matching media row + decrement usage.
     const row = await ctx.runQuery(
       internal.media.uploadsDb._findByProviderAndExternalId,
       {
@@ -482,17 +374,6 @@ export const deleteByRef = action({
   },
 });
 
-/* ------------------------------------------------------------------ */
-/*  Helpers                                                              */
-/* ------------------------------------------------------------------ */
-
-/**
- * Logs a provider failure and returns the error to throw.
- *
- * `ConvexError`s already carry a normalised code from the adapter, so they pass
- * through untouched. Anything else is logged with a redacted original and
- * replaced by a generic error, so a raw provider stack never reaches a client.
- */
 async function normalizeFailure(
   ctx: ActionCtx,
   err: unknown,
@@ -554,7 +435,5 @@ async function logError(
       errorMessage,
       ...(providerError !== undefined ? { providerError } : {}),
     });
-  } catch {
-    // Logging is best-effort; never let it mask the original error.
-  }
+  } catch {}
 }

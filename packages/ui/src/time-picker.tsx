@@ -44,7 +44,6 @@ export function TimePicker({
 
   return (
     <div className="flex items-center gap-2">
-      {/* Hour */}
       <div className="flex flex-col items-center gap-0.5">
         <button
           type="button"
@@ -67,7 +66,6 @@ export function TimePicker({
 
       <span className="text-lg font-semibold text-muted-foreground/50">:</span>
 
-      {/* Minute */}
       <div className="flex flex-col items-center gap-0.5">
         <button
           type="button"
@@ -88,7 +86,6 @@ export function TimePicker({
         </button>
       </div>
 
-      {/* AM/PM */}
       <button
         type="button"
         onClick={toggleAmPm}

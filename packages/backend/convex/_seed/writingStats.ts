@@ -1,16 +1,3 @@
-/**
- * ONE-SHOT SEED — delete `convex/_seed/writingStats.ts` after running.
- *
- * Seeds `writing_stats` and `project_stats` with sample analytics data
- * for a single user (looked up by email). Generates a 30-day activity
- * history, a streak, word goals, and per-project status counts.
- *
- * Triggered from the admin UI (`/admin/seed`) or:
- *
- *   bunx convex run _seed/writingStats:seed '{"email":"you@example.com"}'
- *
- * Upserts: if rows already exist they are patched with fresh seed data.
- */
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import { action, internalMutation } from "../_generated/server";
@@ -71,7 +58,6 @@ function generateRecentActivity(): Array<{ date: string; words: number }> {
     activity.push({ date: key, words });
   }
 
-  // Force a solid streak for the last 8 days — many above the 1000 goal
   for (let i = activity.length - 8; i < activity.length; i++) {
     const entry = activity[i];
     if (entry && entry.words < 800) {
@@ -79,7 +65,6 @@ function generateRecentActivity(): Array<{ date: string; words: number }> {
     }
   }
 
-  // Today exceeds the daily goal (1000) so the celebration fires
   const todayEntry = activity[activity.length - 1];
   if (todayEntry) todayEntry.words = 1247;
 
@@ -161,7 +146,6 @@ export const _seedInternal = internalMutation({
       );
     }
 
-    // Seed project_stats for each of the user's projects
     const projects = await ctx.db
       .query("projects")
       .withIndex("by_userId", (q) => q.eq("userId", user._id))

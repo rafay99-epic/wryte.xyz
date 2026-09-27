@@ -1,18 +1,6 @@
-/**
- * GitHub Branches API Route
- *
- * Lists the branches for a given repository, plus the repo's default branch.
- * Used by the project settings UI to populate a branch dropdown so users
- * don't have to memorise the exact branch name — they pick from a list,
- * and the default is auto-selected when the repo is first connected.
- *
- * Query params:
- *   - repo: "owner/name" string
- */
-
 import { Octokit } from "@octokit/rest";
-import { getGithubToken } from "@wryte/logic/lib/github-helpers";
 import { type NextRequest, NextResponse } from "next/server";
+import { getGithubToken } from "@/app/api/github/_lib/github-helpers";
 import { githubStatus } from "@/app/api/github/_lib/github-status";
 
 export async function GET(req: NextRequest) {
@@ -37,10 +25,6 @@ export async function GET(req: NextRequest) {
 
     const octokit = new Octokit({ auth: result.token });
 
-    // Pull repo metadata (for the default branch) and the branch list in
-    // parallel. 100 branches is the per_page cap; repos with more branches
-    // will need pagination, but for the dropdown use case the first page is
-    // virtually always enough.
     const [repoResp, branchesResp] = await Promise.all([
       octokit.repos.get({ owner, repo: repoName }),
       octokit.repos.listBranches({ owner, repo: repoName, per_page: 100 }),

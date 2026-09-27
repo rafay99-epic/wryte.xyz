@@ -15,14 +15,6 @@ import {
 import { compressionSettingsValidator } from "../_lib/compression";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
 
-/**
- * Finds the current user by their Clerk token, or creates a new user record
- * if this is their first sign-in. Called on every app load to ensure the
- * Convex users table stays in sync with Clerk.
- *
- * @requires Authentication - throws if not authenticated.
- * @returns The user's Convex document ID (existing or newly created).
- */
 export const getOrCreate = mutation({
   args: {},
   handler: async (ctx) => {
@@ -42,10 +34,6 @@ export const getOrCreate = mutation({
       .unique();
 
     if (existing) {
-      // Backfill `clerkUserId` for legacy users (created before the field
-      // was added). Without this, anyone whose only post-schema interaction
-      // is `getOrCreate` (clients that don't go through `getCurrentUser`)
-      // would stay on the vault-only path forever.
       if (!existing.clerkUserId) {
         const clerkUserId = parseClerkUserId(identity.tokenIdentifier);
         if (clerkUserId) {
@@ -84,13 +72,6 @@ export const getOrCreate = mutation({
   },
 });
 
-/**
- * Retrieves the current authenticated user's full profile.
- * Returns null (rather than throwing) when unauthenticated, allowing
- * the client to render a signed-out state without error handling.
- *
- * @returns The user document, or null if not authenticated / not yet created.
- */
 export const get = query({
   args: {},
   handler: async (ctx) => {
@@ -98,13 +79,6 @@ export const get = query({
   },
 });
 
-/**
- * Stores the user's GitHub PAT in the secret vault and pins the opaque ID
- * on the user record. Replaces any prior stored token (vault entry is
- * deleted if rotation is needed).
- *
- * Implemented as an action because the vault SDK runs in Node.
- */
 export const updateGithubToken = action({
   args: { token: v.string() },
   handler: async (ctx, args): Promise<void> => {
@@ -115,10 +89,6 @@ export const updateGithubToken = action({
     });
     await rateLimiter.limit(ctx, "vault:write", { key, throws: true });
 
-    // Modern GitHub tokens are well below 256 chars and start with a known
-    // prefix. Reject anything outside that envelope to prevent garbage
-    // payloads (multi-MB pastes, accidental binary blobs) from being
-    // persisted to the vault.
     const token = args.token.trim();
     if (!token) {
       throw new Error("Token is required");
@@ -144,8 +114,6 @@ export const updateGithubToken = action({
       throw new Error("User not found");
     }
 
-    // Store new value in vault first, then swap pointer on the user row,
-    // then best-effort delete the old vault entry.
     const created = await ctx.runAction(
       internal.integrations.secretStore._create,
       {
@@ -168,18 +136,11 @@ export const updateGithubToken = action({
         await ctx.runAction(internal.integrations.secretStore._delete, {
           id: previousVaultId,
         });
-      } catch {
-        // Vault entry may already be gone; ignore.
-      }
+      } catch {}
     }
   },
 });
 
-/**
- * Saves or clears the account-wide default for client-side image compression.
- * Pass an object to set it; pass `null` to clear it and let the client fall
- * back to the built-in defaults.
- */
 export const updateDefaultCompressionSettings = mutation({
   args: {
     settings: v.union(compressionSettingsValidator, v.null()),
@@ -198,10 +159,6 @@ export const updateDefaultCompressionSettings = mutation({
   },
 });
 
-/**
- * Internal-only query to fetch a user by ID. Used by server-side actions
- * that already have a trusted userId and don't need to re-authenticate.
- */
 export const internalGet = internalQuery({
   args: { userId: v.id("users") },
   handler: async (ctx, args) => {
@@ -209,7 +166,6 @@ export const internalGet = internalQuery({
   },
 });
 
-/** Internal user lookup by Clerk token, for actions that can't query directly. */
 export const internalGetByToken = internalQuery({
   args: { tokenIdentifier: v.string() },
   handler: async (ctx, args) => {
@@ -222,10 +178,6 @@ export const internalGetByToken = internalQuery({
   },
 });
 
-/**
- * Lookup by Clerk user id, for MCP tools backed by actions. Actions have no
- * `ctx.db`, so `requireCallerInAction` in `_lib/auth.ts` routes through here.
- */
 export const internalGetByClerkId = internalQuery({
   args: { clerkUserId: v.string() },
   handler: async (ctx, args) => {
@@ -236,10 +188,6 @@ export const internalGetByClerkId = internalQuery({
   },
 });
 
-/**
- * Sets the vault-backed GitHub secret pointer. Internal because it's invoked
- * from the `updateGithubToken` action.
- */
 export const _setGithubVaultId = internalMutation({
   args: {
     userId: v.id("users"),

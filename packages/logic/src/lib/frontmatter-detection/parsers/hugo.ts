@@ -3,17 +3,6 @@ import { parse as parseToml } from "smol-toml";
 import { typeFromFieldName } from "../registry";
 import type { ConfigField, ConfigFile, ConfigSchema } from "../types";
 
-/**
- * Parses Hugo configuration into a field map. Hugo has no single typed schema,
- * so we combine two signals:
- *   1. `archetypes/default.md` — the template applied to new posts; its
- *      frontmatter keys (and literal values like `tags = []`) reveal the shape.
- *   2. the site config's `[taxonomies]` — every taxonomy is a list field in
- *      frontmatter (the canonical Hugo `tags`/`categories`).
- *
- * Hugo declares no required-ness, so all fields are optional here; sample
- * presence (in the merge step) decides required-ness instead.
- */
 export function parseHugoConfig(files: ConfigFile[]): ConfigSchema | null {
   const schema: ConfigSchema = new Map();
 
@@ -33,8 +22,6 @@ export function parseHugoConfig(files: ConfigFile[]): ConfigSchema | null {
   const configFile = files.find((f) => !f.path.includes("archetypes"));
   if (configFile) {
     for (const taxonomy of readTaxonomies(configFile)) {
-      // Taxonomies are always list-valued in frontmatter; let them win over a
-      // scalar guess from the archetype.
       schema.set(taxonomy, arrayField());
     }
   }
@@ -48,14 +35,6 @@ const arrayField = (): ConfigField => ({
   options: "",
 });
 
-/**
- * Extracts field names (and array hints) from a Hugo archetype's frontmatter
- * block WITHOUT a strict parser. Archetypes routinely contain Go template
- * expressions (`{{ .Date }}`, `{{ replace .Name … }}`) that are invalid
- * TOML/YAML, so a strict parse throws and loses every field. We only need the
- * keys and whether each looks list-valued, so a tolerant line scan is both
- * sufficient and robust to template syntax.
- */
 function parseArchetypeFields(
   content: string,
 ): Array<{ name: string; isArray: boolean }> {
@@ -71,7 +50,6 @@ function parseArchetypeFields(
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i] ?? "";
-    // Skip blanks, indented continuation lines, and TOML [tables].
     if (
       line.trim() === "" ||
       /^\s/.test(line) ||
@@ -86,7 +64,6 @@ function parseArchetypeFields(
 
     const rawValue = line.slice(sepIdx + 1).trim();
     let isArray = rawValue.startsWith("[");
-    // YAML block sequence: `key:` then a `- item` line beneath it.
     if (!isToml && rawValue === "" && /^\s*-\s/.test(lines[i + 1] ?? "")) {
       isArray = true;
     }
@@ -96,11 +73,6 @@ function parseArchetypeFields(
   return fields;
 }
 
-/**
- * Returns the plural taxonomy names declared in a Hugo config (the frontmatter
- * keys). Falls back to Hugo's built-in `tags` + `categories` when the config
- * parses but declares no explicit `[taxonomies]` table.
- */
 function readTaxonomies(file: ConfigFile): string[] {
   const data = parseConfigData(file);
   if (!data) return [];
@@ -118,7 +90,6 @@ function readTaxonomies(file: ConfigFile): string[] {
     if (values.length > 0) return values;
   }
 
-  // Hugo's defaults when no taxonomies are configured.
   return ["tags", "categories"];
 }
 

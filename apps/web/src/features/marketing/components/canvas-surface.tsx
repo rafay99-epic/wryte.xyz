@@ -1,15 +1,6 @@
 import { motion, useInView, useMotionValue, useSpring } from "framer-motion";
 import { useCallback, useRef } from "react";
 
-/**
- * A large product surface that tilts gently toward the cursor in 3D, used for
- * the editor and board "canvas" sections. Bigger and softer than BentoCard:
- * a slow lean rather than a snappy hover, so the mockups feel like physical
- * panels floating in the page.
- *
- * Children that should pop out (floating chips) can use `translateZ` via the
- * `style` prop combined with `transform-style: preserve-3d` on the surface.
- */
 export function CanvasSurface({
   children,
   className = "",

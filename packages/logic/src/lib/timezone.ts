@@ -1,37 +1,19 @@
-/**
- * Timezone helpers built on the browser's Intl APIs.
- *
- * The CMS stores all timestamps as Unix milliseconds (UTC). Display and
- * scheduling are interpreted in a project-level IANA timezone. When the
- * project doesn't specify one, we fall back to the browser's resolved
- * timezone so behaviour matches the legacy implementation.
- */
-
-/** Return the browser's resolved IANA timezone, e.g. "America/Los_Angeles". */
 export function getBrowserTimezone(): string {
   return Intl.DateTimeFormat().resolvedOptions().timeZone;
 }
 
-/** Resolve the effective timezone for a project: stored value or browser. */
 export function resolveTimezone(projectTimezone?: string | null): string {
   if (projectTimezone && projectTimezone.length > 0) return projectTimezone;
   return getBrowserTimezone();
 }
 
-/** All IANA timezones supported by the runtime. */
 export function listTimezones(): string[] {
   if (typeof Intl.supportedValuesOf === "function") {
     return Intl.supportedValuesOf("timeZone");
   }
-  // Browser doesn't expose supportedValuesOf — fall back to a curated subset.
   return FALLBACK_TIMEZONES;
 }
 
-/**
- * `Intl.DateTimeFormat` construction is expensive and these helpers run in
- * loops (calendar grids, the ~400-entry timezone picker), so formatters are
- * cached per timezone. One map per option set.
- */
 const partsFormatters = new Map<string, Intl.DateTimeFormat>();
 const offsetFormatters = new Map<string, Intl.DateTimeFormat>();
 
@@ -71,10 +53,6 @@ type TzParts = {
   second: number;
 };
 
-/**
- * Extract the wall-clock parts of a UTC timestamp as observed in the given
- * timezone. The result reflects what a clock in that timezone would read.
- */
 export function getPartsInTimezone(
   timestamp: number,
   timeZone: string,
@@ -84,8 +62,6 @@ export function getPartsInTimezone(
   for (const part of formatter.formatToParts(new Date(timestamp))) {
     map[part.type] = part.value;
   }
-  // Some locales return "24" for midnight — normalize to 0 so subsequent
-  // Date.UTC math doesn't shift into the next day.
   let hour = Number.parseInt(map["hour"] ?? "0", 10);
   if (hour === 24) hour = 0;
   return {
@@ -98,13 +74,9 @@ export function getPartsInTimezone(
   };
 }
 
-/**
- * Convert a wall-clock time *in the given timezone* to a UTC millisecond
- * timestamp. Handles DST boundaries with a second-pass correction.
- */
 export function zonedTimeToUtc(
   year: number,
-  month: number, // 1-12
+  month: number,
   day: number,
   hour: number,
   minute: number,
@@ -123,8 +95,6 @@ export function zonedTimeToUtc(
   const offset = firstAsUtc - targetUtc;
   let result = targetUtc - offset;
 
-  // DST boundary: the offset at `result` may differ from the offset at the
-  // initial guess. If so, recompute the offset and adjust once more.
   const secondPass = getPartsInTimezone(result, timeZone);
   if (
     secondPass.year !== year ||
@@ -151,13 +121,11 @@ function pad2(n: number): string {
   return n < 10 ? `0${n}` : String(n);
 }
 
-/** Format a UTC timestamp as YYYY-MM-DD in the given timezone. */
 export function formatLocalDate(timestamp: number, timeZone: string): string {
   const p = getPartsInTimezone(timestamp, timeZone);
   return `${p.year}-${pad2(p.month)}-${pad2(p.day)}`;
 }
 
-/** Format a UTC timestamp as YYYY-MM-DDTHH:mm in the given timezone. */
 export function formatLocalDatetime(
   timestamp: number,
   timeZone: string,
@@ -166,11 +134,6 @@ export function formatLocalDatetime(
   return `${p.year}-${pad2(p.month)}-${pad2(p.day)}T${pad2(p.hour)}:${pad2(p.minute)}`;
 }
 
-/**
- * Human-readable UTC offset for a timezone at the given instant, e.g.
- * "UTC-08:00" for Los Angeles in winter. Defaults to "now" — pass a
- * timestamp if you need the offset on a specific date (for DST awareness).
- */
 export function getTimezoneOffsetLabel(
   timeZone: string,
   timestamp: number = Date.now(),
@@ -178,7 +141,6 @@ export function getTimezoneOffsetLabel(
   const formatter = cachedFormatter(offsetFormatters, timeZone, OFFSET_OPTIONS);
   for (const part of formatter.formatToParts(new Date(timestamp))) {
     if (part.type === "timeZoneName") {
-      // "GMT-08:00" → "UTC-08:00"; "GMT" alone → "UTC+00:00"
       const raw = part.value;
       if (raw === "GMT") return "UTC+00:00";
       return raw.replace("GMT", "UTC");
@@ -187,19 +149,11 @@ export function getTimezoneOffsetLabel(
   return "UTC+00:00";
 }
 
-/**
- * Returns the city portion of an IANA id for compact display, e.g.
- * "America/Los_Angeles" → "Los Angeles", "Etc/UTC" → "UTC".
- */
 export function getTimezoneCityLabel(timeZone: string): string {
   const lastSegment = timeZone.split("/").pop() ?? timeZone;
   return lastSegment.replace(/_/g, " ");
 }
 
-/**
- * Last-resort list when `Intl.supportedValuesOf` isn't available — keeps
- * the picker usable on older runtimes. Real browsers ship ~400 entries.
- */
 const FALLBACK_TIMEZONES: string[] = [
   "UTC",
   "Africa/Cairo",

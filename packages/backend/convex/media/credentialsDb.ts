@@ -1,11 +1,3 @@
-/**
- * Non-Node database helpers for `media/credentials`.
- *
- * Convex requires queries and mutations to live in files without the
- * `"use node"` directive. This module holds the public query and the
- * internal queries / mutations that callers in `media/credentials.ts`
- * (Node-only actions) and `workflows/rotateCredential.ts` depend on.
- */
 import { v } from "convex/values";
 import { internalMutation, internalQuery, query } from "../_generated/server";
 import { getAuthedUserOrNull } from "../_lib/auth";
@@ -21,10 +13,6 @@ import {
 
 const PROVIDER_VALIDATOR = credentialProviderValidator;
 
-/**
- * Lists all configured credentials for a project. Returns at most one entry
- * per provider. Never includes secrets.
- */
 export const listForProject = query({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
@@ -51,26 +39,11 @@ export const listForProject = query({
 
 export type EnabledProvider = {
   provider: MediaProvider;
-  /** The project's default upload destination. Exactly one entry has this. */
   isDefault: boolean;
-  /** Usable right now — credentials saved, or a repo configured for GitHub. */
   configured: boolean;
-  /** Verification state; absent for GitHub, which has no stored credential. */
   status?: MediaCredentialStatus;
 };
 
-/**
- * Which providers this project can read and write, in registry order.
- *
- * The single source of truth for the media library's provider tabs and for the
- * upload-destination picker. "Enabled" is derived, never stored: a provider is
- * enabled by connecting it (a `mediaCredentials` row) or, for GitHub, by
- * configuring a repo and media directory.
- *
- * The default provider is always included even when it isn't configured yet, so
- * the UI can render its "connect this provider" state instead of silently
- * dropping the destination that uploads are routing to.
- */
 export const listEnabledProviders = query({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args): Promise<EnabledProvider[]> => {
@@ -107,10 +80,6 @@ export const listEnabledProviders = query({
     return enabled;
   },
 });
-
-/* ------------------------------------------------------------------ */
-/*  Internal queries / mutations consumed by actions and workflows.    */
-/* ------------------------------------------------------------------ */
 
 export const _findByProjectAndProvider = internalQuery({
   args: {
@@ -166,7 +135,6 @@ export const _replaceVaultId = internalMutation({
     credentialId: v.id("mediaCredentials"),
     newVaultSecretId: v.string(),
     newVersionId: v.optional(v.string()),
-    /** Erase the legacy plaintext mirror of the non-secret fields. */
     clearPublicConfig: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
@@ -231,7 +199,6 @@ export const _markRotated = internalMutation({
     if (args.newVersionId !== undefined) {
       patch.vaultVersionId = args.newVersionId;
     }
-    // Rotation is also when the legacy plaintext mirror gets dropped.
     patch.publicConfig = undefined;
     await ctx.db.patch(args.credentialId, patch);
   },

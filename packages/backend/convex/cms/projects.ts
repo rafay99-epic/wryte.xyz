@@ -22,14 +22,8 @@ import {
   mediaProviderValidator,
 } from "../media/_lib/providers";
 
-/** Hard cap on projects per user. The dashboard's project list query also
- *  uses `.take(100)`, so anything above this gets silently truncated in the
- *  UI — the limit enforces the cap explicitly at create-time. */
 const MAX_PROJECTS_PER_USER = 100;
 
-/** Full `projects` row shape — mirrors `convex/schema.ts`. Shared by every
- *  function returning whole project documents (same pattern as
- *  `convex/social/credentialsDb.ts` CREDENTIAL_DOC). */
 const projectFields = {
   _id: v.id("projects"),
   _creationTime: v.number(),
@@ -112,14 +106,6 @@ function sortProjectsForList(projects: Doc<"projects">[]): Doc<"projects">[] {
   return [...withOrder, ...withoutOrder];
 }
 
-/**
- * The list query's body, taking the actor explicitly.
- *
- * Split out so both entry points share it: the public `list` (actor from
- * `ctx.auth`) and the internal MCP handler (actor injected by the gateway,
- * because component-dispatched tools have no `ctx.auth`). See
- * `_lib/auth.ts → requireCaller`.
- */
 export async function projectsForUser(
   ctx: QueryCtx,
   userId: Id<"users">,
@@ -140,11 +126,6 @@ async function projectsForCurrentUserOrEmpty(
   return await projectsForUser(ctx, user._id);
 }
 
-/**
- * Ownership-checked project read, shared by the public `get` and the MCP
- * handler. Throws rather than returning null on a foreign project so an agent
- * can't probe for the existence of other people's project ids.
- */
 async function projectForUser(
   ctx: QueryCtx,
   userId: Id<"users">,
@@ -158,14 +139,6 @@ async function projectForUser(
   return project;
 }
 
-/**
- * Lists all projects owned by the current user.
- * If no project has `sortOrder`, sorts by most recently updated (legacy behavior).
- * Once any project has `sortOrder`, ordered projects sort ascending by `sortOrder`,
- * then projects without `sortOrder` follow, sorted by `updatedAt` descending.
- *
- * @returns Array of project documents.
- */
 export const list = query({
   args: {},
   returns: v.array(PROJECT_DOC),
@@ -174,11 +147,6 @@ export const list = query({
   },
 });
 
-/**
- * Same ordering as {@link list}, plus `documentCount` per project in one query.
- * Prefer this on the projects dashboard so the client opens a single Convex
- * subscription instead of one `documents.list` subscription per card.
- */
 export const listWithDocumentCounts = query({
   args: {},
   returns: v.array(
@@ -196,15 +164,6 @@ export const listWithDocumentCounts = query({
   },
 });
 
-/**
- * Fetches a single project by ID with ownership verification.
- * Throws if the project doesn't exist or belongs to a different user,
- * preventing unauthorized access to project details.
- *
- * @requires Authentication
- * @param args.projectId - The project to retrieve.
- * @returns The project document.
- */
 export const get = query({
   args: { projectId: v.id("projects") },
   returns: v.union(v.null(), PROJECT_DOC),
@@ -217,17 +176,6 @@ export const get = query({
   },
 });
 
-/**
- * Creates a new project for the authenticated user. Optional fields (GitHub config,
- * paths, frontmatter schema) are only set when provided, keeping the document lean
- * and avoiding undefined values in the database.
- *
- * @requires Authentication
- * @param args.name - Display name for the project.
- * @param args.slug - URL-safe identifier.
- * @param args.githubRepo - Optional "owner/repo" string for GitHub integration.
- * @returns The new project's document ID.
- */
 export const create = mutation({
   args: {
     name: v.string(),
@@ -360,13 +308,6 @@ export const create = mutation({
   },
 });
 
-/**
- * Partially updates a project's settings. Only provided fields are written,
- * and `updatedAt` is always refreshed. Verifies ownership before applying changes.
- *
- * @requires Authentication + project ownership
- * @param args.projectId - The project to update.
- */
 export const update = mutation({
   args: {
     projectId: v.id("projects"),
@@ -375,13 +316,9 @@ export const update = mutation({
     githubBranch: v.optional(v.string()),
     contentPath: v.optional(v.string()),
     mediaPath: v.optional(v.string()),
-    /** Repo dir for user-authored animation .tsx files ("" disables). */
     animationsPath: v.optional(v.string()),
-    /** Explicit feature toggle — false wins over a configured path. */
     animationsEnabled: v.optional(v.boolean()),
-    /** Language animation sources are written in — absent = tsx. */
     animationLanguage: v.optional(v.union(v.literal("tsx"), v.literal("jsx"))),
-    /** Static-analysis policy for animation sources — absent = off. */
     animationChecks: v.optional(
       v.object({
         level: v.union(
@@ -396,11 +333,8 @@ export const update = mutation({
     mediaStorageMode: v.optional(mediaProviderValidator),
     frontmatterSchema: v.optional(v.string()),
     commitMessageTemplate: v.optional(v.string()),
-    /** Attribution line on publish commits — absent = ON, false = off. */
     commitAttribution: v.optional(v.boolean()),
-    /** Custom attribution phrase ("" clears back to the default). */
     commitAttributionText: v.optional(v.string()),
-    /** Commit as wryte-xyz[bot] via App installation token (Verified badge). */
     verifiedCommits: v.optional(v.boolean()),
     filenamePattern: v.optional(v.string()),
     contentFormat: v.optional(contentFormatValidator),
@@ -420,30 +354,14 @@ export const update = mutation({
     autoSaveEnabled: v.optional(v.boolean()),
     isFavorite: v.optional(v.boolean()),
     sortOrder: v.optional(v.number()),
-    /**
-     * Pass an object to set the per-project override, or `null` to clear it
-     * and inherit the user's `defaultCompressionSettings` again.
-     */
     compressionSettings: v.optional(
       v.union(compressionSettingsValidator, v.null()),
     ),
-    /**
-     * Per-project maximum upload size in bytes. Pass a number to set the
-     * override, or `null` to clear it and fall back to the default.
-     */
     maxUploadBytes: v.optional(v.union(v.number(), v.null())),
-    /**
-     * How many days soft-deleted docs sit in trash before the daily
-     * cleanup cron hard-deletes them. Setting to a very large number
-     * (e.g. 36500 for "100 years") is the UX for "Never auto-cleanup".
-     */
     trashRetentionDays: v.optional(v.number()),
     socialPostOnPublish: v.optional(v.boolean()),
-    /** Opt-in cross-posting to dev.to / Hashnode on publish (default off). */
     syndicateOnPublish: v.optional(v.boolean()),
-    /** Opt-in deployment verification — email when a publish doesn't deploy. */
     deployVerificationEnabled: v.optional(v.boolean()),
-    /** Path segment between site URL and post slug ("" = site root). */
     postUrlPrefix: v.optional(v.string()),
     readabilityLensEnabled: v.optional(v.boolean()),
     autoWatermarkRemoval: v.optional(v.boolean()),
@@ -479,8 +397,6 @@ export const update = mutation({
 
     for (const [k, value] of Object.entries(updates)) {
       if (value === undefined) continue;
-      // `null` for compressionSettings is the explicit "clear" signal —
-      // patch with `undefined` to remove the optional field from the doc.
       if (k === "compressionSettings" && value === null) {
         fieldsToUpdate["compressionSettings"] = undefined;
         continue;
@@ -489,12 +405,10 @@ export const update = mutation({
         fieldsToUpdate["maxUploadBytes"] = undefined;
         continue;
       }
-      // Empty custom attribution text clears the field (default phrase applies).
       if (k === "commitAttributionText" && typeof value === "string") {
         fieldsToUpdate[k] = value.trim() || undefined;
         continue;
       }
-      // Empty animations path clears the field — feature off for the project.
       if (k === "animationsPath" && typeof value === "string") {
         fieldsToUpdate[k] = value.trim() || undefined;
         continue;
@@ -507,18 +421,6 @@ export const update = mutation({
   },
 });
 
-/**
- * Deletes a project and every row that hangs off it: documents and their
- * scheduled publishes, drafts, research, publish history, sync conflicts,
- * import/delete batches, and the three flavors of per-project credential
- * along with their WorkOS Vault entries.
- *
- * Implemented as an action so we can cancel publish workflows and reach
- * into the vault. The Convex wipe is chunked through an internal mutation
- * so projects with thousands of rows don't blow the per-transaction limit.
- *
- * @requires Authentication + project ownership
- */
 export const remove = action({
   args: { projectId: v.id("projects") },
   returns: v.object({
@@ -565,7 +467,6 @@ export const remove = action({
       throw new Error("Unauthorized: you do not own this project");
     }
 
-    /* -- Step A: cancel pending publish workflows for this project -- */
     const cancellationTargets = await ctx.runQuery(
       internal.cms.projects._listProjectCancellationTargets,
       { projectId: args.projectId },
@@ -585,7 +486,6 @@ export const remove = action({
       }
     }
 
-    /* -- Step B: drop vault entries for credentials owned by this project -- */
     const vaultIds = await ctx.runQuery(
       internal.cms.projects._listProjectVaultIds,
       { projectId: args.projectId },
@@ -601,11 +501,6 @@ export const remove = action({
       }
     }
 
-    /* -- Step C: chunked Convex wipe. The chunk caps at 200 deletes per
-     *    transaction so a project with thousands of rows fans out across
-     *    multiple mutations instead of blowing the per-transaction limit.
-     *    The 200-iteration ceiling caps a single invocation at ~40k rows;
-     *    larger projects need a retry from the UI. */
     let documentsDeleted = 0;
     let mediaDeleted = 0;
     for (let i = 0; i < 200; i++) {
@@ -618,9 +513,6 @@ export const remove = action({
       if (chunk.remaining === 0) break;
     }
 
-    /* -- Step D: drop the project row itself. _deleteProjectRow is
-     *    idempotent — it returns { deleted, remaining } so we can surface
-     *    a partial-success summary instead of throwing into the UI. */
     const finalize = await ctx.runMutation(
       internal.cms.projects._deleteProjectRow,
       { projectId: args.projectId },
@@ -644,10 +536,6 @@ export const remove = action({
     };
   },
 });
-
-/* ------------------------------------------------------------------ */
-/*  Internal helpers used by the cascade action                          */
-/* ------------------------------------------------------------------ */
 
 export const _listProjectCancellationTargets = internalQuery({
   args: { projectId: v.id("projects") },
@@ -712,11 +600,6 @@ export const _listProjectVaultIds = internalQuery({
     await listProjectVaultIds(ctx, args.projectId),
 });
 
-/**
- * Every vault id referenced by a project's credential rows: media, AI,
- * social, syndication, deployment targets, and the retired analytics
- * targets. Shared with `account/selfDestruct._listVaultIds`.
- */
 export async function listProjectVaultIds(
   ctx: QueryCtx,
   projectId: Id<"projects">,
@@ -756,12 +639,6 @@ export async function listProjectVaultIds(
   return ids;
 }
 
-/**
- * Drains as many project-scoped rows as `batch` allows in a single
- * transaction, then returns `remaining` so the orchestrator can decide
- * whether to loop. Deletion order matches `selfDestruct._wipeChunk` so the
- * dependency tree unwinds cleanly (workflow rows first, project last).
- */
 export const _wipeProjectChunk = internalMutation({
   args: {
     projectId: v.id("projects"),
@@ -790,7 +667,6 @@ export const _wipeProjectChunk = internalMutation({
   },
 });
 
-/** Deletes `rows` and returns how many were removed, for budget accounting. */
 async function deleteRows(
   ctx: MutationCtx,
   rows: ReadonlyArray<{ _id: Id<TableNames> }>,
@@ -799,11 +675,6 @@ async function deleteRows(
   return rows.length;
 }
 
-/**
- * Readers for project-scoped tables that have no deletion-order constraints.
- * Shared by the wipe (`take(budget)`) and `countProjectRemaining`
- * (`take(1)`) so the two always cover the same tables.
- */
 function looseProjectTables(
   db: MutationCtx["db"],
   projectId: Id<"projects">,
@@ -857,13 +728,6 @@ function looseProjectTables(
   ];
 }
 
-/**
- * Deletes up to `budget` project-scoped rows in dependency order (workflow
- * rows first, documents last; the project row itself is left to
- * `_deleteProjectRow`). Returns the unspent budget so callers that walk
- * several projects in one transaction (`selfDestruct._wipeChunk`) can share
- * it.
- */
 export async function wipeProjectRows(
   ctx: MutationCtx,
   projectId: Id<"projects">,
@@ -873,10 +737,6 @@ export async function wipeProjectRows(
   let documentsDeleted = 0;
   let mediaDeleted = 0;
 
-  /* 1. scheduled_publishes via documents. Walks docs and decrements the
-   *    shared budget per scheduled_publish deleted so a project with many
-   *    docs × many SPs doesn't blow the per-transaction read/write limit
-   *    in a single chunk. Mirrors `selfDestruct._wipeChunk` step 1. */
   if (budget > 0) {
     const documents = await ctx.db
       .query("documents")
@@ -895,8 +755,6 @@ export async function wipeProjectRows(
     }
   }
 
-  /* 1b. publish_history_content — drained before `publish_history` so a
-   *     re-run never leaves an orphaned content row. */
   if (budget > 0) {
     const rows = await ctx.db
       .query("publish_history_content")
@@ -908,7 +766,6 @@ export async function wipeProjectRows(
     }
   }
 
-  /* 2. publish_history */
   if (budget > 0) {
     const rows = await ctx.db
       .query("publish_history")
@@ -920,10 +777,6 @@ export async function wipeProjectRows(
     }
   }
 
-  /* 2b. document_draft_content — drained before `document_drafts` so a
-   *     re-run never leaves an orphaned content row pointing at a
-   *     deleted draft. Mirrors the `document_content`/`documents`
-   *     ordering used at the end of this chunk (step 13b/14). */
   if (budget > 0) {
     const rows = await ctx.db
       .query("document_draft_content")
@@ -935,7 +788,6 @@ export async function wipeProjectRows(
     }
   }
 
-  /* 3. document_drafts */
   if (budget > 0) {
     const rows = await ctx.db
       .query("document_drafts")
@@ -947,7 +799,6 @@ export async function wipeProjectRows(
     }
   }
 
-  /* 4. document_research */
   if (budget > 0) {
     const rows = await ctx.db
       .query("document_research")
@@ -959,8 +810,6 @@ export async function wipeProjectRows(
     }
   }
 
-  /* 4a2. document_snapshot_content — drained before `document_snapshots`
-   *      so a re-run never leaves an orphaned content row. */
   if (budget > 0) {
     const rows = await ctx.db
       .query("document_snapshot_content")
@@ -972,7 +821,6 @@ export async function wipeProjectRows(
     }
   }
 
-  /* 4b. document_snapshots */
   if (budget > 0) {
     const rows = await ctx.db
       .query("document_snapshots")
@@ -984,7 +832,6 @@ export async function wipeProjectRows(
     }
   }
 
-  /* 4c. ideas */
   if (budget > 0) {
     const rows = await ctx.db
       .query("ideas")
@@ -996,7 +843,6 @@ export async function wipeProjectRows(
     }
   }
 
-  /* 4d. share_links */
   if (budget > 0) {
     const rows = await ctx.db
       .query("share_links")
@@ -1008,7 +854,6 @@ export async function wipeProjectRows(
     }
   }
 
-  /* 5. media */
   if (budget > 0) {
     const rows = await ctx.db
       .query("media")
@@ -1021,7 +866,6 @@ export async function wipeProjectRows(
     }
   }
 
-  /* 6. mediaErrorLog */
   if (budget > 0) {
     const rows = await ctx.db
       .query("mediaErrorLog")
@@ -1035,7 +879,6 @@ export async function wipeProjectRows(
     }
   }
 
-  /* 7. mediaUsage */
   if (budget > 0) {
     const rows = await ctx.db
       .query("mediaUsage")
@@ -1047,7 +890,6 @@ export async function wipeProjectRows(
     }
   }
 
-  /* 8. credentials (vault entries already dropped in step B) */
   if (budget > 0) {
     const rows = await ctx.db
       .query("mediaCredentials")
@@ -1079,7 +921,6 @@ export async function wipeProjectRows(
     }
   }
 
-  /* 9. sync_conflicts */
   if (budget > 0) {
     const rows = await ctx.db
       .query("sync_conflicts")
@@ -1091,7 +932,6 @@ export async function wipeProjectRows(
     }
   }
 
-  /* 10. import_batches + outcomes */
   if (budget > 0) {
     const batches = await ctx.db
       .query("import_batches")
@@ -1122,7 +962,6 @@ export async function wipeProjectRows(
     }
   }
 
-  /* 11. delete_batches + outcomes */
   if (budget > 0) {
     const batches = await ctx.db
       .query("delete_batches")
@@ -1153,11 +992,6 @@ export async function wipeProjectRows(
     }
   }
 
-  /* 12. ai_stream_owners — bookkeeping for AI stream ownership. Rows
-   *     here outlive the underlying stream blob (which the persistent-
-   *     text-streaming component cleans up on its own schedule), but
-   *     without this branch they accumulate forever when a project is
-   *     deleted. */
   if (budget > 0) {
     const rows = await ctx.db
       .query("ai_stream_owners")
@@ -1169,8 +1003,6 @@ export async function wipeProjectRows(
     }
   }
 
-  /* 12b. document_links — the backlink graph for this project's documents.
-   *      Direct `by_projectId` index, so no need to walk the documents. */
   if (budget > 0) {
     const rows = await ctx.db
       .query("document_links")
@@ -1182,7 +1014,6 @@ export async function wipeProjectRows(
     }
   }
 
-  /* 12c. animations — user-authored .tsx components for this project. */
   if (budget > 0) {
     const rows = await ctx.db
       .query("animations")
@@ -1194,17 +1025,11 @@ export async function wipeProjectRows(
     }
   }
 
-  /* 12d. Remaining project-scoped tables with no ordering constraints
-   *      (syndication/social outcomes, deploy rows, snippets, animation
-   *      names, syndication credentials, retired analytics tables). Vault
-   *      entries for the credential rows were already dropped in step B. */
   for (const read of looseProjectTables(ctx.db, projectId)) {
     if (budget <= 0) break;
     budget -= await deleteRows(ctx, await read(budget));
   }
 
-  /* 13. project_stats — subtract from writing_stats.totalWords before
-   *     deleting so the user's lifetime total stays accurate. */
   if (budget > 0) {
     const rows = await ctx.db
       .query("project_stats")
@@ -1228,8 +1053,6 @@ export async function wipeProjectRows(
     }
   }
 
-  /* 13b. document_content — drain bodies before the parent documents so
-   *      a re-run never leaves orphaned content rows. */
   if (budget > 0) {
     const rows = await ctx.db
       .query("document_content")
@@ -1241,7 +1064,6 @@ export async function wipeProjectRows(
     }
   }
 
-  /* 14. documents */
   if (budget > 0) {
     const rows = await ctx.db
       .query("documents")
@@ -1257,12 +1079,6 @@ export async function wipeProjectRows(
   return { budget, documentsDeleted, mediaDeleted };
 }
 
-/**
- * Final teardown. Idempotent — a re-run after partial failure is a no-op
- * if the project row is already gone, and is allowed to return `false`
- * (with a remaining count) if dependent rows still exist so the
- * orchestrator can loop more chunks instead of throwing into the UI.
- */
 export const _deleteProjectRow = internalMutation({
   args: { projectId: v.id("projects") },
   returns: v.object({
@@ -1284,7 +1100,6 @@ export const _deleteProjectRow = internalMutation({
   },
 });
 
-/** Counts still-pending rows across every project-scoped table. */
 export async function countProjectRemaining(
   ctx: { db: MutationCtx["db"] },
   projectId: Id<"projects">,
@@ -1399,11 +1214,6 @@ export async function countProjectRemaining(
   return count;
 }
 
-/**
- * Internal-only query to fetch a project by ID without auth checks.
- * Used by server-side actions (github.ts, scheduling.ts) that operate
- * on behalf of the system after ownership has already been verified.
- */
 export const internalGet = internalQuery({
   args: { projectId: v.id("projects") },
   returns: v.union(v.null(), PROJECT_DOC),
@@ -1412,11 +1222,6 @@ export const internalGet = internalQuery({
   },
 });
 
-/**
- * One-shot backfill: computes and sets `documentCount` for every project.
- * Run from the Convex dashboard after deploying the schema change.
- * Idempotent — safe to re-run.
- */
 export const _backfillDocumentCounts = internalMutation({
   args: {},
   returns: v.object({

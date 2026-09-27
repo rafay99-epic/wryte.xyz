@@ -24,11 +24,6 @@ export function yesterdayStr(todayYMD: string): string {
   return d.toISOString().slice(0, 10);
 }
 
-/**
- * Days of per-day word activity retained on `writing_stats.recentActivity`.
- * 12 weeks feeds the dashboard heatmap; the 30-day bar chart slices what
- * it needs. Still one small array on one row — no extra reads or writes.
- */
 export const RECENT_ACTIVITY_DAYS = 84;
 
 export function updateRecentActivity(

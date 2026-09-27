@@ -5,7 +5,6 @@ import { Badge } from "@wryte/ui/badge";
 
 type TagBadgesProps = {
   tags: string[];
-  /** Maximum number of tags to show before showing "+N" overflow. Default: 3 */
   max?: number;
 };
 

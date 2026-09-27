@@ -1,22 +1,11 @@
-/**
- * GitHub Content API Route
- *
- * GET: Lists all .md/.mdx files in a given content directory of a GitHub repo.
- */
-
 import { Octokit } from "@octokit/rest";
+import { NextResponse } from "next/server";
 import {
   getGithubToken,
   parseRepoString,
-} from "@wryte/logic/lib/github-helpers";
-import { NextResponse } from "next/server";
+} from "@/app/api/github/_lib/github-helpers";
 import { githubStatus } from "@/app/api/github/_lib/github-status";
 
-/**
- * Lists all markdown (.md/.mdx) files in a content directory.
- * Query params: repo (owner/repo), branch (defaults to "main"), path (directory path).
- * Returns { files: Array<{ name, path, sha, size }> }.
- */
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -65,15 +54,12 @@ export async function GET(request: Request) {
       });
       dirContents = dirResponse.data;
     } catch (err: unknown) {
-      // A 404 means the directory doesn't exist yet — return empty list rather than error,
-      // since the user may not have created content yet
       if (githubStatus(err) === 404) {
         return NextResponse.json({ files: [] });
       }
       throw err;
     }
 
-    // GitHub returns an object (not array) when the path is a file, not a directory
     if (!Array.isArray(dirContents)) {
       return NextResponse.json(
         { files: [], error: `"${path}" is not a directory.` },
@@ -81,7 +67,6 @@ export async function GET(request: Request) {
       );
     }
 
-    // Filter to only markdown files and return a minimal payload
     const files = (
       dirContents as Array<{
         name: string;

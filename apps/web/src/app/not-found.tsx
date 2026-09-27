@@ -8,12 +8,6 @@ import { ArrowLeft, FileQuestion, Home } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-/**
- * Global 404 page — rendered when no route matches the requested URL.
- *
- * Uses the root layout (providers, fonts, theme) but renders its own
- * centered content with navigation options back to safety.
- */
 export default function NotFound() {
   const router = useRouter();
 
@@ -26,12 +20,10 @@ export default function NotFound() {
         transition={smoothTransition}
         className="mx-auto max-w-md text-center"
       >
-        {/* Icon */}
         <div className="mx-auto mb-6 flex size-20 items-center justify-center rounded-2xl bg-muted/60">
           <FileQuestion className="size-10 text-muted-foreground" />
         </div>
 
-        {/* Heading */}
         <h1 className="mb-2 text-4xl font-bold tracking-tight text-foreground">
           404
         </h1>
@@ -43,7 +35,6 @@ export default function NotFound() {
           Check the URL or head back to familiar territory.
         </p>
 
-        {/* Actions */}
         <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
           <button
             type="button"

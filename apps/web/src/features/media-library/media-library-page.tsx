@@ -59,12 +59,7 @@ import {
 import { MediaImage } from "@/features/media-library/components/media-image";
 import { usePendingDeletes } from "@/features/media-library/hooks/use-pending-deletes";
 
-/** Pause after the last keystroke before a no-match search pages further. */
 const AUTO_LOAD_DEBOUNCE_MS = 300;
-
-/* ------------------------------------------------------------------ */
-/*  Types                                                              */
-/* ------------------------------------------------------------------ */
 
 type ActiveProvider = MediaProvider;
 
@@ -73,10 +68,6 @@ type UnifiedMediaItem = MediaLibraryItem;
 function hasFiles(dataTransfer: DataTransfer): boolean {
   return Array.from(dataTransfer.types).includes("Files");
 }
-
-/* ------------------------------------------------------------------ */
-/*  Page                                                               */
-/* ------------------------------------------------------------------ */
 
 export function MediaLibraryPage({
   projectId: rawProjectId,
@@ -100,8 +91,6 @@ export function MediaLibraryPage({
   const [deleteTarget, setDeleteTarget] = useState<UnifiedMediaItem | null>(
     null,
   );
-  // Pessimistic delete state — exit animation runs on click rather than
-  // after the network round-trip. See `usePendingDeletes` for the rules.
   const {
     pendingDeletes,
     markPendingDelete,
@@ -155,22 +144,16 @@ export function MediaLibraryPage({
     return base.filter((it) => it.name.toLowerCase().includes(q));
   }, [items, pendingDeletes, searchQuery]);
 
-  // Whenever the source `items` change (e.g. after refresh), any pending
-  // deletes that the server has confirmed away can be dropped.
   useEffect(() => {
     if (pendingDeletes.size === 0) return;
     pruneAgainst(new Set(items.map((i) => i.externalId)));
   }, [items, pendingDeletes.size, pruneAgainst]);
 
-  // Auto-load more when a search has zero matches but there are more pages
-  // to fetch. Cap at 5 extra fetches per search to avoid excessive API calls.
-  // Keyed on the debounced query so typing doesn't fire a fetch per keystroke.
   const autoFetchCountRef = useRef(0);
   const lastSearchRef = useRef("");
   const autoLoadQuery = useDebouncedValue(searchQuery, AUTO_LOAD_DEBOUNCE_MS);
 
   useEffect(() => {
-    // Still typing: act only once the query has settled.
     if (autoLoadQuery !== searchQuery) return;
     const q = autoLoadQuery.trim();
     if (!q) return;
@@ -198,8 +181,6 @@ export function MediaLibraryPage({
     loadMore,
   ]);
 
-  // Searching is scoped to the visible tab, so the query belongs to that tab
-  // too: carrying it across a switch silently hides files in the new one.
   // biome-ignore lint/correctness/useExhaustiveDependencies: clears the query when the tab changes.
   useEffect(() => {
     setSearchQuery("");
@@ -227,7 +208,6 @@ export function MediaLibraryPage({
     setUploadSheetOpen(true);
   }, []);
 
-  /* ---------- Render guards ---------- */
   if (project === undefined) {
     return (
       <div className="p-4 sm:p-6">
@@ -250,9 +230,6 @@ export function MediaLibraryPage({
   const location =
     filter === "all" ? null : describeMediaLocation(filter, project.mediaPath);
 
-  // Nothing connected at all, or the one provider being viewed was never set
-  // up. The server reports this directly, so it isn't inferred from "empty
-  // list plus an error".
   const needsConfig =
     configuredTabs.length === 0 ||
     (filter !== "all" &&
@@ -289,9 +266,6 @@ export function MediaLibraryPage({
           </div>
         </div>
       )}
-      {/* Navigation lives in the sidebar's single Back button — no
-          per-page back links. */}
-      {/* Header */}
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3 sm:mb-6">
         <div className="min-w-0">
           <h1 className="text-xl font-bold tracking-tight sm:text-2xl">
@@ -324,8 +298,6 @@ export function MediaLibraryPage({
             <RefreshCw
               className={cn("size-3.5", isLoading && "animate-spin")}
             />
-            {/* The icon carries it on narrow screens; the label would push the
-                Upload button off the row. */}
             <span className="hidden sm:inline">Refresh</span>
           </Button>
           <Button size="sm" onClick={openUploadSheet}>
@@ -335,10 +307,6 @@ export function MediaLibraryPage({
         </div>
       </div>
 
-      {/*
-        Tabs filter what's already loaded — "All" merges every connected
-        provider. Hidden when only one is connected.
-      */}
       <MediaProviderTabs
         tabs={configuredTabs}
         selected={filter}
@@ -346,7 +314,6 @@ export function MediaLibraryPage({
         className="mb-4"
       />
 
-      {/* Search */}
       {items.length > 0 && (
         <div className="relative mb-4">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -363,7 +330,6 @@ export function MediaLibraryPage({
         </div>
       )}
 
-      {/* Loading state */}
       {isLoading && items.length === 0 && (
         <div className="mb-4 flex items-center gap-2 text-xs text-muted-foreground">
           <Loader2 className="size-3 animate-spin" />
@@ -371,7 +337,6 @@ export function MediaLibraryPage({
         </div>
       )}
 
-      {/* Error state for provider listing (e.g. missing credentials) */}
       {errors.length > 0 && (
         <div className="mb-4 space-y-2">
           {errors.map((failure) => (
@@ -400,7 +365,6 @@ export function MediaLibraryPage({
         </div>
       )}
 
-      {/* Grid */}
       {filteredItems.length > 0 ? (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
           <AnimatePresence mode="popLayout" initial={false}>
@@ -436,7 +400,6 @@ export function MediaLibraryPage({
         </div>
       ) : null}
 
-      {/* Infinite-scroll sentinel + loading indicator */}
       {(providerHasMore || isLoadingMore) && (
         <div
           ref={sentinelRef}
@@ -455,7 +418,6 @@ export function MediaLibraryPage({
         </div>
       )}
 
-      {/* End-of-list marker */}
       {!providerHasMore && !isLoadingMore && items.length > 0 && (
         <p className="mt-6 text-center text-[11px] text-muted-foreground">
           {items.length} file{items.length === 1 ? "" : "s"} loaded · end of
@@ -490,13 +452,8 @@ export function MediaLibraryPage({
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  Provider helpers                                                   */
-/* ------------------------------------------------------------------ */
-
 const PROVIDER_LABEL = MEDIA_PROVIDER_LABELS;
 
-/** What the grid is currently showing: one provider, or the merged view. */
 function ScopeBadge({ filter }: { filter: MediaFilter }) {
   if (filter === "all") {
     return (
@@ -509,13 +466,6 @@ function ScopeBadge({ filter }: { filter: MediaFilter }) {
   return <ProviderChip provider={filter} />;
 }
 
-/**
- * Corner marker on a card in the merged view: which bucket this file is in.
- *
- * Icon only. A full "CLOUDFLARE R2" label reads as a headline over a thumbnail
- * grid — the source is a hint you glance at, not something to announce, so the
- * name lives in the tooltip and the accessible label instead.
- */
 function ProviderMark({ provider }: { provider: ActiveProvider }) {
   const label = PROVIDER_LABEL[provider];
   return (
@@ -530,7 +480,6 @@ function ProviderMark({ provider }: { provider: ActiveProvider }) {
   );
 }
 
-/** Provider marker with its name — for the header, where there's room. */
 function ProviderChip({ provider }: { provider: ActiveProvider }) {
   return (
     <span className="inline-flex items-center gap-1 rounded-full border bg-muted/50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -539,10 +488,6 @@ function ProviderChip({ provider }: { provider: ActiveProvider }) {
     </span>
   );
 }
-
-/* ------------------------------------------------------------------ */
-/*  Empty State                                                        */
-/* ------------------------------------------------------------------ */
 
 function EmptyState({
   scopeLabel,
@@ -594,13 +539,8 @@ function EmptyState({
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  Media Card                                                         */
-/* ------------------------------------------------------------------ */
-
 const IMAGE_EXTENSIONS = /\.(png|jpe?g|gif|webp|svg|avif|bmp|ico)(?:$|[?#])/i;
 
-/** True when a filename or URL path ends in a renderable image extension. */
 function hasImageExtension(value: string): boolean {
   return IMAGE_EXTENSIONS.test(value);
 }
@@ -611,17 +551,12 @@ function MediaCard({
   onDelete,
 }: {
   item: UnifiedMediaItem;
-  /** Stamp the source bucket on the card — only useful in the merged view. */
   showProvider: boolean;
   onDelete: () => void;
 }) {
   const isImage =
     typeof item.url === "string" &&
     item.url.length > 0 &&
-    // Checked against the URL as well as the name: object stores don't all
-    // keep an extension in the display name (a Cloudinary public_id has none),
-    // and a missing extension shouldn't downgrade a real image to a
-    // placeholder icon.
     (hasImageExtension(item.name) || hasImageExtension(item.url));
   const sizeKB = (item.size / 1024).toFixed(1);
 
@@ -632,8 +567,6 @@ function MediaCard({
     );
   }, [item.url]);
 
-  // For GitHub, the path-style URL (e.g. "/images/foo.png") is what users want
-  // in markdown. For UT/Cloudinary, only the full URL is meaningful.
   const showPathCopy = item.provider === "github";
 
   return (
@@ -664,8 +597,6 @@ function MediaCard({
         <div
           className={cn(
             "absolute inset-0 flex flex-wrap items-center justify-center gap-1.5 bg-black/50 p-2 transition-opacity",
-            // Touch devices have no hover, so a hover-only overlay hides copy,
-            // open and delete behind a gesture that doesn't exist there.
             "opacity-100 md:opacity-0 md:group-hover:opacity-100",
           )}
         >
@@ -718,10 +649,6 @@ function MediaCard({
     </motion.div>
   );
 }
-
-/* ------------------------------------------------------------------ */
-/*  Upload sheet                                                       */
-/* ------------------------------------------------------------------ */
 
 function UploadMediaSheet({
   projectId,
@@ -781,10 +708,6 @@ function UploadMediaSheet({
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  Delete Dialog                                                      */
-/* ------------------------------------------------------------------ */
-
 function DeleteMediaDialog({
   item,
   projectId,
@@ -798,9 +721,7 @@ function DeleteMediaDialog({
   projectId: Id<"projects">;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Called the moment the user confirms — hides the card before the API call. */
   onOptimisticDelete: (externalId: string) => void;
-  /** Called if the API call fails so the card can be restored. */
   onRestore: (externalId: string) => void;
   onDeleted: () => void;
 }) {
@@ -817,9 +738,6 @@ function DeleteMediaDialog({
       args.sha = item.sha;
     }
 
-    // Close the dialog and hide the card immediately. The network call
-    // continues in the background; if it fails, we restore the card and
-    // surface the error.
     onOptimisticDelete(item.externalId);
     onOpenChange(false);
     const deletedId = item.externalId;

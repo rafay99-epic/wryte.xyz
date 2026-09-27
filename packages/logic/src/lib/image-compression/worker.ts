@@ -6,22 +6,6 @@ import type {
   EncodeResponseMessage,
 } from "./worker-protocol";
 
-/**
- * Compression worker. Receives an `EncodeRequestMessage` with a transferred
- * `ImageBitmap`, runs the shared encode pipeline, and posts back the
- * resulting `Blob`. Worker terminates on its own; the host
- * (`worker-client.ts`) treats it as a session-lifetime singleton.
- *
- * Note on Blob transfers: `Blob` is **not** a transferable type in the
- * structured-clone spec — only `ArrayBuffer`, `MessagePort`, `ImageBitmap`,
- * `OffscreenCanvas`, and a handful of streams are. Blobs are
- * structured-cloned by reference, which is already near-zero-copy in modern
- * browsers, so we don't pass a transfer list for the response.
- *
- * The actual encode logic lives in `encode-pipeline.ts` so the main-thread
- * fallback uses the exact same code path.
- */
-
 const scope = self as unknown as DedicatedWorkerGlobalScope;
 
 scope.addEventListener(

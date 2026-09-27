@@ -4,6 +4,7 @@ import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
 import { useHashTab } from "@wryte/logic/hooks/use-hash-tab";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
+import type { SettingsTab } from "@wryte/logic/types/project-settings";
 import { useQuery } from "convex/react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
@@ -23,10 +24,8 @@ import { SharingSection } from "./components/sharing-section";
 import { SocialSection } from "./components/social-section";
 import { SyndicationSection } from "./components/syndication-section";
 import { ToolsSection } from "./components/tools-section";
-import type { SettingsTab } from "./types";
-import { TABS } from "./types";
+import { TABS } from "./tabs";
 
-/** Stable identity for `useHashTab`'s dependency — never rebuilt per render. */
 const TAB_IDS: readonly SettingsTab[] = TABS.map((t) => t.id);
 
 export function ProjectSettingsPage({
@@ -38,14 +37,8 @@ export function ProjectSettingsPage({
   const router = useRouter();
   const project = useQuery(api.cms.projects.get, { projectId });
   const projectDeleted = project === null;
-  // Deep-link support: `#frontmatter` opens that pane and keeps working on a
-  // fragment-only jump from the command palette.
   const [activeTab, setActiveTab] = useHashTab<SettingsTab>("general", TAB_IDS);
 
-  // Legacy deep-link: `?tab=frontmatter`, still used by in-app banners (e.g.
-  // "Review schema"). Read on the client to avoid useSearchParams' static
-  // prerender Suspense requirement; runs once on mount, and yields to a
-  // fragment when both are present so the two forms can't fight.
   useEffect(() => {
     if (window.location.hash) return;
     const tabParam = new URLSearchParams(window.location.search).get("tab");

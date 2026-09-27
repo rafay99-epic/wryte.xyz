@@ -1,11 +1,3 @@
-/**
- * Closed-enum taxonomy for media errors and provider-specific mapping.
- *
- * Every provider failure that surfaces to the user is normalized into a
- * `MediaErrorCode`, then mapped to a friendly toast string on the client
- * (see src/lib/media-errors.ts). Raw provider errors are written to the
- * `mediaErrorLog` table for forensic debugging, never shown to users.
- */
 import { ConvexError } from "convex/values";
 
 export type MediaErrorCode =
@@ -20,11 +12,6 @@ export type MediaErrorCode =
   | "PROVIDER_DOWN"
   | "UNKNOWN";
 
-/**
- * Structured error data shipped to the client over Convex. The index
- * signature satisfies Convex's `Value` type so we can pass the object
- * straight to `ConvexError` without an intermediate cast.
- */
 export interface MediaErrorData {
   code: MediaErrorCode;
   message: string;
@@ -33,25 +20,12 @@ export interface MediaErrorData {
   [key: string]: string | undefined;
 }
 
-/**
- * Convenience for throwing a typed Convex error from anywhere.
- *
- * `cause` keeps the provider's original error attached. `ConvexError.data` can
- * only hold JSON, so the raw payload can't ride along there — without the cause
- * chain, {@link redactError} would log this wrapper instead of what the
- * provider actually said, and a support question like "why did Cloudinary
- * answer 403?" becomes unanswerable after the fact.
- */
 export function throwMediaError(data: MediaErrorData, cause?: unknown): never {
   const error = new ConvexError(data);
   if (cause !== undefined) (error as Error).cause = cause;
   throw error;
 }
 
-/**
- * Provider-specific normalization. Each provider's error shape differs; this
- * is the single place we keep the mapping rules.
- */
 export function mapUploadThingError(err: unknown): MediaErrorCode {
   const e = err as {
     code?: string;
@@ -97,10 +71,6 @@ export function mapCloudinaryError(err: unknown): MediaErrorCode {
   return "UNKNOWN";
 }
 
-/**
- * R2 errors are plain HTTP responses, so the caller passes the status (and the
- * `<Message>` body when it read one) rather than a thrown SDK object.
- */
 export function mapR2Error(err: unknown): MediaErrorCode {
   const e = err as { status?: number; message?: string };
   const status = e?.status;
@@ -110,8 +80,6 @@ export function mapR2Error(err: unknown): MediaErrorCode {
     return "STORAGE_FULL";
   if (status === 400 && message.includes("credential")) return "AUTH_INVALID";
   if (status === 401) return "AUTH_INVALID";
-  // R2 answers 403 for a bad signature as well as for a token that lacks the
-  // object permissions, and 404 for a bucket the token can't see at all.
   if (status === 403) return "AUTH_FORBIDDEN";
   if (status === 404) return "AUTH_FORBIDDEN";
   if (status === 429 || status === 503) return "RATE_LIMITED";
@@ -134,10 +102,6 @@ export function mapGithubError(err: unknown): MediaErrorCode {
   return "UNKNOWN";
 }
 
-/**
- * Friendly fallback message paired with each code — used in `mediaErrorLog.errorMessage`
- * and as a last-resort message if the client's media-errors map ever lags behind.
- */
 export const DEFAULT_MESSAGES: Record<MediaErrorCode, string> = {
   STORAGE_FULL:
     "Your storage provider is out of space. Upgrade your plan or delete unused images.",
@@ -160,18 +124,9 @@ export const DEFAULT_MESSAGES: Record<MediaErrorCode, string> = {
   UNKNOWN: "Something went wrong. Please try again.",
 };
 
-/**
- * Best-effort redaction of a raw error before persisting it. Replaces
- * anything that looks like an API key with `[REDACTED]`.
- *
- * Follows the `cause` chain: our own `ConvexError` wrapper carries no detail
- * beyond the normalised code, so logging it alone loses the provider's actual
- * response — the part that says *why* a request was refused.
- */
 export function redactError(err: unknown): string {
   const chain: unknown[] = [];
   let current: unknown = err;
-  // Bounded so a self-referential cause can't spin forever.
   for (
     let depth = 0;
     current !== undefined && current !== null && depth < 4;

@@ -29,30 +29,19 @@ import {
 import { useEditorContext } from "./editor-context";
 
 type SlashMenuProps = {
-  /** Built-in block/AI commands (the `slashCommandsEnabled` project toggle). */
   blockCommandsEnabled: boolean;
-  /** Reusable snippets in a `Snippets ▸` submenu (`snippetsEnabled` toggle). */
   snippetsEnabled: boolean;
-  /** Whether the project has any snippets — gates the `Snippets ▸` entry with no query. */
   hasSnippets: boolean;
-  /** MDX project with an animations directory — gates the `Animation` entry. */
   animationsEnabled: boolean;
-  /** Project whose snippets to search; null skips the gated search query. */
   projectId: Id<"projects"> | null;
-  /** Whether AI is configured — gates the AI command. */
   aiReady: boolean;
-  /** Open the inline-AI flow to generate text at `caretIndex`. */
   onAiAction: (caretIndex: number) => void;
 };
 
 const MENU_WIDTH = 240;
 const MENU_MAX_HEIGHT = 300;
-/** Debounce the search term so typing doesn't fire a Convex query per keystroke. */
 const SEARCH_DEBOUNCE_MS = 200;
 
-// Memoized: MarkdownEditor re-renders on every keystroke (it subscribes to
-// content), but the slash menu only needs to react to its own state. With
-// stable props this skips those parent-driven re-renders entirely.
 export const SlashMenu = memo(function SlashMenu({
   blockCommandsEnabled,
   snippetsEnabled,
@@ -63,22 +52,16 @@ export const SlashMenu = memo(function SlashMenu({
   onAiAction,
 }: SlashMenuProps) {
   const { textareaRef, replaceRange } = useEditorContext();
-  // The menu's keystroke watcher runs when EITHER feature is on, so snippets
-  // work even with block commands off (and vice-versa).
   const menuActive = blockCommandsEnabled || snippetsEnabled;
   const menu = useSlashMenu(textareaRef, menuActive);
   const [selectedIndex, setSelectedIndex] = useState(0);
-  // Two-level navigation: the root list vs the snippets sub-list.
   const [level, setLevel] = useState<"root" | "snippets">("root");
   const listRef = useRef<HTMLDivElement>(null);
 
-  // Reset to the root level whenever the menu closes — the next open starts fresh.
   useEffect(() => {
     if (!menu.open) setLevel("root");
   }, [menu.open]);
 
-  // Debounced search term derived from the live query. Gated below so the query
-  // only runs while the snippets submenu is open.
   const [term, setTerm] = useState("");
   useEffect(() => {
     const q = menu.query;
@@ -100,7 +83,6 @@ export const SlashMenu = memo(function SlashMenu({
 
   const commands = useMemo(() => {
     if (level === "snippets") {
-      // The server already filtered by `term`; show results as-is.
       return snippetCmds;
     }
     const base: SlashCommand[] = [];
@@ -129,8 +111,6 @@ export const SlashMenu = memo(function SlashMenu({
     menu.query,
   ]);
 
-  // Refs so the native keydown listener (attached once per open) always sees
-  // fresh values without re-attaching on every keystroke.
   const commandsRef = useRef(commands);
   const selectedIndexRef = useRef(selectedIndex);
   const menuRef = useRef(menu);
@@ -148,16 +128,11 @@ export const SlashMenu = memo(function SlashMenu({
     levelRef.current = level;
   }, [level]);
 
-  // Reset highlight when the menu opens, the query changes, or we switch levels.
   // biome-ignore lint/correctness/useExhaustiveDependencies: menu.open/query/level are the triggers, not values read inside the effect
   useEffect(() => {
     setSelectedIndex(0);
   }, [menu.open, menu.query, level]);
 
-  // Keep the highlighted item visible when arrowing through the list. We scroll
-  // the menu container directly (not scrollIntoView) — on a position:fixed
-  // element scrollIntoView also nudges the page, which is the source of the
-  // jank. `smooth` here only animates the menu's own scroll.
   useEffect(() => {
     const container = listRef.current;
     const el = container?.querySelector<HTMLElement>(
@@ -180,8 +155,6 @@ export const SlashMenu = memo(function SlashMenu({
 
   const enterSnippets = useCallback(() => {
     const m = menuRef.current;
-    // Trim the typed query back to just `/` so the full snippet list shows and
-    // typing filters it from scratch.
     if (m.caretIndex > m.queryStart + 1) {
       replaceRange(m.queryStart + 1, m.caretIndex, "");
     }
@@ -208,8 +181,6 @@ export const SlashMenu = memo(function SlashMenu({
         cmd.kind === "embed" ||
         cmd.kind === "animation"
       ) {
-        // Remove the trigger text, then open the media dialog — it inserts
-        // at the caret (which now sits where the `/` was) on confirm.
         replaceRange(m.queryStart, m.caretIndex, "");
         const store = useEditorStore.getState();
         if (cmd.kind === "image") store.setImageDialogOpen(true);
@@ -217,7 +188,6 @@ export const SlashMenu = memo(function SlashMenu({
         else if (cmd.kind === "animation") store.setAnimationDialogOpen(true);
         else store.setEmbedDialogOpen(true);
       } else if (cmd.kind === "block" || cmd.kind === "snippet") {
-        // Block-level content: drop a leading newline when not at line start.
         const needsNewline =
           m.queryStart > 0 && value[m.queryStart - 1] !== "\n";
         replaceRange(
@@ -237,8 +207,6 @@ export const SlashMenu = memo(function SlashMenu({
     runCommandRef.current = runCommand;
   }, [runCommand]);
 
-  // Keyboard nav lives on the textarea (which keeps focus). Capture phase +
-  // stopImmediatePropagation so it wins over the editor's global hotkeys.
   useEffect(() => {
     if (!menu.open) return;
     const ta = textareaRef.current;
@@ -264,7 +232,6 @@ export const SlashMenu = memo(function SlashMenu({
           });
           break;
         case "ArrowRight": {
-          // Drill into a submenu; otherwise let the caret move normally.
           const cmd = commandsRef.current[selectedIndexRef.current];
           if (cmd?.kind === "submenu") {
             e.preventDefault();
@@ -274,7 +241,6 @@ export const SlashMenu = memo(function SlashMenu({
           break;
         }
         case "ArrowLeft":
-          // Back out of the snippets sub-list without moving the caret.
           if (levelRef.current === "snippets") {
             e.preventDefault();
             e.stopImmediatePropagation();
@@ -282,7 +248,6 @@ export const SlashMenu = memo(function SlashMenu({
           }
           break;
         case "Backspace":
-          // Empty-query backspace in the sub-list returns to root (keeps `/`).
           if (levelRef.current === "snippets" && menuRef.current.query === "") {
             e.preventDefault();
             e.stopImmediatePropagation();
@@ -315,13 +280,10 @@ export const SlashMenu = memo(function SlashMenu({
   let overlay: ReactNode = null;
   if (menu.open && menu.position) {
     const { caretTop, caretLeft, caretHeight } = menu.position;
-    // Estimate the menu's height from the visible items so the flip decision is
-    // accurate without measuring the DOM.
     const itemCount = commands.length || 1;
     const backRow = level === "snippets" ? 30 : 0;
     const menuHeight = Math.min(MENU_MAX_HEIGHT, itemCount * 34 + 10 + backRow);
     const belowTop = caretTop + caretHeight;
-    // Flip above the caret line if it would overflow the viewport bottom.
     const flipAbove = belowTop + menuHeight > window.innerHeight - 8;
     const top = flipAbove ? Math.max(8, caretTop - menuHeight) : belowTop;
     const left = Math.max(
@@ -377,7 +339,6 @@ export const SlashMenu = memo(function SlashMenu({
                 key={cmd.id}
                 type="button"
                 data-index={index}
-                // Keep focus in the textarea so insertion lands at the caret.
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => runCommand(cmd)}
                 onMouseEnter={() => setSelectedIndex(index)}
@@ -405,10 +366,6 @@ export const SlashMenu = memo(function SlashMenu({
     );
   }
 
-  // Portal to <body>: the editor is wrapped in framer-motion elements whose
-  // `transform` would otherwise make `position: fixed` resolve relative to that
-  // ancestor instead of the viewport, throwing off caret positioning.
-  // AnimatePresence keeps the node mounted long enough to play the exit anim.
   return createPortal(
     <AnimatePresence>{overlay}</AnimatePresence>,
     document.body,

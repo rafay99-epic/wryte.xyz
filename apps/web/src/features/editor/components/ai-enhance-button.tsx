@@ -32,10 +32,6 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
-/* ------------------------------------------------------------------ */
-/*  Model display names                                                */
-/* ------------------------------------------------------------------ */
-
 const MODEL_DISPLAY_NAMES: Record<string, string> = {
   "claude-sonnet-4-20250514": "Claude Sonnet 4",
   "claude-haiku-4-20250414": "Claude Haiku 4",
@@ -54,10 +50,6 @@ const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
   openrouter: "OpenRouter",
 };
 
-/* ------------------------------------------------------------------ */
-/*  Component                                                          */
-/* ------------------------------------------------------------------ */
-
 type AiEnhancePanelProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -69,8 +61,6 @@ export function AiEnhanceButton({
   onOpenChange,
   projectId,
 }: AiEnhancePanelProps) {
-  // The body is read via getState() (and subscribed to only inside the
-  // mounted preview) so the closed sheet doesn't re-render per keystroke.
   const setContent = useEditorStore((state) => state.setContent);
 
   const project = useQuery(api.cms.projects.get, {
@@ -88,9 +78,6 @@ export function AiEnhanceButton({
   const [promptExpanded, setPromptExpanded] = useState(false);
   const [originalExpanded, setOriginalExpanded] = useState(false);
 
-  // Seed the prompt from the first template once, when templates first
-  // load. Later resets happen on close; clearing the textarea must not
-  // refill it.
   const [promptSeeded, setPromptSeeded] = useState(false);
   if (!promptSeeded && templates !== undefined) {
     setPromptSeeded(true);
@@ -101,7 +88,6 @@ export function AiEnhanceButton({
     }
   }
 
-  // Query the stream body reactively — auto-updates as chunks arrive
   const streamBody = useQuery(
     api.ai.enhance.getStreamBody,
     streamId ? { streamId } : "skip",
@@ -110,7 +96,6 @@ export function AiEnhanceButton({
   const streamStatus = streamBody?.status ?? "pending";
   const streamText = streamBody?.text ?? "";
 
-  // Auto-scroll the enhanced content as it streams in
   const enhancedRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (streamStatus === "streaming" && enhancedRef.current) {
@@ -118,7 +103,6 @@ export function AiEnhanceButton({
     }
   }, [streamStatus]);
 
-  // Determine if panel has active content that would be lost on close
   const hasActiveContent = !!(
     streamId &&
     (streamText || streamStatus === "streaming" || streamStatus === "pending")
@@ -128,12 +112,9 @@ export function AiEnhanceButton({
   const isStreaming =
     streamStatus === "streaming" || streamStatus === "pending";
 
-  // Guard against accidental close when streaming or results are ready
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
       if (!nextOpen && hasActiveContent && !isError) {
-        // Block accidental dismiss (backdrop click, Escape key)
-        // User must explicitly Apply or Reject
         toast("Use Apply or Reject to close", {
           description: "Your AI-generated content will be lost if dismissed.",
           duration: 2500,
@@ -145,7 +126,6 @@ export function AiEnhanceButton({
     [onOpenChange, hasActiveContent, isError],
   );
 
-  // Explicit close (when user clicks X while no content, or after apply/reject)
   const handleExplicitClose = useCallback(() => {
     onOpenChange(false);
   }, [onOpenChange]);
@@ -153,7 +133,6 @@ export function AiEnhanceButton({
   const defaultPrompt = templates?.[0]?.prompt ?? "";
   const defaultTemplateId = templates?.[0]?.id ?? null;
 
-  // Reset state when panel closes
   useEffect(() => {
     if (open) return;
     const timer = setTimeout(() => {
@@ -253,7 +232,6 @@ export function AiEnhanceButton({
         </SheetHeader>
 
         <SheetBody className="space-y-4">
-          {/* Not configured state */}
           {project && !isConfigured && (
             <motion.div
               initial={{ opacity: 0, y: 8 }}
@@ -272,10 +250,8 @@ export function AiEnhanceButton({
             </motion.div>
           )}
 
-          {/* Configured state */}
           {isConfigured && (
             <>
-              {/* System prompt — editable with template presets */}
               <div className="rounded-xl border border-border/40 bg-muted/20">
                 <button
                   type="button"
@@ -350,7 +326,6 @@ export function AiEnhanceButton({
                 </AnimatePresence>
               </div>
 
-              {/* ── Pre-enhancement: Content preview ── */}
               {!streamId && (
                 <motion.div
                   initial={{ opacity: 0, y: 6 }}
@@ -361,14 +336,12 @@ export function AiEnhanceButton({
                 </motion.div>
               )}
 
-              {/* ── Post-enhancement: Original + Enhanced ── */}
               {streamId && (
                 <motion.div
                   initial={{ opacity: 0, y: 6 }}
                   animate={{ opacity: 1, y: 0 }}
                   className="flex flex-col gap-3"
                 >
-                  {/* Original (collapsible) */}
                   <div className="rounded-xl border border-border/40 bg-muted/20">
                     <button
                       type="button"
@@ -401,7 +374,6 @@ export function AiEnhanceButton({
                     </AnimatePresence>
                   </div>
 
-                  {/* Enhanced version — main focus area */}
                   <div className="flex flex-col flex-1 min-h-0">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
@@ -473,7 +445,6 @@ export function AiEnhanceButton({
                     </div>
                   </div>
 
-                  {/* Error state */}
                   {isError && (
                     <motion.div
                       initial={{ opacity: 0, y: 4 }}
@@ -509,7 +480,6 @@ export function AiEnhanceButton({
           )}
         </SheetBody>
 
-        {/* Footer with Apply/Reject — visible when done or streaming */}
         {streamId && !isError && (
           <SheetFooter className="justify-between">
             <Button
@@ -544,8 +514,6 @@ export function AiEnhanceButton({
   );
 }
 
-/** Live preview of the editor body plus the Enhance action. Mounted only
- *  while the sheet is open, so only it re-renders as the user types. */
 function ContentPreview({ onEnhance }: { onEnhance: () => void }) {
   const content = useEditorStore((state) => state.content);
 

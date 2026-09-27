@@ -1,16 +1,10 @@
+import type { StyleLintFinding } from "@wryte/logic/lib/editor/style-lint";
+import { lintStyle } from "@wryte/logic/lib/editor/style-lint";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
 import { useEffect, useRef, useState } from "react";
-import type { StyleLintFinding } from "../lib/style-lint";
-import { lintStyle } from "../lib/style-lint";
 
 const DEBOUNCE_MS = 400;
 
-/**
- * Debounced Hemingway-style lint of the current editor content. Call only
- * from a component that is mounted exclusively while the readability panel's
- * Style section is open/expanded, so a closed panel does no work and holds
- * no content subscription — same contract as `useReadability`.
- */
 export function useStyleLint(): {
   findings: StyleLintFinding[];
   analyzing: boolean;

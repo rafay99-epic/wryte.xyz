@@ -8,12 +8,12 @@ import {
   staggerItem,
 } from "@wryte/logic/lib/motion";
 import { cn } from "@wryte/logic/lib/utils";
+import type { ProjectData } from "@wryte/logic/types/project-settings";
 import { Input } from "@wryte/ui/input";
 import { motion } from "framer-motion";
 import { Check, FolderTree } from "lucide-react";
 import { SaveBar } from "@/components/settings/save-bar";
 import { useContentSection } from "../hooks/use-content-section";
-import type { ProjectData } from "../types";
 import { FieldGroup, SectionHeader, ToggleRow } from "./shared";
 
 export function ContentSection({
@@ -263,8 +263,6 @@ function FormatOptionCard({
 
 function FormatLogo({ format }: { format: ContentFormat }) {
   if (format === "md") {
-    // SVGL ships two theme-specific Markdown logos — swap with Tailwind's
-    // `dark:` variant so each variant is preloaded and there's no flash.
     return (
       <div className="flex h-12 w-20 items-center justify-center">
         <img
@@ -284,12 +282,9 @@ function FormatLogo({ format }: { format: ContentFormat }) {
       </div>
     );
   }
-  // SVGL has no MDX entry — inline the canonical yellow MDX mark, which
-  // reads well on both light and dark backgrounds without theme swapping.
   return <MdxLogo />;
 }
 
-/** Official MDX wordmark on its signature yellow rounded background. */
 function MdxLogo() {
   return (
     <svg

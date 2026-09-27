@@ -4,18 +4,6 @@ import type {
   EncodeResponseMessage,
 } from "./worker-protocol";
 
-/**
- * Thin client that owns a single Web Worker and serialises encode requests
- * onto it. Bitmaps are transferred (zero-copy), so callers MUST NOT use the
- * bitmap afterwards.
- *
- * Worker construction can fail in some embedded webviews and during SSR.
- * When that happens we set `useMainThread` and route every subsequent call
- * through `runEncodePipeline` on the main thread — same code path, just
- * blocking. Once we've fallen back we don't retry the worker; if it failed
- * once, it will keep failing.
- */
-
 let workerSingleton: Worker | null = null;
 let useMainThread = false;
 let nextId = 1;

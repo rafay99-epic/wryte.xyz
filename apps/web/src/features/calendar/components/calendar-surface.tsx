@@ -16,13 +16,6 @@ type CalendarSurfaceProps = {
   projectId: string;
 };
 
-/**
- * Self-contained calendar: fetches its own data and renders the month grid +
- * unscheduled panel. Shared by the dedicated calendar route and the content
- * dashboard's calendar view mode — mount it only while visible, so its
- * subscriptions (calendar list, board columns) never ride along with the
- * table/board views.
- */
 export function CalendarSurface({ projectId }: CalendarSurfaceProps) {
   const project = useQuery(api.cms.projects.get, {
     projectId: projectId as Id<"projects">,
@@ -34,9 +27,6 @@ export function CalendarSurface({ projectId }: CalendarSurfaceProps) {
     projectId: projectId as Id<"projects">,
   }) as BoardColumnDef[] | undefined;
 
-  // Month position, drag state, and panel filters are calendar-only —
-  // clear them whenever the calendar leaves the screen (route change OR
-  // dashboard view-mode switch).
   useEffect(() => {
     return () => {
       useCalendarStore.getState().reset();

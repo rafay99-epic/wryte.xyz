@@ -78,7 +78,6 @@ export function CanvasEditor() {
           />
 
           <div className="overflow-hidden rounded-2xl border border-foreground/[0.12] bg-background/70 shadow-2xl shadow-black/25 backdrop-blur-xl dark:border-foreground/[0.07] dark:bg-foreground/[0.02]">
-            {/* Title bar */}
             <div className="flex items-center gap-2 border-b border-foreground/[0.07] px-4 py-2.5">
               <div className="flex gap-1.5">
                 <span className="size-2.5 rounded-full bg-foreground/15" />
@@ -95,7 +94,6 @@ export function CanvasEditor() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-[170px_1fr_1fr]">
-              {/* Frontmatter sidebar */}
               <div className="hidden border-r border-foreground/[0.06] p-4 md:block">
                 <p className="mb-3 font-mono text-[10px] uppercase tracking-wider text-foreground/30">
                   Frontmatter
@@ -119,7 +117,6 @@ export function CanvasEditor() {
                 </div>
               </div>
 
-              {/* Markdown source */}
               <div className="border-r border-foreground/[0.06] p-5 font-mono text-[12px] leading-[1.8]">
                 {bodyLines.map((line, i) => (
                   <div
@@ -140,7 +137,6 @@ export function CanvasEditor() {
                 <span className="inline-block h-4 w-[2px] translate-y-0.5 animate-pulse bg-amber-400" />
               </div>
 
-              {/* Rendered preview */}
               <div className="hidden p-5 md:block">
                 <h3 className="text-[15px] font-bold tracking-tight text-foreground/85">
                   The Developer Content Problem
@@ -158,7 +154,6 @@ export function CanvasEditor() {
               </div>
             </div>
 
-            {/* Status bar */}
             <div className="flex items-center gap-4 border-t border-foreground/[0.07] px-4 py-2 font-mono text-[10px] text-foreground/35">
               <span>markdown</span>
               <span>UTF-8</span>

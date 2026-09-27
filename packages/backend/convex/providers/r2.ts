@@ -1,17 +1,3 @@
-/**
- * Cloudflare R2 provider — the S3 API, signed with `aws4fetch`.
- *
- * `aws4fetch` over `@aws-sdk/client-s3` on purpose: SigV4 plus `fetch` is the
- * entire dependency surface we need (2.5 kB, zero transitive deps) and it is
- * Cloudflare's own documented approach for R2. The full AWS SDK would add
- * megabytes for a presigner and a paginator we deliberately don't use.
- *
- * Only four operations are needed, mirroring the other provider modules:
- *   PutObject / ListObjectsV2 / DeleteObject / HeadBucket
- *
- * Object URLs are built from the credential's `public_base_url` rather than
- * presigned: a URL written into a document has to outlive any signature.
- */
 "use node";
 
 import { AwsClient } from "aws4fetch";
@@ -41,7 +27,6 @@ export interface R2ListItem {
   url: string;
 }
 
-/** R2 speaks the S3 API at an account-scoped endpoint, region fixed to `auto`. */
 function client(creds: R2Secret): AwsClient {
   return new AwsClient({
     accessKeyId: creds.access_key_id,
@@ -55,7 +40,6 @@ function bucketUrl(creds: R2Secret): string {
   return `https://${creds.account_id}.r2.cloudflarestorage.com/${encodeURIComponent(creds.bucket)}`;
 }
 
-/** Percent-encodes each key segment while keeping `/` as a path separator. */
 function encodeKey(key: string): string {
   return key.split("/").map(encodeURIComponent).join("/");
 }
@@ -64,15 +48,10 @@ function objectUrl(creds: R2Secret, key: string): string {
   return `${bucketUrl(creds)}/${encodeKey(key)}`;
 }
 
-/** The URL we persist — public, unsigned, and stable for the life of the object. */
 export function publicUrlForKey(creds: R2Secret, key: string): string {
   return `${creds.public_base_url}/${encodeKey(key)}`;
 }
 
-/**
- * S3 errors come back as an XML body. Surface `<Message>` when present so the
- * error log says "Access Denied" rather than just a status code.
- */
 async function readErrorMessage(
   res: Response,
   fallback: string,
@@ -81,9 +60,7 @@ async function readErrorMessage(
     const body = await res.text();
     const message = body.match(/<Message>([\s\S]*?)<\/Message>/)?.[1];
     if (message) return message.trim();
-  } catch {
-    // Body already consumed or unreadable — fall through.
-  }
+  } catch {}
   return `${fallback} (HTTP ${String(res.status)})`;
 }
 
@@ -112,8 +89,6 @@ export async function uploadOne(
     body: new Uint8Array(file.buffer),
     headers: {
       "content-type": file.mime,
-      // Keys are unique per upload, so the object at a given URL never
-      // changes — safe to let browsers and Cloudflare cache it forever.
       "cache-control": "public, max-age=31536000, immutable",
     },
   });
@@ -163,18 +138,14 @@ export async function deleteObject(
   const res = await client(creds).fetch(objectUrl(creds, key), {
     method: "DELETE",
   });
-  // DeleteObject is idempotent: S3 answers 204 whether or not the key existed.
-  // A 404 from a proxy in front of the bucket means the same thing to us.
   if (!res.ok && res.status !== 404) {
     await failed(res, "delete", "R2 delete failed");
   }
 }
 
-/** HeadBucket — the cheapest call that proves the keys and bucket both work. */
 export async function ping(creds: R2Secret): Promise<void> {
   const res = await client(creds).fetch(bucketUrl(creds), { method: "HEAD" });
   if (!res.ok) {
-    // HEAD has no body, so there is no `<Message>` to surface.
     throwMediaError({
       code: mapR2Error({ status: res.status }),
       message:

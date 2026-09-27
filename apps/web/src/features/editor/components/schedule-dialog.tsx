@@ -59,10 +59,6 @@ type ScheduleDialogProps = {
   documentId: string;
 };
 
-/* ------------------------------------------------------------------ */
-/*  Schedule Panel                                                      */
-/* ------------------------------------------------------------------ */
-
 export function ScheduleDialog({
   open,
   onOpenChange,
@@ -97,8 +93,6 @@ export function ScheduleDialog({
   const [socialPostText, setSocialPostText] = useState("");
   const [includeSocialPost, setIncludeSocialPost] = useState(true);
 
-  // getPublicConfig returns a legacy-marker variant without `status` while a
-  // project is still on retired Upload-Post credentials — narrow before use.
   const hasActiveCredential =
     socialConfig != null &&
     "status" in socialConfig &&
@@ -108,10 +102,6 @@ export function ScheduleDialog({
     hasActiveCredential &&
     Boolean(project?.siteUrl);
 
-  // Concrete values used only for the live preview shown under the textarea.
-  // The custom text (if any) is stored verbatim and composed server-side at
-  // fire-time, so a scheduled post reflects the title/URL as they exist when
-  // it actually publishes, not when it was scheduled.
   const socialPreview = useMemo(
     () => ({
       title: document?.title || "Untitled",
@@ -140,36 +130,24 @@ export function ScheduleDialog({
   const projectTimezone = resolveTimezone(project?.timezone);
   const browserTimezone = useMemo(() => getBrowserTimezone(), []);
 
-  // Per-dialog timezone override. Defaults to the project timezone but the
-  // author can switch (e.g. preview the time in their own timezone before
-  // scheduling). The chosen value drives both the picked timestamp and the
-  // formatted preview/toast.
   const [timezone, setTimezone] = useState(projectTimezone);
   const timezoneDiffersFromBrowser = timezone !== browserTimezone;
 
-  // Initialize date/time from existing schedule or default to tomorrow
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [hour, setHour] = useState(9);
   const [minute, setMinute] = useState(0);
 
-  // Reset state when panel opens
   useEffect(() => {
     if (open) {
       setTimezone(projectTimezone);
-      // Empty custom text = the server composes the announcement from the
-      // live title and framework-aware URL at publish time.
       setSocialPostText("");
       setIncludeSocialPost(true);
       if (existingScheduledAt) {
-        // Read the existing instant *in the project timezone* so the calendar
-        // highlights the day the user originally picked, not whatever day it
-        // happens to be in the current browser timezone.
         const parts = getPartsInTimezone(existingScheduledAt, projectTimezone);
         setSelectedDate(new Date(parts.year, parts.month - 1, parts.day));
         setHour(parts.hour);
         setMinute(parts.minute);
       } else {
-        // Default: tomorrow at 9:00 AM in the project timezone.
         const nowParts = getPartsInTimezone(Date.now(), projectTimezone);
         const tomorrow = new Date(
           nowParts.year,
@@ -183,19 +161,15 @@ export function ScheduleDialog({
     }
   }, [open, existingScheduledAt, projectTimezone]);
 
-  // When user picks a date, auto-adjust time if it would be in the past
   const handleDateSelect = useCallback(
     (date: Date) => {
       setSelectedDate(date);
       const now = new Date();
       if (isSameDay(date, now)) {
-        // If selecting today and current hour/minute is in the past,
-        // bump to next rounded 30-min slot
         const candidate = new Date(date);
         candidate.setHours(hour, minute, 0, 0);
         if (candidate.getTime() <= now.getTime()) {
           const bumped = new Date(now.getTime() + 30 * 60 * 1000);
-          // Round up to nearest 5 minutes
           bumped.setMinutes(Math.ceil(bumped.getMinutes() / 5) * 5, 0, 0);
           setHour(bumped.getHours());
           setMinute(bumped.getMinutes());
@@ -205,8 +179,6 @@ export function ScheduleDialog({
     [hour, minute],
   );
 
-  // Construct the final timestamp by interpreting the picked wall-clock time
-  // in the project timezone, then converting to a UTC instant for storage.
   const scheduledTimestamp = useMemo(() => {
     if (!selectedDate) return null;
     return zonedTimeToUtc(
@@ -224,8 +196,6 @@ export function ScheduleDialog({
 
   const formattedDateTime = useMemo(() => {
     if (!scheduledTimestamp) return null;
-    // Lock hour12=true so AM/PM is always shown regardless of the user's
-    // browser locale (some locales would otherwise render 24-hour time).
     const dateTime = new Date(scheduledTimestamp).toLocaleString(undefined, {
       weekday: "short",
       year: "numeric",
@@ -247,9 +217,6 @@ export function ScheduleDialog({
 
     setIsScheduling(true);
     try {
-      // No client-side token capture. `publishToGithub` will resolve a
-      // fresh token from Clerk (or the vault PAT) at fire-time, which is
-      // what makes scheduling work for arbitrarily long delays.
       const trimmedSocial =
         socialEnabled && includeSocialPost ? socialPostText.trim() : "";
       await schedulePublish({
@@ -258,7 +225,6 @@ export function ScheduleDialog({
         ...(trimmedSocial && { socialPostText: trimmedSocial }),
       });
 
-      // Sync the scheduled date into frontmatter's pubDate field
       const pubDateField = findPubDateFieldName(project?.frontmatterSchema);
       if (pubDateField) {
         try {
@@ -278,9 +244,7 @@ export function ScheduleDialog({
             documentId: documentId as Id<"documents">,
             frontmatter: JSON.stringify(fm),
           });
-        } catch {
-          // Non-critical — schedule succeeded, frontmatter sync is best-effort
-        }
+        } catch {}
       }
 
       toast.success("Scheduled!", {
@@ -332,9 +296,6 @@ export function ScheduleDialog({
 
         <SheetBody>
           <div className="space-y-6">
-            {/* Current schedule banner — reflects the workflow status, not just
-                the document's `scheduled` flag, so failed/processing publishes
-                are visible to the author instead of stuck silently. */}
             <AnimatePresence>
               {(() => {
                 const status = latestPublish?.status;
@@ -475,7 +436,6 @@ export function ScheduleDialog({
               })()}
             </AnimatePresence>
 
-            {/* Calendar section */}
             <div>
               <h3 className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">
                 <CalendarIcon className="size-3" />
@@ -489,7 +449,6 @@ export function ScheduleDialog({
               </div>
             </div>
 
-            {/* Time section */}
             <div>
               <h3 className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">
                 <Clock className="size-3" />
@@ -505,7 +464,6 @@ export function ScheduleDialog({
               </div>
             </div>
 
-            {/* Timezone section */}
             <div>
               <h3 className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">
                 Timezone
@@ -523,7 +481,6 @@ export function ScheduleDialog({
               )}
             </div>
 
-            {/* Social announcement */}
             {socialEnabled ? (
               <div className="border-t border-border/40 pt-5">
                 <AnnouncementComposer
@@ -550,7 +507,6 @@ export function ScheduleDialog({
               )
             )}
 
-            {/* Will publish on — flat callout with an icon badge */}
             {formattedDateTime && (
               <motion.div
                 initial={{ opacity: 0 }}

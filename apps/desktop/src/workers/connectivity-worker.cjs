@@ -1,11 +1,5 @@
 "use strict";
 
-/**
- * Child process that periodically checks internet reachability.
- * Spawned by main.cjs via `child_process.fork`. Communicates
- * status changes back to the main process over IPC.
- */
-
 process.on("uncaughtException", (err) => {
   process.stderr.write(`[connectivity-worker] uncaught: ${err.stack}\n`);
   process.exit(1);
@@ -22,39 +16,40 @@ const CHECK_OPTIONS = {
 };
 const CHECK_INTERVAL_MS = config.CONNECTIVITY_CHECK_INTERVAL_MS;
 
-let lastOnline = null;
+const last = { known: false, online: false };
+
+function report(online) {
+  if (last.known && last.online === online) return;
+  last.known = true;
+  last.online = online;
+  process.send?.({ type: "connectivity-change", online });
+}
 
 function check() {
   const req = https.request(CHECK_OPTIONS, (res) => {
-    const online = res.statusCode >= 200 && res.statusCode < 400;
+    const status = res.statusCode ?? 0;
+    const online = status >= 200 && status < 400;
     res.resume();
-    if (online !== lastOnline) {
-      lastOnline = online;
-      process.send?.({ type: "connectivity-change", online });
-    }
+    report(online);
   });
-  req.on("error", () => {
-    if (lastOnline !== false) {
-      lastOnline = false;
-      process.send?.({ type: "connectivity-change", online: false });
-    }
-  });
+  req.on("error", () => report(false));
   req.on("timeout", () => {
     req.destroy();
-    if (lastOnline !== false) {
-      lastOnline = false;
-      process.send?.({ type: "connectivity-change", online: false });
-    }
+    report(false);
   });
   req.end();
 }
 
 process.on("message", (msg) => {
-  if (msg?.type === "start") {
+  const type =
+    typeof msg === "object" && msg !== null && "type" in msg
+      ? msg.type
+      : undefined;
+  if (type === "start") {
     check();
     setInterval(check, CHECK_INTERVAL_MS);
   }
-  if (msg?.type === "check-now") {
+  if (type === "check-now") {
     check();
   }
 });

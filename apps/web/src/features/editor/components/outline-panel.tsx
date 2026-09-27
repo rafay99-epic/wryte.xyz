@@ -1,11 +1,11 @@
 "use client";
 
+import { parseOutline } from "@wryte/logic/lib/editor/outline";
 import { cn } from "@wryte/logic/lib/utils";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
 import { AnimatePresence, motion } from "framer-motion";
 import { X } from "lucide-react";
 import { useMemo } from "react";
-import { parseOutline } from "../lib/outline";
 import { useEditorContext } from "./editor-context";
 
 type OutlinePanelProps = {
@@ -13,11 +13,6 @@ type OutlinePanelProps = {
   onClose: () => void;
 };
 
-/**
- * Document outline side panel: the heading tree of the current draft,
- * click to jump. Follows the readability panel's shell/body split so a
- * closed panel does zero per-keystroke work.
- */
 export function OutlinePanel({ open, onClose }: OutlinePanelProps) {
   return (
     <AnimatePresence>

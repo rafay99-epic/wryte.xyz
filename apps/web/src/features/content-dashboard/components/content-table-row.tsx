@@ -30,15 +30,12 @@ import {
 import { useDocumentActions } from "@/features/content-dashboard/hooks/use-document-actions";
 import { TagBadges } from "./tag-badges";
 
-export type { ContentItem };
-
 type ContentTableRowProps = {
   item: ContentItem;
   isImporting: boolean;
   tags: string[];
   author: string | null;
   columns?: BoardColumnDef[] | undefined;
-  /** Whether to render the selection cell (keeps columns aligned). */
   showSelectionCell?: boolean | undefined;
   selected?: boolean | undefined;
   onSelect?: ((checked: boolean) => void) | undefined;
@@ -80,7 +77,6 @@ export function ContentTableRow({
       )}
       onClick={onOpen}
     >
-      {/* Selection checkbox cell — always rendered when column is visible to keep alignment */}
       {showSelectionCell && (
         <td className="w-10 pl-4 py-3">
           {onSelect && (
@@ -98,7 +94,6 @@ export function ContentTableRow({
         </td>
       )}
 
-      {/* Title + meta */}
       <td className="px-4 py-3">
         <div className="flex items-center gap-2">
           <div className="min-w-0">
@@ -120,12 +115,10 @@ export function ContentTableRow({
         </div>
       </td>
 
-      {/* Tags */}
       <td className="hidden px-4 py-3 lg:table-cell">
         <TagBadges tags={tags} max={3} />
       </td>
 
-      {/* Status */}
       <td className="hidden px-4 py-3 sm:table-cell">
         {item.kind === "local" && item.status ? (
           <DocumentStatusBadge status={item.status} columns={columns} />
@@ -137,12 +130,10 @@ export function ContentTableRow({
         )}
       </td>
 
-      {/* Author */}
       <td className="hidden px-4 py-3 text-xs text-muted-foreground xl:table-cell">
         {author ?? "—"}
       </td>
 
-      {/* Updated */}
       <td className="hidden px-4 py-3 text-xs text-muted-foreground md:table-cell">
         {item.updatedAt
           ? new Date(item.updatedAt).toLocaleDateString()
@@ -151,7 +142,6 @@ export function ContentTableRow({
             : "—"}
       </td>
 
-      {/* Actions */}
       <td className="px-4 py-3">
         {hasActions && (
           <DropdownMenu>
@@ -178,7 +168,6 @@ export function ContentTableRow({
                 {item.kind === "remote" ? "Open / Import" : "Open in editor"}
               </DropdownMenuItem>
 
-              {/* Move to column — only for local items */}
               {isLocal && columns && columns.length > 1 && (
                 <DropdownMenuSub>
                   <DropdownMenuSubTrigger>
@@ -205,7 +194,6 @@ export function ContentTableRow({
                 </DropdownMenuSub>
               )}
 
-              {/* Duplicate — only for local items */}
               {isLocal && item.id && (
                 <DropdownMenuItem
                   onClick={(e) => {

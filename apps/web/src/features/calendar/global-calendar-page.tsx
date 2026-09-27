@@ -16,12 +16,6 @@ import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
-/**
- * Fixed per-project dot palette for the global calendar. Assigned by the
- * project's position in the (stable, user-owned) project list; cycles past
- * the end. Amber is deliberately excluded — it marks "today" and scheduled
- * rings, and must never collide with a project color.
- */
 const PROJECT_COLORS = [
   "bg-emerald-400",
   "bg-sky-400",
@@ -40,12 +34,6 @@ type CalendarEvent = {
   at: number;
 };
 
-/**
- * Cross-project month view: every published and scheduled post from all
- * projects on one grid. Read-only by design — rescheduling stays on the
- * per-project calendar, which owns drag-and-drop. Dates bucket in the
- * browser's timezone; the day panel shows exact times so nothing lies.
- */
 export function GlobalCalendarPage() {
   const router = useRouter();
   const docs = useQuery(api.cms.documents.listForCalendarAllProjects, {});
@@ -81,8 +69,6 @@ export function GlobalCalendarPage() {
         });
         byDay.set(key, list);
       };
-      // A doc can carry both dates (published once, rescheduled later) —
-      // both events render; that's the real story, not a bug to dedupe.
       if (doc.publishedAt !== undefined) push("published", doc.publishedAt);
       if (doc.scheduledAt !== undefined) push("scheduled", doc.scheduledAt);
     }
@@ -136,7 +122,6 @@ export function GlobalCalendarPage() {
         </div>
       </div>
 
-      {/* Legend: dot color = project; filled = published, ring = scheduled. */}
       {projects.length > 0 && (
         <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
           {projects.slice(0, 5).map((p) => (
@@ -230,7 +215,6 @@ export function GlobalCalendarPage() {
         })}
       </div>
 
-      {/* Day panel — click a day, see its items, jump to the editor. */}
       {selectedKey && (
         <div className="mt-4 rounded-xl border border-border/40 bg-card p-4">
           {selectedEvents.length === 0 ? (

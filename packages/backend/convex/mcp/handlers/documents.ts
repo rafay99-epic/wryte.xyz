@@ -1,11 +1,3 @@
-/**
- * MCP handlers for document operations.
- *
- * `internal*` only, actor injected by the gateway via `identityArg`, zero
- * business logic — every handler resolves the caller and delegates to the
- * helper the public function also uses, so the two entry points cannot drift.
- * See `_lib/auth.ts → requireCaller` for why this indirection exists at all.
- */
 import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
 import { mcpCallerValidator } from "convex-mcp-gateway";
@@ -23,10 +15,7 @@ import {
   updateDocumentForUser,
 } from "../../cms/documents";
 
-/** Upper bound on `wryte_documents_list` page size. */
 const MAX_PAGE_SIZE = 100;
-
-/* ------------------------------- reads -------------------------------- */
 
 export const list = internalQuery({
   args: {
@@ -36,8 +25,6 @@ export const list = internalQuery({
   },
   handler: async (ctx, args) => {
     const user = await requireCaller(ctx, args.caller);
-    // Agent-supplied page size: cap it so one call can't pull the whole
-    // project. Agents follow the cursor for more.
     return await documentsPageForUser(ctx, user._id, args.projectId, {
       ...args.paginationOpts,
       numItems: Math.min(args.paginationOpts.numItems, MAX_PAGE_SIZE),
@@ -90,8 +77,6 @@ export const calendar = internalQuery({
     return await calendarForUser(ctx, user._id, args.projectId);
   },
 });
-
-/* ------------------------------- writes ------------------------------- */
 
 export const create = internalMutation({
   args: {

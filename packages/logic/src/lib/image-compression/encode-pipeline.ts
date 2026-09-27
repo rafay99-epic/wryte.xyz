@@ -1,33 +1,13 @@
 import { applyRoundedCornerMask } from "./rounded-corners";
 import type { ResolvedFormat } from "./types";
 
-/**
- * Shared encode logic used by both the Web Worker and the main-thread
- * fallback in `worker-client.ts`. Keeping a single implementation here
- * prevents the two paths from drifting.
- *
- * The pipeline:
- *  1. Allocate an OffscreenCanvas at the target dimensions.
- *  2. Optionally fill with white (JPEG target on a transparent source).
- *  3. Draw the decoded bitmap.
- *  4. Apply the rounded-corner mask if requested.
- *  5. Encode to the target format. Rounded corners force PNG so the mask
- *     survives; everything else honours the caller's chosen format.
- *
- * Bitmap ownership: this function does NOT close the bitmap — that's the
- * caller's responsibility (worker closes after postMessage, main-thread
- * fallback closes in `finally`).
- */
 export type EncodeTask = {
   bitmap: ImageBitmap;
   width: number;
   height: number;
   format: ResolvedFormat;
-  /** 0.1–1.0; ignored for PNG. */
   quality: number;
-  /** Fill canvas white before drawImage. Used for transparent → JPEG. */
   flattenWhite: boolean;
-  /** Px; 0 disables. Forces PNG output regardless of `format`. */
   cornerRadius: number;
 };
 

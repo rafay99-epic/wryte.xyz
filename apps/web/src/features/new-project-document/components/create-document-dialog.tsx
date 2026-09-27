@@ -27,17 +27,9 @@ type CreateDocumentDialogProps = {
   projectId: Id<"projects">;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Optional initial status for the new document (e.g., from a board column's "+" button). */
   initialStatus?: string | undefined;
 };
 
-/**
- * Dialog-mode "New article" flow used from within a project. Mirrors the
- * full-page `/articles/new` design so the two creation surfaces feel like
- * variations of the same screen: same hero icon, same hero title input,
- * same slug pill, same file-path preview. The project is implicit (the
- * dialog only opens from inside a project page) so there's no picker.
- */
 export function CreateDocumentDialog({
   projectId,
   open,
@@ -54,9 +46,6 @@ export function CreateDocumentDialog({
   const [isSlugEditing, setIsSlugEditing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Reset form when the dialog closes so a stale draft doesn't leak into
-  // the next open. (The submit path clears state too, but cancelling via
-  // the close button needs the same treatment.)
   useEffect(() => {
     if (!open) {
       setTitle("");
@@ -81,8 +70,6 @@ export function CreateDocumentDialog({
     setSlug(generateSlug(value));
   }, []);
 
-  // Preview of where the article will land in the repo. Matches the
-  // articles/new page so the two surfaces give identical feedback.
   const filePath = useMemo(() => {
     const contentDir = project?.contentPath || "content/blog";
     const s = slug || "my-new-post";
@@ -152,7 +139,6 @@ export function CreateDocumentDialog({
     initialStatus,
   ]);
 
-  // Enter submits from anywhere inside the form.
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key === "Enter" && !e.shiftKey) {
@@ -167,7 +153,6 @@ export function CreateDocumentDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="gap-0 p-0 sm:max-w-lg">
         <div className="overflow-hidden px-6 pt-8 pb-2">
-          {/* Hero — same icon + heading as /articles/new */}
           <motion.div
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
@@ -194,7 +179,6 @@ export function CreateDocumentDialog({
             </p>
           </motion.div>
 
-          {/* Fields */}
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -205,7 +189,6 @@ export function CreateDocumentDialog({
             }}
             className="space-y-3"
           >
-            {/* Title — hero input */}
             <div className="group relative">
               <div className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-muted-foreground/40 transition-colors group-focus-within:text-primary/60">
                 <FileText className="size-5" />
@@ -221,7 +204,6 @@ export function CreateDocumentDialog({
               />
             </div>
 
-            {/* Slug pill */}
             <div className="flex min-w-0 items-center gap-2 rounded-lg border border-border/40 bg-muted/30 px-3 py-2">
               <Hash className="size-3.5 shrink-0 text-muted-foreground/50" />
               {isSlugEditing ? (
@@ -249,7 +231,6 @@ export function CreateDocumentDialog({
               )}
             </div>
 
-            {/* File path preview */}
             {slug && (
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
@@ -266,7 +247,6 @@ export function CreateDocumentDialog({
           </motion.div>
         </div>
 
-        {/* Footer — Cancel + primary CTA, matched to /articles/new */}
         <div className="mt-2 flex items-center justify-between gap-3 border-t border-border/40 bg-muted/30 px-6 py-3">
           <Button
             type="button"
@@ -294,8 +274,6 @@ export function CreateDocumentDialog({
           </Button>
         </div>
 
-        {/* Keyboard hint — sits below the footer separator for the same
-            tone as /articles/new */}
         <p className="px-6 pb-4 text-center text-[11px] text-muted-foreground/40">
           Press{" "}
           <kbd className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground/60">

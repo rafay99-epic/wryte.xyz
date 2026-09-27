@@ -6,7 +6,6 @@ import { useMemo, useState } from "react";
 type DayCell = {
   date: string;
   words: number;
-  /** False for leading pad days before the window starts. */
   inRange: boolean;
   isFuture: boolean;
 };
@@ -14,11 +13,6 @@ type DayCell = {
 const WEEKS = 12;
 const DAY_LABELS = ["", "Mon", "", "Wed", "", "Fri", ""];
 
-/**
- * GitHub-style writing heatmap: one cell per day, 12 weeks, intensity
- * scaled to the user's own busiest day. Fed entirely by the
- * `recentActivity` array already on `writing_stats` — zero extra queries.
- */
 export function ActivityHeatmap({
   data,
 }: {
@@ -50,7 +44,6 @@ export function ActivityHeatmap({
       </div>
 
       <div className="flex gap-2">
-        {/* Weekday gutter */}
         <div className="grid grid-rows-7 gap-[3px]">
           {["sun", "mon", "tue", "wed", "thu", "fri", "sat"].map((day, i) => (
             <span
@@ -62,7 +55,6 @@ export function ActivityHeatmap({
           ))}
         </div>
 
-        {/* Week columns */}
         <div className="flex gap-[3px]">
           {weeks.map((week) => (
             <div key={week[0]?.date} className="grid grid-rows-7 gap-[3px]">
@@ -83,7 +75,6 @@ export function ActivityHeatmap({
           ))}
         </div>
 
-        {/* Legend */}
         <div className="ml-auto flex items-end gap-1 pb-px">
           <span className="text-[9px] text-muted-foreground/40">Less</span>
           {[0, 1, 2, 3, 4].map((level) => (
@@ -120,17 +111,11 @@ function localYMD(date: Date): string {
   return `${String(y)}-${m}-${d}`;
 }
 
-/**
- * Builds WEEKS columns of 7 cells, aligned so each column starts on
- * Sunday and the last column contains today. Trailing cells after today
- * are marked `isFuture`; cells before the window are `inRange: false`.
- */
 function buildWeeks(data: Array<{ date: string; words: number }>): DayCell[][] {
   const byDate = new Map(data.map((d) => [d.date, d.words]));
   const today = new Date();
   const todayKey = localYMD(today);
 
-  // Last column's Sunday, then back (WEEKS - 1) more weeks.
   const start = new Date(today);
   start.setDate(start.getDate() - start.getDay() - (WEEKS - 1) * 7);
   const windowStart = new Date(today);

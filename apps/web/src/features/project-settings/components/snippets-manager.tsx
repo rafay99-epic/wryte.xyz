@@ -17,7 +17,6 @@ import { Loader2, Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSnippetsManager } from "../hooks/use-snippets-manager";
 
-/** Counter colour ramps to amber near the cap, red at/over it. */
 function counterClass(len: number, max: number): string {
   if (len >= max) return "text-destructive";
   if (len >= max * 0.9) return "text-amber-500";
@@ -101,7 +100,6 @@ export function SnippetsManager({
         </div>
       )}
 
-      {/* Create form */}
       <div className="space-y-2 py-1">
         <div className="space-y-1">
           <Input
@@ -190,9 +188,6 @@ function SnippetRow({
     setContent(snippet.content);
   }, [snippet.name, snippet.content]);
 
-  // Save both fields together (debounced) so a quick name→content edit never
-  // drops one. Skip while the name is empty — the server rejects nameless
-  // snippets, so we wait until it's valid again rather than toast on every key.
   const scheduleSave = useCallback(
     (nextName: string, nextContent: string) => {
       if (debounceRef.current) clearTimeout(debounceRef.current);

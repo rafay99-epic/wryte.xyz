@@ -1,17 +1,3 @@
-/**
- * Minimal Hashnode GraphQL client.
- *
- * ⚠ BETA — since 2026-05-13 Hashnode's entire GraphQL API requires the
- * publication Pro plan. Non-Pro requests to gql.hashnode.com come back as a
- * 301 redirect to an HTML announcement page, NOT a GraphQL error — we
- * detect that explicitly (redirect: "manual" + content-type check) and map
- * it to `needs_pro` so the UI can distinguish "bad token" from "token fine,
- * publication not on Pro". The publish/update happy path is built against
- * Hashnode's published schema but has not been executed live (no Pro
- * account available) — errors are captured verbatim for that reason.
- *
- * Auth header is the raw PAT — no "Bearer" prefix (Hashnode convention).
- */
 "use node";
 
 import type { SyndicationResult } from "./errors";
@@ -37,8 +23,6 @@ async function hashnodeGraphQL<T>(
       },
       body: JSON.stringify({ query, ...(variables ? { variables } : {}) }),
       signal: AbortSignal.timeout(TIMEOUT_MS),
-      // Never follow the paywall redirect — a follower would land on an
-      // HTML page and the JSON parse below would produce a misleading error.
       redirect: "manual",
     });
   } catch (err) {
@@ -87,7 +71,6 @@ async function hashnodeGraphQL<T>(
     };
   }
 
-  // GraphQL convention: HTTP 200 even on errors — check the errors array.
   const first = body.errors?.[0];
   if (first) {
     const code = first.extensions?.code;
@@ -108,10 +91,6 @@ async function hashnodeGraphQL<T>(
   return { ok: true, data: body.data };
 }
 
-/**
- * Token probe + publication list for the settings picker. Doubles as the
- * "needs Pro vs bad token" discriminator.
- */
 export async function fetchHashnodePublications(
   token: string,
 ): Promise<
@@ -210,7 +189,6 @@ export async function updateHashnodePost(
         title: input.title,
         contentMarkdown: input.contentMarkdown,
         originalArticleURL: input.originalArticleURL,
-        // NB: updatePost replaces the entire tag set — always send the full list.
         tags: input.tags,
         ...(input.subtitle ? { subtitle: input.subtitle } : {}),
         ...(input.coverImageURL
@@ -231,7 +209,6 @@ export async function updateHashnodePost(
   return { ok: true, data: post };
 }
 
-/** Dedup probe for the retry-after-timeout case (mirror of devto's canonical match). */
 export async function findHashnodePostBySlug(
   token: string,
   publicationId: string,

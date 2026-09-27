@@ -14,12 +14,6 @@ import {
 import { useState } from "react";
 import { toast } from "sonner";
 
-/**
- * Cross-post outcome per platform (dev.to / Hashnode), with retry for
- * failures. One row per platform by construction (upserted server-side).
- * Renders nothing until a cross-post has actually been attempted, so it
- * costs nothing for projects with syndication off.
- */
 export function SyndicationStatus({
   documentId,
 }: {

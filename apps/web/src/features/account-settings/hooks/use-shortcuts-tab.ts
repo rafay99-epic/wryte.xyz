@@ -4,9 +4,9 @@ import {
   findConflict,
   useShortcutsStore,
 } from "@wryte/logic/stores/shortcuts-store";
+import { CATEGORY_ORDER } from "@wryte/logic/types/account-settings";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { CATEGORY_ORDER } from "../types";
 
 export function useShortcutsTab() {
   const { bindings, getKeys, setBinding, resetBinding, resetAll } =

@@ -1,10 +1,10 @@
+import { resolveMcpEndpoint } from "@wryte/logic/lib/mcp-endpoint";
 import { Badge } from "@wryte/ui/badge";
 import { Card, CardDescription, CardTitle } from "@wryte/ui/card";
 import { ArrowRight, Plug, Sparkles } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { McpClientSetup } from "@/components/mcp/mcp-client-setup";
-import { resolveMcpEndpoint } from "@/features/account-settings/lib/mcp-endpoint";
 import { DocsIcon } from "@/features/docs/components/docs-icon";
 import { DocsShell } from "@/features/docs/components/docs-shell";
 import { DOC_PAGES } from "@/features/docs/registry";
@@ -15,7 +15,6 @@ export const metadata: Metadata = {
     "Documentation for Wryte's MCP server: authentication, capabilities, every tool, rate limits and troubleshooting.",
 };
 
-/** The three-step path from nothing to a working agent. */
 const STEPS = [
   {
     title: "Sign in once",
@@ -36,7 +35,6 @@ export default function DocsIndexPage() {
 
   return (
     <DocsShell>
-      {/* ── Hero ──────────────────────────────────────────────────── */}
       <div className="mb-12">
         <div className="mb-6 flex size-12 items-center justify-center rounded-2xl border border-amber-500/20 bg-amber-500/[0.07]">
           <Plug className="size-5 text-amber-500" />
@@ -70,7 +68,6 @@ export default function DocsIndexPage() {
         </div>
       </div>
 
-      {/* ── Quickstart ────────────────────────────────────────────── */}
       <Card className="mb-12 gap-0 bg-card/50 py-0 ring-foreground/[0.08]">
         <div className="flex items-center gap-2 border-b border-foreground/[0.07] px-5 py-3.5">
           <Sparkles className="size-3.5 text-amber-500" />
@@ -101,7 +98,6 @@ export default function DocsIndexPage() {
         <McpClientSetup endpoint={endpoint} />
       </div>
 
-      {/* ── Pages ─────────────────────────────────────────────────── */}
       <p className="mb-3 font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-foreground/40">
         All pages
       </p>

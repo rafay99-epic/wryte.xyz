@@ -449,7 +449,6 @@ function ImagePreview({ file }: { file: File }) {
 
   return (
     <div className="flex size-10 items-center justify-center overflow-hidden border bg-muted/40">
-      {/* Blob URLs are local previews and cannot use Next Image. */}
       <img ref={imageRef} alt="" className="size-full object-cover" />
     </div>
   );

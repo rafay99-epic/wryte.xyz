@@ -10,20 +10,11 @@ import { useRouter } from "next/navigation";
 import { useCallback, useMemo } from "react";
 
 type AppHotkeyHandlers = {
-  /** Open the command palette */
   openCommandPalette: () => void;
-  /** Close the command palette (if open) */
   closeCommandPalette: () => void;
-  /** Whether the command palette is currently open */
   isCommandPaletteOpen: boolean;
 };
 
-/**
- * Registers all global (non-editor) keyboard shortcuts.
- *
- * Called once from the app layout. Editor-specific shortcuts (bold, italic, etc.)
- * are handled separately in use-keyboard-shortcuts.ts, scoped to the textarea.
- */
 export function useAppHotkeys(handlers: AppHotkeyHandlers) {
   const router = useRouter();
   const getKeys = useShortcutsStore((s) => s.getKeys);
@@ -38,16 +29,13 @@ export function useAppHotkeys(handlers: AppHotkeyHandlers) {
     else setMode("dark");
   }, []);
 
-  /** Helper to cast string keys from the store to the branded Hotkey type. */
   const k = useCallback((id: string) => getKeys(id) as Hotkey, [getKeys]);
 
   const hotkeys = useMemo(
     (): UseHotkeyDefinition[] => [
-      // Command palette
       {
         hotkey: k("commandPalette"),
         callback: (e) => {
-          // Don't open command palette when editor textarea is focused
           const active = document.activeElement;
           if (
             active instanceof HTMLTextAreaElement &&
@@ -59,7 +47,6 @@ export function useAppHotkeys(handlers: AppHotkeyHandlers) {
           handlers.openCommandPalette();
         },
       },
-      // Toggle sidebar
       {
         hotkey: k("toggleSidebar"),
         callback: (e) => {
@@ -68,7 +55,6 @@ export function useAppHotkeys(handlers: AppHotkeyHandlers) {
           toggleSidebar();
         },
       },
-      // Toggle focus mode
       {
         hotkey: k("toggleFocusMode"),
         callback: (e) => {
@@ -77,7 +63,6 @@ export function useAppHotkeys(handlers: AppHotkeyHandlers) {
           toggleFocusMode();
         },
       },
-      // Toggle theme
       {
         hotkey: k("toggleTheme"),
         callback: (e) => {
@@ -86,7 +71,6 @@ export function useAppHotkeys(handlers: AppHotkeyHandlers) {
           cycleTheme();
         },
       },
-      // Escape — close command palette or exit focus mode
       {
         hotkey: k("escape"),
         callback: () => {
@@ -100,7 +84,6 @@ export function useAppHotkeys(handlers: AppHotkeyHandlers) {
           }
         },
       },
-      // New article
       {
         hotkey: k("newArticle"),
         callback: (e) => {
@@ -113,7 +96,6 @@ export function useAppHotkeys(handlers: AppHotkeyHandlers) {
           }
         },
       },
-      // Switch project — open command palette with project filter
       {
         hotkey: k("switchProject"),
         callback: (e) => {
@@ -122,7 +104,6 @@ export function useAppHotkeys(handlers: AppHotkeyHandlers) {
           handlers.openCommandPalette();
         },
       },
-      // Switch layout (table ↔ board)
       {
         hotkey: k("switchLayout"),
         callback: (e) => {
@@ -131,7 +112,6 @@ export function useAppHotkeys(handlers: AppHotkeyHandlers) {
           window.dispatchEvent(new CustomEvent("wryte:switch-layout"));
         },
       },
-      // Go to dashboard
       {
         hotkey: k("goToDashboard"),
         callback: (e) => {
@@ -140,7 +120,6 @@ export function useAppHotkeys(handlers: AppHotkeyHandlers) {
           router.push("/dashboard");
         },
       },
-      // Go to settings
       {
         hotkey: k("goToSettings"),
         callback: (e) => {
@@ -149,7 +128,6 @@ export function useAppHotkeys(handlers: AppHotkeyHandlers) {
           router.push("/settings");
         },
       },
-      // Schedule article
       {
         hotkey: k("scheduleArticle"),
         callback: (e) => {
@@ -158,7 +136,6 @@ export function useAppHotkeys(handlers: AppHotkeyHandlers) {
           window.dispatchEvent(new CustomEvent("wryte:schedule-article"));
         },
       },
-      // Publish article
       {
         hotkey: k("publishArticle"),
         callback: (e) => {
@@ -167,9 +144,6 @@ export function useAppHotkeys(handlers: AppHotkeyHandlers) {
           window.dispatchEvent(new CustomEvent("wryte:publish-article"));
         },
       },
-      // Writing sprint — start (opens the setup popover) or end the active
-      // one. Intentionally NOT gated on isInputFocused: writers trigger this
-      // mid-typing, and the chord never inserts text.
       {
         hotkey: k("toggleSprint"),
         callback: (e) => {

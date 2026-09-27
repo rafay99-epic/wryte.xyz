@@ -4,18 +4,6 @@ import { cn } from "@wryte/logic/lib/utils";
 import Image from "next/image";
 import { useState } from "react";
 
-/**
- * Image wrapper used inside the media library cards.
- *
- * Behaviour:
- *  - Renders a sliding shimmer placeholder beneath the image until it
- *    decodes, so the grid never shows a hard pop-in.
- *  - Fades the image in once `onLoad` fires.
- *  - Falls back to a small alt-text label if the source URL 404s.
- *
- * The parent provides the layout box (`position: relative` + fixed height);
- * this component fills it with `fill`.
- */
 export function MediaImage({
   src,
   alt,

@@ -11,18 +11,8 @@ import Link from "next/link";
 import { ChangelogMarkdown } from "@/components/changelog/changelog-markdown";
 import { SharedMdxContent } from "@/components/markdown/shared-mdx-content";
 
-/**
- * Every preview visitor is a non-user reading a Wryte-made draft — the
- * chrome and CTA below are the growth loop for this page. Clicks are
- * measurable via utm_source=preview (mirrors the /gh commit channel).
- */
 const PREVIEW_CTA_URL = "/?utm_source=preview&utm_medium=share";
 
-/**
- * Shared shell for all three preview states (loading, not-found, document)
- * so even a dead link carries the brand. Header only — the CTA card is
- * document-state-specific.
- */
 function PreviewChrome({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen flex-col">
@@ -53,19 +43,11 @@ function PreviewChrome({ children }: { children: React.ReactNode }) {
   );
 }
 
-/**
- * Public read-only draft preview, resolved by the share token in the URL.
- * No auth — the token is the credential; revoked/unknown tokens render
- * the same neutral not-found state. The page stays noindex (see page.tsx);
- * branding and the CTA are for the human reader, never for crawlers.
- */
 export function PreviewPage({ token }: { token: string }) {
   const document = useQuery(
     api.cms.shareLinks.getByToken,
     token ? { token } : "skip",
   );
-  // Animation sources for MDX drafts — same token, same trust, [] for
-  // md-format projects or when the feature is off.
   const animations = useQuery(
     api.cms.shareLinks.animationsByToken,
     token && document?.contentFormat === "mdx" ? { token } : "skip",

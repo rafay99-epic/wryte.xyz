@@ -112,7 +112,6 @@ export function StepConfigurePaths({
   return (
     <div className="space-y-5">
       <div className="space-y-4">
-        {/* Content Directory */}
         <div className="space-y-1.5">
           <Label
             htmlFor="content-path"
@@ -132,7 +131,6 @@ export function StepConfigurePaths({
           </p>
         </div>
 
-        {/* Media Directory */}
         <div className="space-y-1.5">
           <Label
             htmlFor="media-path"
@@ -151,7 +149,6 @@ export function StepConfigurePaths({
           </p>
         </div>
 
-        {/* Media Storage Provider — 3-card picker */}
         <div className="space-y-2">
           <Label className="text-xs font-medium text-muted-foreground">
             Media Storage
@@ -164,9 +161,6 @@ export function StepConfigurePaths({
                 onClick={() =>
                   onChange({
                     mediaStorageMode: entry.id,
-                    // Credential values are keyed per provider; carrying the
-                    // previous provider's entries over would submit fields the
-                    // new one doesn't understand.
                     mediaCredentials: {},
                   })
                 }
@@ -182,7 +176,6 @@ export function StepConfigurePaths({
           </p>
         </div>
 
-        {/* Credential inputs for the chosen provider, straight from its registry entry. */}
         <MediaCredentialsStep state={state} onChange={onChange} />
         {state.mediaStorageMode === "github" && hasRepo && (
           <div className="flex items-start gap-2 rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">
@@ -211,7 +204,6 @@ export function StepConfigurePaths({
         )}
       </div>
 
-      {/* Detect Frontmatter */}
       {hasRepo && (
         <div className="rounded-xl border bg-muted/30 p-4">
           <div className="flex items-start gap-3">
@@ -251,10 +243,6 @@ export function StepConfigurePaths({
     </div>
   );
 }
-
-/* ------------------------------------------------------------------ */
-/*  Provider option card                                                */
-/* ------------------------------------------------------------------ */
 
 function ProviderOption({
   active,
@@ -302,17 +290,6 @@ function ProviderOption({
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  Credential subforms                                                 */
-/* ------------------------------------------------------------------ */
-
-/**
- * Credential inputs for whichever provider is selected.
- *
- * Renders the provider's registry fields — one component for every storage
- * backend, present and future. GitHub has no fields, so it shows the
- * repo-destination note instead of a form.
- */
 function MediaCredentialsStep({
   state,
   onChange,

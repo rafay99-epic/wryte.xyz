@@ -29,30 +29,15 @@ const MAX_LENGTH = 2000;
 
 type AnnouncementComposerProps = {
   idPrefix: string;
-  /** Channels the announcement will go to (already filtered to enabled). */
   channels: BufferChannelInfo[];
   include: boolean;
   onIncludeChange: (include: boolean) => void;
-  /** Custom message; empty string = fully automated title + URL. */
   value: string;
   onChange: (value: string) => void;
   preview: SocialTemplateVars;
-  /**
-   * When set, past announcement attempts for this document render below the
-   * composer with per-channel status and a retry for failures. The query
-   * only subscribes while this component is mounted (dialog open).
-   */
   documentId?: Id<"documents"> | undefined;
 };
 
-/**
- * The social-announcement block of the publish/schedule dialogs.
- *
- * Announcement-first, not textarea-first: the default state shows exactly
- * what will be posted and to which channels, with per-service character
- * budgets. The textarea only appears when the author chooses to customize —
- * publishing with the automated message is zero extra keystrokes.
- */
 export function AnnouncementComposer({
   idPrefix,
   channels,
@@ -63,8 +48,6 @@ export function AnnouncementComposer({
   preview,
   documentId,
 }: AnnouncementComposerProps) {
-  // Stay expanded once the author starts customizing; reopen expanded when
-  // a custom message already exists.
   const [customizing, setCustomizing] = useState(value.trim().length > 0);
 
   const composed = composeAnnouncementText({
@@ -72,7 +55,6 @@ export function AnnouncementComposer({
     customText: value,
   }).trim();
 
-  // Per-service budgets — one badge per distinct service with a hard limit.
   const budgets = useMemo(() => {
     const seen = new Set<string>();
     const out: { service: string; length: number; limit: number }[] = [];
@@ -114,7 +96,6 @@ export function AnnouncementComposer({
 
       {include ? (
         <>
-          {/* What will actually be posted */}
           <div className="rounded-lg bg-muted/30 px-3 py-2">
             <div className="mb-1 flex items-center justify-between">
               <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">
@@ -209,11 +190,6 @@ export function AnnouncementComposer({
   );
 }
 
-/**
- * Shown in the composer's place when announcements CAN'T run for this
- * project — names the missing piece instead of silently hiding the section
- * (an invisible feature reads as a broken one).
- */
 export function AnnouncementSetupHint({
   projectId,
   hasSiteUrl,
@@ -248,16 +224,11 @@ export function AnnouncementSetupHint({
   );
 }
 
-/**
- * Outcome of the latest announcement per channel, with retry for failures.
- * Subscribed only while rendered — the dialog is the gate.
- */
 function AnnouncementStatus({ documentId }: { documentId: Id<"documents"> }) {
   const rows = useQuery(api.social.postsDb.listForDocument, { documentId });
   const retryPost = useAction(api.social.post.retryPost);
   const [retrying, setRetrying] = useState<string | null>(null);
 
-  // Rows arrive newest-first; keep only the latest attempt per channel.
   const latest = useMemo(() => {
     const seen = new Set<string>();
     return (rows ?? []).filter((row) => {

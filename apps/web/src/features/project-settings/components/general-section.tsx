@@ -6,13 +6,13 @@ import {
   staggerContainer,
   staggerItem,
 } from "@wryte/logic/lib/motion";
+import type { ProjectData } from "@wryte/logic/types/project-settings";
 import { Input } from "@wryte/ui/input";
 import { motion } from "framer-motion";
 import { Globe, Settings2, User } from "lucide-react";
 import { MediaPickerInput } from "@/components/forms/media-picker-input";
 import { SaveBar } from "@/components/settings/save-bar";
 import { useGeneralSection } from "../hooks/use-general-section";
-import type { ProjectData } from "../types";
 import { FieldGroup, SectionHeader } from "./shared";
 
 export function GeneralSection({

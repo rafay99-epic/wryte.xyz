@@ -10,16 +10,6 @@ import {
   useState,
 } from "react";
 
-/**
- * Tab-level dirty registry for the settings shells.
- *
- * Sections report their unsaved state with `useReportDirty(hasChanges)`;
- * the shell reads the aggregate with `useSettingsDirty()` to guard tab
- * switches (sections fully unmount on switch, so without this a stray
- * click silently destroys edits). Multiple sections can be dirty at once
- * (e.g. Media's groups) — the registry counts them by id.
- */
-
 type DirtyContextValue = {
   dirtyCount: number;
   report: (id: string, dirty: boolean) => void;
@@ -59,16 +49,10 @@ export function SettingsDirtyProvider({
   );
 }
 
-/** Aggregate unsaved-changes count (0 = safe to navigate). */
 export function useSettingsDirty(): number {
   return useContext(SettingsDirtyContext)?.dirtyCount ?? 0;
 }
 
-/**
- * Report this section's dirty state to the shell. Unregisters on unmount
- * (an unmounted section's edits are already gone — nothing left to guard).
- * No-ops when rendered outside a provider so sections stay reusable.
- */
 export function useReportDirty(dirty: boolean): void {
   const ctx = useContext(SettingsDirtyContext);
   const id = useId();

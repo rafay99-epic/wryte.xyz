@@ -1,11 +1,3 @@
-/**
- * Public surface of the client-side image-compression library.
- *
- * Callers should only import from this file. Internal modules
- * (`worker.ts`, `worker-client.ts`, `encode-pipeline.ts`, codec helpers)
- * are implementation detail and may change without notice.
- */
-
 export { compressImageFile } from "./compressor";
 export {
   DEFAULT_COMPRESSION_SETTINGS,

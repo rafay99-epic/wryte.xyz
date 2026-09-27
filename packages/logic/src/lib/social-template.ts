@@ -1,12 +1,3 @@
-/**
- * Social announcement helpers for the client.
- *
- * URL construction and final-text composition live in
- * `convex/_lib/publishedUrl.ts` (plain TypeScript, no server imports) and
- * are re-exported here so the live previews in the publish/schedule dialogs
- * are guaranteed to match what the server actually posts.
- */
-
 export {
   buildPublishedUrl,
   composeAnnouncementText,
@@ -26,7 +17,6 @@ export type BufferChannelInfo = {
   name: string;
 };
 
-/** Pretty labels for Buffer's `service` enum on connected channels. */
 export const BUFFER_SERVICE_LABELS: Record<string, string> = {
   twitter: "X (Twitter)",
   x: "X (Twitter)",
@@ -46,11 +36,6 @@ export function bufferServiceLabel(service: string): string {
   return BUFFER_SERVICE_LABELS[service.toLowerCase()] ?? service;
 }
 
-/**
- * Client mirror of the Buffer credential `publicConfig` JSON:
- * `{ channels, enabledChannelIds }`. Returns only the ENABLED channels —
- * the set announcements will actually go to.
- */
 export function parseEnabledChannels(
   raw: string | undefined,
 ): BufferChannelInfo[] {

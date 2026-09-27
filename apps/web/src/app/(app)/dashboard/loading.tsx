@@ -6,7 +6,6 @@ const comingSoonKeys = ["analytics", "seo", "calendar", "team"];
 export default function DashboardLoading() {
   return (
     <div className="mx-auto max-w-6xl p-6 lg:p-8">
-      {/* Welcome */}
       <div className="mb-10 flex items-center gap-3">
         <Skeleton className="size-9 rounded-xl" />
         <div>
@@ -15,7 +14,6 @@ export default function DashboardLoading() {
         </div>
       </div>
 
-      {/* Stats */}
       <div className="mb-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {statKeys.map((key) => (
           <div
@@ -32,9 +30,7 @@ export default function DashboardLoading() {
         ))}
       </div>
 
-      {/* Two-column */}
       <div className="mb-10 grid gap-6 lg:grid-cols-[1fr_320px]">
-        {/* Recent docs */}
         <div className="rounded-xl border border-border/60 bg-card">
           <div className="border-b border-border/50 px-4 py-3">
             <Skeleton className="h-5 w-36" />
@@ -52,7 +48,6 @@ export default function DashboardLoading() {
             ))}
           </div>
         </div>
-        {/* Quick actions */}
         <div className="space-y-4">
           <div className="rounded-xl border border-border/60 bg-card p-4">
             <Skeleton className="mb-2 h-5 w-28" />
@@ -63,7 +58,6 @@ export default function DashboardLoading() {
         </div>
       </div>
 
-      {/* Coming Soon */}
       <div>
         <Skeleton className="mb-4 h-6 w-36" />
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

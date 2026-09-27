@@ -1,10 +1,3 @@
-/**
- * Per-project AI prompt template CRUD.
- *
- * Templates are stored as a JSON string on the project record
- * (`aiPromptTemplates`). When no custom templates exist, the client
- * falls back to DEFAULT_TEMPLATES.
- */
 import { v } from "convex/values";
 import { mutation, query } from "../_generated/server";
 import { getAuthedUserOrNull, getCurrentUser } from "../_lib/auth";
@@ -181,9 +174,7 @@ export const addTemplate = mutation({
     if (project.aiPromptTemplates) {
       try {
         templates = JSON.parse(project.aiPromptTemplates);
-      } catch {
-        // Fall through to defaults
-      }
+      } catch {}
     }
 
     if (templates.length >= 20) {
@@ -244,9 +235,7 @@ export const removeTemplate = mutation({
     if (project.aiPromptTemplates) {
       try {
         templates = JSON.parse(project.aiPromptTemplates);
-      } catch {
-        // Fall through to defaults
-      }
+      } catch {}
     }
 
     const idx = templates.findIndex((t) => t.id === args.templateId);

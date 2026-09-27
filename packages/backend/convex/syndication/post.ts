@@ -1,15 +1,3 @@
-/**
- * Cross-posting fan-out: publish → dev.to / Hashnode mirrors.
- *
- * `syndicatePublish` is fire-and-forget — scheduled by the publish flow via
- * `ctx.scheduler.runAfter(0, ...)` (gated on `project.syndicateOnPublish`)
- * so it never blocks or fails the GitHub publish. The whole handler is
- * try/caught; every outcome lands as a durable `syndication_posts` row.
- *
- * Idempotency: the row's `remoteId` decides create vs update. Retries are
- * bounded (MAX_ATTEMPTS, one reschedule per rate limit) and re-scheduled
- * via the scheduler — never an in-action sleep, which would bill compute.
- */
 "use node";
 
 import { ConvexError, v } from "convex/values";
@@ -51,7 +39,6 @@ import {
 
 const MAX_ATTEMPTS = 3;
 const BACKOFF_MS = [5_000, 15_000, 45_000];
-/** A pending row younger than this means another job is already on it. */
 const PENDING_FRESH_MS = 60_000;
 
 type PushSuccess = { remoteId: string; remoteUrl: string };
@@ -61,9 +48,7 @@ export const syndicatePublish = internalAction({
   args: {
     projectId: v.id("projects"),
     documentId: v.id("documents"),
-    /** Retry bookkeeping — omitted on the initial publish fan-out. */
     attempt: v.optional(v.number()),
-    /** Restrict to specific providers (retry path); omitted = all. */
     only: v.optional(v.array(syndicationProviderValidator)),
   },
   returns: v.null(),
@@ -73,7 +58,6 @@ export const syndicatePublish = internalAction({
       const document = await ctx.runQuery(internal.cms.documents.internalGet, {
         documentId: args.documentId,
       });
-      // Trashed or deleted since the publish — nothing to mirror.
       if (!document || document.trashedAt !== undefined) return null;
 
       const project = await ctx.runQuery(internal.cms.projects.internalGet, {
@@ -129,8 +113,6 @@ async function syndicateToProvider(
     internal.syndication.postsDb._findByDocumentAndProvider,
     { documentId: document._id, provider },
   );
-  // Race guard: a fresh pending row means a concurrent job (double publish,
-  // overlapping retry) is already handling this target.
   if (
     attempt === 0 &&
     existingRow?.status === "pending" &&
@@ -167,8 +149,6 @@ async function syndicateToProvider(
     });
   };
 
-  // Canonical URL is non-negotiable — a cross-post without rel=canonical
-  // competes with the user's own site in search.
   if (!project.siteUrl) {
     await record({
       status: "failed",
@@ -228,8 +208,6 @@ async function syndicateToProvider(
       errorMessage: failure.message.slice(0, 500),
     });
 
-    // A rejected token poisons every future publish — flag the credential
-    // so the settings chip flips and the provider is skipped until reconnect.
     if (failure.code === "invalid_token") {
       await ctx.runMutation(internal.syndication.credentialsDb._setStatus, {
         credentialId,
@@ -239,8 +217,6 @@ async function syndicateToProvider(
       return;
     }
 
-    // Bounded automatic retry: transient codes only, one reschedule for a
-    // rate limit (honoring Retry-After), MAX_ATTEMPTS overall.
     const nextAttempt = attempt + 1;
     if (!isRetryable(failure.code) || nextAttempt >= MAX_ATTEMPTS) return;
     if (failure.code === "rate_limited" && attempt >= 1) return;
@@ -266,7 +242,6 @@ async function pushToProvider(opts: {
   canonicalUrl: string;
   publicationId: string | undefined;
   remoteId: string | undefined;
-  /** Retry path — a lost create may have succeeded remotely; probe first. */
   dedupProbe: boolean;
 }): Promise<PushOutcome> {
   const { provider, secret, document, canonicalUrl } = opts;
@@ -312,7 +287,6 @@ async function pushToProvider(opts: {
           },
         };
       }
-      // Post deleted on dev.to since we stored the id — create fresh once.
       if (updated.code !== "remote_deleted") return updated;
     }
 
@@ -324,7 +298,6 @@ async function pushToProvider(opts: {
     };
   }
 
-  // Hashnode
   if (!opts.publicationId) {
     return {
       ok: false,
@@ -375,11 +348,6 @@ async function pushToProvider(opts: {
   };
 }
 
-/* ------------------------------------------------------------------ */
-/*  User-triggered actions                                              */
-/* ------------------------------------------------------------------ */
-
-/** Re-run one failed cross-post. The reactive status row shows the result. */
 export const retryPost = action({
   args: { syndicationPostId: v.id("syndication_posts") },
   returns: v.object({ ok: v.boolean(), message: v.optional(v.string()) }),
@@ -410,14 +378,6 @@ export const retryPost = action({
   },
 });
 
-/**
- * Push a sample DRAFT article to dev.to — no GitHub commit, no document,
- * nothing in the repo. Drafts are invisible in dev.to feeds; the user
- * deletes it from their dev.to dashboard when done. The sample body
- * deliberately trips every transform (leading YAML, relative image,
- * Liquid-looking syntax, messy tags), so a passing test means a real
- * publish will survive too.
- */
 export const sendTestPost = action({
   args: { projectId: v.id("projects") },
   returns: v.object({

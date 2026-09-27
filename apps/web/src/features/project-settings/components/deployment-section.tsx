@@ -6,13 +6,13 @@ import {
   staggerContainer,
   staggerItem,
 } from "@wryte/logic/lib/motion";
+import type { ProjectData } from "@wryte/logic/types/project-settings";
 import { Button } from "@wryte/ui/button";
 import { Input } from "@wryte/ui/input";
 import { Switch } from "@wryte/ui/switch";
 import { motion } from "framer-motion";
 import { Loader2, ShieldCheck, Trash2 } from "lucide-react";
 import { useDeploymentSection } from "../hooks/use-deployment-section";
-import type { ProjectData } from "../types";
 import { FieldGroup, SectionHeader } from "./shared";
 
 export function DeploymentSection({

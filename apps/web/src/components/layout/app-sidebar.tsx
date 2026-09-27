@@ -34,10 +34,6 @@ import { SidebarNavLink as NavLink } from "@/components/layout/app-sidebar/sideb
 import { useIsAdmin } from "@/components/layout/hooks/use-is-admin";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 
-/* ------------------------------------------------------------------ */
-/*  AppSidebar                                                         */
-/* ------------------------------------------------------------------ */
-
 export function AppSidebar() {
   const router = useRouter();
   const activeProjectId = useEditorStore((s) => s.activeProjectId);
@@ -49,9 +45,6 @@ export function AppSidebar() {
     api.cms.documents.list,
     activeProjectId ? { projectId: activeProjectId as Id<"projects"> } : "skip",
   );
-  // Animations nav item: MDX projects with the feature toggled on. Derived
-  // from the already-fetched projects list — no extra query. Absent toggle
-  // falls back to path presence (projects configured before it existed).
   const activeProject = projects?.find((p) => p._id === activeProjectId);
   const animationsNavEnabled =
     activeProject?.contentFormat === "mdx" &&
@@ -60,11 +53,6 @@ export function AppSidebar() {
   function handleBack() {
     const pathname = window.location.pathname;
 
-    // Hierarchical "up", one level at a time — the user's mental model is
-    // editor → project → dashboard, and equally sub-page (media/animations/
-    // calendar/…) → project → dashboard. Deterministic on purpose: browser
-    // history can point anywhere after cross-page hops, which made this
-    // button feel random.
     if (pathname.startsWith("/editor/") && activeProjectId) {
       router.push(`/projects/${activeProjectId}`);
       return;
@@ -81,7 +69,6 @@ export function AppSidebar() {
   const sidebarFavorites = projects?.filter((p) => p.isFavorite) ?? [];
   const sidebarOthers = projects?.filter((p) => !p.isFavorite) ?? [];
 
-  // Compute status counts for sidebar filter chips
   const statusCounts = useMemo(() => {
     if (!documents) return null;
     const counts: Record<string, number> = {};
@@ -96,7 +83,6 @@ export function AppSidebar() {
 
   return (
     <div className="flex h-full w-[260px] flex-col bg-sidebar">
-      {/* Product header */}
       <Link
         href="/"
         className="flex h-12 shrink-0 items-center gap-2 border-b border-sidebar-border px-4"
@@ -107,7 +93,6 @@ export function AppSidebar() {
         </span>
       </Link>
 
-      {/* Navigation */}
       <div className="flex-1 overflow-y-auto slim-scrollbar px-3 py-3">
         <AnimatePresence mode="wait" initial={false}>
           {!activeProjectId ? (
@@ -118,7 +103,6 @@ export function AppSidebar() {
               exit={{ opacity: 0, x: -8 }}
               transition={{ duration: 0.15 }}
             >
-              {/* Home & Settings */}
               <div className="space-y-0.5">
                 <NavLink
                   href="/dashboard"
@@ -136,8 +120,6 @@ export function AppSidebar() {
 
               <div className="my-3 h-px bg-sidebar-border" />
 
-              {/* Admin — only visible to users with publicMetadata.role === "admin".
-                  Mutations re-verify the role server-side, so this is just UX. */}
               {isAdmin && (
                 <>
                   <div className="mb-3">
@@ -163,7 +145,6 @@ export function AppSidebar() {
                 </>
               )}
 
-              {/* Projects */}
               <div>
                 <div className="mb-1.5 flex items-center justify-between px-3">
                   <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
@@ -268,7 +249,6 @@ export function AppSidebar() {
               exit={{ opacity: 0, x: 8 }}
               transition={{ duration: 0.15 }}
             >
-              {/* Back */}
               <button
                 type="button"
                 onClick={handleBack}
@@ -278,7 +258,6 @@ export function AppSidebar() {
                 <span>Back</span>
               </button>
 
-              {/* Project nav */}
               <div className="space-y-0.5">
                 <NavLink
                   href={`/projects/${activeProjectId}`}
@@ -317,7 +296,6 @@ export function AppSidebar() {
 
               <div className="my-3 h-px bg-sidebar-border" />
 
-              {/* Articles list */}
               <div>
                 <div className="mb-1.5 flex items-center justify-between px-3">
                   <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
@@ -335,7 +313,6 @@ export function AppSidebar() {
                   </button>
                 </div>
 
-                {/* Status filter chips */}
                 {statusCounts && documents && documents.length > 0 && (
                   <div className="mb-2 flex flex-wrap gap-1 px-3">
                     {DEFAULT_BOARD_COLUMNS.map((col) => {
@@ -395,7 +372,6 @@ export function AppSidebar() {
         </AnimatePresence>
       </div>
 
-      {/* Footer */}
       <div className="border-t border-sidebar-border px-4 py-2.5">
         <div className="flex items-center justify-between">
           <ThemeToggle />

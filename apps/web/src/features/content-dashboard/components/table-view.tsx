@@ -3,15 +3,15 @@
 import { staggerContainer } from "@wryte/logic/lib/motion";
 import type { ParsedFrontmatter } from "@wryte/logic/lib/parse-frontmatter";
 import type { BoardColumnDef } from "@wryte/logic/types/board";
+import type { ContentItem } from "@wryte/logic/types/content";
 import { motion } from "framer-motion";
-import { type ContentItem, ContentTableRow } from "./content-table-row";
+import { ContentTableRow } from "./content-table-row";
 
 type TableViewProps = {
   items: ContentItem[];
   columns: BoardColumnDef[];
   frontmatterMap: Map<string, ParsedFrontmatter>;
   importingPath: string | null;
-  /** Whether to show the selection checkbox column. */
   showSelection: boolean;
   selectedPaths: Set<string>;
   selectedDocIds?: Set<string> | undefined;

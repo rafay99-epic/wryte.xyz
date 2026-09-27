@@ -1,19 +1,4 @@
 #!/usr/bin/env bun
-/**
- * Interactive CLI for adding a new changelog entry.
- *
- *   bun run changelog:new
- *
- * Prompts for title and description, opens $EDITOR for the markdown body,
- * and inserts the entry at the top of `src/content/changelog.md`. The build
- * SHA is auto-filled via `git rev-parse --short HEAD` and the date from now.
- *
- * The changelog is date-based: entries carry NO hand-typed version number,
- * and this script does NOT bump `package.json`. Versioning is automatic —
- * the deployed git SHA is the release identity (see
- * `src/hooks/use-version-check.ts`). Add an optional `version:` line to the
- * generated entry by hand only if you're marking something like a 1.0.
- */
 import { execSync, spawnSync } from "node:child_process";
 import { readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -21,10 +6,8 @@ import { join } from "node:path";
 import { stdin as input, stdout as output } from "node:process";
 import { createInterface } from "node:readline/promises";
 
-// This script runs from `apps/web` (via `bun run --filter @wryte/web`).
 const CHANGELOG_FILE = join(process.cwd(), "src", "content", "changelog.md");
 
-/** First entry marker — new entries insert directly above it. */
 const ENTRY_MARKER = "<!-- changelog-entry";
 
 const TEMPLATE = `## What's new

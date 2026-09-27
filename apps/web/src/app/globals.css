@@ -2,10 +2,6 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @plugin "@tailwindcss/typography";
-
-/* Workspace packages live outside this app's directory, so Tailwind's
-   automatic source detection never reaches them — declare them explicitly or
-   every class used only by a shared component gets purged. */
 @source "../../../../packages/ui/src";
 @source "../../../../packages/logic/src";
 
@@ -135,9 +131,6 @@
     @apply relative bg-background font-sans;
   }
 }
-
-/* ── Editor pane fade-in (CSS-only, no layout side-effects) ────────── */
-/* Uses a key-triggered remount so the animation replays on tab switch. */
 @keyframes editorFadeIn {
   from {
     opacity: 0;
@@ -151,17 +144,10 @@
 .editor-pane-enter {
   animation: editorFadeIn 0.2s cubic-bezier(0.25, 0.1, 0.25, 1) both;
 }
-
-/* ── Delayed switch spinner ────────────────────────────────────────── */
-/* Only becomes visible when a version switch takes longer than ~150ms —
-   cache hits and fast local fetches finish before the delay elapses, so
-   quick switches never flash a spinner. */
 .switch-spinner {
   opacity: 0;
   animation: editorFadeIn 150ms ease-out 150ms forwards;
 }
-
-/* ── Hide scrollbars for editor panes ──────────────────────────────── */
 .hide-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
@@ -169,15 +155,9 @@
 .hide-scrollbar::-webkit-scrollbar {
   display: none;
 }
-
-/* ── Slim custom scrollbar ─────────────────────────────────────────── */
 .slim-scrollbar {
   scrollbar-width: thin;
   scrollbar-color: oklch(0.7 0 0 / 20%) transparent;
-  /* The styled webkit scrollbar is classic (non-overlay) and occupies 4px.
-     Reserve that gutter permanently so content doesn't shift sideways when
-     switching between scrolling and non-scrolling documents (e.g. a full
-     draft ↔ an empty one). */
   scrollbar-gutter: stable;
 }
 .slim-scrollbar::-webkit-scrollbar {
@@ -202,16 +182,12 @@
 .dark .slim-scrollbar::-webkit-scrollbar-thumb:hover {
   background: oklch(1 0 0 / 20%);
 }
-
-/* ── Editor textarea cursor ────────────────────────────────────────── */
 .editor-textarea {
   caret-color: oklch(0.52 0.13 58);
 }
 .dark .editor-textarea {
   caret-color: oklch(0.82 0.16 80);
 }
-
-/* ── Split divider ─────────────────────────────────────────────────── */
 .split-divider {
   position: relative;
   width: 1px;
@@ -239,13 +215,6 @@
 .split-divider:hover::after {
   opacity: 1;
 }
-
-/* ── Media library shimmer ─────────────────────────────────────────── */
-/*
- * A muted gradient that slides across an element while images are loading.
- * Used as a placeholder under media-library thumbnails so the grid never
- * shows a hard pop-in.
- */
 @keyframes media-shimmer {
   0% {
     transform: translateX(-100%);
@@ -271,9 +240,6 @@
   );
   animation: media-shimmer 1.4s ease-in-out infinite;
 }
-
-/* ── Syntax highlighting (highlight.js) ────────────────────────────── */
-/* Light theme - GitHub */
 pre code.hljs {
   display: block;
   overflow-x: auto;
@@ -359,8 +325,6 @@ code.hljs {
   color: #b31d28;
   background-color: #ffeef0;
 }
-
-/* Dark theme - GitHub Dark Dimmed (scoped to .dark) */
 .dark .hljs {
   color: #adbac7;
   background: transparent;
@@ -438,8 +402,6 @@ code.hljs {
   color: #ffd8d3;
   background-color: #78191b;
 }
-
-/* ── Marketing: CTA button shine sweep ───────────────────────────────── */
 @keyframes cta-shine {
   0% {
     transform: translateX(-100%) skewX(-15deg);
@@ -468,8 +430,6 @@ code.hljs {
   animation-delay: 1.5s;
   pointer-events: none;
 }
-
-/* ── Marketing: animated gradient border ─────────────────────────────── */
 @keyframes border-rotate {
   from {
     --border-angle: 0deg;
@@ -507,8 +467,6 @@ code.hljs {
   animation: border-rotate 4s linear infinite;
   pointer-events: none;
 }
-
-/* ── Confetti burst ────────────────────────────────────────────────── */
 @keyframes confetti-burst {
   0% {
     transform: translate(0, 0) rotate(0deg) scale(1);
@@ -527,8 +485,6 @@ code.hljs {
 .animate-confetti-burst {
   animation: confetti-burst 1.6s cubic-bezier(0.22, 0.6, 0.36, 1) forwards;
 }
-
-/* ── Goal shimmer ──────────────────────────────────────────────────── */
 @keyframes goal-shimmer {
   0% {
     background-position: -200% 0;
@@ -548,21 +504,11 @@ code.hljs {
   background-size: 200% 100%;
   animation: goal-shimmer 2s ease-in-out infinite;
 }
-
-/* ------------------------------------------------------------------ */
-/*  macOS desktop shell — the site header doubles as the title bar.    */
-/*  Applied only when the Electron preload marks the document (see      */
-/*  components/layout/desktop-chrome.tsx); the web is untouched.        */
-/* ------------------------------------------------------------------ */
 .wryte-desktop-mac .desktop-titlebar {
-  /* whole header is a drag handle for moving the window… */
   -webkit-app-region: drag;
   app-region: drag;
-  /* …with room on the left so the traffic-light buttons never overlap. */
   padding-left: 80px;
 }
-
-/* …but the interactive bits inside must stay clickable, not draggable. */
 .wryte-desktop-mac
   .desktop-titlebar
   :is(

@@ -1,11 +1,3 @@
-/**
- * MCP handlers for research notes — the capture surface an agent uses while
- * drafting.
- *
- * Same contract as `./documents.ts`: `internal*` only, actor injected by the
- * gateway via `identityArg`, zero business logic. See `_lib/auth.ts →
- * requireCaller` for why this indirection exists.
- */
 import { v } from "convex/values";
 import { mcpCallerValidator } from "convex-mcp-gateway";
 import { internalMutation, internalQuery } from "../../_generated/server";
@@ -17,11 +9,6 @@ import {
   updateResearchForUser,
 } from "../../cms/documentResearch";
 
-/**
- * Mirrors `researchTypeValidator` in `cms/documentResearch.ts`, which is
- * module-private. Exported so `../tools.ts` declares the same union; the
- * compile-time `args` check against the target function catches any drift.
- */
 export const RESEARCH_TYPE = v.union(
   v.literal("note"),
   v.literal("source"),
@@ -30,8 +17,6 @@ export const RESEARCH_TYPE = v.union(
   v.literal("idea"),
   v.literal("ai_summary"),
 );
-
-/* ------------------------------ research ------------------------------ */
 
 export const researchList = internalQuery({
   args: { caller: mcpCallerValidator, documentId: v.id("documents") },

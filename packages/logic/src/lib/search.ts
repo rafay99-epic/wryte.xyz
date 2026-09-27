@@ -1,17 +1,6 @@
-/**
- * Advanced content search engine with multi-field matching and relevance scoring.
- *
- * Supports:
- * - Multi-word tokenized search (AND logic — every word must match somewhere)
- * - Weighted field scoring (title > tags > slug > excerpt > path)
- * - Prefix matching bonus for partial words
- * - Case-insensitive matching
- */
-
 import type { ParsedFrontmatter } from "@wryte/logic/lib/parse-frontmatter";
 import type { ContentItem } from "@wryte/logic/types/content";
 
-/** Weights for field-level relevance scoring. Higher = more relevant. */
 const FIELD_WEIGHTS = {
   title: 10,
   tags: 8,
@@ -23,12 +12,10 @@ const FIELD_WEIGHTS = {
   frontmatter: 1,
 } as const;
 
-/** Bonus multiplier when a token matches at the start of a field value. */
 const PREFIX_BONUS = 1.5;
 
 type SearchableItem = {
   item: ContentItem;
-  /** Pre-lowered searchable fields for performance. */
   fields: {
     title: string;
     slug: string;
@@ -37,15 +24,10 @@ type SearchableItem = {
     tags: string[];
     status: string;
     author: string;
-    /** Flat string of all frontmatter values. */
     frontmatterText: string;
   };
 };
 
-/**
- * Tokenize a search query into lowercase words.
- * Trims whitespace and filters empty tokens.
- */
 function tokenize(query: string): string[] {
   return query
     .toLowerCase()
@@ -53,16 +35,11 @@ function tokenize(query: string): string[] {
     .filter((t) => t.length > 0);
 }
 
-/**
- * Score a single token against a string field.
- * Returns 0 if no match, or a weighted score based on match type.
- */
 function scoreField(token: string, fieldValue: string, weight: number): number {
   if (!fieldValue) return 0;
   const idx = fieldValue.indexOf(token);
   if (idx === -1) return 0;
 
-  // Prefix match (starts at word boundary) gets bonus
   if (
     idx === 0 ||
     fieldValue[idx - 1] === " " ||
@@ -74,15 +51,10 @@ function scoreField(token: string, fieldValue: string, weight: number): number {
   return weight;
 }
 
-/**
- * Score a single token against an array of tag strings.
- * Exact tag match gets full weight; partial match gets reduced.
- */
 function scoreTagsField(token: string, tags: string[], weight: number): number {
   let best = 0;
   for (const tag of tags) {
     if (tag === token) {
-      // Exact match
       best = Math.max(best, weight * 2);
     } else if (tag.includes(token)) {
       best = Math.max(best, weight);
@@ -91,10 +63,6 @@ function scoreTagsField(token: string, tags: string[], weight: number): number {
   return best;
 }
 
-/**
- * Build pre-computed searchable items for efficient repeated searching.
- * Call once when contentItems or frontmatterMap changes.
- */
 export function buildSearchIndex(
   items: ContentItem[],
   frontmatterMap: Map<string, ParsedFrontmatter>,
@@ -102,7 +70,6 @@ export function buildSearchIndex(
   return items.map((item) => {
     const fm = item.id ? frontmatterMap.get(item.id) : undefined;
 
-    // Build flat frontmatter text from all string values
     let frontmatterText = "";
     if (fm) {
       const parts: string[] = [];
@@ -134,12 +101,6 @@ export function buildSearchIndex(
   });
 }
 
-/**
- * Search and rank items by relevance.
- *
- * Returns items that match ALL tokens (AND logic).
- * Items are returned with their relevance scores for sorting.
- */
 export function searchItems(
   searchIndex: SearchableItem[],
   query: string,

@@ -6,26 +6,13 @@ import { useCallback, useId, useMemo, useRef, useState } from "react";
 
 type TagChipsInputProps = {
   id?: string;
-  /**
-   * Comma-separated string that the rest of the editor already round-trips
-   * through. The chip UI is purely a presentation layer over this value, so
-   * frontmatter serialization keeps working unchanged.
-   */
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
   className?: string;
-  /** Disallow duplicates (case-insensitive). Defaults to true. */
   dedupe?: boolean;
 };
 
-/**
- * Chip-style tag input. Type a value and press Enter or comma to lock it in
- * as a pill; click the × on a pill (or backspace from an empty input) to
- * remove it. Stored value stays as a comma-separated string so existing
- * serialization, YAML round-trips, and `tags`/`list`/`multiselect` consumers
- * don't have to change.
- */
 export function TagChipsInput({
   id,
   value,

@@ -6,20 +6,8 @@ import { useEditorStore } from "@wryte/logic/stores/editor-store";
 import { useMutation } from "convex/react";
 import { useCallback, useEffect, useRef } from "react";
 
-/** Coarse cadence for automatic snapshots during active editing. */
 const INTERVAL_MS = 10 * 60 * 1000;
 
-/**
- * Version-snapshot triggers. Snapshots are cheap but not free, so they
- * fire only at meaningful points:
- *  - `snapshotNow("manual")` after an explicit Cmd+S save
- *  - every 10 minutes while the content keeps changing
- *
- * Only the MAIN document stream is snapshotted (parallel drafts are
- * themselves checkpoints). The server additionally dedupes identical
- * content, so redundant calls cost one no-op mutation at most — and the
- * client-side content guard avoids even that in the common case.
- */
 export function useVersionSnapshots({
   documentId,
   enabled,
@@ -37,7 +25,6 @@ export function useVersionSnapshots({
       if (!content.trim()) return;
       if (lastContentRef.current === content) return;
       lastContentRef.current = content;
-      // Fire-and-forget — a failed snapshot must never block editing.
       void createSnapshot({
         documentId: documentId as Id<"documents">,
         title,

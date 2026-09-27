@@ -3,10 +3,6 @@
 import { SignIn, SignUp } from "@clerk/nextjs";
 import { Suspense } from "react";
 
-// Clerk follows the OS / browser scheme via `prefers-color-scheme` on its
-// own. Matching an explicit in-app light/dark choice would need Clerk's
-// `dark` base theme from `@clerk/ui/themes`, which isn't a dependency yet.
-
 function ClerkAuthFallback() {
   return (
     <div

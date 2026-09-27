@@ -1,7 +1,6 @@
 import { SITE_URL } from "@wryte/logic/lib/seo";
 import { LandingPage } from "./_components/landing-page";
 
-/** FAQ structured data for the landing page's search result. */
 const FAQ_JSON_LD = {
   "@context": "https://schema.org",
   "@type": "FAQPage",

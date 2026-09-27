@@ -1,0 +1,18 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "target": "ESNext",
+    "lib": ["ESNext"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "noImplicitAny": false,
+    "exactOptionalPropertyTypes": false,
+    "types": ["node"]
+  },
+  "include": [
+    "main.cjs",
+    "afterpack-sign.cjs",
+    "electron-builder.js",
+    "src/**/*.cjs"
+  ]
+}

@@ -6,11 +6,6 @@ type SidebarStatusDotProps = {
   status: string;
 };
 
-/**
- * Tiny colored dot rendered next to article rows in the sidebar to
- * indicate their board status. Falls back to a muted grey for unknown
- * statuses that aren't in the default column set.
- */
 export function SidebarStatusDot({ status }: SidebarStatusDotProps) {
   const col = DEFAULT_BOARD_COLUMNS.find((c) => c.id === status);
   const dotColor = col

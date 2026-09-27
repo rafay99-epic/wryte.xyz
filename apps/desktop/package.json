@@ -5,6 +5,7 @@
   "main": "main.cjs",
   "scripts": {
     "dev": "WRYTE_FLAVOR=dev electron main.cjs",
+    "type": "tsc --noEmit",
     "pack": "electron-builder --dir",
     "dist": "electron-builder",
     "dev:pack": "WRYTE_FLAVOR=dev electron-builder --dir",
@@ -14,7 +15,9 @@
     "electron-updater": "^6.8.9"
   },
   "devDependencies": {
+    "@types/node": "^26.4.1",
     "electron": "^43.5.1",
-    "electron-builder": "^26.15.3"
+    "electron-builder": "^26.15.3",
+    "typescript": "^7.0.2"
   }
 }

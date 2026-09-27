@@ -1,5 +1,6 @@
 "use client";
 
+import { wordsPerMinute } from "@wryte/logic/lib/editor/sprint";
 import { cn } from "@wryte/logic/lib/utils";
 import { countWords } from "@wryte/logic/lib/word-count";
 import { useEditorPreferencesStore } from "@wryte/logic/stores/editor-preferences-store";
@@ -12,20 +13,10 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@wryte/ui/tooltip";
 import { Timer } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { wordsPerMinute } from "../lib/sprint";
 
 const WORD_PRESETS = [250, 500, 750] as const;
 const MINUTE_PRESETS = [15, 25, 45] as const;
 
-/**
- * Toolbar entry point for writing sprints. Opens a popover to configure a
- * word target + duration and start a sprint; while one is active the pill
- * HUD (SprintHud) takes over the controls. Also hosts the typewriter
- * scrolling preference and always-available session stats.
- *
- * Sprint state is entirely client-side (editor store) — starting, pausing,
- * or finishing a sprint never calls Convex.
- */
 export function SprintControl() {
   const [open, setOpen] = useState(false);
   const [targetWords, setTargetWords] = useState(500);
@@ -49,8 +40,6 @@ export function SprintControl() {
 
   const sprintActive = sprintStatus !== "idle";
 
-  // The global sprint shortcut opens the setup popover when no sprint is
-  // active (an active one is ended directly by the hotkey handler).
   useEffect(() => {
     const openFromShortcut = () => setOpen(true);
     window.addEventListener("wryte:open-sprint", openFromShortcut);
@@ -58,8 +47,6 @@ export function SprintControl() {
       window.removeEventListener("wryte:open-sprint", openFromShortcut);
   }, []);
 
-  // 1s heartbeat while open keeps the session stats fresh without
-  // subscribing this toolbar control to every keystroke.
   const [, setTick] = useState(0);
   useEffect(() => {
     if (!open) return;
@@ -67,8 +54,6 @@ export function SprintControl() {
     return () => window.clearInterval(id);
   }, [open]);
 
-  // Read content imperatively (not subscribed): stats only need to be
-  // current while the popover is open, and the tick above re-renders it.
   const sessionWords = open
     ? Math.max(
         0,

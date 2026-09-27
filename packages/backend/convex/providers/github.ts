@@ -1,13 +1,3 @@
-/**
- * GitHub provider — uploads binaries directly into the configured repo
- * at the project's `mediaPath`. Extracted from the legacy publish-time
- * migration in `integrations/github.ts`.
- *
- * `mediaPath` is the only user-defined knob — e.g. `public/images` (Astro),
- * `static/images` (SvelteKit), `assets` (Hugo). The function strips a
- * `public/` prefix when computing the public URL since static-site
- * generators serve `public/` at the root.
- */
 "use node";
 
 import { Octokit } from "@octokit/rest";
@@ -17,7 +7,6 @@ export interface GhRepoSpec {
   owner: string;
   repo: string;
   branch?: string;
-  /** Repo directory for media, e.g. "public/images". */
   mediaPath: string;
 }
 
@@ -77,7 +66,6 @@ export async function uploadOne(
   const base64 = file.buffer.toString("base64");
 
   try {
-    // Probe for an existing file so we send the right `sha` on overwrite.
     let existingSha: string | undefined;
     try {
       const probe = await octokit.repos.getContent({
@@ -159,7 +147,6 @@ export async function listFiles(
       });
   } catch (err) {
     if ((err as { status?: number }).status === 404) {
-      // Empty media directory — not an error.
       return [];
     }
     throwMediaError(
@@ -205,7 +192,6 @@ export async function deleteFile(
   }
 }
 
-/** Verifies repo + token by issuing a cheap repo GET. */
 export async function ping(
   token: string,
   spec: { owner: string; repo: string },

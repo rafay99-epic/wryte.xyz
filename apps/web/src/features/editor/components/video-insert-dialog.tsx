@@ -7,6 +7,10 @@ import {
   useProjectMediaLibrary,
 } from "@wryte/logic/hooks/use-project-media-library";
 import { useUploadLimit } from "@wryte/logic/hooks/use-upload-limit";
+import {
+  isVideoFilename,
+  videoEmbedMarkup,
+} from "@wryte/logic/lib/editor/video";
 import { formatMb } from "@wryte/logic/lib/upload-limits";
 import { Button } from "@wryte/ui/button";
 import { Input } from "@wryte/ui/input";
@@ -26,7 +30,6 @@ import { useAction, useQuery } from "convex/react";
 import { Check, Film, Loader2, Search, Upload } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { isVideoFilename, videoEmbedMarkup } from "../lib/video";
 
 type VideoInsertDialogProps = {
   open: boolean;
@@ -38,13 +41,6 @@ type VideoInsertDialogProps = {
 
 const ACCEPTED_VIDEO_MIME = "video/mp4,video/webm,video/quicktime,video/ogg";
 
-/**
- * Drawer for embedding videos into the markdown editor. Mirrors the image
- * dialog: pick from the project media library (filtered to video files),
- * paste a hosted URL (UploadThing, Cloudinary, anywhere), or upload through
- * the project's configured media provider. Inserts a raw `<video>` tag —
- * markdown has no native video syntax.
- */
 export function VideoInsertDialog({
   open,
   onOpenChange,

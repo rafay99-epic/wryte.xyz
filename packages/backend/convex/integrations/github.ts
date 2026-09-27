@@ -1,18 +1,3 @@
-/**
- * GitHub integration actions for publishing documents and managing media.
- * Runs in a Node.js environment ("use node") because it depends on Octokit.
- *
- * Token sourcing: every action resolves the GitHub token server-side via
- * `getGithubToken(ctx, user._id)`. That helper checks Clerk OAuth first,
- * falls back to the WorkOS Vault PAT, and finally drains the legacy
- * plaintext field. There is no longer a "pass a token in" override —
- * `verifyRepoAccess` is the lone exception because it runs *before* a
- * user has anywhere to store a token (the connect wizard).
- *
- * Media migration at publish time has been removed — uploads now go
- * directly to the project's configured provider via
- * `convex/media/uploads.ts:upload`.
- */
 "use node";
 
 import { Octokit } from "@octokit/rest";
@@ -42,24 +27,12 @@ import { buildPublishedUrl } from "../_lib/publishedUrl";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
 import { importPool } from "../_pools/import";
 
-/**
- * Shape returned by the single-file import path — shared by the public
- * `importFileFromGithub` action and the `_importOneFromGithubJob`
- * workpool job (both delegate to `importOneFile`). `documentId` is
- * typed `v.string()` (not `v.id`) because the underlying mutations
- * declare their return as `string`.
- */
 const IMPORTED_FILE_RESULT = v.object({
   documentId: v.string(),
   title: v.string(),
   slug: v.string(),
 });
 
-/**
- * Assembles a complete markdown file with YAML frontmatter from structured data.
- * Handles quoting for strings that contain YAML-special characters, and supports
- * nested objects and arrays in the frontmatter values.
- */
 function quoteYamlScalar(value: unknown): string {
   const s = String(value);
   if (
@@ -109,9 +82,6 @@ function serializeYamlEntry(
     return [`${prefix}${key}: ${quoted}`];
   }
   if (Array.isArray(value)) {
-    // An empty block sequence (`key:` with no items) parses back as YAML null,
-    // which breaks typed schemas like Astro's `z.array(...)`. Emit flow-style
-    // `[]` so an empty list round-trips as an empty list.
     if (value.length === 0) return [`${prefix}${key}: []`];
     const result = [`${prefix}${key}:`];
     for (const item of value) {
@@ -161,7 +131,6 @@ function buildMarkdownFile(
   return `---\n${yamlBlock}\n---\n\n${content}\n`;
 }
 
-/** Drops null/undefined keys — smol-toml's stringify throws on them. */
 function stripNullish(
   frontmatter: Record<string, unknown>,
 ): Record<string, unknown> {
@@ -172,12 +141,6 @@ function stripNullish(
   return out;
 }
 
-/**
- * Builds the published file, honoring the project's frontmatter delimiter
- * format. Hugo and other TOML-frontmatter sites use `+++` fences; everyone else
- * uses YAML `---`. TOML serialization falls back to YAML if any value can't be
- * represented, so publishing never hard-fails on an exotic value.
- */
 function buildContentFile(
   frontmatter: Record<string, unknown>,
   content: string,
@@ -187,28 +150,13 @@ function buildContentFile(
     try {
       const toml = stringifyToml(stripNullish(frontmatter)).trim();
       return `+++\n${toml}\n+++\n\n${content}\n`;
-    } catch {
-      // Fall through to YAML on any serialization error.
-    }
+    } catch {}
   }
   return buildMarkdownFile(frontmatter, content);
 }
 
-/**
- * Field names a project may use for the publish date. Order matters — the
- * first match wins, so `pubDate` is preferred over the generic `date`. Mirrors
- * the lookup in `src/lib/build-initial-frontmatter.ts` so the editor and the
- * publish action stay in sync.
- */
 const PUB_DATE_FIELD_CANDIDATES = ["pubDate", "publishDate", "date"] as const;
 
-/**
- * Finds the publish-date field in a project's frontmatter schema, if any.
- * Returns the field's `name` (which becomes the YAML key) and `type` (so the
- * caller can format the value as YYYY-MM-DD vs full ISO datetime). Returns
- * null when the schema can't be parsed or has no matching field — in that
- * case the publish action leaves whatever value the user already has.
- */
 function findPubDateField(
   schemaJson: string | null | undefined,
 ): { name: string; type: "date" | "datetime" } | null {
@@ -233,18 +181,6 @@ function findPubDateField(
   }
 }
 
-/**
- * Decides whether to stamp the publish moment onto the pubDate field.
- *
- * We stamp when:
- *   - a scheduled publish passes an explicit `publishedAtMs` (the user chose
- *     that moment), OR
- *   - the document has no existing pubDate value (first publish).
- *
- * We DON'T stamp when the document already carries a pubDate — re-publishing an
- * already-dated post then preserves its original date. This makes re-publishing
- * an old post to fix its formatting safe: the date never moves.
- */
 function shouldStampPubDate(
   docFrontmatter: Record<string, unknown>,
   pubDateFieldName: string,
@@ -260,11 +196,6 @@ function getFileExtension(contentFormat?: string): string {
   return contentFormat === "mdx" ? ".mdx" : ".md";
 }
 
-/**
- * Parses an "owner/repo" string into its two components.
- * Throws a descriptive error if the format is invalid, since this is a common
- * user-input mistake that would otherwise cause cryptic GitHub API errors.
- */
 function parseRepoString(repo: string): { owner: string; repo: string } {
   const parts = repo.split("/");
   if (parts.length !== 2 || !parts[0] || !parts[1]) {
@@ -273,41 +204,15 @@ function parseRepoString(repo: string): { owner: string; repo: string } {
   return { owner: parts[0], repo: parts[1] };
 }
 
-/**
- * Strips leading and trailing slashes from a repo-relative path. GitHub's
- * Contents API rejects paths with leading slashes (looks for a file literally
- * named "/src/..." which doesn't exist → 404), and a trailing slash on a
- * directory prefix would produce a double-slash when joined to a slug.
- *
- * Examples:
- *   "/src/content/blog"   → "src/content/blog"
- *   "src/content/blog/"   → "src/content/blog"
- *   "/src/content/blog/"  → "src/content/blog"
- *   ""                    → ""
- *   "/"                   → ""
- */
 function normalizeRepoPath(path: string): string {
   return path.replace(/^\/+/, "").replace(/\/+$/, "");
 }
 
-/**
- * Joins a directory prefix and a filename into a clean repo-relative path,
- * gracefully handling missing/empty prefixes (root-of-repo posts).
- */
 function joinRepoPath(prefix: string, filename: string): string {
   const cleanPrefix = normalizeRepoPath(prefix);
   return cleanPrefix ? `${cleanPrefix}/${filename}` : filename;
 }
 
-/**
- * Decides whether a generated animation .tsx must be included in the
- * publish commit.
- *
- * Safety contract: a file already at the path is only overwritten when it
- * carries the `wryte:managed` marker — publish must never clobber a
- * hand-written component that happens to share the name. Identical content
- * is skipped entirely so re-publishes stay commit-noise-free.
- */
 async function animationComponentNeedsCommit(
   octokit: Octokit,
   opts: {
@@ -330,32 +235,22 @@ async function animationComponentNeedsCommit(
       const existingContent = Buffer.from(data.content, "base64").toString(
         "utf-8",
       );
-      if (existingContent === opts.fileContent) return false; // up to date
+      if (existingContent === opts.fileContent) return false;
       if (!existingContent.includes(WRYTE_MANAGED_MARKER)) {
         throw new Error(
           `Can't publish animation "${opts.name}": ${opts.repoPath} already exists in the repo and wasn't generated by Wryte. Rename the animation or move the existing file.`,
         );
       }
-      return true; // managed file, content changed
+      return true;
     }
     return true;
   } catch (error: unknown) {
     const err = error as { status?: number; message?: string };
     if (err.status !== 404) throw error;
-    return true; // not in the repo yet
+    return true;
   }
 }
 
-/**
- * Commits the post AND its changed animation components as a single
- * atomic commit via the Git Tree API (getRef → getCommit → createTree →
- * createCommit → updateRef). One publish = one commit = one deploy —
- * never the N-commit cascade of per-file Contents API calls, and the
- * site can never observe a post whose components haven't landed yet.
- *
- * Tree entries carry inline `content` (both .mdx and .tsx are UTF-8
- * text), so no separate createBlob round-trips are needed.
- */
 async function commitPostWithComponents(
   octokit: Octokit,
   opts: {
@@ -410,9 +305,6 @@ async function commitPostWithComponents(
     message: opts.message,
     tree: tree.sha,
     parents: [parentSha],
-    // Verified commits: committer defaults to the token identity
-    // (wryte-xyz[bot]); the explicit author keeps the user's avatar and
-    // contribution graph on the commit — same contract as the plain path.
     ...(opts.commitAuthor ? { author: opts.commitAuthor } : {}),
   });
 
@@ -423,8 +315,6 @@ async function commitPostWithComponents(
     sha: commit.sha,
   });
 
-  // The document tracks its file blob SHA for subsequent updates — the
-  // createTree response only lists root entries, so fetch the file once.
   const { data: fileData } = await octokit.repos.getContent({
     owner,
     repo,
@@ -442,27 +332,6 @@ async function commitPostWithComponents(
   };
 }
 
-/**
- * Given a 404 from a Contents API write, walk back through the auth chain to
- * figure out *why* — GitHub returns 404 in three indistinguishable cases:
- *
- *   1. The repo doesn't exist or isn't visible to the token's user
- *      (different account, repo deleted/renamed, or private repo without
- *      proper scope grant).
- *   2. The token's user doesn't have write access (read-only collaborator).
- *   3. The token's OAuth scopes don't include `repo` — Clerk's default
- *      GitHub OAuth scope set is `read:user user:email`; without explicit
- *      configuration the token can't write anywhere.
- *
- * The branch on the original error path tells us which one. Returns a
- * caller-friendly message; callers throw it so it surfaces in the
- * "Publish failed" banner.
- */
-/**
- * Stronger diagnostic for 404-on-PUT: checks whether the branch exists,
- * whether the branch is protected, and what scopes the token actually
- * has. Logged to the console only; not surfaced to the user.
- */
 async function diagnoseBranchAndRepo(
   octokit: Octokit,
   owner: string,
@@ -492,16 +361,12 @@ async function diagnoseBranchAndRepo(
     const xa = me.headers["x-accepted-oauth-scopes"];
     tokenScopes = typeof xs === "string" ? xs : null;
     acceptedScopes = typeof xa === "string" ? xa : null;
-  } catch {
-    // ignore
-  }
+  } catch {}
 
   try {
     const r = await octokit.repos.get({ owner, repo: repoName });
     defaultBranch = r.data.default_branch;
-  } catch {
-    // ignore
-  }
+  } catch {}
 
   try {
     const b = await octokit.repos.listBranches({
@@ -513,9 +378,7 @@ async function diagnoseBranchAndRepo(
     branchExists = availableBranches.includes(branch);
     const branchInfo = b.data.find((x) => x.name === branch);
     branchProtected = branchInfo?.protected ?? "unknown";
-  } catch {
-    // ignore
-  }
+  } catch {}
 
   return {
     branchExists,
@@ -533,30 +396,24 @@ async function describeWriteFailure(
   owner: string,
   repoName: string,
 ): Promise<string> {
-  // Who does GitHub think we are?
   let actingAs: string | null = null;
   let scopes: string | null = null;
   try {
     const me = await octokit.users.getAuthenticated();
     actingAs = me.data.login;
-    // Octokit surfaces OAuth scopes on the response headers.
     const headerScopes = me.headers["x-oauth-scopes"];
     scopes = typeof headerScopes === "string" ? headerScopes : null;
   } catch {
     return "GitHub token is invalid or revoked — reconnect GitHub in Settings.";
   }
 
-  // Can we see the repo at all?
   try {
     const r = await octokit.repos.get({ owner, repo: repoName });
-    // We can see the repo. So failure is either branch missing or write perm.
     if (!r.data.permissions?.push) {
       return `Connected as @${actingAs}, but that account has no write access to ${owner}/${repoName}. Either grant push permission to @${actingAs} on the repo, or set a Personal Access Token with 'repo' scope in Settings.`;
     }
     return `Connected as @${actingAs} with write access to ${owner}/${repoName}, but the publish still 404'd — most likely the branch doesn't exist. Check the branch name in project settings.`;
   } catch {
-    // Repo lookup failed → either the repo doesn't exist for this account
-    // or the token can't even see it. Most common: insufficient OAuth scope.
     const scopeHint = scopes
       ? scopes.includes("repo")
         ? ""
@@ -566,12 +423,6 @@ async function describeWriteFailure(
   }
 }
 
-/**
- * Resolves the GitHub token for an action. Always goes through
- * `getGithubToken` so every action sees the same Clerk → vault → legacy
- * fallback. Throws a friendly message when nothing is available so the
- * UI can prompt the user to reconnect.
- */
 async function resolveToken(
   ctx: ActionCtx,
   userId: Id<"users">,
@@ -585,24 +436,10 @@ async function resolveToken(
   return token;
 }
 
-/**
- * Internal action that performs the actual GitHub commit for publishing a document.
- * Builds the markdown file from document content + frontmatter, then creates or
- * updates the file in the configured repository via the GitHub Contents API.
- *
- * @param args.documentId - The document to publish.
- */
 export const publishToGithub = internalAction({
   args: {
     documentId: v.id("documents"),
     commitMessage: v.optional(v.string()),
-    /**
-     * Override the publish moment used to stamp the document's pubDate
-     * field. The scheduling workflow passes the user's `scheduledAt` here
-     * so the published frontmatter records when the user *wanted* the
-     * post live, not when the workflow happened to fire (which can drift
-     * a few seconds). When omitted, "now" is used.
-     */
     publishedAtMs: v.optional(v.number()),
     socialPostText: v.optional(v.string()),
   },
@@ -662,18 +499,9 @@ export const publishToGithub = internalAction({
       try {
         parsedDocFrontmatter = JSON.parse(document.frontmatter) ?? {};
         frontmatterData = { ...frontmatterData, ...parsedDocFrontmatter };
-      } catch {
-        // If frontmatter JSON is invalid, use defaults only
-      }
+      } catch {}
     }
 
-    // The user's frontmatter spread above wins by design, but two fields
-    // are publish-time side effects:
-    //   - the schema's pubDate field is stamped with the publish moment ONLY on
-    //     a first publish (the post has no date yet) or when a scheduled publish
-    //     passes an explicit moment. Re-publishing an already-dated post
-    //     preserves its original date — so fixing an old post never moves it.
-    //   - draft flips to false because, well, we're publishing
     const publishMoment = new Date(args.publishedAtMs ?? Date.now());
     const pubDateField = findPubDateField(project.frontmatterSchema);
     if (
@@ -691,21 +519,11 @@ export const publishToGithub = internalAction({
     }
     frontmatterData["draft"] = false;
 
-    // Guard: list-valued keys (tags/keywords/…) must serialize as arrays even
-    // when the schema mistyped them as scalars — otherwise typed frameworks
-    // (Astro's z.array, etc.) reject the build. See convex/_lib/frontmatter.ts.
     frontmatterData = coerceFrontmatterArrays(
       frontmatterData,
       project.frontmatterSchema,
     );
 
-    /* -- Code animations: rewrite the body (inject imports + hydration
-     *    directives) and collect every referenced .tsx component that
-     *    needs committing. Nothing is committed here — pending components
-     *    ride in ONE atomic tree commit together with the post below, so
-     *    a publish never triggers more than a single deploy. The author
-     *    writes plain `<Anim />`; everything framework-specific is
-     *    generated here. */
     let publishBody = document.content;
     const pendingComponents: { repoPath: string; fileContent: string }[] = [];
     if (
@@ -728,9 +546,6 @@ export const publishToGithub = internalAction({
         });
         publishBody = transformed.body;
 
-        /* -- Check gate: only the components this post actually references
-         *    can block it. A source edited outside the editor has no current
-         *    check record and counts as unreviewed, which is the point. */
         const policy = project.animationChecks;
         if (policy?.blockPublish && policy.level !== "off") {
           const referenced = new Set(transformed.components.map((c) => c.name));
@@ -744,8 +559,6 @@ export const publishToGithub = internalAction({
         }
 
         for (const comp of transformed.components) {
-          // Skip unchanged files (quiet re-publishes); refuse to clobber
-          // files that weren't generated by Wryte (missing marker).
           const needed = await animationComponentNeedsCommit(octokit, {
             owner,
             repo,
@@ -812,8 +625,6 @@ export const publishToGithub = internalAction({
         : isUpdate
           ? `Update ${document.title}`
           : `Add ${document.title}`);
-    // Surface the animation payload in the message so the commit reads as
-    // "post + N components" at a glance in the repo history.
     const animationNote =
       pendingComponents.length > 0
         ? ` (+${String(pendingComponents.length)} animation component${pendingComponents.length === 1 ? "" : "s"})`
@@ -824,9 +635,6 @@ export const publishToGithub = internalAction({
       vars: templateVars,
     });
 
-    // Diagnostic: log the exact values we're about to send so when GitHub
-    // 404s we have one log line telling us whether the bug is in branch,
-    // path, repo, or SHA.
     console.info(
       `[publishToGithub] PUT owner=${owner} repo=${repo} branch=${JSON.stringify(branch)} path=${JSON.stringify(filePath)} existingSha=${existingSha ? "<set>" : "<none>"} contentBytes=${base64Content.length} animationComponents=${String(pendingComponents.length)}`,
     );
@@ -836,9 +644,6 @@ export const publishToGithub = internalAction({
     let commitUrl: string | undefined;
 
     if (pendingComponents.length > 0) {
-      /* -- Atomic path: post + every changed component in ONE commit via
-       *    the Git Tree API. A publish triggers exactly one deploy, and
-       *    the site can never build against a missing component file. */
       const result = await commitPostWithComponents(octokit, {
         owner,
         repo,
@@ -853,8 +658,6 @@ export const publishToGithub = internalAction({
       commitSha = result.commitSha;
       commitUrl = result.commitUrl;
     } else {
-      /* -- Plain path (no animation payload): the battle-tested
-       *    single-file Contents API call, unchanged. */
       let response: Awaited<
         ReturnType<typeof octokit.repos.createOrUpdateFileContents>
       >;
@@ -867,9 +670,6 @@ export const publishToGithub = internalAction({
           content: base64Content,
           branch,
           ...(existingSha ? { sha: existingSha } : {}),
-          // Verified commits: committer defaults to the App token identity
-          // (wryte-xyz[bot]); the explicit author keeps the user's avatar
-          // and contribution graph on the commit.
           ...(commitAuthor ? { author: commitAuthor } : {}),
         });
       } catch (error: unknown) {
@@ -883,9 +683,6 @@ export const publishToGithub = internalAction({
           );
         }
         if (err.status === 404) {
-          // 404 on a Contents write is almost never "file not found" — GitHub
-          // uses it to mask permission, scope, and visibility failures. Probe
-          // the auth chain and surface a precise diagnosis.
           const diag = await diagnoseBranchAndRepo(
             octokit,
             owner,
@@ -928,9 +725,7 @@ export const publishToGithub = internalAction({
             branch,
           });
         }
-      } catch {
-        // Best-effort cleanup — old file may already be gone
-      }
+      } catch {}
     }
 
     let publishStatus = "published";
@@ -942,9 +737,7 @@ export const publishToGithub = internalAction({
         }>;
         const publishCol = columns.find((c) => c.behavior === "publish");
         if (publishCol) publishStatus = publishCol.id;
-      } catch {
-        // Invalid JSON, fall back to "published"
-      }
+      } catch {}
     }
 
     const publishedAt = Date.now();
@@ -989,9 +782,6 @@ export const publishToGithub = internalAction({
       historyArgs,
     );
 
-    // Deployment verification — confirm the host actually builds this
-    // commit; emails the user if it doesn't (convex/deployments/verify.ts).
-    // Opt-in per project: skipped entirely unless enabled in settings.
     if (project.deployVerificationEnabled) {
       await ctx.scheduler.runAfter(0, internal.deployments.verify.start, {
         projectId: document.projectId,
@@ -1040,9 +830,6 @@ export const publishToGithub = internalAction({
       );
     }
 
-    // Cross-posting (dev.to / Hashnode) — opt-in per project; off by
-    // default so this schedules nothing and costs nothing. The action
-    // re-loads the document itself and never blocks the publish.
     if (project.syndicateOnPublish) {
       await ctx.scheduler.runAfter(
         0,
@@ -1054,10 +841,6 @@ export const publishToGithub = internalAction({
   },
 });
 
-/**
- * Public action callable from the client. Authenticates the user,
- * verifies document ownership, then delegates to the internal publish action.
- */
 export const publish = action({
   args: {
     documentId: v.id("documents"),
@@ -1076,15 +859,6 @@ export const publish = action({
   },
 });
 
-/**
- * `publish`'s body with the actor passed in explicitly. Shared with the MCP
- * handler: component-dispatched tools have no `ctx.auth`, so the caller is
- * resolved host-side and injected — see `_lib/auth.ts → requireCallerInAction`.
- *
- * Ownership is checked against `project.userId` rather than by comparing
- * `tokenIdentifier` strings; same guarantee, and it works for a caller resolved
- * by Clerk subject instead of by session token.
- */
 export async function publishForUser(
   ctx: ActionCtx,
   user: Doc<"users">,
@@ -1135,14 +909,6 @@ export async function publishForUser(
   }
 }
 
-/**
- * Bulk publish multiple documents to GitHub in a single atomic commit.
- * Uses the Git Tree API (createBlob → createTree → createCommit → updateRef)
- * so all files appear in one commit rather than N separate commits.
- *
- * Image binaries are no longer migrated here — they live in the user's
- * configured provider (UploadThing / Cloudinary / GitHub) at upload time.
- */
 export const bulkPublish = action({
   args: {
     projectId: v.id("projects"),
@@ -1284,13 +1050,9 @@ export const bulkPublish = action({
               ...frontmatterData,
               ...parsedDocFrontmatter,
             };
-          } catch {
-            // Use defaults
-          }
+          } catch {}
         }
 
-        // Same pubDate/draft side-effect as the single-doc publish path:
-        // stamp the date only on a first publish, preserve it on re-publish.
         const bulkPublishMoment = new Date();
         const bulkPubDateField = findPubDateField(project.frontmatterSchema);
         if (
@@ -1304,7 +1066,6 @@ export const bulkPublish = action({
         }
         frontmatterData["draft"] = false;
 
-        // Same array guard as the single-doc publish path.
         frontmatterData = coerceFrontmatterArrays(
           frontmatterData,
           project.frontmatterSchema,
@@ -1357,8 +1118,6 @@ export const bulkPublish = action({
     });
 
     const titles = docFileMap.map((d) => d.doc.title);
-    // Single-doc bulk publishes honor the project's commit message template;
-    // multi-doc commits keep the generated summary ({{title}} is ambiguous).
     const soleEntry = docFileMap.length === 1 ? docFileMap[0] : undefined;
     const bulkTemplateVars: CommitTemplateVars | undefined = soleEntry
       ? {
@@ -1407,9 +1166,7 @@ export const bulkPublish = action({
         }>;
         const publishCol = columns.find((c) => c.behavior === "publish");
         if (publishCol) publishStatus = publishCol.id;
-      } catch {
-        // Fall back to "published"
-      }
+      } catch {}
     }
 
     const publishedAt = Date.now();
@@ -1509,11 +1266,6 @@ export const bulkPublish = action({
   },
 });
 
-/**
- * Resolves the project + user + GitHub token + Octokit client needed to
- * import files from a repo. Shared by the single-file and batch import
- * actions so they spend the same auth/setup cost exactly once.
- */
 async function resolveGithubImportContext(
   ctx: ActionCtx,
   args: { projectId: Id<"projects"> },
@@ -1558,12 +1310,6 @@ async function resolveGithubImportContext(
   return { octokit, owner, repo, branch };
 }
 
-/**
- * Parses a markdown blob into { title, slug, content, frontmatter }.
- * Extracted so the bulk-import classifier (which fetches GitHub
- * content for conflicts) can produce the same shape that the workpool
- * job uses.
- */
 function parseMarkdownFile(
   fileContent: string,
   filename: string,
@@ -1638,17 +1384,6 @@ function parseMarkdownFile(
   return result;
 }
 
-/**
- * Fetches a single markdown file from GitHub, parses frontmatter, and
- * inserts it as a document. Throws on parse / fetch failures so the
- * caller can decide whether to abort or aggregate.
- *
- * `mode` is optional for backwards compatibility: when present the
- * caller is a smart-sync job (knows whether it's a `new` insert or a
- * `fastForward` overwrite) and we go through `_upsertImportedDocument`.
- * When absent we keep the legacy single-file path that dedups on
- * `githubPath` via `_importFromGithubInternal`.
- */
 async function importOneFile(
   ctx: ActionCtx,
   args: {
@@ -1733,9 +1468,6 @@ async function importOneFile(
   return { documentId, title: parsed.title, slug: parsed.slug };
 }
 
-/**
- * Imports a single markdown file from a GitHub repo into the project.
- */
 export const importFileFromGithub = action({
   args: {
     projectId: v.id("projects"),
@@ -1761,28 +1493,6 @@ export const importFileFromGithub = action({
   },
 });
 
-/**
- * Workpool job — imports a single file and is dispatched once per file by
- * {@link startBulkImport}. Internal-only: the public entry point creates
- * the `import_batches` row and enqueues these on `importPool` (`_pools/import.ts`).
- *
- * The job intentionally does NOT touch the batch row directly — that's
- * the responsibility of the workpool's `onComplete` callback so success
- * and failure counters update atomically based on whether this returns
- * or throws. Throwing here just records the failure in the batch's
- * errors array; the rest of the batch keeps progressing.
- *
- * Token note: the OAuth/PAT is resolved once at batch start and threaded
- * through each job. That trades a tiny bit of workpool-state visibility
- * for a meaningful reduction in Clerk-SDK round-trips (200 files would
- * otherwise be 200 Clerk calls).
- *
- * `mode` is set by `startBulkImport` after diff-classification — `new`
- * for files not yet in Convex, `fastForward` for files where only
- * GitHub changed. The job passes it through to
- * `_upsertImportedDocument` so the write is explicit rather than
- * inferred from a path lookup that could race with another sync.
- */
 export const _importOneFromGithubJob = internalAction({
   args: {
     batchId: v.id("import_batches"),
@@ -1812,17 +1522,6 @@ export const _importOneFromGithubJob = internalAction({
   },
 });
 
-/**
- * Result of `startBulkImport`. `batchId` is `null` when no workpool
- * jobs were enqueued — i.e. every requested path was unchanged, a
- * conflict, or missing on GitHub. The UI uses `results` to render a
- * completion summary in either case.
- *
- * Counts and per-path bucket lists are deliberately split: counts are
- * small and always rendered (banner / dialog), bucket lists feed
- * detail views (conflicts route, "view skipped" expander) and may be
- * long.
- */
 export type BulkImportResult = {
   batchId: Id<"import_batches"> | null;
   counts: {
@@ -1840,7 +1539,6 @@ export type BulkImportResult = {
   missing: string[];
 };
 
-/** Runtime validator mirroring {@link BulkImportResult}. */
 const BULK_IMPORT_RESULT = v.object({
   batchId: v.union(v.id("import_batches"), v.null()),
   counts: v.object({
@@ -1860,31 +1558,6 @@ const BULK_IMPORT_RESULT = v.object({
   missing: v.array(v.string()),
 });
 
-/**
- * Public entry point for bulk import. Compares the requested files
- * against what's already in Convex *before* spinning up the workpool,
- * so a re-sync of an unchanged repo costs ~2 function calls instead
- * of ~5N. Outcomes per file:
- *
- *  - `new`          → not in Convex, enqueue (workpool insert)
- *  - `fastForward`  → SHA changed on GitHub, no local edits since
- *                     last sync, enqueue (workpool overwrite)
- *  - `unchanged`    → SHA matches Convex, skip (zero cost)
- *  - `conflict`     → both sides changed since last sync; we fetch the
- *                     GitHub content and write a `sync_conflicts` row
- *                     for the user to resolve. The doc itself is NOT
- *                     touched here.
- *  - `missing`      → file exists in Convex but is no longer in the
- *                     GitHub tree at this path. Reported back so the
- *                     UI can prompt the user to soft-delete.
- *
- * Returns `{ batchId: null, counts, conflicts, missing }` when there's
- * nothing to import; otherwise `batchId` points at the live progress
- * row.
- *
- * Runs as an action (not a mutation) because it needs to resolve the
- * GitHub token and fetch the tree before enqueuing — both Node-only.
- */
 export const startBulkImport = action({
   args: {
     projectId: v.id("projects"),
@@ -1918,12 +1591,6 @@ export const startBulkImport = action({
     const token = await resolveToken(ctx, user._id);
     const octokitWithToken = new Octokit({ auth: token });
 
-    // 1. Fetch the GitHub tree once and build a path→sha map for the
-    //    requested files. Two API calls: get the branch's tip commit
-    //    (so we know the root tree SHA) then walk the tree recursively.
-    //    This replaces N per-file Contents calls during the
-    //    classification step — only conflict-content fetches remain
-    //    inline (one per conflict, run in parallel below).
     const refData = await setup.octokit.git.getRef({
       owner: setup.owner,
       repo: setup.repo,
@@ -1951,7 +1618,6 @@ export const startBulkImport = action({
       }
     }
 
-    // 2. Fetch local state for the same paths.
     const localByPath = new Map<
       string,
       {
@@ -1978,9 +1644,6 @@ export const startBulkImport = action({
       });
     }
 
-    // 3. Classify each path. Hold conflicts in a separate list so we
-    //    can fetch their content in parallel after the classification
-    //    pass — keeps the classifier itself synchronous and cheap.
     const toEnqueue: Array<{
       path: string;
       mode: "new" | "fastForward";
@@ -1999,13 +1662,7 @@ export const startBulkImport = action({
       const remoteSha = remoteShaByPath.get(path);
       const local = localByPath.get(path);
 
-      if (!remoteSha && !local) {
-        // Requested path doesn't exist on GitHub *and* not in Convex.
-        // Could be a typo from the caller; surface as missing.
-        missing.push(path);
-        continue;
-      }
-      if (!remoteSha && local) {
+      if (!remoteSha) {
         missing.push(path);
         continue;
       }
@@ -2017,9 +1674,6 @@ export const startBulkImport = action({
         unchanged.push(path);
         continue;
       }
-      // Remote SHA differs from local. If the local doc hasn't been
-      // edited since its last sync, this is a clean fast-forward.
-      // Otherwise both sides have diverged → conflict.
       const lastSync = local.githubSyncedAt ?? local.updatedAt;
       if (local.updatedAt <= lastSync) {
         toEnqueue.push({ path, mode: "fastForward" });
@@ -2027,20 +1681,13 @@ export const startBulkImport = action({
         conflictCandidates.push({
           path,
           documentId: local.documentId,
-          // biome-ignore lint/style/noNonNullAssertion: presence checked above
-          remoteSha: remoteSha!,
+          remoteSha,
           localContentSnapshot: local.content,
           localFrontmatterSnapshot: local.frontmatter,
         });
       }
     }
 
-    // 4. For each conflict, fetch the GitHub content so the conflict
-    //    row carries a stable snapshot for the diff UI. Parallel
-    //    fetches with `Promise.all` are fine — GitHub allows 5000
-    //    Contents API calls per hour, and the per-batch cap is 200.
-    //    If any fetch fails we skip writing that conflict (the next
-    //    sync will retry); rest of the batch proceeds.
     const conflicts: Array<{
       path: string;
       documentId: Id<"documents">;
@@ -2120,9 +1767,6 @@ export const startBulkImport = action({
       missing: missing.length,
     };
 
-    // 5. If nothing needs the workpool, skip the batch row entirely.
-    //    The UI uses the counts + conflicts to render its summary; no
-    //    progress bar to subscribe to.
     if (toEnqueue.length === 0) {
       return {
         batchId: null,
@@ -2132,8 +1776,6 @@ export const startBulkImport = action({
       };
     }
 
-    // 6. Otherwise create the tracking row and enqueue only the paths
-    //    that actually need a write.
     const batchId: Id<"import_batches"> = await ctx.runMutation(
       internal.cms.documents._createImportBatch,
       {
@@ -2168,15 +1810,6 @@ export const startBulkImport = action({
   },
 });
 
-/**
- * Validates that the caller has access to the specified GitHub repository.
- *
- * The action requires authentication and resolves the token server-side
- * via the same three-tier flow as every other GitHub action: Clerk OAuth
- * first, then vault PAT, then legacy plaintext. Callers may also pass a
- * `pat` argument to test a PAT they haven't saved yet (the connect
- * wizard's "verify before save" flow).
- */
 export const verifyRepoAccess = action({
   args: {
     repo: v.string(),
@@ -2232,9 +1865,6 @@ export const verifyRepoAccess = action({
   },
 });
 
-/**
- * Deletes a file from the project's GitHub repository.
- */
 export const deleteFileFromGithub = action({
   args: {
     projectId: v.id("projects"),
@@ -2292,26 +1922,9 @@ export const deleteFileFromGithub = action({
   },
 });
 
-/* ------------------------------------------------------------------ */
-/*  Bulk delete — workpool job + public entry action                    */
-/* ------------------------------------------------------------------ */
-
-/**
- * Workpool job that removes one item per the chosen mode. Symmetric to
- * `_importOneFromGithubJob`. Throws on any failure so the workpool's
- * `onComplete` callback can record it on the parent `delete_batches`
- * row.
- *
- * Token, owner, repo, branch are passed in (resolved once by the parent
- * action) so each job doesn't redundantly hit Clerk/Vault for hundreds
- * of files. Token field is omitted entirely for local-only mode.
- */
 export const _deleteOneJob = internalAction({
   args: {
     batchId: v.id("delete_batches"),
-    /** Project scope — the internal delete mutation enforces that the
-     *  doc actually belongs here, so a malformed payload can't reach
-     *  across projects. */
     projectId: v.id("projects"),
     mode: v.union(v.literal("local"), v.literal("github"), v.literal("both")),
     documentId: v.optional(v.id("documents")),
@@ -2324,8 +1937,6 @@ export const _deleteOneJob = internalAction({
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    // Step 1: local doc removal (cascades scheduled_publishes via the
-    // internal mutation). Skip when the user asked for GitHub-only.
     if (args.mode !== "github" && args.documentId) {
       await ctx.runMutation(internal.cms.documents._removeInternal, {
         documentId: args.documentId,
@@ -2333,9 +1944,6 @@ export const _deleteOneJob = internalAction({
       });
     }
 
-    // Step 2: GitHub file removal. Requires all four of (token, owner,
-    // repo, branch, filePath, sha) — caller is responsible for filtering
-    // jobs that don't have GitHub state when mode includes "github".
     if (args.mode !== "local") {
       if (
         !args.token ||
@@ -2345,9 +1953,6 @@ export const _deleteOneJob = internalAction({
         !args.filePath ||
         !args.githubSha
       ) {
-        // For "both" mode, a doc with no GitHub linkage is still a partial
-        // success — local was deleted in step 1. Surface a soft error so
-        // the user knows the GitHub copy wasn't touched.
         if (args.mode === "both") {
           throw new Error("Skipped GitHub delete: file was not synced");
         }
@@ -2366,8 +1971,6 @@ export const _deleteOneJob = internalAction({
       } catch (err: unknown) {
         const e = err as { status?: number; message?: string };
         if (e.status === 404) {
-          // File already gone — idempotent success. Don't throw so the
-          // batch counts this as succeeded.
           return null;
         }
         throw err;
@@ -2378,14 +1981,7 @@ export const _deleteOneJob = internalAction({
 });
 
 export type BulkDeleteResult = {
-  /**
-   * Present when the workpool was actually engaged. Null when the
-   * operation completed inline (local-only mode) and the UI should
-   * render `inlineSummary` directly instead of subscribing to a batch
-   * row.
-   */
   batchId: Id<"delete_batches"> | null;
-  /** Set when the action handled the delete inline. */
   inlineSummary?: {
     total: number;
     succeeded: number;
@@ -2394,7 +1990,6 @@ export type BulkDeleteResult = {
   };
 };
 
-/** Runtime validator mirroring {@link BulkDeleteResult}. */
 const BULK_DELETE_RESULT = v.object({
   batchId: v.union(v.id("delete_batches"), v.null()),
   inlineSummary: v.optional(
@@ -2407,21 +2002,6 @@ const BULK_DELETE_RESULT = v.object({
   ),
 });
 
-/**
- * Public entry point for bulk delete. Routes by mode to keep the
- * workpool out of cheap operations:
- *
- *  - **mode === "local"** — soft-delete the docs inline via a
- *    single internal mutation. Zero workpool jobs. The UI shows the
- *    summary immediately. A 50-doc local delete is 1 function call
- *    here vs ~250 through the old pool.
- *  - **mode includes github** — keep the workpool flow. Each file
- *    needs a GitHub API call + auth context; the workpool's bounded
- *    concurrency + retry policy are the right primitive.
- *
- * Item shape mirrors what the selection toolbar already collects so the
- * caller doesn't have to do schema gymnastics.
- */
 export const startBulkDelete = action({
   args: {
     projectId: v.id("projects"),
@@ -2431,7 +2011,6 @@ export const startBulkDelete = action({
         documentId: v.optional(v.id("documents")),
         filePath: v.optional(v.string()),
         githubSha: v.optional(v.string()),
-        /** Human label for the error array — slug, title, or path. */
         label: v.string(),
       }),
     ),
@@ -2451,9 +2030,6 @@ export const startBulkDelete = action({
       throws: true,
     });
 
-    // Ownership + repo context. For local-only deletes we still verify
-    // the user owns the project; we skip the token + repo lookup since
-    // no GitHub call will fire.
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
     const project = await ctx.runQuery(internal.cms.projects.internalGet, {
@@ -2468,11 +2044,6 @@ export const startBulkDelete = action({
       throw new Error("Unauthorized: you do not own this project");
     }
 
-    // SECURITY: pre-flight check that every documentId in the payload
-    // actually belongs to `args.projectId`. The workpool job (and the
-    // inline mutation) re-check this for defense in depth, but failing
-    // fast here keeps a malicious or buggy caller from even creating
-    // a batch row + N enqueued jobs that would have no-opped.
     const documentIdsInPayload = args.items
       .map((it) => it.documentId)
       .filter((id): id is Id<"documents"> => id !== undefined);
@@ -2491,10 +2062,6 @@ export const startBulkDelete = action({
       }
     }
 
-    // ── Inline fast path: local-only delete ────────────────────────
-    // No GitHub calls, no workpool needed. Chunk the doc list into
-    // groups of 50 so each internal mutation stays comfortably under
-    // Convex's per-transaction limits.
     if (args.mode === "local") {
       const docIds = documentIdsInPayload;
       const labelByDocId = new Map<Id<"documents">, string>();
@@ -2524,7 +2091,6 @@ export const startBulkDelete = action({
       };
     }
 
-    // ── Workpool path: github or both modes ───────────────────────
     if (!project.githubRepo) {
       throw new Error("GitHub repository not configured for this project");
     }

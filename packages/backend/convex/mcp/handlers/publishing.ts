@@ -1,15 +1,3 @@
-/**
- * MCP handlers for scheduling, stats and trash restore.
- *
- * Same contract as `./documents.ts`: `internal*` only, actor injected by the
- * gateway via `identityArg`, zero business logic. See `_lib/auth.ts →
- * requireCaller` for why this indirection exists.
- *
- * Handlers whose target lives in a `"use node"` module (GitHub publishing,
- * media) are in `./nodeActions.ts` instead — importing a `"use node"` module
- * from here would pull Node built-ins into the Convex runtime bundle and fail
- * the build.
- */
 import { v } from "convex/values";
 import { mcpCallerValidator } from "convex-mcp-gateway";
 import { internalMutation, internalQuery } from "../../_generated/server";

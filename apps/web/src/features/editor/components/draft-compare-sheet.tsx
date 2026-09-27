@@ -25,13 +25,10 @@ import { ArrowUpToLine, GitCompare, Loader2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { MarkdownDiffViewer } from "@/components/diff/markdown-diff-viewer";
 
-/** Sentinel selection value for the Main (canonical) document. */
 const MAIN = "main";
 
-/** A selection is either the Main document or a specific draft id. */
 type Selection = typeof MAIN | Id<"document_drafts">;
 
-/** Minimal draft metadata the selectors need (subset of `documentDrafts.list`). */
 type DraftOption = {
   _id: Id<"document_drafts">;
   label: string;
@@ -43,23 +40,11 @@ type DraftCompareSheetProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   documentId: Id<"documents">;
-  /** Draft metadata from the tab bar's already-subscribed `documentDrafts.list`. */
   drafts: DraftOption[];
-  /** The draft the sheet was opened from — seeds the right-hand selector. */
   initialDraftId: Id<"document_drafts"> | null;
-  /**
-   * Promotes a draft to Main (the tab bar's flush-then-promote flow).
-   * Resolves true on success so the sheet can refresh its fetched sides.
-   */
   onPromote: (draftId: string) => Promise<boolean>;
 };
 
-/**
- * One-shot fetch of a side's `{ title, content }`. Main joins its body via
- * `documents.get`; drafts resolve their body via `documentDrafts.getContent`.
- * Both are plain queries (NOT subscriptions) so opening the compare view — or
- * flipping a selector — never adds a live read to the editor's hot path.
- */
 async function fetchSide(
   convex: ConvexReactClient,
   documentId: Id<"documents">,
@@ -75,11 +60,6 @@ async function fetchSide(
   return draft ? { title: draft.title, content: draft.content } : null;
 }
 
-/**
- * Fetches one side's content on demand and re-fetches whenever the selection
- * (or the open state) changes. A cancellation guard drops stale responses so a
- * fast selector flip can't leave the slower request's content on screen.
- */
 function useSideContent(
   open: boolean,
   documentId: Id<"documents">,
@@ -109,12 +89,6 @@ function useSideContent(
   return state;
 }
 
-/**
- * Full-width overlay that diffs two versions of a document side by side —
- * Main against any draft, or two drafts. Content is fetched one-shot at open
- * and on every selector change (no live subscriptions), so the view is cheap
- * and reflects the latest saved keystrokes without re-billing the editor.
- */
 export function DraftCompareSheet({
   open,
   onOpenChange,
@@ -125,13 +99,9 @@ export function DraftCompareSheet({
 }: DraftCompareSheetProps) {
   const [left, setLeft] = useState<Selection>(MAIN);
   const [right, setRight] = useState<Selection>(initialDraftId ?? MAIN);
-  // Bumped after a promote so both sides re-fetch — Main's content changed.
   const [refreshKey, setRefreshKey] = useState(0);
-  // Draft id a promote is in flight for (disables both promote buttons).
   const [promotingId, setPromotingId] = useState<string | null>(null);
 
-  // Re-seed the selectors each time the sheet is opened from a given draft, so
-  // reopening from a different tab points the right side at the new draft.
   useEffect(() => {
     if (open) {
       setLeft(MAIN);
@@ -186,7 +156,6 @@ export function DraftCompareSheet({
         </SheetHeader>
 
         <SheetBody className="flex flex-col gap-4">
-          {/* Selectors + word-count titles — flat, one row, no nested cards. */}
           <div className="grid grid-cols-2 gap-4">
             <SideHeader
               ariaLabel="Left version"
@@ -212,7 +181,6 @@ export function DraftCompareSheet({
             />
           </div>
 
-          {/* Diff area. */}
           <div
             data-testid="draft-compare-diff"
             className="min-h-0 flex-1 overflow-auto rounded-lg border border-border/60"
@@ -233,10 +201,6 @@ export function DraftCompareSheet({
     </Sheet>
   );
 }
-
-/* ------------------------------------------------------------------ */
-/*  Internal sub-components                                            */
-/* ------------------------------------------------------------------ */
 
 function SideHeader({
   ariaLabel,

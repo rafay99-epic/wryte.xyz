@@ -1,25 +1,12 @@
-/**
- * Pure, offline frontmatter validation used by the editor to give authors
- * instant pre-publish feedback — instead of discovering a problem minutes later
- * when the GitHub build fails. It checks a post's current frontmatter values
- * against the project's detected schema (which mirrors the framework's real
- * constraints, e.g. Astro's Zod types).
- *
- * Synchronous and dependency-free, so it can run on every keystroke.
- */
-
 export type ValidationSeverity = "error" | "warning";
 
 export type ValidationIssue = {
-  /** The field's YAML key. */
   field: string;
-  /** Human label (falls back to the key). */
   label: string;
   message: string;
   severity: ValidationSeverity;
 };
 
-/** Minimal field shape the validator needs — a subset of FrontmatterField. */
 export type ValidatableField = {
   name: string;
   type: string;
@@ -42,11 +29,6 @@ function isEmpty(value: FieldValue): boolean {
   return value === undefined || value === "" || value === null;
 }
 
-/**
- * Validates a flat values map (the shape the visual editor holds — strings and
- * booleans, with list fields stored as comma-separated strings) against the
- * field schema. Returns issues ordered by the schema's field order.
- */
 export function validateFrontmatter(
   values: Record<string, FieldValue>,
   fields: ValidatableField[],
@@ -59,14 +41,13 @@ export function validateFrontmatter(
     const add = (message: string, severity: ValidationSeverity) =>
       issues.push({ field: field.name, label, message, severity });
 
-    // Required — booleans are exempt (false is a legitimate value).
     if (field.required && field.type !== "boolean" && isEmpty(value)) {
       add("is required but empty", "error");
-      continue; // no point format-checking an empty value
+      continue;
     }
 
     if (isEmpty(value)) continue;
-    if (typeof value !== "string") continue; // booleans need no format check
+    if (typeof value !== "string") continue;
 
     switch (field.type) {
       case "number": {
@@ -121,7 +102,6 @@ export function validateFrontmatter(
   return issues;
 }
 
-/** Convenience tally for rendering a status badge. */
 export function summarizeIssues(issues: ValidationIssue[]): {
   errors: number;
   warnings: number;

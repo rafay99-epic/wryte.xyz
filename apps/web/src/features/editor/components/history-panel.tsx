@@ -49,18 +49,9 @@ const REASON_META = {
   restore: { label: "Pre-restore", icon: RotateCcw },
 } as const;
 
-/**
- * Version history side panel: automatic content snapshots (with diff &
- * restore) plus the GitHub publish history. Queries are gated on the
- * panel being open.
- */
 type HistoryTab = "snapshots" | "publishes";
 
 export function HistoryPanel({ documentId, open, onClose }: HistoryPanelProps) {
-  // Both TabsContent panes stay mounted (CSS-hidden) at once, so gate each
-  // tab's subscription on which one is actually selected — otherwise both
-  // `snapshots.list` and `getPublishHistory` fire the instant the panel
-  // opens, even for the pane the user never looks at.
   const [activeTab, setActiveTab] = useState<HistoryTab>("snapshots");
 
   return (
@@ -126,8 +117,6 @@ export function HistoryPanel({ documentId, open, onClose }: HistoryPanelProps) {
   );
 }
 
-/* ── Snapshots tab ───────────────────────────────────────────────────── */
-
 function SnapshotList({
   documentId,
   active,
@@ -149,8 +138,6 @@ function SnapshotList({
       setRestoringId(snapshotId);
       try {
         const result = await restoreSnapshot({ snapshotId });
-        // Clear dirty so the reactive subscription delivers the restored
-        // content into the editor via the sync effect.
         useEditorStore.getState().markSaved();
         setDiffSnapshotId(null);
         toast.success("Snapshot restored", {
@@ -268,8 +255,6 @@ function SnapshotList({
     </>
   );
 }
-
-/* ── Publishes tab ───────────────────────────────────────────────────── */
 
 function PublishList({
   documentId,

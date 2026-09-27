@@ -10,6 +10,7 @@ import {
   MAX_BATCH_IMAGES,
   runUploadPool,
 } from "@wryte/logic/lib/batch-image-upload";
+import { videoEmbedMarkup } from "@wryte/logic/lib/editor/video";
 import { describeSavings } from "@wryte/logic/lib/image-compression/index";
 import { formatMb } from "@wryte/logic/lib/upload-limits";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
@@ -17,7 +18,6 @@ import { useAction } from "convex/react";
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { useEditorContext } from "../components/editor-context";
-import { videoEmbedMarkup } from "../lib/video";
 
 const URL_RE = /^https?:\/\/\S+$/i;
 
@@ -29,20 +29,6 @@ function hasFiles(transfer: DataTransfer | null): boolean {
   return Boolean(transfer && Array.from(transfer.types).includes("Files"));
 }
 
-/**
- * Clipboard & drag-drop niceties for the markdown textarea:
- *
- * - Pasting or dropping an image/video uploads it through the project's
- *   configured media provider (same pipeline as the insert dialogs) and
- *   inserts the markdown/`<video>` markup at the cursor. While the upload
- *   runs, a unique placeholder holds the spot; it resolves to the final
- *   markup or is removed on failure.
- * - Pasting a URL while text is selected wraps the selection as
- *   `[selection](url)` instead of replacing it.
- *
- * Images go through the project's compression settings; videos upload
- * as-is. Both respect the project upload limit.
- */
 export function useMediaPaste({
   documentId,
   projectId,
@@ -57,8 +43,6 @@ export function useMediaPaste({
   const { maxBytes: maxUploadBytes, formatted: maxUploadLabel } =
     useUploadLimit(projectId as Id<"projects">);
 
-  // Latest-value refs so the (once-per-textarea) event listeners never go
-  // stale — same pattern as use-keyboard-shortcuts.
   const ctxRef = useRef({
     compress,
     removeWatermark,
@@ -94,20 +78,12 @@ export function useMediaPaste({
       textarea.dispatchEvent(new Event("input", { bubbles: true }));
     }
 
-    /** The version (draft id, or the document for Main) now in the editor. */
     function currentTarget() {
       return (
         useEditorStore.getState().activeDraftId ?? ctxRef.current.documentId
       );
     }
 
-    /**
-     * The placeholder may have moved (or been deleted) by the time the
-     * upload settles, so it's located by content search rather than by the
-     * insertion offset. The token in the URL slot makes it unique. If the
-     * editor switched to another draft/document meanwhile, nothing is
-     * inserted: the markup belongs to the version the upload started in.
-     */
     function settlePlaceholder(
       placeholder: string,
       markup: string | null,
@@ -117,8 +93,6 @@ export function useMediaPaste({
       const content = useEditorStore.getState().content;
       const index = content.indexOf(placeholder);
       if (index === -1) {
-        // User deleted the placeholder mid-upload. Drop failed uploads
-        // silently; insert successful ones at the caret so work isn't lost.
         if (markup) insertAtCaret(markup);
         return;
       }
@@ -207,13 +181,11 @@ export function useMediaPaste({
         return;
       }
 
-      // URL over a selection → markdown link around the selected text.
       const text = event.clipboardData?.getData("text/plain").trim() ?? "";
       if (!URL_RE.test(text) || !textarea) return;
       const { selectionStart, selectionEnd, value } = textarea;
       if (selectionStart === selectionEnd) return;
       const selected = value.slice(selectionStart, selectionEnd);
-      // Pasting a URL over a URL should replace it, not nest a link.
       if (URL_RE.test(selected.trim())) return;
       event.preventDefault();
       textarea.setRangeText(
@@ -225,8 +197,6 @@ export function useMediaPaste({
       textarea.dispatchEvent(new Event("input", { bubbles: true }));
     }
 
-    // Only claim drag events that carry files — text drag-and-drop inside
-    // the textarea keeps its native behavior.
     function handleDragOver(event: DragEvent) {
       if (hasFiles(event.dataTransfer)) event.preventDefault();
     }

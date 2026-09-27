@@ -96,11 +96,6 @@ export function addBatchImages(
   return { items, issues };
 }
 
-/**
- * Append already-built items to the batch, skipping files that are already
- * queued and anything past the batch cap. Used by the reducer so two quick
- * `addFiles` calls can't overwrite each other.
- */
 function appendBatchImages(
   existing: BatchImageItem[],
   incoming: BatchImageItem[],

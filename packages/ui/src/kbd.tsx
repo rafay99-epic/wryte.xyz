@@ -5,10 +5,6 @@ type KbdProps = {
   className?: string | undefined;
 };
 
-/**
- * A keyboard key badge for displaying shortcut keys.
- * Renders styled <kbd> elements similar to GitHub/VS Code style.
- */
 export function Kbd({ children, className }: KbdProps) {
   return (
     <kbd
@@ -22,10 +18,6 @@ export function Kbd({ children, className }: KbdProps) {
   );
 }
 
-/**
- * Renders a shortcut string as a row of <Kbd> badges.
- * Accepts pre-split key tokens (e.g. ["⌘", "K"]).
- */
 export function KbdGroup({
   keys,
   className,

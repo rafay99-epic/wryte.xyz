@@ -1,11 +1,3 @@
-/**
- * MCP handlers for document draft operations.
- *
- * Same contract as `./documents.ts`: `internal*` only, actor injected by the
- * gateway via `identityArg`, zero business logic — every handler resolves the
- * caller and delegates to the helper the public function also uses, so the
- * two entry points cannot drift.
- */
 import { v } from "convex/values";
 import { mcpCallerValidator } from "convex-mcp-gateway";
 import { internalMutation, internalQuery } from "../../_generated/server";
@@ -19,8 +11,6 @@ import {
   removeDraftForUser,
   updateDraftContentForUser,
 } from "../../cms/documentDrafts";
-
-/* ------------------------------- reads -------------------------------- */
 
 export const list = internalQuery({
   args: { caller: mcpCallerValidator, documentId: v.id("documents") },
@@ -37,8 +27,6 @@ export const get = internalQuery({
     return await draftGetForUser(ctx, user._id, args.draftId);
   },
 });
-
-/* ------------------------------- writes ------------------------------- */
 
 export const create = internalMutation({
   args: {

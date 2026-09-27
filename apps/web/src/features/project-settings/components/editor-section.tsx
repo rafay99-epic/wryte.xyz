@@ -6,11 +6,11 @@ import {
   staggerContainer,
   staggerItem,
 } from "@wryte/logic/lib/motion";
+import type { ProjectData } from "@wryte/logic/types/project-settings";
 import { motion } from "framer-motion";
 import { PenLine } from "lucide-react";
 import { SaveBar } from "@/components/settings/save-bar";
 import { useEditorSection } from "../hooks/use-editor-section";
-import type { ProjectData } from "../types";
 import { RowList, SectionHeader, SettingsGroup, ToggleRow } from "./shared";
 import { SnippetsManager } from "./snippets-manager";
 

@@ -1,12 +1,16 @@
 import type { VirtualTypeScriptEnvironment } from "@typescript/vfs";
 import type { AnimationDiagnostic } from "@wryte/backend/_lib/animationChecks";
+import type {
+  CheckRequest,
+  CheckResponse,
+  TypecheckState,
+} from "@wryte/logic/lib/animations/checks/protocol";
 import type ts from "typescript";
 import { runContractChecks } from "./contract";
 import {
   ANIMATION_ENTRY_FILE,
   createAnimationEnvironment,
 } from "./environment";
-import type { CheckRequest, CheckResponse, TypecheckState } from "./protocol";
 
 let tsModule: Promise<typeof ts> | null = null;
 let environment: Promise<VirtualTypeScriptEnvironment> | null = null;
@@ -91,8 +95,6 @@ async function check(request: CheckRequest): Promise<CheckResponse["result"]> {
     );
 
     const diagnostics = runContractChecks(tsApi, sourceFile, request.language);
-    // JavaScript sources carry no annotations to check, so the type pass is
-    // not offered for them (the setting hides the switch too).
     if (request.level === "contract" || request.language === "jsx") {
       return { kind: "checked", diagnostics, typecheck: { kind: "skipped" } };
     }

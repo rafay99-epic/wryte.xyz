@@ -2,13 +2,6 @@ import { BRAND, resolveBrandAsset } from "@wryte/logic/lib/branding";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_TITLE } from "@wryte/logic/lib/seo";
 import type { MetadataRoute } from "next";
 
-/**
- * Generates `/manifest.webmanifest` — the PWA / installable-app manifest.
- *
- * Provides browser install prompts, Android home-screen icons, and
- * theming metadata. The `start_url` points to `/dashboard` since that
- * is the primary logged-in experience.
- */
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: SITE_TITLE,

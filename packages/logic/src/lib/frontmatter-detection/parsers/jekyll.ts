@@ -2,12 +2,6 @@ import yaml from "js-yaml";
 import { inferFieldType } from "../infer";
 import type { ConfigSchema } from "../types";
 
-/**
- * Parses a Jekyll `_config.yml` for frontmatter defaults. Jekyll has no typed
- * schema; the strongest config signal is `defaults[].values`, which sets
- * frontmatter applied to matching pages. Everything else comes from sample
- * aggregation. All fields are optional (Jekyll enforces nothing).
- */
 export function parseJekyllConfig(source: string): ConfigSchema | null {
   let data: unknown;
   try {

@@ -21,11 +21,6 @@ import { useAppHotkeys } from "@/components/layout/hooks/use-app-hotkeys";
 import { QueryProvider } from "@/components/providers/query-provider";
 import { CommandPalette } from "@/features/command-palette/command-palette";
 
-/**
- * App shell with smooth sidebar animation, focus mode support,
- * command palette, and global keyboard shortcuts. Owns the React Query
- * client: only the authenticated app uses it (GitHub API hooks).
- */
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useConvexAuth();
   const getOrCreate = useMutation(api.account.users.getOrCreate);
@@ -34,7 +29,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const toggleFocusMode = useEditorStore((s) => s.toggleFocusMode);
   const hasInitialized = useRef(false);
 
-  // Command palette state
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
 
   const openCommandPalette = useCallback(() => setCommandPaletteOpen(true), []);
@@ -45,7 +39,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   useVersionCheck();
 
-  // Register global keyboard shortcuts
   useAppHotkeys({
     openCommandPalette,
     closeCommandPalette,
@@ -62,17 +55,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (isAuthenticated && !hasInitialized.current) {
       hasInitialized.current = true;
-      getOrCreate().catch(() => {
-        // user creation failed silently - will retry on next mount
-      });
+      getOrCreate().catch(() => {});
     }
   }, [isAuthenticated, getOrCreate]);
 
-  // --- Main app chrome ---
   return (
     <QueryProvider>
       <div className="relative flex h-screen overflow-hidden bg-background">
-        {/* Sidebar with smooth width transition */}
         <motion.aside
           className="shrink-0 overflow-hidden border-r border-border/50"
           animate={{ width: sidebarOpen && !focusMode ? 260 : 0 }}
@@ -87,9 +76,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           )}
         </motion.aside>
 
-        {/* Main content */}
         <div className="flex flex-1 flex-col overflow-hidden">
-          {/* Hide header in focus mode */}
           <AnimatePresence>
             {!focusMode && (
               <motion.div
@@ -110,13 +97,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             )}
           </AnimatePresence>
 
-          <main
-            // `min-w-0` lets this flex item stay within the viewport instead of
-            // being stretched by wide content (e.g. the kanban board), so inner
-            // `overflow-x-auto` regions can actually scroll. Editor content is
-            // height-constrained and manages its own overflow.
-            className="min-w-0 flex-1 overflow-y-auto slim-scrollbar"
-          >
+          <main className="min-w-0 flex-1 overflow-y-auto slim-scrollbar">
             {children}
           </main>
         </div>
@@ -128,7 +109,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           />
         ) : null}
 
-        {/* Focus mode exit button — floating in bottom-right */}
         <AnimatePresence>
           {focusMode && (
             <motion.div

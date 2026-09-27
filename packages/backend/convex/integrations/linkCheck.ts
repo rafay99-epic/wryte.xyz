@@ -1,15 +1,8 @@
-/**
- * On-demand dead-link checker. Strictly user-initiated (no cron): scans a
- * project's documents for external URLs, probes each with a bounded
- * worker pool, and reports the broken ones with the documents they
- * appear in. Runs in the default Convex runtime — `fetch` needs no Node.
- */
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import { action } from "../_generated/server";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
 
-/** Hard cap on URLs probed per run — anything beyond is reported, not silently dropped. */
 const MAX_LINKS = 150;
 const CONCURRENCY = 8;
 const TIMEOUT_MS = 8000;
@@ -30,7 +23,6 @@ export type LinkCheckResult = {
   broken: BrokenLink[];
 };
 
-/** Private/loopback hosts are skipped — nothing useful to probe there. */
 function isPrivateHost(url: string): boolean {
   try {
     const host = new URL(url).hostname;
@@ -65,8 +57,6 @@ async function probe(url: string): Promise<string | null> {
 
   try {
     let res = await attempt("HEAD");
-    // Plenty of servers reject HEAD outright — confirm with GET before
-    // calling it broken.
     if (res.status === 403 || res.status === 405 || res.status === 501) {
       res = await attempt("GET");
     }
@@ -95,12 +85,10 @@ export const run = action({
     });
     if (!docs) throw new Error("Unauthorized");
 
-    /* ── Extract & dedupe external URLs across all documents ── */
     const linkMap = new Map<string, { id: string; title: string }[]>();
     for (const doc of docs) {
       const seen = new Set<string>();
       for (const match of doc.content.matchAll(URL_RE)) {
-        // Trim trailing punctuation that markdown prose drags along.
         const url = (match[0] as string).replace(/[.,;:!?]+$/, "");
         if (seen.has(url) || isPrivateHost(url)) continue;
         seen.add(url);
@@ -114,7 +102,6 @@ export const run = action({
     const toCheck = urls.slice(0, MAX_LINKS);
     const broken: BrokenLink[] = [];
 
-    /* ── Bounded worker pool ── */
     let cursor = 0;
     const worker = async () => {
       while (cursor < toCheck.length) {

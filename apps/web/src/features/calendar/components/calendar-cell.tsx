@@ -54,7 +54,6 @@ export function CalendarCell({
         isToday && "ring-2 ring-inset ring-primary/60",
       )}
     >
-      {/* Day number */}
       <span
         className={cn(
           "mb-0.5 inline-flex size-6 items-center justify-center rounded-full text-xs font-medium",
@@ -66,7 +65,6 @@ export function CalendarCell({
         {day}
       </span>
 
-      {/* Document cards */}
       <div className="flex flex-1 flex-col gap-0.5">
         <AnimatePresence initial={false}>
           {visible.map((doc) => (
@@ -87,7 +85,6 @@ export function CalendarCell({
           ))}
         </AnimatePresence>
 
-        {/* Overflow indicator */}
         {overflow > 0 && !expanded && (
           <button
             type="button"

@@ -7,19 +7,8 @@ const TRANSPARENT_INPUT_MIMES = new Set([
   "image/gif",
 ]);
 
-const SKIP_MIMES = new Set([
-  "image/svg+xml",
-  "image/gif", // animations would be flattened by Canvas; safer to skip
-]);
+const SKIP_MIMES = new Set(["image/svg+xml", "image/gif"]);
 
-/**
- * Returns false for MIME types the compression pipeline must not touch.
- * SVG is text, GIF is potentially animated; both are passed through as-is.
- * Unknown MIMEs that don't start with `image/` are also skipped.
- *
- * Note: AVIF inputs are still compressible (we just re-encode them to
- * JPEG/WebP/PNG). Only AVIF *output* was removed.
- */
 export function isCompressible(mime: string): boolean {
   if (!mime.startsWith("image/")) return false;
   return !SKIP_MIMES.has(mime);
@@ -51,7 +40,6 @@ export function extensionFromFormat(format: ResolvedFormat): string {
   }
 }
 
-/** Replace or append an extension to a filename. */
 export function rewriteFilename(filename: string, ext: string): string {
   const dot = filename.lastIndexOf(".");
   const base = dot > 0 ? filename.slice(0, dot) : filename;

@@ -2,10 +2,14 @@
 
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
+import { isAiEligibleField } from "@wryte/logic/lib/editor/frontmatter-ai";
 import { ARRAY_FIELD_NAMES } from "@wryte/logic/lib/frontmatter-detection/registry";
 import { validateFrontmatter } from "@wryte/logic/lib/frontmatter-detection/validate";
 import { generateSlug } from "@wryte/logic/lib/markdown";
-import { getTagFieldName } from "@wryte/logic/lib/parse-frontmatter";
+import {
+  getTagFieldName,
+  parseFrontmatterSchema,
+} from "@wryte/logic/lib/parse-frontmatter";
 import { humanizeFieldName } from "@wryte/logic/lib/utils";
 import type { FrontmatterFieldType } from "@wryte/logic/types/frontmatter";
 import { Badge } from "@wryte/ui/badge";
@@ -44,10 +48,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { TagChipsInput } from "@/components/forms/tag-chips-input";
-import {
-  FrontmatterAiDrawer,
-  isAiEligibleField,
-} from "./frontmatter-ai-drawer";
+import { FrontmatterAiDrawer } from "./frontmatter-ai-drawer";
 import { FrontmatterImageField } from "./frontmatter-image-field";
 import { FrontmatterSearchPreview } from "./frontmatter-search-preview";
 import {
@@ -81,16 +82,6 @@ const DEFAULT_FIELDS: SchemaField[] = [
   { name: "tags", type: "tags", label: "Tags" },
 ];
 
-function parseSchema(schemaString: string | undefined): SchemaField[] {
-  if (!schemaString) return DEFAULT_FIELDS;
-  try {
-    const parsed = JSON.parse(schemaString) as SchemaField[];
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_FIELDS;
-  } catch {
-    return DEFAULT_FIELDS;
-  }
-}
-
 function fieldIcon(type: FrontmatterFieldType) {
   switch (type) {
     case "tags":
@@ -123,9 +114,6 @@ const ALL_MODE_TABS: Readonly<Record<EditorMode, ModeTab>> = {
   mdx: { id: "mdx", label: "MDX", icon: FileCode2 },
 };
 
-/** Visual + YAML are always available; MD/MDX surfaces only the one that
- *  matches the project's `contentFormat` so the toggle isn't cluttered
- *  with a format the document can't be saved as. */
 function buildModeTabs(
   contentFormat: "md" | "mdx" | undefined,
 ): ReadonlyArray<ModeTab> {
@@ -160,10 +148,6 @@ const TEXT_MODE_META: Record<
   },
 };
 
-/**
- * Converts the values object to YAML string for the code editor.
- * Tags/lists stored as comma-separated strings get serialized as YAML arrays.
- */
 function valuesToYaml(
   values: Record<string, string | boolean>,
   fields: SchemaField[],
@@ -178,10 +162,6 @@ function valuesToYaml(
   }
 }
 
-/**
- * Parses YAML string back to the flat values object used by the visual editor.
- * Returns { values, error } — error is set if YAML is invalid.
- */
 function yamlToValues(yamlStr: string): {
   values: Record<string, string | boolean>;
   error: string | null;
@@ -197,11 +177,6 @@ function yamlToValues(yamlStr: string): {
   }
 }
 
-/**
- * Builds the typed object payload that powers YAML/MDX serialization —
- * shared so the two formats stay consistent on coercions (numbers,
- * booleans, lists, embedded JSON).
- */
 function buildSerializableObject(
   values: Record<string, string | boolean>,
   fields: SchemaField[],
@@ -214,9 +189,6 @@ function buildSerializableObject(
       field?.type === "tags" ||
       field?.type === "list" ||
       field?.type === "multiselect";
-    // Names like tags/keywords/categories are list-valued across every
-    // framework — serialize them as arrays even if the schema mistyped them as
-    // a scalar string. Mirrors the publish-time guard in convex/_lib/frontmatter.
     const isArrayName = ARRAY_FIELD_NAMES.has(key.toLowerCase());
     if ((isArrayType || isArrayName) && typeof val === "string") {
       obj[key] = val
@@ -241,8 +213,6 @@ function buildSerializableObject(
   return obj;
 }
 
-/** Normalizes a parsed object (from any source format) into the flat
- *  string/boolean values map the visual editor consumes. */
 function normalizeParsedToValues(parsed: unknown): {
   values: Record<string, string | boolean>;
   error: string | null;
@@ -267,8 +237,6 @@ function normalizeParsedToValues(parsed: unknown): {
   return { values: result, error: null };
 }
 
-/** Serialize values as the `---`-delimited YAML block that lives at the
- *  top of a `.md` file. */
 function valuesToMd(
   values: Record<string, string | boolean>,
   fields: SchemaField[],
@@ -277,8 +245,6 @@ function valuesToMd(
   return `---\n${yamlBody}\n---\n`;
 }
 
-/** Parse an `.md`-style frontmatter block (delimiters optional — a bare
- *  YAML body is also accepted so users can paste either shape). */
 function mdToValues(mdStr: string): {
   values: Record<string, string | boolean>;
   error: string | null;
@@ -286,7 +252,6 @@ function mdToValues(mdStr: string): {
   const trimmed = mdStr.trim();
   if (!trimmed) return { values: {}, error: null };
   if (!trimmed.startsWith("---")) {
-    // Forgive a missing opening delimiter — treat the whole input as YAML.
     return yamlToValues(trimmed);
   }
   const after = trimmed.slice(3).replace(/^[\r\n]+/, "");
@@ -298,8 +263,6 @@ function mdToValues(mdStr: string): {
   return yamlToValues(yamlBody);
 }
 
-/** Serialize values as the MDX-style `export const frontmatter = {...}`
- *  named export that MDX toolchains commonly read. */
 function valuesToMdx(
   values: Record<string, string | boolean>,
   fields: SchemaField[],
@@ -308,18 +271,12 @@ function valuesToMdx(
   return `export const frontmatter = ${JSON.stringify(obj, null, 2)};\n`;
 }
 
-/** Parse an MDX-style export back to values. Accepts a bare object literal
- *  too (so pasting `{ title: "..." }` works). Uses JSON5 — a permissive but
- *  pure parser — so even a malicious payload pasted from an imported file
- *  can never execute JS in the user's session. */
 function mdxToValues(mdxStr: string): {
   values: Record<string, string | boolean>;
   error: string | null;
 } {
   const trimmed = mdxStr.trim();
   if (!trimmed) return { values: {}, error: null };
-  // Strip the optional `export const/let/var frontmatter = ` prefix and any
-  // trailing semicolon, leaving just the object literal body.
   const match = trimmed.match(
     /^(?:export\s+)?(?:const|let|var)?\s*frontmatter\s*=\s*([\s\S]*?);?\s*$/,
   );
@@ -338,7 +295,6 @@ function mdxToValues(mdxStr: string): {
   }
 }
 
-/** Serialize values into one of the text editor formats. */
 function serializeMode(
   mode: TextMode,
   values: Record<string, string | boolean>,
@@ -354,7 +310,6 @@ function serializeMode(
   }
 }
 
-/** Parse text in the given format back into values. */
 function parseMode(
   mode: TextMode,
   codeStr: string,
@@ -369,10 +324,6 @@ function parseMode(
   }
 }
 
-/**
- * Frontmatter panel with smooth expand/collapse animation,
- * compact layout, field grouping, Visual/YAML/MD/MDX modes, and support for all field types.
- */
 export function FrontmatterEditor({
   projectId,
   documentId,
@@ -385,9 +336,6 @@ export function FrontmatterEditor({
   const [aiDrawerOpen, setAiDrawerOpen] = useState(false);
   const [codeError, setCodeError] = useState<string | null>(null);
   const codeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Debounce frontmatter saves so typing a 20-char description doesn't fire
-  // 20 mutations back-to-back. The pending callback is held in a ref so the
-  // unmount cleanup can flush the last edit instead of dropping it.
   const valueSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
@@ -397,15 +345,11 @@ export function FrontmatterEditor({
     api.cms.projects.get,
     projectId ? { projectId: projectId as Id<"projects"> } : "skip",
   );
-  // AI suggestions trigger is hidden until the project has a configured,
-  // active AI credential — same gating as the toolbar pill.
   const aiReadiness = useQuery(
     api.ai.enhance.isAiReady,
     projectId ? { projectId: projectId as Id<"projects"> } : "skip",
   );
   const aiReady = aiReadiness?.ready ?? false;
-  // Metadata only: the full `get` re-sends the body on every autosave tick.
-  // The body is subscribed just while the AI drawer (its only reader) is open.
   const document = useQuery(
     api.cms.documents.getMeta,
     documentId ? { documentId: documentId as Id<"documents"> } : "skip",
@@ -419,25 +363,23 @@ export function FrontmatterEditor({
   const updateDocument = useMutation(api.cms.documents.update);
 
   const fields = useMemo(
-    () => parseSchema(project?.frontmatterSchema).filter((f) => !f.hidden),
+    () =>
+      parseFrontmatterSchema(project?.frontmatterSchema, DEFAULT_FIELDS).filter(
+        (f) => !f.hidden,
+      ),
     [project?.frontmatterSchema],
   );
 
   const allFields = useMemo(
-    () => parseSchema(project?.frontmatterSchema),
+    () => parseFrontmatterSchema(project?.frontmatterSchema, DEFAULT_FIELDS),
     [project?.frontmatterSchema],
   );
 
-  // Tabs shown for this project — Visual + YAML always, plus whichever of
-  // MD/MDX matches the project's `contentFormat`.
   const modeTabs = useMemo(
     () => buildModeTabs(project?.contentFormat),
     [project?.contentFormat],
   );
 
-  // If the project's contentFormat changes and renders the active tab
-  // unavailable (e.g. user was in MDX but the project flipped to MD),
-  // fall back to Visual rather than rendering an unreachable mode.
   useEffect(() => {
     if (!modeTabs.some((t) => t.id === editorMode)) {
       setEditorMode("visual");
@@ -449,7 +391,6 @@ export function FrontmatterEditor({
     [project?.frontmatterSchema],
   );
 
-  // Group fields by their group property
   const groupedFields = useMemo(() => {
     const groups = new Map<string, SchemaField[]>();
     for (const field of fields) {
@@ -469,8 +410,6 @@ export function FrontmatterEditor({
     return count;
   }, [fields, values]);
 
-  // Pre-publish validation: catch required/type/option problems while the
-  // author is still writing, instead of after a failed GitHub build.
   const validationIssues = useMemo(
     () => validateFrontmatter(values, fields),
     [values, fields],
@@ -485,8 +424,6 @@ export function FrontmatterEditor({
             string,
             string | boolean
           >;
-          // Normalize date-typed fields: fix Date.toString() output,
-          // JSON object values, or other non-ISO formats back to YYYY-MM-DD.
           for (const field of fields) {
             if (
               (field.type === "date" || field.type === "datetime") &&
@@ -496,7 +433,6 @@ export function FrontmatterEditor({
               if (v.startsWith("{") || v.startsWith("[")) {
                 parsed[field.name] = "";
               } else if (v && !/^\d{4}-\d{2}-\d{2}/.test(v)) {
-                // Attempt to parse non-ISO date strings (e.g. Date.toString() output)
                 const d = new Date(v);
                 if (!Number.isNaN(d.getTime())) {
                   parsed[field.name] =
@@ -510,16 +446,13 @@ export function FrontmatterEditor({
             }
           }
           setValues(parsed);
-        } catch {
-          // Invalid JSON, start fresh
-        }
+        } catch {}
       }
     }
   }, [document, hasLoadedInitial, fields]);
 
   const saveValues = useCallback(
     (newValues: Record<string, string | boolean>) => {
-      // Extract tags from frontmatter to sync with denormalized tags field
       const tagValue = newValues[tagFieldName];
       let tags: string[] | undefined;
       if (typeof tagValue === "string" && tagValue.trim()) {
@@ -529,10 +462,6 @@ export function FrontmatterEditor({
           .filter(Boolean);
       }
 
-      // Swallow errors at this layer so the debounced flush-on-unmount path
-      // doesn't surface unhandled-rejection toasts when the underlying
-      // document has been deleted or the user has navigated away. Real
-      // errors are still surfaced when the user clicks an explicit save.
       void updateDocument({
         documentId: documentId as Id<"documents">,
         frontmatter: JSON.stringify(newValues),
@@ -549,12 +478,6 @@ export function FrontmatterEditor({
       newValues["slug"] = generateSlug(value);
     }
 
-    // Note: we intentionally do NOT push pubDate edits into `scheduledAt`
-    // here. Rescheduling has side effects (cancelling and re-arming a
-    // workflow) that only `integrations.scheduling.schedule` performs
-    // safely; a direct patch would leave the queue out of sync. Users
-    // change the firing time from the schedule dialog.
-
     setValues(newValues);
 
     if (valueSaveTimeoutRef.current) {
@@ -568,7 +491,6 @@ export function FrontmatterEditor({
     }, 500);
   }
 
-  /** Merge AI-suggested values into the current frontmatter. */
   const handleAiAccept = useCallback(
     (suggested: Record<string, string | boolean>) => {
       const newValues = { ...values };
@@ -581,7 +503,6 @@ export function FrontmatterEditor({
     [values, saveValues],
   );
 
-  /** Fields the AI is allowed to propose values for. */
   const aiEligibleFields = useMemo(
     () =>
       fields
@@ -596,9 +517,6 @@ export function FrontmatterEditor({
     [fields],
   );
 
-  // Switch between visual, YAML, MD, and MDX modes. Any text-mode switch
-  // first parses the current code buffer so unsaved edits aren't dropped on
-  // the floor; a parse error blocks the switch so the user can fix it.
   const handleModeSwitch = useCallback(
     (mode: EditorMode) => {
       if (mode === editorMode) return;
@@ -633,8 +551,6 @@ export function FrontmatterEditor({
     [editorMode, values, codeValue, allFields, saveValues],
   );
 
-  // Handle code editor changes with debounced save — uses the parser for
-  // the currently-active text mode.
   const handleCodeChange = useCallback(
     (newCode: string) => {
       setCodeValue(newCode);
@@ -654,8 +570,6 @@ export function FrontmatterEditor({
     [editorMode, saveValues],
   );
 
-  // Cleanup timeouts on unmount. Flush any pending frontmatter save so a
-  // quick navigation away doesn't drop the last keystrokes.
   useEffect(() => {
     return () => {
       if (codeTimeoutRef.current) {
@@ -677,7 +591,6 @@ export function FrontmatterEditor({
 
   return (
     <div className="border-b border-border/40">
-      {/* Toggle bar with AI button */}
       <div className="flex items-center">
         <button
           type="button"
@@ -713,7 +626,6 @@ export function FrontmatterEditor({
         )}
       </div>
 
-      {/* Fields panel with animated height */}
       <AnimatePresence initial={false}>
         {isOpen && (
           <motion.div
@@ -724,13 +636,9 @@ export function FrontmatterEditor({
             className="overflow-hidden"
           >
             <div className="border-t border-border/30 bg-muted/10">
-              {/* Pre-publish validation issues — surfaced before publish */}
               <FrontmatterValidationIssues issues={validationIssues} />
-              {/* Mode toggle bar — stays pinned above the scroll area */}
               <div className="flex items-center justify-between border-b border-border/20 px-4 py-1.5">
                 <div className="relative flex items-center gap-1 rounded-md bg-muted/50 p-0.5">
-                  {/* Sliding active-tab indicator. Four equally sized tabs;
-                      compute the indicator's left edge from the active index. */}
                   <motion.div
                     className="absolute inset-y-0.5 rounded bg-background shadow-sm"
                     initial={false}
@@ -783,8 +691,6 @@ export function FrontmatterEditor({
                 </AnimatePresence>
               </div>
 
-              {/* Animated content switcher — capped so a long schema doesn't
-                  push the markdown body off-screen; the panel scrolls instead. */}
               <div className="max-h-[55vh] overflow-y-auto slim-scrollbar">
                 <AnimatePresence mode="wait" initial={false}>
                   {editorMode === "visual" ? (
@@ -795,7 +701,6 @@ export function FrontmatterEditor({
                       exit={{ opacity: 0, y: -8 }}
                       transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
                     >
-                      {/* Visual mode — form fields */}
                       <div className="px-5 py-4">
                         {hasGroups ? (
                           <div className="space-y-6">
@@ -840,11 +745,6 @@ export function FrontmatterEditor({
                           </div>
                         )}
 
-                        {/* Auto-injected fallbacks for fields a project's
-                          schema didn't declare but every post needs:
-                          slug (when title exists), pubDate, and draft.
-                          Rendered below the schema-defined fields so they
-                          don't fight for the top slot. */}
                         {(() => {
                           const hasTitle = fields.some(
                             (f) => f.name === "title",
@@ -949,7 +849,6 @@ export function FrontmatterEditor({
                       exit={{ opacity: 0, y: -8 }}
                       transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
                     >
-                      {/* Text editor — YAML, MD, or MDX */}
                       <div className="px-5 py-4">
                         <div className="relative">
                           <textarea
@@ -980,8 +879,6 @@ export function FrontmatterEditor({
                 </AnimatePresence>
               </div>
 
-              {/* Live Google/social preview from the values above — pure
-                  client-side, no queries. */}
               <FrontmatterSearchPreview
                 values={values}
                 fallbackTitle={document.title}
@@ -1019,12 +916,6 @@ type FrontmatterFieldControlProps = {
   projectId: string;
 };
 
-/**
- * Field names that mean "this is an image" even when the schema records the
- * type as `url` or `string`. Lets us surface the media picker on legacy
- * projects whose schema was auto-detected before the URL/image heuristic
- * was tightened.
- */
 const IMAGE_NAME_HINTS = [
   "image",
   "avatar",
@@ -1050,10 +941,6 @@ function FrontmatterFieldControl({
   const icon = fieldIcon(field.type);
   const placeholder = field.placeholder ?? label;
 
-  // Image-name field that the schema mis-types as url/string still gets the
-  // media picker — schemas auto-detected before the URL/image fix may have
-  // heroImage stored as `url`, and forcing the author to retype it in the
-  // schema editor would be obnoxious.
   if (
     field.type !== "image" &&
     (field.type === "url" || field.type === "string") &&
@@ -1438,7 +1325,6 @@ function FrontmatterFieldControl({
   }
 }
 
-/** Wrapper for consistent field layout with label, icon, and optional description. */
 export function FieldWrapper({
   id,
   label,

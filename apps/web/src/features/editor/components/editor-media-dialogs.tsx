@@ -7,12 +7,6 @@ import { EmbedInsertDialog } from "./embed-insert-dialog";
 import { ImageInsertDialog } from "./image-insert-dialog";
 import { VideoInsertDialog } from "./video-insert-dialog";
 
-/**
- * Single mount point for the image/video/embed insert dialogs, driven by the
- * editor store so any surface (toolbar Insert menu, slash commands) can
- * open them. Lives at the layout level — unlike the toolbar, it stays
- * mounted in focus mode.
- */
 export function EditorMediaDialogs({
   documentId,
   projectId,

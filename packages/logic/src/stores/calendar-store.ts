@@ -1,17 +1,6 @@
-/**
- * Zustand store for content calendar ephemeral UI state.
- *
- * Manages month navigation, drag-and-drop pending state,
- * and the unscheduled documents panel. NOT persisted —
- * resets on navigation away from the calendar page.
- */
-
 import type { Id } from "@wryte/backend/_generated/dataModel";
 import { create } from "zustand";
 
-/** Lightweight document shape used by the calendar view. Mirrors what
- *  `api.cms.documents.listForCalendar` returns so the query result is
- *  assignable without manual casts. */
 export type CalendarDoc = {
   _id: Id<"documents">;
   title: string;
@@ -25,26 +14,22 @@ export type CalendarDoc = {
 
 type PendingDrop = {
   documentId: string;
-  targetDate: string; // "YYYY-MM-DD"
+  targetDate: string;
   existingHour?: number;
   existingMinute?: number;
 };
 
 type CalendarState = {
-  // --- Month navigation ---
   viewYear: number;
-  viewMonth: number; // 0-indexed
+  viewMonth: number;
 
-  // --- DnD ---
   activeDocument: CalendarDoc | null;
   pendingDrop: PendingDrop | null;
 
-  // --- Unscheduled panel ---
   unscheduledPanelOpen: boolean;
   unscheduledSearch: string;
   unscheduledStatusFilter: Set<string>;
 
-  // --- Actions ---
   goNextMonth: () => void;
   goPrevMonth: () => void;
   goToToday: () => void;
@@ -114,8 +99,6 @@ export const useCalendarStore = create<CalendarState>()((set) => ({
       return { unscheduledStatusFilter: next };
     }),
 
-  // Month comes from "today", not module load, so a long-lived tab resets
-  // to the current month. initialState's Set is safe to share: toggles copy.
   reset: () => {
     const today = new Date();
     set({

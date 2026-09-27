@@ -1,21 +1,12 @@
 "use client";
 
+import { formatClock } from "@wryte/logic/lib/editor/sprint";
 import { cn } from "@wryte/logic/lib/utils";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
 import { Check, Pause, Play, Square, X } from "lucide-react";
 import type { ReactNode } from "react";
 import { useSprint } from "../hooks/use-sprint";
-import { formatClock } from "../lib/sprint";
 
-/**
- * Compact floating pill shown while a sprint is running/paused/just
- * completed. Flat, single-surface design: one rounded pill, dividers instead
- * of nested containers. Owns the sprint clock via `useSprint` (the only
- * mount of that hook), so completion detection lives here.
- *
- * Visible in focus mode too — the pill floats above the paragraph-dim
- * overlay so a sprint can run through a distraction-free session.
- */
 export function SprintHud() {
   const sprint = useSprint();
   const pauseSprint = useEditorStore((s) => s.pauseSprint);

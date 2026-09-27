@@ -7,11 +7,10 @@
     "./*": "./src/*.ts"
   },
   "scripts": {
-    "type": "tsc --noEmit",
+    "type": "tsc --noEmit && tsc --noEmit -p tests/tsconfig.json",
     "test": "bun test tests"
   },
   "dependencies": {
-    "@clerk/nextjs": "^7.9.1",
     "@pilio/gemini-watermark-remover": "^1.0.41",
     "@tanstack/react-query": "^5.102.8",
     "@wryte/backend": "workspace:*",
@@ -22,10 +21,12 @@
     "react": "19.2.8",
     "smol-toml": "^1.8.0",
     "sonner": "^2.0.8",
+    "sucrase": "^3.35.1",
     "tailwind-merge": "^3.6.0",
     "zustand": "^5.0.15"
   },
   "devDependencies": {
+    "@types/bun": "^1.4.2",
     "@types/js-yaml": "^4.0.9",
     "@types/react": "19.2.18",
     "typescript": "^7.0.2"

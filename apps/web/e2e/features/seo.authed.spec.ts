@@ -1,28 +1,15 @@
 import { expect, test } from "@playwright/test";
 import { openSeededArticle, SEED_PROJECT_NAME } from "../support/editor";
 
-/**
- * SEO & link intelligence — read-only against seeded data (re-runnable):
- *   1. Search preview: open a seeded article → expand Frontmatter →
- *      expand "Search preview" → Google + social card render.
- *   2. Link suggestions: open the research panel → the "Link suggestions"
- *      section renders (items depend on seeded cross-mentions, so only the
- *      section itself is asserted).
- *   3. Stale-content radar: the project overview shows the section with
- *      either stale rows or the all-fresh empty state.
- */
 test.describe("authenticated SEO & link intelligence", () => {
   test("search preview renders from frontmatter", async ({ page }) => {
     await openSeededArticle(page);
 
-    // Expand the frontmatter panel, then the preview section inside it.
     await page.getByRole("button", { name: /Frontmatter/ }).click();
 
     const preview = page.getByTestId("search-preview");
     const toggle = page.getByRole("button", { name: /Search preview/ });
 
-    // Preview auto-expands when the frontmatter has SEO warnings (e.g. no
-    // description); only click the toggle when it starts collapsed.
     if (!(await preview.isVisible())) {
       await toggle.click();
     }
@@ -57,7 +44,6 @@ test.describe("authenticated SEO & link intelligence", () => {
 
     const section = page.getByTestId("stale-content-section");
     await expect(section).toBeVisible({ timeout: 30_000 });
-    // Either stale rows or the healthy empty state — both are valid.
     await expect(
       section.getByText(/updated \d+ months? ago|Nothing stale/).first(),
     ).toBeVisible({ timeout: 15_000 });

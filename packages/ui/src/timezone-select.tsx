@@ -16,9 +16,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 type TimezoneSelectProps = {
   value: string | null | undefined;
   onChange: (value: string) => void;
-  /** Placeholder shown when no value is set. Defaults to browser TZ hint. */
   placeholder?: string;
-  /** Disable the picker (e.g. while saving). */
   disabled?: boolean;
   id?: string;
 };
@@ -27,15 +25,9 @@ type TimezoneOption = {
   id: string;
   city: string;
   offset: string;
-  /** Pre-lowercased searchable haystack to keep filtering cheap. */
   searchHaystack: string;
 };
 
-/**
- * Searchable timezone picker. Lists all IANA zones reported by the runtime
- * (`Intl.supportedValuesOf("timeZone")` — typically ~400 entries) so the
- * user can find their zone by city name or UTC offset.
- */
 export function TimezoneSelect({
   value,
   onChange,
@@ -44,8 +36,6 @@ export function TimezoneSelect({
   id,
 }: TimezoneSelectProps) {
   const [open, setOpen] = useState(false);
-  // The option list (~400 offset lookups) is only built once the picker has
-  // been opened, then kept so close animations never see an empty list.
   const [hasOpened, setHasOpened] = useState(false);
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -73,7 +63,6 @@ export function TimezoneSelect({
     return options.filter((o) => o.searchHaystack.includes(q));
   }, [options, query]);
 
-  // Reset and focus the search when the popover opens.
   useEffect(() => {
     if (open) {
       setQuery("");

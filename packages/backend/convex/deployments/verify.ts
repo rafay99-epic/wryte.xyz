@@ -1,21 +1,3 @@
-/**
- * Deployment verification — after a publish commit lands on GitHub, confirm
- * the connected host actually built and deployed it, and email the user when
- * it didn't ("committed but not deployed").
- *
- * Two tiers:
- *   - vercel: authenticated API check per configured `deployment_targets`
- *     row — exact build state (READY/ERROR) matched by commit SHA, with a
- *     link to the failing build's logs.
- *   - url_poll: zero-config fallback for NEW posts when no integration is
- *     connected — poll the published URL until it returns 200. Provider
- *     agnostic (Netlify/Cloudflare/anything). Updates are skipped: their
- *     URL already resolves, so a 200 proves nothing.
- *
- * Cost model: no crons, no standing polling. Checks are scheduled only when
- * a publish happens (≤ ~14 function calls per post worst case), so Convex
- * free-tier usage stays flat.
- */
 import { Resend } from "@convex-dev/resend";
 import { v } from "convex/values";
 import { components, internal } from "../_generated/api";
@@ -31,10 +13,6 @@ export const resend: Resend = new Resend(components.resend, {
   testMode: false,
 });
 
-/**
- * Minutes to wait before each check attempt (index = attempts so far).
- * Sums to ~32 minutes after the commit — generous for any static-site build.
- */
 const CHECK_DELAYS_MINUTES = [2, 3, 5, 10, 12];
 
 type CheckOutcome = {
@@ -43,10 +21,6 @@ type CheckOutcome = {
   deploymentUrl?: string;
 };
 
-/**
- * Kick off verification for a fresh publish commit. Called via
- * `ctx.scheduler.runAfter(0, ...)` from `publishToGithub`.
- */
 export const start = internalMutation({
   args: {
     projectId: v.id("projects"),
@@ -76,7 +50,6 @@ export const start = internalMutation({
     } else if (args.publishedUrl && !args.isUpdate) {
       rows.push({ method: "url_poll" });
     }
-    // No targets, no usable URL (or an update) — nothing we can verify.
 
     for (const row of rows) {
       const verificationId = await ctx.db.insert("deploy_verifications", {
@@ -100,10 +73,6 @@ export const start = internalMutation({
       );
     }
 
-    // Retention cap — newest 20 verifications per document, mirroring the
-    // publish_history pattern. Without this the table grows one row per
-    // publish per target forever (it was the only per-publish table with
-    // no cap and no purge coverage).
     const DEPLOY_VERIFICATION_CAP = 20;
     const overflow = await ctx.db
       .query("deploy_verifications")
@@ -129,7 +98,6 @@ export const getForCheck = internalQuery({
   },
 });
 
-/** One check attempt. Reschedules itself (via recordResult) while pending. */
 export const check = internalAction({
   args: { verificationId: v.id("deploy_verifications") },
   returns: v.null(),
@@ -150,9 +118,7 @@ export const check = internalAction({
         token = await ctx.runAction(internal.integrations.secretStore._read, {
           id: target.vaultSecretId,
         });
-      } catch {
-        // Transient vault outage — leave pending, the next attempt retries.
-      }
+      } catch {}
       outcome = token
         ? await checkVercel(token, target, verification)
         : { state: "pending" };
@@ -216,7 +182,6 @@ export const recordResult = internalMutation({
         );
         return null;
       }
-      // Out of attempts — committed, but never confirmed deployed.
       await ctx.db.patch(args.verificationId, {
         status: "timeout",
         attempts,
@@ -245,10 +210,6 @@ export const recordResult = internalMutation({
   },
 });
 
-/* ------------------------------------------------------------------ */
-/*  Provider checks                                                    */
-/* ------------------------------------------------------------------ */
-
 interface VercelDeployment {
   state?: string;
   createdAt?: number;
@@ -274,7 +235,7 @@ async function checkVercel(
       headers: { Authorization: `Bearer ${token}` },
     });
   } catch {
-    return { state: "pending" }; // network blip — retry next attempt
+    return { state: "pending" };
   }
   if (res.status === 401 || res.status === 403) {
     return {
@@ -303,12 +264,9 @@ async function checkVercel(
         reason: "The Vercel deployment was canceled.",
         ...link,
       };
-    return { state: "pending" }; // QUEUED | INITIALIZING | BUILDING
+    return { state: "pending" };
   }
 
-  // Vercel skips intermediate builds when commits land back-to-back: our SHA
-  // may never get its own deployment, but a newer successful production
-  // deploy started after our commit necessarily includes it.
   const superseded = deployments.some(
     (d) => d.state === "READY" && (d.createdAt ?? 0) > verification.createdAt,
   );
@@ -318,7 +276,6 @@ async function checkVercel(
 
 async function checkUrl(url: string, attempt: number): Promise<CheckOutcome> {
   try {
-    // Cache-buster so a CDN-cached 404 can't mask a successful deploy.
     const sep = url.includes("?") ? "&" : "?";
     const res = await fetch(`${url}${sep}wryteVerify=${attempt}`, {
       redirect: "follow",
@@ -328,10 +285,6 @@ async function checkUrl(url: string, attempt: number): Promise<CheckOutcome> {
     return { state: "pending" };
   }
 }
-
-/* ------------------------------------------------------------------ */
-/*  Notification email                                                 */
-/* ------------------------------------------------------------------ */
 
 function escapeHtml(s: string): string {
   return s
@@ -349,7 +302,6 @@ async function sendNotDeployedEmail(
   if (verification.emailSentAt) return;
   const user = await ctx.db.get(verification.userId);
   if (!user?.email) return;
-  // Document deleted while we were checking — nothing to notify about.
   const doc = await ctx.db.get(verification.documentId);
   if (!doc) return;
 

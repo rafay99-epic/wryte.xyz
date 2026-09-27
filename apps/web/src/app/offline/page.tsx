@@ -5,13 +5,6 @@ export const metadata = {
   title: "Offline",
 };
 
-/**
- * Offline fallback served by the service worker when a page navigation
- * fails. The page body needs no JavaScript: it renders fully from the
- * precached HTML, and the retry link is a plain anchor — if the network is
- * back the navigation succeeds, otherwise the worker serves this page
- * again. Mirrors the desktop app's offline UX.
- */
 export default function OfflinePage() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-background px-6 text-center">

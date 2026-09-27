@@ -11,9 +11,7 @@ type CalendarDocCardProps = {
   document: CalendarDoc;
   columns: BoardColumnDef[];
   projectId: string;
-  /** Date key this card lives on, or null if in the unscheduled panel. */
   sourceDate: string | null;
-  /** Render as a static overlay clone (no drag hooks). */
   isOverlay?: boolean;
 };
 
@@ -44,7 +42,6 @@ export function CalendarDocCard({
       type="button"
       {...(isOverlay ? {} : { ...attributes, ...listeners })}
       onClick={(e) => {
-        // Only navigate if not dragging
         if (!isDragging) {
           e.stopPropagation();
           router.push(`/editor/${document._id}`);

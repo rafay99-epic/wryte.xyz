@@ -1,9 +1,3 @@
-/**
- * Idea inbox — per-project quick captures for future posts. Deliberately
- * minimal: list / create / remove. "Convert to draft" is client-side
- * orchestration (the existing `documents.create` mutation, then `remove`
- * here) so document-creation side effects stay in one place.
- */
 import { v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
@@ -24,8 +18,6 @@ export const list = query({
   },
 });
 
-/** `list`'s body with the actor passed in explicitly. Shared with the MCP
- *  handler, which has no `ctx.auth` — see `_lib/auth.ts → requireCaller`. */
 async function ideasForUser(
   ctx: QueryCtx,
   userId: Id<"users">,
@@ -51,7 +43,6 @@ export const create = mutation({
     await createIdeaForUser(ctx, await getCurrentUser(ctx), args),
 });
 
-/** `create`'s body with the actor passed in explicitly. */
 async function createIdeaForUser(
   ctx: MutationCtx,
   user: Doc<"users">,

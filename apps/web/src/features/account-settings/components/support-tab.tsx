@@ -13,8 +13,8 @@ import { Skeleton } from "@wryte/ui/skeleton";
 import { Textarea } from "@wryte/ui/textarea";
 import { motion } from "framer-motion";
 import { HelpCircle, Loader2, MessageSquare, Send } from "lucide-react";
+import { STATUS_STYLES } from "../constants";
 import { useSupportTab } from "../hooks/use-support-tab";
-import { STATUS_STYLES } from "../types";
 import { Divider, SectionHeader } from "./shared";
 
 export function SupportTab() {
@@ -37,7 +37,6 @@ export function SupportTab() {
         description="Submit a ticket or check on previous requests"
       />
 
-      {/* Submit form — flat layout, no card wrapper */}
       <motion.div
         variants={staggerItem}
         transition={smoothTransition}
@@ -94,7 +93,6 @@ export function SupportTab() {
 
       <Divider />
 
-      {/* Past tickets — flat list */}
       <motion.div variants={staggerItem} transition={smoothTransition}>
         <p className="mb-3 text-xs font-medium text-muted-foreground/60">
           Your tickets

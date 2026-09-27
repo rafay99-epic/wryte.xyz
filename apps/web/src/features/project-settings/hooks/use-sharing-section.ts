@@ -4,14 +4,8 @@ import { useMutation, useQuery } from "convex/react";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
 
-/** The link whose row action is in flight, so only that row shows a spinner. */
 type Busy = { id: Id<"share_links">; action: "revoke" | "delete" } | null;
 
-/**
- * State + actions for the Share section: list every share link in the
- * project and revoke or permanently delete them from one place, instead of
- * opening each post to check what's live.
- */
 export function useSharingSection({
   projectId,
 }: {
@@ -55,7 +49,6 @@ export function useSharingSection({
   );
 
   return {
-    /** `undefined` while loading, then newest-first rows. */
     links,
     busy,
     handleRevoke,

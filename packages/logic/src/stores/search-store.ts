@@ -1,10 +1,3 @@
-/**
- * Zustand store for project content search & filter state.
- *
- * Persists per-project search preferences (sort order, active tag filters,
- * kind filter) to localStorage so the user's view is restored on revisit.
- * The search query itself is NOT persisted (always starts fresh).
- */
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
@@ -19,13 +12,10 @@ type SearchPerProject = {
 };
 
 type SearchState = {
-  /** Current search query (transient — never persisted). */
   query: string;
 
-  /** Per-project persisted preferences. Keyed by projectId. */
   projects: Record<string, SearchPerProject>;
 
-  // --- Actions ---
   setQuery: (q: string) => void;
 
   getSortOrder: (projectId: string) => SortOrder;
@@ -96,7 +86,6 @@ export const useSearchStore = create<SearchState>()(
     {
       name: "wryte:search",
       partialize: (state) => ({
-        // Only persist per-project prefs, not the transient query
         projects: state.projects,
       }),
     },

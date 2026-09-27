@@ -17,7 +17,7 @@ describe("batch image selection", () => {
       image(`image-${index + 1}.png`),
     );
     files.splice(2, 0, image("notes.txt", "text/plain"));
-    files.splice(4, 0, files[0]);
+    files.splice(4, 0, ...files.slice(0, 1));
 
     const result = addBatchImages([], files);
 

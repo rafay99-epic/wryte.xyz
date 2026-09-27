@@ -11,21 +11,16 @@ import {
 import { useAction, useQuery } from "convex/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-/** Provider-agnostic media item for library grids and pickers. */
 export type MediaLibraryItem = {
   externalId: string;
   name: string;
   url: string;
   size: number;
-  /** Which bucket this came from — listings are merged, so rows carry it. */
   provider: MediaProvider;
-  /** GitHub blob SHA — required for deletion. */
   sha?: string;
-  /** GitHub repo-relative path (no leading slash) for frontmatter selection. */
   path?: string;
 };
 
-/** The provider tabs double as filters, plus a merged "everything" view. */
 export type MediaFilter = MediaProvider | "all";
 
 export type ProjectMediaContext = {
@@ -35,7 +30,6 @@ export type ProjectMediaContext = {
   mediaPath?: string;
 } | null;
 
-/** A connected provider, as returned by `media.credentialsDb.listEnabledProviders`. */
 export type MediaProviderOption = {
   provider: MediaProvider;
   isDefault: boolean;
@@ -43,7 +37,6 @@ export type MediaProviderOption = {
   status?: "active" | "verifying" | "invalid" | "rotating";
 };
 
-/** One provider that couldn't be listed. The rest of the page carries on. */
 export type MediaProviderError = {
   provider: MediaProvider;
   label: string;
@@ -67,7 +60,6 @@ const EMPTY_STATE: ProviderState = {
 type UseProjectMediaLibraryArgs = {
   projectId: Id<"projects">;
   project: ProjectMediaContext | undefined;
-  /** When false, no provider is contacted at all. */
   enabled?: boolean;
 };
 
@@ -85,31 +77,10 @@ function githubPublicPath(repoPath: string, mediaPath?: string): string {
   return `/${publicRoot ? `${publicRoot}/` : ""}${relativePath}`;
 }
 
-/** Stable fallback while the provider query loads, so memos don't churn. */
 const NO_PROVIDERS: MediaProviderOption[] = [];
 
-/** How many rows one page asks a provider for. */
 const PAGE_SIZE = 40;
 
-/**
- * The media library's data layer, shared by the library page and the three
- * editor pickers.
- *
- * Every provider is listed through the same Convex action — including GitHub,
- * which used to take a separate client-side path and forced an `isGithub`
- * branch through most of this file.
- *
- * Three properties the UI depends on:
- *
- *  - **One fetch per provider.** Results are held per provider for the life of
- *    the hook, so switching tabs filters what's already in memory rather than
- *    re-listing a bucket. Provider APIs bill per call.
- *  - **Loaded in sequence.** Connected providers are listed one after another,
- *    a page at a time, so opening the library never fans out N concurrent
- *    actions.
- *  - **Failures stay local.** A provider that errors records its own message
- *    and the others still render — one expired key can't blank the page.
- */
 export function useProjectMediaLibrary({
   projectId,
   project,
@@ -126,17 +97,11 @@ export function useProjectMediaLibrary({
       enabled ? { projectId } : "skip",
     ) ?? NO_PROVIDERS;
 
-  /** Connected providers only — what a picker should ever offer. */
   const configuredTabs = useMemo(
     () => providerTabs.filter((tab) => tab.configured),
     [providerTabs],
   );
 
-  /**
-   * Where an upload goes. A filtered view uploads to what you're looking at;
-   * the merged view falls back to the project default, or to any connected
-   * provider when that default was never set up.
-   */
   const uploadProvider = useMemo<MediaProvider>(() => {
     if (filter !== "all") return filter;
     const projectDefault = resolveDefaultProvider(project?.mediaStorageMode);
@@ -150,16 +115,11 @@ export function useProjectMediaLibrary({
 
   const mediaPath = project?.mediaPath;
 
-  // Providers already asked for, so a re-render can't re-queue them.
   const requestedRef = useRef<Set<MediaProvider>>(new Set());
   const queueRef = useRef<MediaProvider[]>([]);
   const pumpingRef = useRef(false);
-  // Bumped whenever the whole view resets; in-flight pages from before the
-  // reset drop their results instead of repopulating stale state.
   const generationRef = useRef(0);
 
-  // `loadPage` reads the current cursor without taking `byProvider` as a
-  // dependency, which would rebuild it on every page and restart the queue.
   const byProviderRef = useRef(byProvider);
   useEffect(() => {
     byProviderRef.current = byProvider;
@@ -197,8 +157,6 @@ export function useProjectMediaLibrary({
           size: it.size,
           provider,
           ...(it.sha !== undefined ? { sha: it.sha } : {}),
-          // GitHub's externalId *is* the repo path, which frontmatter needs to
-          // turn into a site-relative URL.
           ...(provider === "github" ? { path: it.externalId } : {}),
         }));
 
@@ -230,7 +188,6 @@ export function useProjectMediaLibrary({
     [listMedia, projectId],
   );
 
-  /** Drains the queue one provider at a time — never a concurrent fan-out. */
   const pump = useCallback(async () => {
     if (pumpingRef.current) return;
     pumpingRef.current = true;
@@ -245,7 +202,6 @@ export function useProjectMediaLibrary({
     }
   }, [loadPage]);
 
-  /** Queue every configured provider that hasn't been listed yet. */
   const queueUnrequested = useCallback(
     (tabs: MediaProviderOption[]) => {
       let queued = false;
@@ -260,7 +216,6 @@ export function useProjectMediaLibrary({
     [pump],
   );
 
-  // Queue any newly-connected provider that hasn't been listed yet.
   useEffect(() => {
     if (!enabled) return;
     queueUnrequested(configuredTabs);
@@ -273,13 +228,10 @@ export function useProjectMediaLibrary({
     setByProvider({});
   }, []);
 
-  // A different project shares nothing with this one.
   // biome-ignore lint/correctness/useExhaustiveDependencies: reset when the project changes.
   useEffect(() => {
     resetAll();
   }, [projectId, resetAll]);
-
-  /* ---------- Derived view ---------- */
 
   const visibleProviders = useMemo<MediaProvider[]>(
     () =>
@@ -316,7 +268,6 @@ export function useProjectMediaLibrary({
     (provider) => (byProvider[provider]?.cursor ?? null) !== null,
   );
 
-  /** Pulls one more page, from one provider, so "load more" is never a fan-out. */
   const loadMore = useCallback(() => {
     const next = visibleProviders.find(
       (provider) =>
@@ -326,13 +277,11 @@ export function useProjectMediaLibrary({
     if (next) void loadPage(next, true);
   }, [visibleProviders, loadPage]);
 
-  /** Drop every listing and re-list the connected providers from page one. */
   const refresh = useCallback(async () => {
     resetAll();
     if (enabled) queueUnrequested(configuredTabs);
   }, [resetAll, enabled, queueUnrequested, configuredTabs]);
 
-  /** Value to store in frontmatter/settings when an item is selected. */
   const getSelectionValue = useCallback(
     (item: MediaLibraryItem): string => {
       if (item.provider === "github" && item.path) {
@@ -344,17 +293,12 @@ export function useProjectMediaLibrary({
   );
 
   return {
-    /** Active tab: a provider, or "all" for the merged view. */
     filter,
     setFilter,
-    /** Destination for uploads made from the current view. */
     uploadProvider,
-    /** Every provider the project knows about, including an unconnected default. */
     providerTabs,
-    /** Only providers that can actually be used — what pickers should offer. */
     configuredTabs,
     items,
-    /** Per-provider listing failures in the current view. Never throws. */
     errors,
     isLoading,
     isLoadingMore,

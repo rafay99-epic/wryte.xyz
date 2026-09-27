@@ -1,9 +1,3 @@
-/**
- * Non-Node helpers for media records and usage counters.
- *
- * The public `media` actions in `convex/media/uploads.ts` (Node-only) call
- * into these helpers via `ctx.runQuery` / `ctx.runMutation`.
- */
 import { v } from "convex/values";
 import type { Id } from "../_generated/dataModel";
 import { internalMutation, internalQuery, query } from "../_generated/server";
@@ -16,14 +10,6 @@ import {
 
 const PROVIDER_VALIDATOR = mediaProviderValidator;
 
-/* ------------------------------------------------------------------ */
-/*  Public queries                                                      */
-/* ------------------------------------------------------------------ */
-
-/**
- * Paginated media list for the project's media library. Caller passes a
- * cursor (the previous page's last row's `createdAt`) and a page size.
- */
 export const listForProject = query({
   args: {
     projectId: v.id("projects"),
@@ -57,10 +43,6 @@ export const listForProject = query({
   },
 });
 
-/* ------------------------------------------------------------------ */
-/*  Internal queries                                                    */
-/* ------------------------------------------------------------------ */
-
 export const _findOwnedProject = internalQuery({
   args: {
     tokenIdentifier: v.string(),
@@ -87,10 +69,6 @@ export const _findByProviderAndExternalId = internalQuery({
     externalId: v.string(),
   },
   handler: async (ctx, args) => {
-    // externalIds can collide across projects (e.g. two Cloudinary accounts
-    // with the same public_id), so scope by projectId before returning the
-    // row. Without this filter `deleteByRef` could nuke a different
-    // project's media entry.
     const matches = await ctx.db
       .query("media")
       .withIndex("by_provider_and_externalId", (q) =>
@@ -116,14 +94,6 @@ export const _getCredential = internalQuery({
   },
 });
 
-/* ------------------------------------------------------------------ */
-/*  Internal mutations                                                  */
-/* ------------------------------------------------------------------ */
-
-/**
- * Records a successful upload: inserts the media row, bumps `mediaUsage`,
- * all in one mutation so counts and rows stay consistent.
- */
 export const _recordUpload = internalMutation({
   args: {
     projectId: v.id("projects"),
@@ -159,7 +129,6 @@ export const _recordUpload = internalMutation({
       insert as never,
     )) as Id<"media">;
 
-    // Increment usage counter.
     const month = currentMonthBucket(now);
     const existing = await ctx.db
       .query("mediaUsage")
@@ -190,10 +159,6 @@ export const _recordUpload = internalMutation({
   },
 });
 
-/**
- * Removes a media row and decrements `mediaUsage`. The provider-side delete
- * has already happened in the calling action.
- */
 export const _deleteRow = internalMutation({
   args: { mediaId: v.id("media") },
   handler: async (ctx, args) => {
@@ -216,10 +181,6 @@ export const _deleteRow = internalMutation({
   },
 });
 
-/**
- * Logs a normalized media error. Best-effort — never throws so the caller's
- * own error path is preserved.
- */
 export const _logError = internalMutation({
   args: {
     projectId: v.id("projects"),
@@ -247,9 +208,6 @@ export const _logError = internalMutation({
   },
 });
 
-/**
- * Quota check helper for actions. Read-only; returns a typed verdict.
- */
 export const _quotaCheck = internalQuery({
   args: {
     projectId: v.id("projects"),
@@ -280,9 +238,6 @@ export const _quotaCheck = internalQuery({
   },
 });
 
-/**
- * Cron helper: prune `mediaErrorLog` rows older than `cutoffMs`.
- */
 export const _pruneErrorLog = internalMutation({
   args: { cutoffMs: v.number(), batchSize: v.optional(v.number()) },
   handler: async (ctx, args) => {

@@ -15,9 +15,7 @@ import { useCallback, useState } from "react";
 type InlineCalendarProps = {
   selected: Date | null;
   onSelect: (date: Date) => void;
-  /** Earliest selectable date. Defaults to today. */
   minDate?: Date;
-  /** Optional array of dates to highlight as selected (e.g. for range display). */
   selectedDates?: Date[];
 };
 
@@ -57,7 +55,6 @@ export function InlineCalendar({
     }
   }, [viewMonth]);
 
-  // Can't go to previous month if it's before the minimum month
   const canGoPrev =
     viewYear > effectiveMin.getFullYear() ||
     (viewYear === effectiveMin.getFullYear() &&
@@ -69,7 +66,6 @@ export function InlineCalendar({
 
   return (
     <div>
-      {/* Month/year header */}
       <div className="mb-3 flex items-center justify-between">
         <button
           type="button"
@@ -91,7 +87,6 @@ export function InlineCalendar({
         </button>
       </div>
 
-      {/* Day labels */}
       <div className="mb-1 grid grid-cols-7 gap-0.5">
         {DAYS.map((d) => (
           <div
@@ -103,7 +98,6 @@ export function InlineCalendar({
         ))}
       </div>
 
-      {/* Day grid */}
       <div className="grid grid-cols-7 gap-0.5">
         {cells.map((cell, i) => {
           if (cell === null) {

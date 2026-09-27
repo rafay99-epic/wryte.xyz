@@ -36,9 +36,7 @@ export function ConnectedFlow() {
           className="mb-16"
         />
 
-        {/* Pipeline */}
         <div className="relative">
-          {/* Connecting gradient line (desktop) */}
           <div className="absolute left-0 right-0 top-7 hidden h-px bg-gradient-to-r from-amber-400/40 via-blue-400/40 to-emerald-400/50 lg:block" />
 
           <div className="grid gap-8 lg:grid-cols-4 lg:gap-5">
@@ -61,7 +59,6 @@ export function ConnectedFlow() {
                     </div>
                   </div>
 
-                  {/* Inline arrow between nodes on desktop */}
                   {i < flowNodes.length - 1 ? (
                     <ArrowRight className="absolute -right-3 top-4 hidden size-4 text-foreground/20 lg:block" />
                   ) : null}
@@ -83,7 +80,6 @@ export function ConnectedFlow() {
           </div>
         </div>
 
-        {/* Source-of-truth callout */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -101,7 +97,6 @@ export function ConnectedFlow() {
           </p>
         </motion.div>
 
-        {/* Guarantees */}
         <div className="mt-12 grid gap-4 sm:grid-cols-3">
           {guarantees.map((g, i) => {
             const Icon = g.icon;

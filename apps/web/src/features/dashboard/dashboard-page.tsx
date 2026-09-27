@@ -2,6 +2,7 @@
 
 import { useUser } from "@clerk/nextjs";
 import { fadeSlideUp, smoothTransition } from "@wryte/logic/lib/motion";
+import { wordsThisWeek } from "@wryte/logic/lib/weekly-progress";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
 import { Skeleton } from "@wryte/ui/skeleton";
 import { motion } from "framer-motion";
@@ -28,7 +29,6 @@ import { TodaysProgress } from "./components/todays-progress";
 import { UpcomingSchedule } from "./components/upcoming-schedule";
 import { WritingStreak } from "./components/writing-streak";
 import { useDashboardStats } from "./hooks/use-dashboard-stats";
-import { wordsThisWeek } from "./lib/weekly-progress";
 
 function getGreeting(): string {
   const hour = new Date().getHours();
@@ -61,7 +61,6 @@ export function DashboardPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-8 lg:px-8">
-      {/* ── Header row ──────────────────────────────────────────── */}
       <motion.div
         variants={fadeSlideUp}
         initial="initial"
@@ -101,7 +100,6 @@ export function DashboardPage() {
         </div>
       </motion.div>
 
-      {/* ── Inline stats ────────────────────────────────────────── */}
       <motion.div
         variants={fadeSlideUp}
         initial="initial"
@@ -158,7 +156,6 @@ export function DashboardPage() {
         </div>
       </motion.div>
 
-      {/* ── Writing motivation row ──────────────────────────────── */}
       <motion.div
         variants={fadeSlideUp}
         initial="initial"
@@ -205,9 +202,7 @@ export function DashboardPage() {
         </div>
       </motion.div>
 
-      {/* ── Main content area ───────────────────────────────────── */}
       <div className="grid gap-8 lg:grid-cols-[1fr_260px]">
-        {/* Left column */}
         <div className="space-y-8">
           {dashStats && dashStats.recentActivity.length > 0 && (
             <motion.div
@@ -275,7 +270,6 @@ export function DashboardPage() {
           </motion.div>
         </div>
 
-        {/* Right: Sidebar */}
         <motion.div
           variants={fadeSlideUp}
           initial="initial"

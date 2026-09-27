@@ -17,14 +17,6 @@ type FrontmatterImageFieldProps = {
   projectId: string;
 };
 
-/**
- * Image field for the frontmatter editor.
- *
- * Text input (image path/URL) + Browse button that opens the
- * MediaPickerDrawer. No thumbnail preview — author avatars and hero images
- * are picked from a picker that already shows previews, and inline previews
- * just add visual noise on every render of the frontmatter panel.
- */
 export function FrontmatterImageField({
   id,
   label,

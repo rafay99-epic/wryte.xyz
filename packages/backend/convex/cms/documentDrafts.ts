@@ -38,11 +38,6 @@ async function verifyDocumentOwnership(
   return document;
 }
 
-/**
- * Hard cap on drafts per document. Enforced at creation so `list`'s
- * `.take(50)` is exact — without it, draft #51 would exist (and bill
- * storage + autosaves) while never appearing in the tab bar.
- */
 const MAX_DRAFTS_PER_DOCUMENT = 50;
 const MAX_LABEL_LENGTH = 200;
 const MAX_SUMMARY_LENGTH = 1000;
@@ -77,18 +72,6 @@ function assertContentSize(content: string): void {
   }
 }
 
-/**
- * `list`'s body with the actor passed in explicitly. Shared with the MCP
- * handler, which has no `ctx.auth` under component dispatch — see
- * `_lib/auth.ts → requireCaller`.
- *
- * Metadata-only draft list for the always-mounted tab bar. Bodies live in
- * `document_draft_content` and are fetched on demand (`getContent`) when a
- * draft is opened — so this hot subscription never reads (or re-bills)
- * every draft's body on each autosave tick. Explicit projection keeps the
- * metadata payload small and the client type clean (mirrors
- * `snapshots.list`).
- */
 export async function draftsListForUser(
   ctx: QueryCtx,
   userId: Id<"users">,
@@ -123,11 +106,6 @@ export const list = query({
   },
 });
 
-/**
- * Full draft (metadata joined with its title + body) for the MCP handler,
- * with the actor passed in explicitly — see `draftsListForUser`. Returns null
- * when the draft doesn't exist or the caller doesn't own it.
- */
 export async function draftGetForUser(
   ctx: QueryCtx,
   userId: Id<"users">,
@@ -139,16 +117,9 @@ export async function draftGetForUser(
   return { ...draft, title, content };
 }
 
-/**
- * On-demand title + body for a single draft. Read when the editor switches
- * to a draft tab (not a live subscription). Resolves from the content row.
- */
 export const getContent = query({
   args: { draftId: v.id("document_drafts") },
   handler: async (ctx, args) => {
-    // This runs on every cold draft-tab switch — resolve the independent
-    // auth and draft reads together to shave a serial roundtrip (ownership
-    // is still checked before anything is returned).
     const [user, draft] = await Promise.all([
       getAuthedUserOrNull(ctx),
       ctx.db.get(args.draftId),
@@ -158,12 +129,6 @@ export const getContent = query({
   },
 });
 
-/**
- * `create`'s body with the actor passed in explicitly. Shared with the MCP
- * handler — rate-limit key comes from `user.tokenIdentifier` rather than
- * `getRateLimitKey(ctx)`, which reads `ctx.auth` and returns the literal
- * `"anonymous"` under component dispatch (see `documents.createDocumentForUser`).
- */
 export async function createDraftForUser(
   ctx: MutationCtx,
   user: Doc<"users">,
@@ -186,8 +151,6 @@ export async function createDraftForUser(
   );
 
   const copyContent = args.copyFromMain ?? false;
-  // The existing-draft count (cap + auto-label) and the main body read
-  // are independent — resolve them together.
   const [existing, mainContent] = await Promise.all([
     ctx.db
       .query("document_drafts")
@@ -201,8 +164,6 @@ export async function createDraftForUser(
   const label = args.label?.trim() || `Draft ${String(existing.length + 1)}`;
   const title = copyContent ? document.title : "";
 
-  // Metadata row carries NO body — the title + content live in
-  // `document_draft_content`, keyed back by `contentId`.
   const draftId = await ctx.db.insert("document_drafts", {
     documentId: args.documentId,
     projectId: document.projectId,
@@ -238,12 +199,6 @@ export const create = mutation({
     await createDraftForUser(ctx, await getCurrentUser(ctx), args),
 });
 
-/**
- * `createSnapshot`'s body with the actor passed in explicitly (MCP twin —
- * see `createDraftForUser` for the rate-limit key rationale). This is the
- * tool an agent uses to write a full draft version: label + title + body +
- * optional frontmatter snapshot and summary.
- */
 export async function createDraftSnapshotForUser(
   ctx: MutationCtx,
   user: Doc<"users">,
@@ -261,9 +216,6 @@ export async function createDraftSnapshotForUser(
     throws: true,
   });
 
-  // Same bounds as the interactive draft paths — without these, an
-  // oversized body written here would later ride `promoteToMain` into
-  // `document_content`, bypassing the documents-side cap entirely.
   assertContentSize(args.content);
   assertMetaLengths(args.label, args.summary);
 
@@ -352,15 +304,6 @@ export const update = mutation({
   },
 });
 
-/**
- * Hot-path draft autosave (3s debounce). Writes ONLY the draft's content
- * side-table row — never the metadata row — so the tab-bar `list`
- * subscription isn't invalidated on every tick. `title` is required so the
- * write is a single `replace` with no read-before-write (the client always
- * holds the current title). Pre-migration drafts (no `contentId`) upsert by
- * the `by_draftId` index and deliberately leave the metadata row untouched
- * — the backfill sets `contentId` later.
- */
 export const autosaveContent = mutation({
   args: {
     draftId: v.id("document_drafts"),
@@ -393,10 +336,6 @@ export const autosaveContent = mutation({
   },
 });
 
-/**
- * `updateContent`'s body with the actor passed in explicitly (MCP twin —
- * see `createDraftForUser` for the rate-limit key rationale).
- */
 export async function updateDraftContentForUser(
   ctx: MutationCtx,
   user: Doc<"users">,
@@ -416,8 +355,6 @@ export async function updateDraftContentForUser(
     throw new Error("Draft not found");
   }
 
-  // Resolve the full row to write. The client always sends both fields;
-  // the fallback read only fires if one is omitted.
   let title = args.title;
   let content = args.content;
   if (title === undefined || content === undefined) {
@@ -438,10 +375,6 @@ export async function updateDraftContentForUser(
     ...(draft.contentId ? { contentId: draft.contentId } : {}),
   });
 
-  // Refresh metadata; persist the pointer whenever it's missing OR stale
-  // (a stale pointer self-heals inside `writeDraftContent`, but if it's
-  // never written back every future autosave pays the full-body index
-  // read this architecture exists to avoid).
   await ctx.db.patch(draft._id, {
     wordCount: countWords(content),
     updatedAt: Date.now(),
@@ -450,13 +383,6 @@ export async function updateDraftContentForUser(
   return null;
 }
 
-/**
- * Flush-path draft save (manual save, tab switch, unmount). Writes the
- * content row AND refreshes the metadata row's derived fields (wordCount,
- * updatedAt) — plus persists `contentId` when it was missing. Kept named
- * `updateContent` for API stability. Args stay optional; the sole client
- * sends both, so the fallback read never fires in practice.
- */
 export const updateContent = mutation({
   args: {
     draftId: v.id("document_drafts"),
@@ -468,10 +394,6 @@ export const updateContent = mutation({
     await updateDraftContentForUser(ctx, await getCurrentUser(ctx), args),
 });
 
-/**
- * `promoteToMain`'s body with the actor passed in explicitly (MCP twin —
- * see `createDraftForUser` for the rate-limit key rationale).
- */
 export async function promoteDraftToMainForUser(
   ctx: MutationCtx,
   user: Doc<"users">,
@@ -491,8 +413,6 @@ export async function promoteDraftToMainForUser(
   if (!draft || draft.userId !== user._id) {
     throw new Error("Draft not found");
   }
-  // Ownership, the draft body, and the conflict lock all depend only on
-  // the draft row — resolve them together.
   const [document, { title, content }, openConflict] = await Promise.all([
     verifyDocumentOwnership(ctx, draft.documentId, user._id),
     readDraftContent(ctx, draft),
@@ -504,9 +424,6 @@ export async function promoteDraftToMainForUser(
       .first(),
   ]);
 
-  // Same defense-in-depth lock as `documents.update` / `autosaveBody`:
-  // promoting overwrites the main body, so it must not slip past a
-  // pending sync conflict either.
   if (openConflict) {
     throw new Error(
       "This document has a pending sync conflict. Resolve it before making changes.",
@@ -517,9 +434,6 @@ export async function promoteDraftToMainForUser(
     title,
     excerpt: buildExcerpt(content),
     wordCount: countWords(content),
-    // Only replace the document's frontmatter when the draft actually
-    // carries a snapshot. Patching `undefined` would UNSET the field —
-    // promoting a blank draft used to silently wipe Main's frontmatter.
     ...(draft.frontmatterSnapshot !== undefined
       ? { frontmatter: draft.frontmatterSnapshot }
       : {}),
@@ -532,14 +446,10 @@ export async function promoteDraftToMainForUser(
     content,
     ...(document.contentId ? { contentId: document.contentId } : {}),
   });
-  // Persist the pointer when it's missing (pre-split doc) or stale
-  // (self-healed inside `writeContent`).
   if (document.contentId !== contentId) {
     await ctx.db.patch(draft.documentId, { contentId });
   }
 
-  // Flush path: the promoted draft body becomes the main document, so
-  // recompute its backlink graph from the new content.
   await syncDocumentLinks(ctx, document, content);
 
   return {
@@ -556,10 +466,6 @@ export const promoteToMain = mutation({
     await promoteDraftToMainForUser(ctx, await getCurrentUser(ctx), args),
 });
 
-/**
- * `remove`'s body with the actor passed in explicitly (MCP twin — see
- * `createDraftForUser` for the rate-limit key rationale).
- */
 export async function removeDraftForUser(
   ctx: MutationCtx,
   user: Doc<"users">,

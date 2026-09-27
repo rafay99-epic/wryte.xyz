@@ -1,21 +1,3 @@
-/**
- * Sync conflicts — created when `startBulkImport`'s diff-before-enqueue
- * logic detects that BOTH GitHub and Convex have changed for the same
- * file since the last sync. The action snapshots GitHub's content (so
- * the diff is stable even if the user edits the doc later) and writes
- * a row here; the project banner and per-file resolution UI subscribe
- * to it.
- *
- * Resolution paths all bump `documents.githubSyncedAt` so the next sync
- * starts from a clean baseline:
- *  - `resolveUseGithub`  → overwrite doc content with remote
- *  - `resolveKeepConvex` → leave doc content, accept remote SHA as the
- *                          new baseline (next sync won't reflag)
- *  - `resolveMerge`      → caller submits merged content
- *
- * Auth model: every public query/mutation verifies the user owns the
- * project the conflict belongs to before reading or mutating.
- */
 import { v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import { internalMutation, mutation, query } from "../_generated/server";
@@ -30,14 +12,6 @@ import {
 } from "./_lib/documentContent";
 import { syncDocumentLinks } from "./_lib/documentLinks";
 
-/**
- * Internal-only writer called by `startBulkImport` during conflict
- * detection. Idempotent on (documentId, unresolved) — if a previous
- * conflict for the same doc is still open, we update the snapshot in
- * place rather than spamming a second row, so the banner count
- * matches the file count even if the user resyncs while a conflict is
- * still pending.
- */
 export const _create = internalMutation({
   args: {
     projectId: v.id("projects"),
@@ -109,11 +83,6 @@ export const _create = internalMutation({
   },
 });
 
-/**
- * Unresolved conflicts for a project, newest first. Powers the
- * persistent banner on the project dashboard and the conflicts tab in
- * the bulk-import completion dialog.
- */
 export const listForProject = query({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
@@ -141,15 +110,6 @@ export const listForProject = query({
   },
 });
 
-/**
- * Returns the open conflict for a document if one exists, else null.
- * Powers the editor's "this file is locked until you resolve the
- * conflict" banner so we don't have to re-render the entire
- * `listForProject` payload when the editor only needs one row.
- *
- * Returns `null` for unauthorized callers (rather than throwing) so the
- * editor's reactive subscription degrades cleanly.
- */
 export const getOpenByDocument = query({
   args: { documentId: v.id("documents") },
   handler: async (ctx, args) => {
@@ -178,12 +138,6 @@ export const getOpenByDocument = query({
   },
 });
 
-/**
- * Full conflict payload for the side-by-side diff view. Returns null
- * (not throws) for missing/unauthorized so the UI renders a friendly
- * "not found" state when the user navigates after the conflict was
- * already resolved.
- */
 export const get = query({
   args: { conflictId: v.id("sync_conflicts") },
   handler: async (ctx, args) => {
@@ -215,8 +169,6 @@ export const get = query({
   },
 });
 
-/** Verifies the user owns the project this conflict belongs to and the
- *  conflict is still open. Returns the conflict + document or throws. */
 async function loadOpenConflictForOwner(
   ctx: {
     auth: import("../_generated/server").MutationCtx["auth"];
@@ -244,11 +196,6 @@ async function loadOpenConflictForOwner(
   return { conflict, doc };
 }
 
-/**
- * "Take what's on GitHub" — overwrites the doc with the remote
- * snapshot we captured at detection time. Bumps `githubSyncedAt` so
- * the resolution sticks against the next sync.
- */
 export const resolveUseGithub = mutation({
   args: { conflictId: v.id("sync_conflicts") },
   handler: async (ctx, args) => {
@@ -260,17 +207,11 @@ export const resolveUseGithub = mutation({
       args.conflictId,
     );
     if (conflict.remoteContent === undefined) {
-      // Invariant: an open (unresolved) conflict always carries the remote
-      // snapshot captured at detection time — only resolved rows have it
-      // stripped. Guard defensively rather than silently writing "".
       throw new Error("Conflict is missing its remote content snapshot");
     }
     const remoteContent = conflict.remoteContent;
     const now = Date.now();
 
-    // Read the content BEFORE stripping it below. Pass the document's
-    // existing `contentId` pointer (if any) so `writeContent` can patch the
-    // body row directly instead of re-reading it via the index first.
     const contentId = await writeContent(ctx, {
       documentId: conflict.documentId,
       projectId: doc.projectId,
@@ -289,22 +230,17 @@ export const resolveUseGithub = mutation({
     if (conflict.remoteFrontmatter !== undefined) {
       patch.frontmatter = conflict.remoteFrontmatter;
     }
-    // Backfill the pointer for pre-migration docs that didn't have one yet.
     if (doc.contentId === undefined) {
       patch.contentId = contentId;
     }
 
     await ctx.db.patch(conflict.documentId, patch);
 
-    // Flush path: remote content replaced the main body, so recompute the
-    // backlink graph from it.
     await syncDocumentLinks(ctx, doc, remoteContent);
 
     await ctx.db.patch(conflict._id, {
       resolvedAt: now,
       resolution: "github" as const,
-      // Audit metadata (githubPath, remoteSha, resolution, timestamps)
-      // stays; the full bodies are no longer needed once resolved.
       remoteContent: undefined,
       localContentSnapshot: undefined,
       remoteFrontmatter: undefined,
@@ -313,13 +249,6 @@ export const resolveUseGithub = mutation({
   },
 });
 
-/**
- * "Keep my Convex version" — doesn't touch the doc content; just
- * adopts the remote SHA as the new sync baseline so the next sync
- * doesn't re-flag the same conflict. The user is implicitly saying
- * "I know GitHub changed, but I'm overriding with my version on the
- * next publish."
- */
 export const resolveKeepConvex = mutation({
   args: { conflictId: v.id("sync_conflicts") },
   handler: async (ctx, args) => {
@@ -337,9 +266,6 @@ export const resolveKeepConvex = mutation({
     await ctx.db.patch(conflict._id, {
       resolvedAt: now,
       resolution: "convex" as const,
-      // Audit metadata stays; this path never reads the snapshotted bodies
-      // (it keeps the existing Convex content), so no content read is
-      // needed before stripping them.
       remoteContent: undefined,
       localContentSnapshot: undefined,
       remoteFrontmatter: undefined,
@@ -348,12 +274,6 @@ export const resolveKeepConvex = mutation({
   },
 });
 
-/**
- * "I merged it myself" — caller submits the merged content (and
- * optionally frontmatter). We trust the submitted text and stamp the
- * remote SHA as the new baseline so the next sync sees this as a
- * fast-forward against GitHub.
- */
 export const resolveMerge = mutation({
   args: {
     conflictId: v.id("sync_conflicts"),
@@ -370,9 +290,6 @@ export const resolveMerge = mutation({
     );
     const now = Date.now();
 
-    // Pass the document's existing `contentId` pointer (if any) so
-    // `writeContent` can patch the body row directly instead of re-reading
-    // it via the index first.
     const contentId = await writeContent(ctx, {
       documentId: conflict.documentId,
       projectId: doc.projectId,
@@ -391,23 +308,17 @@ export const resolveMerge = mutation({
     if (args.mergedFrontmatter !== undefined) {
       patch.frontmatter = args.mergedFrontmatter;
     }
-    // Backfill the pointer for pre-migration docs that didn't have one yet.
     if (doc.contentId === undefined) {
       patch.contentId = contentId;
     }
 
     await ctx.db.patch(conflict.documentId, patch);
 
-    // Flush path: the caller-submitted merged content replaced the main body,
-    // so recompute the backlink graph from it.
     await syncDocumentLinks(ctx, doc, args.mergedContent);
 
     await ctx.db.patch(conflict._id, {
       resolvedAt: now,
       resolution: "merge" as const,
-      // Audit metadata stays; the caller-submitted merged content already
-      // lives in `document_content`, so the snapshotted bodies here are
-      // redundant once resolved.
       remoteContent: undefined,
       localContentSnapshot: undefined,
       remoteFrontmatter: undefined,

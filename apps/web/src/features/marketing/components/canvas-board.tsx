@@ -69,7 +69,6 @@ export function CanvasBoard() {
         />
 
         <CanvasSurface className="mx-auto max-w-[960px]" maxTilt={4}>
-          {/* Floating schedule chip */}
           <motion.div
             initial={{ opacity: 0, scale: 0.8 }}
             whileInView={{ opacity: 1, scale: 1 }}
@@ -126,7 +125,6 @@ export function CanvasBoard() {
                       </div>
                     ))}
 
-                    {/* Ghost slot */}
                     <div className="flex h-9 items-center justify-center rounded-lg border border-dashed border-foreground/[0.08] text-[10px] text-foreground/20 dark:border-foreground/[0.05]">
                       drop here
                     </div>
@@ -135,7 +133,6 @@ export function CanvasBoard() {
               ))}
             </div>
 
-            {/* Keyboard hint bar */}
             <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-foreground/[0.06] px-1 pt-3 font-mono text-[10px] text-foreground/35">
               <span>
                 <span className="text-foreground/55">j / k</span> navigate

@@ -6,6 +6,8 @@ import type {
   AnimationCheckLevel,
   AnimationLanguage,
 } from "@wryte/backend/_lib/animationChecks";
+import { compileAnimation } from "@wryte/logic/lib/animations/compile-animation";
+import { starterSource } from "@wryte/logic/lib/animations/templates";
 import { Button } from "@wryte/ui/button";
 import { Input } from "@wryte/ui/input";
 import { Label } from "@wryte/ui/label";
@@ -29,14 +31,12 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { wrapAnimation } from "@/components/animations/animation-boundary";
 import {
   type DeletableAnimation,
   DeleteAnimationDialog,
 } from "@/components/animations/delete-animation-dialog";
 import { useAnimationChecks } from "../hooks/use-animation-checks";
-import { wrapAnimation } from "../lib/animations/animation-boundary";
-import { compileAnimation } from "../lib/animations/compile-animation";
-import { starterSource } from "../lib/animations/templates";
 import {
   AnimationCheckBadge,
   AnimationDiagnostics,
@@ -52,14 +52,12 @@ type AnimationInsertDialogProps = {
 
 const COMPILE_DEBOUNCE_MS = 400;
 
-/* Mirror the server rules (convex/cms/animations.ts) so authors get instant
- * feedback instead of a mutation round-trip error. */
 const NAME_RE = /^[A-Z][A-Za-z0-9]*$/;
 const RESERVED_NAMES = new Set(["Fragment", "React", "Component", "Suspense"]);
 
 function nameProblem(raw: string): string | null {
   const name = raw.trim();
-  if (!name) return null; // empty handled by the disabled button, not an error
+  if (!name) return null;
   if (!NAME_RE.test(name)) {
     return "PascalCase only — start with a capital letter, letters and digits, no spaces (e.g. HarnessLoop)";
   }
@@ -68,7 +66,6 @@ function nameProblem(raw: string): string | null {
   return null;
 }
 
-/** Extract the default-exported function/component name from TSX source. */
 function extractDefaultExportName(source: string): string | null {
   const match = source.match(
     /export\s+default\s+(?:function\s+(\w+)|const\s+(\w+)\s*[:=])/,
@@ -78,13 +75,6 @@ function extractDefaultExportName(source: string): string | null {
   return nameMatch?.[1] ?? null;
 }
 
-/**
- * Author sheet for code animations: name a component, paste/edit its TSX,
- * watch it render live, then save it to the project and insert
- * `<Name />` at the caret. Editing an existing animation updates its
- * shared source (one component, every referencing post picks it up on
- * next publish).
- */
 export function AnimationInsertDialog({
   open,
   onOpenChange,
@@ -107,12 +97,10 @@ export function AnimationInsertDialog({
   const [source, setSource] = useState(() => starterSource("tsx"));
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  /** Row handed to the shared reference-checked delete dialog. */
   const [deleteTarget, setDeleteTarget] = useState<DeletableAnimation | null>(
     null,
   );
 
-  // Debounced live compile of whatever is in the textarea.
   const [debouncedSource, setDebouncedSource] = useState(source);
   useEffect(() => {
     const id = setTimeout(
@@ -148,10 +136,6 @@ export function AnimationInsertDialog({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const sourceRef = useRef<HTMLTextAreaElement>(null);
 
-  /**
-   * Handle importing a .tsx file from disk: read the file, try to extract
-   * the component name, and pre-fill the source textarea.
-   */
   const handleFileImport = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
@@ -183,7 +167,6 @@ export function AnimationInsertDialog({
     setDeleteTarget(null);
   }, [language]);
 
-  // Reset whenever the sheet closes (covers X button and Escape).
   useEffect(() => {
     if (!open) resetForm();
   }, [open, resetForm]);
@@ -205,7 +188,6 @@ export function AnimationInsertDialog({
     setSaving(false);
   }
 
-  /** Persist create/update; returns the component name, or null on failure. */
   async function persist(): Promise<string | null> {
     if (!compiled.ok) return null;
     setSaving(true);
@@ -236,7 +218,6 @@ export function AnimationInsertDialog({
     onOpenChange(false);
   }
 
-  /** Save source changes without touching the document (edit-only flow). */
   async function handleUpdateOnly() {
     const componentName = await persist();
     if (!componentName) return;
@@ -373,8 +354,6 @@ export function AnimationInsertDialog({
                   <AnimationCheckBadge checks={checks} />
                 </div>
               </div>
-              {/* Error sits ABOVE the code, always in view — no scrolling to
-                  the preview panel to find out what broke. */}
               {!compiled.ok && (
                 <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3">
                   <AlertCircle className="mt-0.5 size-4 shrink-0 text-destructive" />

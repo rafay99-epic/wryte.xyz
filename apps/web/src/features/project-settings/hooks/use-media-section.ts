@@ -1,10 +1,10 @@
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
 import { getMediaProvider, type MediaProvider } from "@wryte/logic/types/media";
+import type { ProjectData } from "@wryte/logic/types/project-settings";
 import { useMutation } from "convex/react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import type { ProjectData } from "../types";
 
 export function useMediaSection({
   projectId,
@@ -18,9 +18,6 @@ export function useMediaSection({
   const [mediaPath, setMediaPath] = useState(
     project.mediaPath ?? "public/images",
   );
-  // The project's *default* upload destination. Other connected providers
-  // stay usable — this only decides where an upload with no explicit
-  // destination lands.
   const [mediaStorageMode, setMediaStorageMode] = useState<MediaProvider>(
     project.mediaStorageMode ?? "github",
   );

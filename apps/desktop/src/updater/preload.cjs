@@ -1,6 +1,5 @@
 "use strict";
 
-// Minimal, sandboxed bridge for the updater window — no Node in the renderer.
 const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("wryteUpdater", {

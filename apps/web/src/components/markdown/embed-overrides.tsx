@@ -8,18 +8,6 @@ import type { Components } from "react-markdown";
 import type { Options } from "rehype-sanitize";
 import { SocialEmbed } from "./social-embed";
 
-/**
- * Sanitize schema extension for post embeds, layered on top of any base
- * schema. Allows:
- *  - `<iframe>` whose `src` matches the whitelisted embed-domain regex
- *    (the single source of truth from the provider registry).
- *  - Blockquote-based embeds (`twitter-tweet`, `tiktok-embed`, …) with the
- *    data-* / style options their oEmbed markup carries.
- *
- * `rehype-sanitize` works on hast property names (camelCased), so the
- * attribute keys here are hast names (`className`, `allowFullScreen`,
- * `dataDnt`, …), not HTML attribute names.
- */
 export function buildEmbedSanitizeSchema(base: Options): Options {
   return {
     ...base,
@@ -38,8 +26,6 @@ export function buildEmbedSanitizeSchema(base: Options): Options {
         "className",
       ],
       ["blockquote"]: [
-        // `cite` is already in the base schema; the rest supports blockquote
-        // embeds (Twitter/X data-* options, TikTok data-video-id / style-free).
         ...(base.attributes?.["blockquote"] ?? []),
         "className",
         "dataVideoId",
@@ -55,7 +41,6 @@ export function buildEmbedSanitizeSchema(base: Options): Options {
       ],
       ["section"]: [...(base.attributes?.["section"] ?? []), "dir", "lang"],
       ["p"]: [...(base.attributes?.["p"] ?? []), "dir", "lang", "className"],
-      // Embed oEmbed markup carries target/title on its fallback links.
       ["a"]: [
         ...(base.attributes?.["a"] ?? []),
         "dir",
@@ -77,20 +62,6 @@ export function buildEmbedSanitizeSchema(base: Options): Options {
 const EMBED_WRAPPER =
   "social-embed not-prose my-6 overflow-hidden rounded-xl border border-border/40 shadow-sm";
 
-/**
- * Shared `react-markdown` component overrides for embeds. Used by every
- * markdown surface (editor markdown preview, MDX preview, draft share
- * preview) so embeds render identically everywhere.
- *
- * - `iframe`: derives layout from the src domain (whitelisted embeds get a
- *   responsive wrapper; unknown iframes — only reachable in trusted MDX —
- *   render sandboxed). A `height` from oEmbed is honoured for bar/fluid
- *   players (SoundCloud, Spotify) so the provider's chosen height wins over
- *   the default.
- * - `blockquote`: embeds whose class matches a registered blockquote
- *   provider (Twitter/X, TikTok) hydrate via `SocialEmbed` with the
- *   provider's loader; everything else keeps the standard styled quote.
- */
 export const embedComponents: Components = {
   iframe: ({ node: _node, src, height, title, ...props }) => {
     const srcStr = typeof src === "string" ? src : null;
@@ -113,8 +84,6 @@ export const embedComponents: Components = {
     const aspect = provider?.aspect ?? "fluid";
     const resolvedTitle =
       typeof title === "string" ? title : (provider?.label ?? "Embed");
-    // oEmbed iframes often carry an explicit height (e.g. SoundCloud 166,
-    // Spotify 152). Parse it so the wrapper respects the provider's layout.
     const explicitHeight =
       typeof height === "number"
         ? height
@@ -176,8 +145,6 @@ export const embedComponents: Components = {
     if (typeof className === "string") {
       const provider = providerByBlockquoteClass(className);
       if (provider?.loader) {
-        // TikTok oEmbed ships a max-width:605px inline style; sanitize strips
-        // inline styles, so cap the width here for the same portrait framing.
         const widthCap =
           provider.id === "tiktok" ? "mx-auto max-w-[605px]" : "";
         return (

@@ -1,16 +1,3 @@
-/**
- * Social media announcements via Buffer.
- *
- * `announcePublish` is fire-and-forget — scheduled by the publish flow
- * via `ctx.scheduler.runAfter(0, ...)` so it never blocks or fails the
- * publish action itself. The entire handler is wrapped in try-catch so
- * no error propagates back to the scheduler.
- *
- * Migration note: projects that still carry only a legacy Upload-Post
- * credential skip posting gracefully (with a log) — posting through
- * Upload-Post is retired. Their `socialPostOnPublish` toggle is untouched;
- * the settings page shows a reconnect prompt until Buffer is configured.
- */
 "use node";
 
 import { ConvexError, v } from "convex/values";
@@ -26,7 +13,6 @@ import { type BufferPublicConfig, parseConfig } from "./credentials";
 export const announcePublish = internalAction({
   args: {
     projectId: v.id("projects"),
-    /** Optional: scheduler jobs queued before this arg existed omit it. */
     documentId: v.optional(v.id("documents")),
     documentTitle: v.string(),
     publishedUrl: v.string(),
@@ -70,9 +56,6 @@ export const announcePublish = internalAction({
       if (args.customText !== undefined)
         composeArgs.customText = args.customText;
 
-      // One createPost per channel, text shaped per service (short-form
-      // platforms get trimmed prose, the URL always survives). A failing
-      // channel never blocks the rest.
       const results: {
         channelId: string;
         service: string;
@@ -99,8 +82,6 @@ export const announcePublish = internalAction({
         });
       }
 
-      // One batched write records every channel outcome — the publish
-      // dialog's status list and retry buttons read from these rows.
       if (args.documentId !== undefined) {
         await ctx.runMutation(internal.social.postsDb._recordResults, {
           projectId: args.projectId,
@@ -119,10 +100,6 @@ export const announcePublish = internalAction({
   },
 });
 
-/**
- * Re-attempt one failed announcement row. Reuses the exact text that was
- * composed at publish time, so a retry posts what the author approved.
- */
 export const retryPost = action({
   args: { socialPostId: v.id("social_posts") },
   returns: v.object({ ok: v.boolean(), message: v.optional(v.string()) }),
@@ -136,8 +113,6 @@ export const retryPost = action({
     if (!row) throw new ConvexError({ message: "Announcement not found." });
 
     const { targets, secret } = await loadPostContext(ctx, row.projectId);
-    // The channel must still exist and be enabled — it may have been
-    // disconnected in Buffer since the original attempt.
     const channel = targets.find((c) => c.id === row.channelId);
     if (!channel) {
       return {

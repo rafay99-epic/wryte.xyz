@@ -1,16 +1,3 @@
-/**
- * Per-project code-animation components — backend module (standalone).
- *
- * An animation is a user-authored React component (raw TSX source) referenced
- * from MDX bodies by its PascalCase name (`<HarnessLoop />`). The editor
- * preview compiles the source live; publish commits it as a `.tsx` file under
- * `projects.animationsPath` and injects the import into the post. Rows are
- * shared-mutable — one component per name, reused across every post in the
- * project (edits propagate on the next publish of each referencing post).
- *
- * Mirrors `snippets.ts`: own table (never bloats the hot `projects` doc),
- * ownership resolved through the project, every mutation rate-limited.
- */
 import { v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
@@ -20,30 +7,14 @@ import { hashAnimationSource } from "../_lib/animationChecks";
 import { getAuthedUserOrNull, getCurrentUser } from "../_lib/auth";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
 
-/* Caps. Source cap is generous — a hand-written animation island is a few KB;
- * 100KB catches runaway pastes long before the 1MB Convex document limit. */
 const MAX_ANIMATIONS = 200;
 const MAX_ANIMATION_NAME = 60;
 const MAX_ANIMATION_SOURCE = 100_000;
 
-/**
- * Component names must be valid PascalCase JS identifiers — they're used
- * verbatim as JSX tags, import specifiers, and `.tsx` filenames.
- */
 const NAME_RE = /^[A-Z][A-Za-z0-9]*$/;
 
-/**
- * Names that collide with MDX/React internals or the preview's component
- * map. Lowercase HTML overrides (img, table…) can't collide with PascalCase,
- * so only capitalized reserved words need listing.
- */
 const RESERVED_NAMES = new Set(["Fragment", "React", "Component", "Suspense"]);
 
-/**
- * Summary the editor sends alongside a source it has just checked. The hash
- * is never accepted from the client — it is recomputed here from the source
- * being written, so a stored record always describes the stored source.
- */
 export const checkSummaryValidator = v.object({
   status: v.union(v.literal("pass"), v.literal("warn"), v.literal("fail")),
   errorCount: v.number(),
@@ -70,7 +41,6 @@ function toCheckRecord(
   };
 }
 
-/** Lightweight client shape — the editor needs id + name + source. */
 export type AnimationView = {
   _id: Id<"animations">;
   name: string;
@@ -83,10 +53,6 @@ const toView = (d: Doc<"animations">): AnimationView => ({
   source: d.source,
   updatedAt: d.updatedAt,
 });
-
-/* ------------------------------------------------------------------ */
-/*  Ownership helpers (same contract as snippets.ts)                    */
-/* ------------------------------------------------------------------ */
 
 async function ownedProjectForQuery(
   ctx: QueryCtx,
@@ -128,14 +94,6 @@ async function requireOwnedProjectForUser(
   return project;
 }
 
-/* ------------------------------------------------------------------ */
-/*  animation_names sync helpers                                        */
-/* ------------------------------------------------------------------ */
-
-/**
- * Insert a lightweight name row alongside the main animation doc.
- * Name and projectId are both immutable, so this only runs on create.
- */
 async function insertNameRow(
   ctx: MutationCtx,
   projectId: Id<"projects">,
@@ -144,7 +102,6 @@ async function insertNameRow(
   await ctx.db.insert("animation_names", { projectId, name });
 }
 
-/** Remove the name row — called on animation delete. */
 async function deleteNameRow(
   ctx: MutationCtx,
   projectId: Id<"projects">,
@@ -158,10 +115,6 @@ async function deleteNameRow(
     .unique();
   if (existing) await ctx.db.delete(existing._id);
 }
-
-/* ------------------------------------------------------------------ */
-/*  Validation                                                          */
-/* ------------------------------------------------------------------ */
 
 function normalizeName(raw: string): string {
   const name = raw.trim();
@@ -182,9 +135,6 @@ function normalizeName(raw: string): string {
   return name;
 }
 
-/** Source is stored verbatim — only the size is capped here. Structural
- * rules (single default export, allowlisted imports) are enforced by the
- * editor's compile step and re-checked at publish. */
 function validateSource(raw: string): string {
   if (!raw.trim()) throw new Error("Component source is required");
   if (raw.length > MAX_ANIMATION_SOURCE) {
@@ -195,15 +145,6 @@ function validateSource(raw: string): string {
   return raw;
 }
 
-/* ------------------------------------------------------------------ */
-/*  Lightweight card view (no source body)                              */
-/* ------------------------------------------------------------------ */
-
-/**
- * Card list for the gallery — returns only id, name, and date; the client
- * fetches source per card on demand. Reads full `animations` rows (source
- * included), bounded by MAX_ANIMATIONS.
- */
 export const listNames = query({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
@@ -223,15 +164,6 @@ export const listNames = query({
   },
 });
 
-/* ------------------------------------------------------------------ */
-/*  Queries                                                             */
-/* ------------------------------------------------------------------ */
-
-/**
- * `list`'s body with the actor passed in explicitly. Shared with the MCP
- * handler, which has no `ctx.auth` under component dispatch — see
- * `_lib/auth.ts → requireCaller`.
- */
 export async function animationsListForUser(
   ctx: QueryCtx,
   userId: Id<"users">,
@@ -247,11 +179,6 @@ export async function animationsListForUser(
   return rows.map(toView);
 }
 
-/**
- * Every animation in the project — bounded by MAX_ANIMATIONS, so a single
- * take covers the full set. Powers the editor preview's component map and
- * the author sheet's "existing animations" list.
- */
 export const list = query({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args): Promise<AnimationView[]> => {
@@ -266,10 +193,6 @@ export const list = query({
   },
 });
 
-/**
- * `getSource`'s body with the actor passed in explicitly (MCP twin — see
- * `animationsListForUser`).
- */
 export async function animationSourceForUser(
   ctx: QueryCtx,
   userId: Id<"users">,
@@ -282,38 +205,18 @@ export async function animationSourceForUser(
   return row.source;
 }
 
-/**
- * Fetch the full source for a single animation by ID.
- * Called lazily when a card enters the viewport — never on load.
- */
 export const getSource = query({
   args: { animationId: v.id("animations") },
   returns: v.union(v.string(), v.null()),
   handler: async (ctx, args): Promise<string | null> => {
     const row = await ctx.db.get(args.animationId);
     if (!row) return null;
-    // Auth: only return source if the caller owns the project.
     const project = await ownedProjectForQuery(ctx, row.projectId);
     if (!project) return null;
     return row.source;
   },
 });
 
-/**
- * Posts whose MAIN body references `<Name`. Powers the reference-checked
- * delete flow: a component still used by posts can't be deleted until the
- * tags are removed.
- *
- * Cost note: this scans document bodies ON DEMAND, only when a delete is
- * being considered — deliberately NOT an edge table maintained on the
- * autosave hot path (the wiki-links approach); delete is far too rare to
- * justify taxing every save. Convex bills bytes read, so the scan is the
- * entire cost of the feature and it's paid once per delete attempt.
- *
- * ponytail: bounded scan — first 500 content rows per project, larger
- * projects return `truncated: true` and the UI warns instead of blocking.
- * Switch to a client-driven paginated loop if any project outgrows this.
- */
 export const usage = query({
   args: { projectId: v.id("projects"), name: v.string() },
   handler: async (
@@ -325,12 +228,8 @@ export const usage = query({
   }> => {
     const project = await ownedProjectForQuery(ctx, args.projectId);
     if (!project) return { posts: [], truncated: false };
-    // No stored animation can have a non-PascalCase name, so nothing can
-    // reference one. Checking here also keeps the name regex-safe below.
     if (!NAME_RE.test(args.name)) return { posts: [], truncated: false };
 
-    // `<Name` followed by whitespace, `/`, or `>` — never matches a longer
-    // component name that shares the prefix.
     const tagRe = new RegExp(`<${args.name}[\\s/>]`);
     const SCAN_LIMIT = 500;
     const rows = await ctx.db
@@ -351,14 +250,6 @@ export const usage = query({
   },
 });
 
-/**
- * Lightweight name-existence check. Scans only the `animation_names` table
- * (~50-byte rows, no source body), so even a project at MAX_ANIMATIONS reads
- * ~10KB instead of up to ~20MB of source. Returns the existing names.
- *
- * Powers the import sheet's conflict detection and any other surface that
- * needs to check name collisions without pulling the full animation list.
- */
 export const checkNames = query({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args): Promise<string[]> => {
@@ -372,10 +263,6 @@ export const checkNames = query({
   },
 });
 
-/**
- * Server-side lookup for the publish pipeline (github.ts) — ownership is
- * already verified by the caller before the publish action runs.
- */
 export const internalListByProject = internalQuery({
   args: { projectId: v.id("projects") },
   handler: async (
@@ -396,16 +283,6 @@ export const internalListByProject = internalQuery({
   },
 });
 
-/* ------------------------------------------------------------------ */
-/*  Mutations                                                           */
-/* ------------------------------------------------------------------ */
-
-/**
- * `create`'s body with the actor passed in explicitly. Shared with the MCP
- * handler — rate-limit key comes from `user.tokenIdentifier` rather than
- * `getRateLimitKey(ctx)`, which reads `ctx.auth` and returns the literal
- * `"anonymous"` under component dispatch (see `documents.createDocumentForUser`).
- */
 export async function createAnimationForUser(
   ctx: MutationCtx,
   user: Doc<"users">,
@@ -438,8 +315,6 @@ export async function createAnimationForUser(
     );
   }
 
-  // Bounded existence check for the cap — cheaper than a denormalized
-  // counter at this table's expected size.
   const all = await ctx.db
     .query("animations")
     .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
@@ -476,10 +351,6 @@ export const create = mutation({
     await createAnimationForUser(ctx, await getCurrentUser(ctx), args),
 });
 
-/**
- * `update`'s body with the actor passed in explicitly (MCP twin — see
- * `createAnimationForUser` for the rate-limit key rationale).
- */
 export async function updateAnimationForUser(
   ctx: MutationCtx,
   user: Doc<"users">,
@@ -498,12 +369,7 @@ export async function updateAnimationForUser(
   if (!animation) throw new Error("Animation not found");
   await requireOwnedProjectForUser(ctx, user, animation.projectId);
 
-  // Name is deliberately immutable — it's the reference key inside every
-  // post body. Renaming would silently break `<OldName />` tags; delete
-  // and re-create instead.
   const source = validateSource(args.source);
-  // An unchecked write clears any previous record rather than leaving one
-  // that describes source nobody looked at.
   await ctx.db.patch(args.animationId, {
     source,
     updatedAt: Date.now(),
@@ -522,10 +388,6 @@ export const update = mutation({
     await updateAnimationForUser(ctx, await getCurrentUser(ctx), args),
 });
 
-/**
- * Duplicate an animation by copying its source to a new name.
- * The server reads the source — the client only sends the IDs.
- */
 export const duplicate = mutation({
   args: {
     projectId: v.id("projects"),
@@ -568,11 +430,6 @@ export const duplicate = mutation({
   },
 });
 
-/**
- * `replaceByName`'s body with the actor passed in explicitly (MCP twin — see
- * `createAnimationForUser`). The idempotent upsert-by-name path an agent
- * should use for repeat uploads of the same component.
- */
 export async function replaceAnimationByNameForUser(
   ctx: MutationCtx,
   user: Doc<"users">,
@@ -599,8 +456,6 @@ export async function replaceAnimationByNameForUser(
     throw new Error(`Animation "${args.name}" not found in this project`);
   }
 
-  // No check travels with this path (import sheet, MCP agents), so any
-  // previous result is dropped rather than left describing older source.
   await ctx.db.patch(row._id, {
     source: validateSource(args.source),
     updatedAt: Date.now(),
@@ -609,11 +464,6 @@ export async function replaceAnimationByNameForUser(
   return null;
 }
 
-/**
- * Replace an animation's source by project + name — avoids the client needing
- * the `_id`. Used by the import sheet's "Replace" conflict-resolution option.
- * The name row is unaffected (name and projectId didn't change).
- */
 export const replaceByName = mutation({
   args: {
     projectId: v.id("projects"),
@@ -624,10 +474,6 @@ export const replaceByName = mutation({
     await replaceAnimationByNameForUser(ctx, await getCurrentUser(ctx), args),
 });
 
-/**
- * `remove`'s body with the actor passed in explicitly (MCP twin — see
- * `createAnimationForUser` for the rate-limit key rationale).
- */
 export async function removeAnimationForUser(
   ctx: MutationCtx,
   user: Doc<"users">,
@@ -639,7 +485,7 @@ export async function removeAnimationForUser(
   });
 
   const animation = await ctx.db.get(args.animationId);
-  if (!animation) return null; // idempotent
+  if (!animation) return null;
   await requireOwnedProjectForUser(ctx, user, animation.projectId);
 
   await deleteNameRow(ctx, animation.projectId, animation.name);

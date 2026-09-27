@@ -10,6 +10,7 @@ import {
   useSearchStore,
 } from "@wryte/logic/stores/search-store";
 import type { BoardColumnDef } from "@wryte/logic/types/board";
+import type { ContentItem } from "@wryte/logic/types/content";
 import { Badge } from "@wryte/ui/badge";
 import { Button } from "@wryte/ui/button";
 import {
@@ -57,14 +58,10 @@ import {
   type BulkImportResultLite,
 } from "./bulk-import-dialog";
 import { ContentEmptyState, type ViewFilter } from "./content-empty-state";
-import type { ContentItem } from "./content-table-row";
 import { TableView } from "./table-view";
 import { TagFilterBar } from "./tag-filter-bar";
 import { ViewModeSwitcher } from "./view-mode-switcher";
 
-/** Payload the dashboard hands back to the parent when the user confirms
- *  a bulk delete. The parent resolves IDs → full records (with githubSha
- *  etc.) before calling the Convex action. */
 export type BulkDeleteSelection = {
   mode: BulkDeleteMode;
   localIds: string[];
@@ -106,25 +103,15 @@ const SORT_OPTIONS: {
 ];
 
 type ContentDashboardProps = {
-  /** All content items (already filtered by viewFilter + search). */
   items: ContentItem[];
-  /** Unfiltered items for computing tab counts. */
   allItems: ContentItem[];
-  /** Dynamic board columns from project config. */
   columns: BoardColumnDef[];
-  /** All unique tags across all items (for filter UI). */
   allTags: string[];
   viewFilter: ViewFilter;
   onViewFilterChange: (f: ViewFilter) => void;
   searchQuery: string;
   onSearchChange: (q: string) => void;
   hasGithub: boolean;
-  /**
-   * True while the server-side body search for the current query is in flight.
-   * Article bodies live in `document_content`, so a phrase past the first ~200
-   * characters can only match server-side — this keeps the empty state from
-   * flashing before those hits land.
-   */
   isSearchingBodies: boolean;
   isLoadingRemote: boolean;
   hasLoadedRemote: boolean;
@@ -134,36 +121,20 @@ type ContentDashboardProps = {
   onDeleteRemote: (item: ContentItem) => void;
   importingPath: string | null;
   onCreateClick: (initialStatus?: string) => void;
-  // ── Bulk import (reactive batch + lifecycle hooks) ─────────────
   onBatchImport: (paths: string[]) => Promise<unknown>;
-  /** Set while the start-action is in flight (parent triggers, batch hasn't been created yet). */
   isStartingImport: boolean;
-  /** Reactive import_batches row, or null if no active import. */
   importBatch: BulkImportBatch | null | undefined;
-  /** Classification summary returned by the most recent start-action. */
   importLastResult: BulkImportResultLite | null;
-  /** Called when the user clicks Done on the completion screen — parent clears its batchId. */
   onBulkImportDone: () => void;
-  /**
-   * Triggered by the "Resolve conflicts" CTA in the completion dialog.
-   * Parent navigates to the conflict resolution route. Optional so
-   * pages that don't yet have the route mounted can still render the
-   * dashboard.
-   */
   onResolveConflicts?: ((conflictId: Id<"sync_conflicts">) => void) | undefined;
-  // ── Bulk publish (legacy floating-toolbar flow) ────────────────
   onBulkPublish?: ((docIds: string[]) => Promise<void>) | undefined;
   isBulkPublishing?: boolean | undefined;
   bulkPublishProgress?: { done: number; total: number } | null | undefined;
-  // ── Bulk delete (reactive batch + lifecycle hooks) ─────────────
   onBulkDelete?:
     | ((selection: BulkDeleteSelection) => Promise<void>)
     | undefined;
-  /** Set while the delete start-action is in flight. */
   isStartingDelete?: boolean | undefined;
-  /** Reactive delete_batches row, or null if no active delete. */
   deleteBatch?: BulkDeleteBatch | null | undefined;
-  /** Called when the user clicks Done on the completion screen. */
   onBulkDeleteDone?: (() => void) | undefined;
   projectId: string;
   frontmatterMap: Map<string, ParsedFrontmatter>;
@@ -208,30 +179,22 @@ export function ContentDashboard({
   const activeTagFilters = useBoardStore((s) => s.activeTagFilters);
   const setSettingsDialogOpen = useBoardStore((s) => s.setSettingsDialogOpen);
 
-  // --- Search store ---
   const sortOrder = useSearchStore((s) => s.getSortOrder(projectId));
   const setSortOrder = useSearchStore((s) => s.setSortOrder);
   const searchTagFilters = useSearchStore((s) => s.getTagFilters(projectId));
   const toggleTagFilter = useSearchStore((s) => s.toggleTagFilter);
   const clearTagFilters = useSearchStore((s) => s.clearTagFilters);
-  // --- Multi-select state for remote items ---
   const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
-  // --- Multi-select state for local items (bulk publish) ---
   const [selectedDocIds, setSelectedDocIds] = useState<Set<string>>(new Set());
 
-  // Clear selection when filter/search changes
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentionally clear selection when filter/search props change
   useEffect(() => {
     setSelectedPaths(new Set());
     setSelectedDocIds(new Set());
   }, [viewFilter, searchQuery]);
 
-  // True when any card is selected. Drives Notion-style "selection mode":
-  // while active, clicking a card toggles it instead of opening it.
   const selectionActive = selectedPaths.size > 0 || selectedDocIds.size > 0;
 
-  // Opening a document clears any active selection so returning to the
-  // board doesn't leave stale cards selected (Gmail-style).
   const handleOpenItem = useCallback(
     (item: ContentItem) => {
       setSelectedPaths(new Set());
@@ -302,29 +265,15 @@ export function ContentDashboard({
     [items],
   );
 
-  // ── Bulk import — fires the start-action, opens the progress dialog ──
   const handleBatchImport = useCallback(async () => {
     const paths = Array.from(selectedPaths);
     if (paths.length === 0) return;
     try {
-      // Parent will set its batchId + isStartingImport. We just kick it
-      // off and immediately clear the selection — the dialog (driven
-      // by the reactive `importBatch` prop) shows live progress from
-      // here on out.
       await onBatchImport(paths);
       setSelectedPaths(new Set());
-    } catch {
-      // Parent toasts on start-failure; no need to clear selection so
-      // the user can retry without re-picking.
-    }
+    } catch {}
   }, [selectedPaths, onBatchImport]);
 
-  // Always open the dialog from the click. Sequence inside the dialog:
-  //   "Checking…" while the action is in flight (no batch yet) →
-  //   "Syncing…" once a workpool batch starts (if any) →
-  //   "Complete" with the summary cards (always, including unchanged).
-  // The user sees one cohesive flow instead of a click → silence →
-  // toast.
   const importDialogOpen =
     isStartingImport || Boolean(importBatch) || Boolean(importLastResult);
 
@@ -342,10 +291,6 @@ export function ContentDashboard({
   const handleImportDialogOpenChange = useCallback(
     (next: boolean) => {
       if (next) return;
-      // While the workpool is still chewing, refuse to close — same
-      // contract the dialog enforces, mirrored here in the parent so
-      // an external close (Escape pressed, backdrop click, etc.) is
-      // ignored before it even reaches the dialog.
       if (importPhase === "progress") return;
       onBulkImportDone();
     },
@@ -359,10 +304,8 @@ export function ContentDashboard({
     setSelectedDocIds(new Set());
   }, [selectedDocIds, onBulkPublish]);
 
-  // ── Bulk delete — confirm dialog + reactive progress + complete ──
   const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
 
-  /** How many selected items are eligible for each delete mode. */
   const bulkDeleteCounts: BulkDeleteCounts = useMemo(() => {
     let local = 0;
     let github = 0;
@@ -388,9 +331,6 @@ export function ContentDashboard({
       : ("progress" as const);
   }, [deleteBatch]);
 
-  // Dialog is "open" whenever the user is in any of the three phases.
-  // Confirm is local state; progress + complete are driven by whether a
-  // batch row exists in the parent.
   const deleteDialogOpen =
     bulkDeleteConfirmOpen || Boolean(deleteBatch) || Boolean(isStartingDelete);
 
@@ -402,17 +342,10 @@ export function ContentDashboard({
       if (localIds.length === 0 && remotePaths.length === 0) return;
       try {
         await onBulkDelete({ mode, localIds, remotePaths });
-        // Batch is in flight — clear the selection (the items are
-        // about to disappear) and dismiss the confirm phase. The dialog
-        // stays open via `deleteBatch` and transitions to progress.
         setSelectedDocIds(new Set());
         setSelectedPaths(new Set());
         setBulkDeleteConfirmOpen(false);
-      } catch {
-        // Start-action failed (rate limit / not authenticated / etc).
-        // Parent surfaces the toast; keep the confirm dialog open so
-        // the user can retry without re-picking the selection.
-      }
+      } catch {}
     },
     [onBulkDelete, selectedDocIds, selectedPaths],
   );
@@ -421,9 +354,6 @@ export function ContentDashboard({
     (next: boolean) => {
       if (next) return;
       if (deletePhase === "progress") return;
-      // In confirm phase, just close. In complete phase, also clear the
-      // parent's batchId so the dialog doesn't immediately reopen on
-      // the next reactive tick.
       setBulkDeleteConfirmOpen(false);
       if (deleteBatch && deletePhase === "complete") {
         onBulkDeleteDone?.();
@@ -437,8 +367,6 @@ export function ContentDashboard({
     onBulkDeleteDone?.();
   }, [onBulkDeleteDone]);
 
-  // Listen for keyboard shortcut layout switch event — cycles through the
-  // three view modes.
   useEffect(() => {
     function handleSwitchLayout() {
       setViewMode(
@@ -454,18 +382,14 @@ export function ContentDashboard({
       window.removeEventListener("wryte:switch-layout", handleSwitchLayout);
   }, [viewMode, setViewMode]);
 
-  // Pagination state (table only)
   const [currentPage, setCurrentPage] = useState(1);
   const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
 
-  // Reset page on filter/search/view changes so users don't get stranded on
-  // an empty page after narrowing the result set.
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentionally reset page when filter/search/view props change
   useEffect(() => {
     setCurrentPage(1);
   }, [viewFilter, searchQuery, viewMode]);
 
-  // Clamp page if items shrink
   useEffect(() => {
     if (currentPage > totalPages) {
       setCurrentPage(totalPages);
@@ -477,7 +401,6 @@ export function ContentDashboard({
     return items.slice(start, start + PAGE_SIZE);
   }, [items, currentPage]);
 
-  // Apply tag filters for board view
   const tagFilteredItems = useMemo(() => {
     if (activeTagFilters.size === 0) return items;
     return items.filter((item) => {
@@ -486,15 +409,12 @@ export function ContentDashboard({
     });
   }, [items, activeTagFilters]);
 
-  // Tab counts
   const localCount = allItems.filter((i) => i.kind === "local").length;
   const remoteCount = allItems.filter((i) => i.kind === "remote").length;
 
-  // Current sort option
   const currentSort =
     SORT_OPTIONS.find((o) => o.value === sortOrder) ?? SORT_OPTIONS[0];
 
-  // Tag filter popover state
   const [tagFilterQuery, setTagFilterQuery] = useState("");
   const filteredTagOptions = useMemo(() => {
     if (!tagFilterQuery.trim()) return allTags;
@@ -504,7 +424,6 @@ export function ContentDashboard({
 
   return (
     <div>
-      {/* Search bar + controls */}
       <div className="mb-3 flex items-center gap-3">
         <div className="relative flex-1">
           <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -525,7 +444,6 @@ export function ContentDashboard({
           )}
         </div>
 
-        {/* Tag filter popover */}
         {allTags.length > 0 && (
           <Popover>
             <PopoverTrigger
@@ -597,7 +515,6 @@ export function ContentDashboard({
           </Popover>
         )}
 
-        {/* Sort dropdown */}
         <DropdownMenu>
           <DropdownMenuTrigger render={<Button variant="outline" size="sm" />}>
             {currentSort?.icon}
@@ -645,7 +562,6 @@ export function ContentDashboard({
         <ViewModeSwitcher viewMode={viewMode} onViewModeChange={setViewMode} />
       </div>
 
-      {/* Active filter chips */}
       {(searchTagFilters.length > 0 || searchQuery.trim()) && (
         <div className="mb-3 flex flex-wrap items-center gap-1.5">
           {searchQuery.trim() && (
@@ -699,7 +615,6 @@ export function ContentDashboard({
         </div>
       )}
 
-      {/* Filter tabs */}
       <Tabs
         value={viewFilter}
         onValueChange={(v) => onViewFilterChange(v as ViewFilter)}
@@ -711,7 +626,6 @@ export function ContentDashboard({
               {allItems.length}
             </span>
           </TabsTrigger>
-          {/* Dynamic column tabs */}
           {columns.map((col) => (
             <TabsTrigger key={col.id} value={col.id}>
               {col.label}
@@ -735,9 +649,7 @@ export function ContentDashboard({
           )}
         </TabsList>
 
-        {/* Content area */}
         <div className="mt-4">
-          {/* Loading indicator for remote files */}
           {isLoadingRemote && !hasLoadedRemote && (
             <div className="mb-3 flex items-center gap-2 text-xs text-muted-foreground">
               <Loader2 className="size-3 animate-spin" />
@@ -752,10 +664,6 @@ export function ContentDashboard({
             </div>
           )}
 
-          {/* `isSearchingBodies` suppresses the empty state while a body search
-              is in flight — otherwise a query that only matches deep inside an
-              article flashes "no results" for the debounce window before its
-              hits arrive. */}
           {items.length === 0 &&
           !isSearchingBodies &&
           viewMode !== "calendar" ? (
@@ -765,10 +673,6 @@ export function ContentDashboard({
               onCreateClick={() => onCreateClick()}
             />
           ) : viewMode === "calendar" ? (
-            // Calendar view: self-contained surface (own bounded queries,
-            // mounted only while this mode is active). Rendered outside the
-            // AnimatePresence fork because it manages its own presence
-            // animations and a fixed-height layout.
             <div className="h-[calc(100vh-260px)] min-h-[480px]">
               <CalendarSurface projectId={projectId} />
             </div>
@@ -804,7 +708,6 @@ export function ContentDashboard({
                     onDeleteRemote={onDeleteRemote}
                   />
 
-                  {/* Pagination */}
                   {totalPages > 1 && (
                     <div className="mt-4 flex items-center justify-between">
                       <PaginationInfo
@@ -859,7 +762,6 @@ export function ContentDashboard({
         </div>
       </Tabs>
 
-      {/* Floating multi-select action bar */}
       <AnimatePresence>
         {(selectedPaths.size > 0 || selectedDocIds.size > 0) && (
           <motion.div
@@ -870,7 +772,6 @@ export function ContentDashboard({
             className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2"
           >
             <div className="flex items-center gap-3 rounded-xl border bg-background/95 px-4 py-2.5 shadow-lg backdrop-blur-sm">
-              {/* Remote files selected — Import action */}
               {selectedPaths.size > 0 && (
                 <>
                   <div className="flex items-center gap-2 text-sm font-medium">
@@ -903,7 +804,6 @@ export function ContentDashboard({
                 </>
               )}
 
-              {/* Local docs selected — Bulk publish action */}
               {selectedDocIds.size > 0 && (
                 <>
                   <div className="flex items-center gap-2 text-sm font-medium">
@@ -944,10 +844,6 @@ export function ContentDashboard({
                 </>
               )}
 
-              {/* Bulk delete — always available when there's any selection
-                  and the parent provided a handler. The destructive bulk
-                  action opens a dedicated confirm-then-progress dialog
-                  so the user reads the consequences before nuking. */}
               {onBulkDelete &&
                 (selectedDocIds.size > 0 || selectedPaths.size > 0) && (
                   <>
@@ -987,7 +883,6 @@ export function ContentDashboard({
         )}
       </AnimatePresence>
 
-      {/* Bulk delete — confirm → progress → complete in one dialog */}
       {onBulkDelete && (
         <BulkDeleteDialog
           open={deleteDialogOpen}
@@ -1001,7 +896,6 @@ export function ContentDashboard({
         />
       )}
 
-      {/* Bulk import — straight into progress, no confirm step */}
       <BulkImportDialog
         open={importDialogOpen}
         onOpenChange={handleImportDialogOpenChange}
