@@ -1,0 +1,62 @@
+apps/desktop/package.json
+  s_afe331801d4351::t_57f6ac16f024da 8
+apps/desktop/src/workers/connectivity-worker.cjs
+  s_afe331801d4351::t_ad2f0dd655889f 25-32,36-37,39,41,44,50-54,58
+packages/backend/convex/cms/documents.ts
+  s_afe331801d4351::t_c4a9fe062353c3 1,2165-2167,2170-2171,2447-2449,2452-2453
+apps/desktop/main.cjs
+  s_afe331801d4351::t_c782e48044148d 47,73-81,83-89,119-120
+packages/backend/convex/integrations/oembedProviders.ts
+  s_afe331801d4351::t_7be6d6571b43dd 55-61,105,107,126,128
+packages/backend/tests/tsconfig.json
+  s_afe331801d4351::t_3632a3e842fab9 1-7
+apps/desktop/src/window/state.cjs
+  s_afe331801d4351::t_4b7e354ea7f953 16-20,22,33
+  s_afe331801d4351::t_f280760c746d5c 74-75,81
+apps/web/tsconfig.json
+  s_afe331801d4351::t_c4eb863cf9c006 14,18
+packages/backend/convex/providers/cloudinary.ts
+  s_afe331801d4351::t_7be6d6571b43dd 172-176
+packages/backend/package.json
+  s_afe331801d4351::t_57f6ac16f024da 22
+apps/desktop/src/config.cjs
+  s_afe331801d4351::t_f280760c746d5c 3
+apps/desktop/src/menu/menu.cjs
+  s_afe331801d4351::t_9ce7e83c28ca5c 3,32,46
+  s_afe331801d4351::t_865d53e3d21abe 28-31,33-45,47-52,54-100,104,106-108
+packages/backend/convex/providers/uploadthing.ts
+  s_afe331801d4351::t_7be6d6571b43dd 104,109,111
+apps/desktop/electron-builder.js
+  s_afe331801d4351::t_f280760c746d5c 1,23-24
+packages/backend/convex/tsconfig.json
+  s_afe331801d4351::t_631b8870d83ab3 2,7-8,10-11
+apps/desktop/tsconfig.json
+  s_afe331801d4351::t_efc99860b9e89f 1-7,10-11,18
+  s_afe331801d4351::t_6536ab43dcf352 8-9,12-17
+packages/logic/tests/tsconfig.json
+  s_afe331801d4351::t_f6003a22d853e6 1-7
+tsconfig.base.json
+  s_afe331801d4351::t_c4eb863cf9c006 6
+packages/backend/convex/integrations/scheduling.ts
+  s_afe331801d4351::t_c4a9fe062353c3 8-13,415-420,423-424
+packages/backend/convex/integrations/github.ts
+  s_afe331801d4351::t_15cd5379043c5d 2002,2024
+apps/desktop/src/window/window.cjs
+  s_afe331801d4351::t_f280760c746d5c 62,164,290-291,353
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a875d4c72efca5ef36acc55c63fbc08c93a24d81",
+  "prompts": {},
+  "sessions": {
+    "s_afe331801d4351": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "57228730-cc80-4f5a-bfb4-bbd4ee82af55",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
