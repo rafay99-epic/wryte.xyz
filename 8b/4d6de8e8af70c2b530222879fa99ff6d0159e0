@@ -1,0 +1,88 @@
+packages/logic/src/lib/frontmatter-detection/registry.ts
+  s_afe331801d4351::t_431db09ee54cf8 10-11
+apps/desktop/src/tray/tray.cjs
+  s_afe331801d4351::t_77eb3089592cf1 6,13,35,38,43,49
+packages/logic/src/types/ai.ts
+  s_afe331801d4351::t_431db09ee54cf8 3,7
+packages/logic/src/hooks/use-batch-image-upload.ts
+  s_afe331801d4351::t_2af00659a3eb15 5-7,16,20-31,61-66,78-81,84
+apps/desktop/src/logger.cjs
+  s_afe331801d4351::t_77eb3089592cf1 6-10,88-89,106
+packages/logic/src/lib/shortcuts.ts
+  s_afe331801d4351::t_79eea9bf863ecd 12-14
+apps/desktop/src/config.cjs
+  s_afe331801d4351::t_77eb3089592cf1 20
+apps/desktop/src/window/window.cjs
+  s_afe331801d4351::t_77eb3089592cf1 181-182,185-194,359-361
+packages/logic/src/lib/watermark-removal/index.ts
+  s_afe331801d4351::t_f950b1e90872d1 17,76-77,111-121
+docs/desktop.md
+  s_afe331801d4351::t_77eb3089592cf1 28
+packages/ui/src/timezone-select.tsx
+  s_afe331801d4351::t_2d5e51492768eb 47-49,57,68,92-98
+docs/structure.md
+  s_afe331801d4351::t_f58297dade4025 48
+  s_afe331801d4351::t_77eb3089592cf1 34
+packages/logic/src/lib/query-keys.ts
+  s_afe331801d4351::t_f0357ba86e06d7 6
+packages/logic/src/lib/build-initial-frontmatter.ts
+  s_afe331801d4351::t_6e6f2f7b23617a 168-172
+  s_afe331801d4351::t_36ed918c01018d 152-153,155-157,159,161,173,181-188,192
+packages/logic/src/hooks/use-is-mac-platform.ts
+  s_afe331801d4351::t_74653d16853a46 3
+packages/logic/src/lib/word-count.ts
+  s_afe331801d4351::t_4edc4dad53651a 2,4-7,9
+packages/logic/src/stores/board-store.ts
+  s_afe331801d4351::t_c9feb5145ae0d1 5,33,149-150
+packages/logic/src/lib/batch-image-upload.ts
+  s_afe331801d4351::t_2af00659a3eb15 43,99-119,125-126
+packages/logic/src/lib/image-compression/types.ts
+  s_afe331801d4351::t_431db09ee54cf8 3
+packages/logic/src/stores/calendar-store.ts
+  s_afe331801d4351::t_c9feb5145ae0d1 117-118,122
+packages/logic/src/lib/upload-limits.ts
+  s_afe331801d4351::t_4edc4dad53651a 11-12,19-20
+packages/logic/package.json
+  s_afe331801d4351::t_6cdf16900e1315 10-11
+packages/logic/src/lib/github-helpers.ts
+  s_afe331801d4351::t_1ca4cdbe8e5113 43-45
+packages/logic/src/lib/content-format.ts
+  s_afe331801d4351::t_4edc4dad53651a 3-4
+packages/logic/src/hooks/use-github.ts
+  s_afe331801d4351::t_f0357ba86e06d7 6,40,55-60,62-64,67,246
+packages/logic/src/lib/release.ts
+  s_afe331801d4351::t_79eea9bf863ecd 14
+packages/logic/src/lib/timezone.ts
+  s_afe331801d4351::t_2d5e51492768eb 23-25,30-64,82,178
+packages/ui/src/sonner.tsx
+  s_afe331801d4351::t_9d116cac675c14 3
+  s_afe331801d4351::t_2e6c8ac60b1c00 14-16,20
+apps/desktop/src/workers/connectivity-worker.cjs
+  s_afe331801d4351::t_77eb3089592cf1 4-5
+  s_afe331801d4351::t_a680845caf4895 55
+apps/desktop/main.cjs
+  s_afe331801d4351::t_9d116cac675c14 119-120
+  s_afe331801d4351::t_77eb3089592cf1 47,86,88,107,116-118,124-129,131,133,175
+packages/logic/src/hooks/use-project-media-library.ts
+  s_afe331801d4351::t_5775845d26c327 5,88-90,127,219,248-262,266-267,329,332-333
+apps/desktop/src/window/preload.cjs
+  s_afe331801d4351::t_8c9a78b9d9be40 14,16
+biome.json
+  s_afe331801d4351::t_7412ac35bce05e 2
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8b4d6de8e8af70c2b530222879fa99ff6d0159e0",
+  "prompts": {},
+  "sessions": {
+    "s_afe331801d4351": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "57228730-cc80-4f5a-bfb4-bbd4ee82af55",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
