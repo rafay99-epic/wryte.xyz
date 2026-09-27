@@ -1,0 +1,96 @@
+apps/web/src/features/editor/components/research-panel.tsx
+  s_afe331801d4351::t_e0c5eca7d27ed9 476-482
+apps/web/src/features/content-dashboard/components/board-view.tsx
+  s_afe331801d4351::t_7942bdbee4a2d4 183-184
+apps/web/src/features/account-settings/hooks/use-mcp-tab.ts
+  s_afe331801d4351::t_e4fedeb22d913a 5,20-22,26-30,44-46,60
+apps/web/src/features/editor/components/ai-enhance-button.tsx
+  s_afe331801d4351::t_1867e9a2b84128 72-74,91-98,102,171,190,360,546-576
+  s_afe331801d4351::t_63cfaf8c0a22d7 577-578
+apps/web/src/features/content-dashboard/hooks/use-board-keyboard-nav.ts
+  s_afe331801d4351::t_86a7cf1f83f5f7 89-95
+apps/web/src/features/editor/components/ai-synthesis-dialog.tsx
+  s_afe331801d4351::t_89cb4ea879dd64 28-29,37,39-41,45,49-56,64-67,75-94,123,154-157,159-175,178-186,194,219-225,335-338
+apps/web/src/features/project-settings/hooks/use-general-section.ts
+  s_afe331801d4351::t_421b65934c1cd3 4
+apps/web/src/features/project-settings/types.ts
+  s_afe331801d4351::t_5b482378fa8df5 2
+  s_afe331801d4351::t_c12068c08f34ad 38-39
+apps/web/src/features/content-dashboard/components/content-dashboard.tsx
+  s_afe331801d4351::t_d323244cf598a7 1011
+apps/web/src/features/editor/components/frontmatter-editor.tsx
+  s_afe331801d4351::t_dfdf80b0910178 407-408,410,413-418,1002,1005
+apps/web/src/features/editor/editor-page.tsx
+  s_afe331801d4351::t_65b8523aaeed8b 202
+  s_afe331801d4351::t_89cb4ea879dd64 285
+apps/web/src/features/project-settings/components/tools-section.tsx
+  s_afe331801d4351::t_aa36498c544346 88-89,144
+apps/web/src/features/project-settings/hooks/use-frontmatter-section.ts
+  s_afe331801d4351::t_8e7f2a49f2d232 11-18,67-77,102-112,114,128-129,137,139,142,145-157,164-168,178-184,187-197,199-201,257
+  s_afe331801d4351::t_8338534dc99bdf 258,260,274,279,304-306,342,381,426
+apps/web/src/features/editor/hooks/use-media-paste.ts
+  s_afe331801d4351::t_8b19d297486f66 97-103,107-109,111-116,137,158,178,183
+apps/web/src/features/editor/components/publish-dialog.tsx
+  s_afe331801d4351::t_db1b4abc318d28 51,79
+  s_afe331801d4351::t_efa22b5746e3c6 75-77,92,277-278,281-282
+apps/web/src/features/editor/components/schedule-dialog.tsx
+  s_afe331801d4351::t_85d0c5239384fc 74,86
+apps/web/src/features/editor/hooks/use-autosave.ts
+  s_afe331801d4351::t_386ef731e13161 103-110,319-321,325,327-332,336-340
+  s_afe331801d4351::t_c2782668f991e7 116-119,122,124
+apps/web/src/features/project-detail/project-detail-page.tsx
+  s_afe331801d4351::t_8c24f3d874d258 62-64
+  s_afe331801d4351::t_db1b4abc318d28 747
+apps/web/src/features/editor/lib/readability/worker-client.ts
+  s_afe331801d4351::t_460090b0e7bc83 9
+apps/web/src/features/editor/components/editor-context.tsx
+  s_afe331801d4351::t_33713605d0bb4e 50-52
+apps/web/src/features/editor/hooks/use-draft-switching.ts
+  s_afe331801d4351::t_65b8523aaeed8b 7,106-108
+apps/web/src/features/project-settings/components/media-section.tsx
+  s_afe331801d4351::t_748979a49921e7 210-211
+apps/web/src/features/media-library/media-library-page.tsx
+  s_afe331801d4351::t_8db8735c106ed0 62-64,167,170,175,191-192,194-199
+  s_afe331801d4351::t_bd0bfd851a96e2 173-174,193
+  s_afe331801d4351::t_c0a5f125d1a41e 5
+apps/web/src/features/editor/hooks/use-link-suggestions.ts
+  s_afe331801d4351::t_e0c5eca7d27ed9 36-37
+apps/web/src/features/account-settings/components/mcp-tab.tsx
+  s_afe331801d4351::t_a6fa0f0cbd9ea0 3,34,43,49,55,62,69
+apps/web/src/features/command-palette/command-palette.tsx
+  s_afe331801d4351::t_f321dfee7a664e 583
+apps/web/src/features/editor/components/markdown-editor.tsx
+  s_afe331801d4351::t_8ac6a6dd588a14 25-26,163
+apps/web/src/features/editor/hooks/use-keyboard-shortcuts.ts
+  s_afe331801d4351::t_b4471214156f05 5,80-81,87
+apps/web/src/features/editor/hooks/use-sprint.ts
+  s_afe331801d4351::t_96587e5abed17f 9,58-59,64-68,78,106,119
+apps/web/src/features/editor/lib/animations/compile-animation.ts
+  s_afe331801d4351::t_fbef237ea72be2 22-23
+apps/web/src/features/new-project/wizard/step-configure-paths.tsx
+  s_afe331801d4351::t_bcac37bc86b692 127,147
+apps/web/src/features/new-project/wizard/step-frontmatter-schema.tsx
+  s_afe331801d4351::t_effb788561685f 182,249,264
+apps/web/src/features/new-project/wizard/step-select-repo.tsx
+  s_afe331801d4351::t_dcec990cd4cccd 190,206,228,295,375,489,503
+apps/web/src/features/project-settings/components/ai-section.tsx
+  s_afe331801d4351::t_ebb45aa17ce203 205-232,277-279,282,284
+apps/web/src/features/project-settings/components/frontmatter-section.tsx
+  s_afe331801d4351::t_ed16a0182c8768 59,250
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c072ec04935104ed68cdb19995b8ebf118d784c4",
+  "prompts": {},
+  "sessions": {
+    "s_afe331801d4351": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "57228730-cc80-4f5a-bfb4-bbd4ee82af55",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
