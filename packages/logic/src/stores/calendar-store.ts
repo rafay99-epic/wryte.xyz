@@ -114,16 +114,14 @@ export const useCalendarStore = create<CalendarState>()((set) => ({
       return { unscheduledStatusFilter: next };
     }),
 
+  // Month comes from "today", not module load, so a long-lived tab resets
+  // to the current month. initialState's Set is safe to share: toggles copy.
   reset: () => {
     const today = new Date();
     set({
+      ...initialState,
       viewYear: today.getFullYear(),
       viewMonth: today.getMonth(),
-      activeDocument: null,
-      pendingDrop: null,
-      unscheduledPanelOpen: true,
-      unscheduledSearch: "",
-      unscheduledStatusFilter: new Set(),
     });
   },
 }));

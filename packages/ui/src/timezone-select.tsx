@@ -44,6 +44,9 @@ export function TimezoneSelect({
   id,
 }: TimezoneSelectProps) {
   const [open, setOpen] = useState(false);
+  // The option list (~400 offset lookups) is only built once the picker has
+  // been opened, then kept so close animations never see an empty list.
+  const [hasOpened, setHasOpened] = useState(false);
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -51,6 +54,7 @@ export function TimezoneSelect({
   const effective = value && value.length > 0 ? value : null;
 
   const options = useMemo<TimezoneOption[]>(() => {
+    if (!hasOpened) return [];
     return listTimezones().map((id) => {
       const city = getTimezoneCityLabel(id);
       const offset = getTimezoneOffsetLabel(id);
@@ -61,7 +65,7 @@ export function TimezoneSelect({
         searchHaystack: `${id} ${city} ${offset}`.toLowerCase(),
       };
     });
-  }, []);
+  }, [hasOpened]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -85,7 +89,13 @@ export function TimezoneSelect({
       `Browser default · ${getTimezoneCityLabel(browserTz)} (${getTimezoneOffsetLabel(browserTz)})`);
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        if (next) setHasOpened(true);
+        setOpen(next);
+      }}
+    >
       <PopoverTrigger
         render={
           <Button

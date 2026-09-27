@@ -2,7 +2,7 @@
 
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
-import { useGithubInvalidation } from "@wryte/logic/hooks/use-github";
+import { getUploadErrorMessage } from "@wryte/logic/lib/batch-image-upload";
 import {
   MEDIA_PROVIDER_LABELS,
   type MediaProvider,
@@ -85,6 +85,9 @@ function githubPublicPath(repoPath: string, mediaPath?: string): string {
   return `/${publicRoot ? `${publicRoot}/` : ""}${relativePath}`;
 }
 
+/** Stable fallback while the provider query loads, so memos don't churn. */
+const NO_PROVIDERS: MediaProviderOption[] = [];
+
 /** How many rows one page asks a provider for. */
 const PAGE_SIZE = 40;
 
@@ -121,7 +124,7 @@ export function useProjectMediaLibrary({
     useQuery(
       api.media.credentialsDb.listEnabledProviders,
       enabled ? { projectId } : "skip",
-    ) ?? [];
+    ) ?? NO_PROVIDERS;
 
   /** Connected providers only — what a picker should ever offer. */
   const configuredTabs = useMemo(
@@ -143,7 +146,6 @@ export function useProjectMediaLibrary({
     return configuredTabs[0]?.provider ?? projectDefault;
   }, [filter, project?.mediaStorageMode, providerTabs, configuredTabs]);
 
-  const { invalidateMedia } = useGithubInvalidation();
   const listMedia = useAction(api.media.uploads.list);
 
   const mediaPath = project?.mediaPath;
@@ -214,10 +216,7 @@ export function useProjectMediaLibrary({
         });
       } catch (err) {
         if (generation !== generationRef.current) return;
-        const data = (err as { data?: { message?: string } })?.data;
-        const message =
-          data?.message ??
-          (err instanceof Error ? err.message : "Failed to load media");
+        const message = getUploadErrorMessage(err, "Failed to load media");
         setByProvider((prev) => ({
           ...prev,
           [provider]: {
@@ -246,18 +245,26 @@ export function useProjectMediaLibrary({
     }
   }, [loadPage]);
 
+  /** Queue every configured provider that hasn't been listed yet. */
+  const queueUnrequested = useCallback(
+    (tabs: MediaProviderOption[]) => {
+      let queued = false;
+      for (const tab of tabs) {
+        if (requestedRef.current.has(tab.provider)) continue;
+        requestedRef.current.add(tab.provider);
+        queueRef.current.push(tab.provider);
+        queued = true;
+      }
+      if (queued) void pump();
+    },
+    [pump],
+  );
+
   // Queue any newly-connected provider that hasn't been listed yet.
   useEffect(() => {
     if (!enabled) return;
-    let queued = false;
-    for (const tab of configuredTabs) {
-      if (requestedRef.current.has(tab.provider)) continue;
-      requestedRef.current.add(tab.provider);
-      queueRef.current.push(tab.provider);
-      queued = true;
-    }
-    if (queued) void pump();
-  }, [configuredTabs, enabled, pump]);
+    queueUnrequested(configuredTabs);
+  }, [configuredTabs, enabled, queueUnrequested]);
 
   const resetAll = useCallback(() => {
     generationRef.current += 1;
@@ -319,11 +326,11 @@ export function useProjectMediaLibrary({
     if (next) void loadPage(next, true);
   }, [visibleProviders, loadPage]);
 
+  /** Drop every listing and re-list the connected providers from page one. */
   const refresh = useCallback(async () => {
-    // GitHub listings are also cached by the repo-contents query.
-    await invalidateMedia();
     resetAll();
-  }, [invalidateMedia, resetAll]);
+    if (enabled) queueUnrequested(configuredTabs);
+  }, [resetAll, enabled, queueUnrequested, configuredTabs]);
 
   /** Value to store in frontmatter/settings when an item is selected. */
   const getSelectionValue = useCallback(

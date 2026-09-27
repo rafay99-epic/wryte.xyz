@@ -3,15 +3,7 @@
  *
  * Each hook wraps a `/api/github/*` endpoint and returns the standard
  * TanStack Query result object (`data`, `isLoading`, `error`, `refetch`, etc.).
- *
- * Benefits over the previous raw-fetch approach:
- *  - Automatic caching & deduplication — multiple components can call the same
- *    hook without triggering duplicate requests.
- *  - Built-in stale/refetch — data is served from cache instantly while a
- *    background revalidation fires (stale-while-revalidate).
- *  - Cache invalidation — after mutations (upload, delete, import) you can
- *    surgically invalidate the affected query keys.
- *  - Retry & error handling baked in.
+ * Keys come from `githubKeys` so callers can invalidate by scope.
  */
 
 import {
@@ -44,25 +36,8 @@ export type ContentFile = {
   size: number;
 };
 
-/** A media file entry from the GitHub media API. */
-export type MediaFile = {
-  name: string;
-  path: string;
-  sha: string;
-  size: number;
-  downloadUrl: string;
-};
-
-/** Parsed file content returned by the content POST endpoint. */
-export type FileContent = {
-  frontmatter: Record<string, unknown> | null;
-  content: string | null;
-  sha: string | null;
-  error?: string;
-};
-
 /** Detected frontmatter field from the detect-frontmatter endpoint. */
-export type DetectedField = {
+type DetectedField = {
   name: string;
   type: string;
   required: boolean;
@@ -76,14 +51,20 @@ export type DetectedField = {
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init);
-  const data = await res.json();
   if (!res.ok) {
+    // Error bodies may be JSON `{ error }` or plain text/HTML (proxy errors).
+    const body: unknown = await res.json().catch(() => null);
+    const message =
+      body && typeof body === "object" && "error" in body
+        ? body.error
+        : undefined;
     throw new Error(
-      (data as { error?: string }).error ??
-        `Request failed (${String(res.status)})`,
+      typeof message === "string"
+        ? message
+        : `Request failed (${String(res.status)})`,
     );
   }
-  return data as T;
+  return (await res.json()) as T;
 }
 
 // ---------------------------------------------------------------------------
@@ -209,72 +190,6 @@ export function useGithubContentList(
 }
 
 // ---------------------------------------------------------------------------
-// useGithubFileContent — fetch a single markdown file's parsed content
-// ---------------------------------------------------------------------------
-
-/**
- * Fetches and parses a single markdown file from GitHub.
- *
- * Uses a POST under the hood (to send repo/branch/path in the body rather
- * than as query params with potential encoding issues).
- */
-export function useGithubFileContent(
-  params: { repo: string | null; branch?: string; path: string | null },
-  options?: Partial<UseQueryOptions<FileContent>>,
-) {
-  const repo = params.repo ?? "";
-  const branch = params.branch ?? "main";
-  const path = params.path ?? "";
-
-  return useQuery<FileContent>({
-    queryKey: githubKeys.contentDetail(repo, branch, path),
-    queryFn: () =>
-      fetchJson<FileContent>("/api/github/content", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ repo, branch, path }),
-      }),
-    enabled: Boolean(params.repo && params.path),
-    staleTime: 30 * 1000, // 30 seconds — file content can change often
-    ...options,
-  });
-}
-
-// ---------------------------------------------------------------------------
-// useGithubMedia — list media files in a GitHub repo
-// ---------------------------------------------------------------------------
-
-type MediaListResponse = {
-  files: MediaFile[];
-};
-
-/**
- * Lists media files (images, videos, etc.) in a GitHub repo's media directory.
- *
- * This replaces the previous Zustand-based media cache. TanStack Query handles
- * caching, deduplication, and background revalidation automatically.
- */
-export function useGithubMedia(
-  params: { repo: string | null; branch?: string; path: string | null },
-  options?: Partial<UseQueryOptions<MediaListResponse>>,
-) {
-  const repo = params.repo ?? "";
-  const branch = params.branch ?? "main";
-  const path = params.path ?? "";
-
-  return useQuery<MediaListResponse>({
-    queryKey: githubKeys.mediaList(repo, branch, path),
-    queryFn: () => {
-      const sp = new URLSearchParams({ repo, branch, path });
-      return fetchJson<MediaListResponse>(`/api/github/media?${sp.toString()}`);
-    },
-    enabled: Boolean(params.repo && params.path),
-    staleTime: 2 * 60 * 1000, // 2 minutes
-    ...options,
-  });
-}
-
-// ---------------------------------------------------------------------------
 // useDetectFrontmatter — mutation to auto-detect frontmatter schema
 // ---------------------------------------------------------------------------
 
@@ -328,10 +243,7 @@ export function useDetectFrontmatter() {
  *
  * Usage:
  * ```ts
- * const { invalidateMedia, invalidateContent, invalidateAll } = useGithubInvalidation();
- *
- * // After uploading a file:
- * await invalidateMedia();
+ * const { invalidateContent } = useGithubInvalidation();
  *
  * // After deleting a content file:
  * await invalidateContent();
@@ -341,36 +253,8 @@ export function useGithubInvalidation() {
   const queryClient = useQueryClient();
 
   return {
-    /** Invalidate all GitHub queries (nuclear option). */
-    invalidateAll: () =>
-      queryClient.invalidateQueries({ queryKey: githubKeys.all }),
-
-    /** Invalidate the repos list. */
-    invalidateRepos: () =>
-      queryClient.invalidateQueries({ queryKey: githubKeys.repos() }),
-
     /** Invalidate all content list queries. */
     invalidateContent: () =>
       queryClient.invalidateQueries({ queryKey: githubKeys.contentLists() }),
-
-    /** Invalidate a specific content list. */
-    invalidateContentList: (repo: string, branch: string, path: string) =>
-      queryClient.invalidateQueries({
-        queryKey: githubKeys.contentList(repo, branch, path),
-      }),
-
-    /** Invalidate all media list queries. */
-    invalidateMedia: () =>
-      queryClient.invalidateQueries({ queryKey: githubKeys.mediaLists() }),
-
-    /** Invalidate a specific media list. */
-    invalidateMediaList: (repo: string, branch: string, path: string) =>
-      queryClient.invalidateQueries({
-        queryKey: githubKeys.mediaList(repo, branch, path),
-      }),
-
-    /** Invalidate the token check (e.g. after reconnecting GitHub). */
-    invalidateToken: () =>
-      queryClient.invalidateQueries({ queryKey: githubKeys.token() }),
   };
 }

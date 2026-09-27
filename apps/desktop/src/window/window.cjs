@@ -178,9 +178,20 @@ function createWindow(appUrl) {
   const contents = mainWindow.webContents;
 
   // window.open (Clerk OAuth popups): keep http(s) in-app, deny the rest.
+  // Popups get explicit webPreferences without our preload so third-party
+  // origins never see `window.wryteDesktop`.
   contents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith("https://") || url.startsWith("http://")) {
-      return { action: "allow" };
+      return {
+        action: "allow",
+        overrideBrowserWindowOptions: {
+          webPreferences: {
+            contextIsolation: true,
+            nodeIntegration: false,
+            sandbox: true,
+          },
+        },
+      };
     }
     openExternal(url);
     return { action: "deny" };
@@ -345,8 +356,9 @@ ipcMain.on("offline-retry", () => {
   });
 });
 
-/** Connectivity-aware reload. Shows loading screen, checks connectivity,
- * then loads app URL if online or offline page if not. */
+/** Connectivity-aware reload. Loads the app URL immediately and, in
+ * parallel, checks connectivity; switches to the offline page only if the
+ * check fails before the app finishes loading. */
 function reloadWithCheck() {
   if (pendingAppUrl) {
     loadAppOrOffline(pendingAppUrl);

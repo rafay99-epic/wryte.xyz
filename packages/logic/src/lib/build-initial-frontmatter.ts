@@ -149,24 +149,28 @@ export function buildInitialFrontmatter(
 /** Priority-ordered field names considered "publish date" fields. */
 const PUB_DATE_CANDIDATES = ["pubDate", "publishDate", "date"];
 
+type PubDateField = { name: string; type: "date" | "datetime" };
+
 /**
- * Scans a project's frontmatter schema for the publish-date field.
- * Returns the field name (e.g. "pubDate") or null when none is found.
+ * Scans a project's frontmatter schema for the publish-date field, in
+ * `PUB_DATE_CANDIDATES` priority order. Returns null when none is found or
+ * the schema JSON is missing/invalid.
  */
-export function findPubDateFieldName(
+function findPubDateField(
   schemaJson: string | undefined | null,
-): string | null {
+): PubDateField | null {
   if (!schemaJson) return null;
   try {
     const fields = JSON.parse(schemaJson) as SchemaField[];
     if (!Array.isArray(fields)) return null;
 
     for (const candidate of PUB_DATE_CANDIDATES) {
-      const match = fields.find(
-        (f) =>
-          f.name === candidate && (f.type === "date" || f.type === "datetime"),
-      );
-      if (match) return match.name;
+      for (const f of fields) {
+        if (f.name !== candidate) continue;
+        if (f.type === "date" || f.type === "datetime") {
+          return { name: f.name, type: f.type };
+        }
+      }
     }
     return null;
   } catch {
@@ -174,26 +178,16 @@ export function findPubDateFieldName(
   }
 }
 
-/**
- * Returns the field type for the publish-date field, or null.
- */
+/** Name of the publish-date field (e.g. "pubDate"), or null. */
+export function findPubDateFieldName(
+  schemaJson: string | undefined | null,
+): string | null {
+  return findPubDateField(schemaJson)?.name ?? null;
+}
+
+/** Type of the publish-date field, or null. */
 export function findPubDateFieldType(
   schemaJson: string | undefined | null,
 ): "date" | "datetime" | null {
-  if (!schemaJson) return null;
-  try {
-    const fields = JSON.parse(schemaJson) as SchemaField[];
-    if (!Array.isArray(fields)) return null;
-
-    for (const candidate of PUB_DATE_CANDIDATES) {
-      const match = fields.find(
-        (f) =>
-          f.name === candidate && (f.type === "date" || f.type === "datetime"),
-      );
-      if (match) return match.type as "date" | "datetime";
-    }
-    return null;
-  } catch {
-    return null;
-  }
+  return findPubDateField(schemaJson)?.type ?? null;
 }

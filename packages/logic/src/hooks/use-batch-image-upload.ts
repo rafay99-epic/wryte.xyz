@@ -2,11 +2,9 @@
 
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
-import { useAction } from "convex/react";
-import { useCallback, useMemo, useReducer, useRef, useState } from "react";
-import { useImageCompression } from "../hooks/use-image-compression";
-import { useUploadLimit } from "../hooks/use-upload-limit";
-import { useWatermarkRemoval } from "../hooks/use-watermark-removal";
+import { useImageCompression } from "@wryte/logic/hooks/use-image-compression";
+import { useUploadLimit } from "@wryte/logic/hooks/use-upload-limit";
+import { useWatermarkRemoval } from "@wryte/logic/hooks/use-watermark-removal";
 import {
   addBatchImages,
   BATCH_UPLOAD_CONCURRENCY,
@@ -15,13 +13,22 @@ import {
   batchImageReducer,
   getUploadErrorMessage,
   runUploadPool,
-} from "../lib/batch-image-upload";
+} from "@wryte/logic/lib/batch-image-upload";
 import {
   type CompressionSettings,
   describeSavings,
-} from "../lib/image-compression/index";
-import { formatMb } from "../lib/upload-limits";
-import type { MediaProvider } from "../types/media";
+} from "@wryte/logic/lib/image-compression/index";
+import { formatMb } from "@wryte/logic/lib/upload-limits";
+import type { MediaProvider } from "@wryte/logic/types/media";
+import { useAction } from "convex/react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from "react";
 
 export type BatchUploadSuccess = {
   id: string;
@@ -51,6 +58,12 @@ export function useBatchImageUpload({
   compressionOverride?: CompressionSettings | null;
 }) {
   const [items, dispatch] = useReducer(batchImageReducer, []);
+  // Latest known batch, advanced synchronously by `addFiles` so back-to-back
+  // calls (before a re-render) validate against each other's additions.
+  const itemsRef = useRef(items);
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
   const [isRunning, setIsRunning] = useState(false);
   const [stopRequested, setStopRequested] = useState(false);
   const stopRequestedRef = useRef(false);
@@ -62,11 +75,13 @@ export function useBatchImageUpload({
 
   const addFiles = useCallback(
     (files: Iterable<File>): BatchSelectionIssue[] => {
-      const result = addBatchImages(items, files);
-      dispatch({ kind: "replace", items: result.items });
+      const existing = itemsRef.current;
+      const result = addBatchImages(existing, files);
+      itemsRef.current = result.items;
+      dispatch({ kind: "add", items: result.items.slice(existing.length) });
       return result.issues;
     },
-    [items],
+    [],
   );
 
   const remove = useCallback((id: string) => {

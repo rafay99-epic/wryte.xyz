@@ -17,7 +17,7 @@ module.exports = {
   CONNECTIVITY_CHECK_HOST: "clients3.google.com",
   CONNECTIVITY_CHECK_PATH: "/generate_204",
   CONNECTIVITY_CHECK_INTERVAL_MS: 30 * 1000,
-  // Kill macOS elastic overscroll; give momentum scrolling.
+  // Kill macOS elastic overscroll.
   SCROLL_CSS: `
   html, body { overscroll-behavior: none; }
 `,

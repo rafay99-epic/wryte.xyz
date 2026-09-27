@@ -3,10 +3,11 @@
 /**
  * Minimal file-based logger for the Electron shell.
  *
- * Writes to three rotating files under the flavor-specific log directory:
- *   ~/.wryte{,-dev}/app.log     — general runtime info
- *   ~/.wryte{,-dev}/error.log   — errors and warnings
- *   ~/.wryte{,-dev}/crash.log   — uncaught exceptions, crashes
+ * Writes to three rotating files under the flavor-specific log directory
+ * (`~/.wryte`, or `~/.wryteDev` for the dev flavor; see config.LOG_DIR):
+ *   app.log     — general runtime info
+ *   error.log   — errors and warnings
+ *   crash.log   — uncaught exceptions, crashes
  *
  * Each file is capped at 1 MB; when exceeded the oldest half is discarded.
  */
@@ -84,8 +85,8 @@ function init(logDir) {
   // Process-level crash / error handlers (main process only).
   process.on("uncaughtException", (err) => {
     crash(`Uncaught exception: ${err.stack || err.message}`);
-    // Allow the process to exit normally — uncaughtException has undefined
-    // behaviour if no handler exits, and the OS will write its own crash report.
+    // Registering this handler suppresses Node's default exit-on-throw, so
+    // the app keeps running after the exception is logged.
   });
 
   process.on("unhandledRejection", (reason) => {
@@ -102,21 +103,4 @@ function init(logDir) {
   });
 }
 
-/**
- * Crash-only helper — call when you're about to crash (e.g. on `before-quit`
- * after a renderer crash) so the log gets flushed before the process dies.
- */
-function flushAndDie(code) {
-  // Sync write so the message hits disk even under fatal conditions.
-  const ts = new Date().toISOString().replace("T", " ").replace("Z", "");
-  const line = `${ts} [crash] Fatal: process terminating with code=${code}\n`;
-  const filePath = path.join(_logDir || "/tmp", "crash.log");
-  try {
-    fs.appendFileSync(filePath, line);
-  } catch {
-    // best-effort
-  }
-  process.exit(code);
-}
-
-module.exports = { init, info, error, crash, flushAndDie };
+module.exports = { init, info, error, crash };

@@ -1,11 +1,10 @@
 /**
  * Shared AI provider types — re-exported from the single source of truth in
- * `convex/ai/_lib/providers.ts`.
+ * `packages/backend/convex/ai/_lib/providers.ts`.
  *
  * The Convex backend validators, the schema, and this file all derive from the
  * same registry, so adding a provider there flows through to the frontend with
- * no edits here. The `@/types/ai` import path stays stable for existing
- * consumers (`provider-logos.tsx`, `project-settings/types.ts`, …).
+ * no edits here. Consumers import from `@wryte/logic/types/ai`.
  */
 
 import {

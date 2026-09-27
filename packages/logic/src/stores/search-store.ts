@@ -32,20 +32,12 @@ type SearchState = {
   setSortOrder: (projectId: string, order: SortOrder) => void;
 
   getKindFilter: (projectId: string) => KindFilter;
-  setKindFilter: (projectId: string, filter: KindFilter) => void;
 
   getTagFilters: (projectId: string) => string[];
   toggleTagFilter: (projectId: string, tag: string) => void;
   clearTagFilters: (projectId: string) => void;
 
   getStatusFilter: (projectId: string) => string | null;
-  setStatusFilter: (projectId: string, status: string | null) => void;
-
-  /** Clear all filters for a project (keeps sort order). */
-  clearFilters: (projectId: string) => void;
-
-  /** Count of active filters for a project (excluding search query). */
-  getActiveFilterCount: (projectId: string) => number;
 };
 
 const DEFAULT_PROJECT: SearchPerProject = {
@@ -86,8 +78,6 @@ export const useSearchStore = create<SearchState>()(
         set((s) => updateProject(s, projectId, { sortOrder: order })),
 
       getKindFilter: (projectId) => getProject(get(), projectId).kindFilter,
-      setKindFilter: (projectId, filter) =>
-        set((s) => updateProject(s, projectId, { kindFilter: filter })),
 
       getTagFilters: (projectId) => getProject(get(), projectId).tagFilters,
       toggleTagFilter: (projectId, tag) =>
@@ -102,26 +92,6 @@ export const useSearchStore = create<SearchState>()(
         set((s) => updateProject(s, projectId, { tagFilters: [] })),
 
       getStatusFilter: (projectId) => getProject(get(), projectId).statusFilter,
-      setStatusFilter: (projectId, status) =>
-        set((s) => updateProject(s, projectId, { statusFilter: status })),
-
-      clearFilters: (projectId) =>
-        set((s) =>
-          updateProject(s, projectId, {
-            kindFilter: "all",
-            tagFilters: [],
-            statusFilter: null,
-          }),
-        ),
-
-      getActiveFilterCount: (projectId) => {
-        const p = getProject(get(), projectId);
-        let count = 0;
-        if (p.kindFilter !== "all") count++;
-        if (p.statusFilter) count++;
-        count += p.tagFilters.length;
-        return count;
-      },
     }),
     {
       name: "wryte:search",

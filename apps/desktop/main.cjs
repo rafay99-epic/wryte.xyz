@@ -44,8 +44,7 @@ app.commandLine.appendSwitch("enable-gpu-rasterization");
 // ── Worker processes ────────────────────────────────────────────────────────
 /** @type {import("node:child_process").ChildProcess | undefined} */
 let connectivityWorker;
-/** @type {import("node:child_process").ChildProcess | undefined} */
-let taskWorker;
+/** @type {boolean | null} */
 let lastOnline = null;
 
 function spawnWorkers() {
@@ -81,33 +80,12 @@ function spawnWorkers() {
     }
   });
   connectivityWorker.send({ type: "start" });
-
-  // Task worker: general-purpose background computation.
-  taskWorker = spawn("task", path.join(workerDir, "task-worker.cjs"));
-  taskWorker.on("message", (msg) => {
-    if (msg?.type === "task-result") {
-      webContents.getAllWebContents().forEach((wc) => {
-        wc.send("task-result", msg);
-      });
-    }
-  });
-}
-
-/** @returns {{ connectivity: number | null, task: number | null }} */
-function workerStatus() {
-  return {
-    connectivity: connectivityWorker?.pid ?? null,
-    task: taskWorker?.pid ?? null,
-  };
 }
 
 function killWorkers() {
-  const s = workerStatus();
+  const pid = connectivityWorker?.pid;
   connectivityWorker?.kill();
-  taskWorker?.kill();
-  if (s.connectivity || s.task) {
-    logger.info(`killed workers connectivity=${s.connectivity} task=${s.task}`);
-  }
+  if (pid) logger.info(`killed connectivity worker pid=${pid}`);
 }
 
 // Single instance: a second launch focuses the existing window.
@@ -126,36 +104,33 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   // ── Performance: memory pressure handler ──────────────────────────────
-  // When the OS signals low memory, clear session caches and hint GC.
+  // When the OS signals low memory, clear the session HTTP cache.
   app.on("memory-pressure", (_e, level) => {
     logger.info(`memory-pressure: ${level}`);
     if (level === "critical" || level === "moderate") {
       session.defaultSession.clearCache().catch(() => undefined);
-      for (const wc of webContents.getAllWebContents()) {
-        wc.executeJavaScript("window.gc?.()", false).catch(() => undefined);
-      }
     }
   });
 
   // ── IPC: renderer subscribes to connectivity ──────────────────────────
-  ipcMain.on("connectivity-subscribe", () => {
-    if (lastOnline !== null) return;
+  // Late subscribers get the last known state immediately; later changes
+  // arrive via the broadcast in spawnWorkers().
+  ipcMain.on("connectivity-subscribe", (event) => {
+    if (lastOnline !== null)
+      event.sender.send("connectivity-change", lastOnline);
   });
-
-  // ── IPC: renderer submits a background task ───────────────────────────
-  ipcMain.on("task-submit", (_event, msg) => {
-    taskWorker?.send(msg);
-  });
-
-  // ── IPC: renderer queries worker status (PIDs) ────────────────────────
-  ipcMain.handle("worker-status", () => workerStatus());
 
   // ── IPC: renderer forwards logs to the main-process logger ────────────
-  ipcMain.on("log", (_event, { level, message }) => {
+  const MAX_RENDERER_LOG_LENGTH = 4000;
+  ipcMain.on("log", (_event, payload) => {
+    const level = payload?.level;
+    const message = payload?.message;
+    if (typeof level !== "string" || typeof message !== "string") return;
+    const line = `[renderer] ${message.slice(0, MAX_RENDERER_LOG_LENGTH)}`;
     if (level === "error" || level === "warn") {
-      logger.error(`[renderer] ${message}`);
+      logger.error(line);
     } else {
-      logger.info(`[renderer] ${message}`);
+      logger.info(line);
     }
   });
 
@@ -197,7 +172,7 @@ if (!app.requestSingleInstanceLock()) {
     const mainWin = win.getMainWindow();
     if (mainWin) {
       try {
-        tray.createTray(mainWin);
+        tray.createTray();
         win.setTrayEnabled(true);
       } catch {
         // Tray may be unsupported (headless Linux, sandboxed).

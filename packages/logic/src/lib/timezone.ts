@@ -20,13 +20,47 @@ export function resolveTimezone(projectTimezone?: string | null): string {
 
 /** All IANA timezones supported by the runtime. */
 export function listTimezones(): string[] {
-  const supported = (
-    Intl as unknown as { supportedValuesOf?: (key: string) => string[] }
-  ).supportedValuesOf;
-  if (typeof supported === "function") return supported("timeZone");
+  if (typeof Intl.supportedValuesOf === "function") {
+    return Intl.supportedValuesOf("timeZone");
+  }
   // Browser doesn't expose supportedValuesOf — fall back to a curated subset.
   return FALLBACK_TIMEZONES;
 }
+
+/**
+ * `Intl.DateTimeFormat` construction is expensive and these helpers run in
+ * loops (calendar grids, the ~400-entry timezone picker), so formatters are
+ * cached per timezone. One map per option set.
+ */
+const partsFormatters = new Map<string, Intl.DateTimeFormat>();
+const offsetFormatters = new Map<string, Intl.DateTimeFormat>();
+
+function cachedFormatter(
+  cache: Map<string, Intl.DateTimeFormat>,
+  timeZone: string,
+  options: Intl.DateTimeFormatOptions,
+): Intl.DateTimeFormat {
+  let formatter = cache.get(timeZone);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat("en-US", { ...options, timeZone });
+    cache.set(timeZone, formatter);
+  }
+  return formatter;
+}
+
+const PARTS_OPTIONS: Intl.DateTimeFormatOptions = {
+  hour12: false,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+};
+
+const OFFSET_OPTIONS: Intl.DateTimeFormatOptions = {
+  timeZoneName: "longOffset",
+};
 
 type TzParts = {
   year: number;
@@ -45,16 +79,7 @@ export function getPartsInTimezone(
   timestamp: number,
   timeZone: string,
 ): TzParts {
-  const formatter = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    hour12: false,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
+  const formatter = cachedFormatter(partsFormatters, timeZone, PARTS_OPTIONS);
   const map: Record<string, string> = {};
   for (const part of formatter.formatToParts(new Date(timestamp))) {
     map[part.type] = part.value;
@@ -150,10 +175,7 @@ export function getTimezoneOffsetLabel(
   timeZone: string,
   timestamp: number = Date.now(),
 ): string {
-  const formatter = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    timeZoneName: "longOffset",
-  });
+  const formatter = cachedFormatter(offsetFormatters, timeZone, OFFSET_OPTIONS);
   for (const part of formatter.formatToParts(new Date(timestamp))) {
     if (part.type === "timeZoneName") {
       // "GMT-08:00" → "UTC-08:00"; "GMT" alone → "UTC+00:00"

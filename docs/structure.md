@@ -31,7 +31,7 @@ wryte.xyz/
 │       │   ├── menu/               #     Application menu
 │       │   ├── tray/               #     Menu-bar tray
 │       │   ├── updater/            #     electron-updater flow
-│       │   └── workers/            #     Connectivity + task child processes
+│       │   └── workers/            #     Connectivity child process
 │       ├── assets/                 #   App icon used at runtime
 │       ├── build/                  #   electron-builder buildResources (icon.icns source)
 │       └── electron-builder.js     #   Packaging + publish config
@@ -45,7 +45,7 @@ wryte.xyz/
 │   │       ├── lib/                #   utils, seo, markdown, frontmatter detection,
 │   │       │                       #   image compression, watermark removal, timezone
 │   │       ├── hooks/              #   Cross-feature React hooks
-│   │       ├── stores/             #   Zustand stores (editor, board, calendar, media…)
+│   │       ├── stores/             #   Zustand stores (editor, board, calendar, search…)
 │   │       └── types/              #   Shared type definitions
 │   │
 │   └── backend/                    # @wryte/backend — Convex
