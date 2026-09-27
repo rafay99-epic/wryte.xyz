@@ -78,9 +78,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           animate={{ width: sidebarOpen && !focusMode ? 260 : 0 }}
           transition={{ type: "spring", stiffness: 400, damping: 35 }}
         >
-          <Suspense fallback={<AppSidebarFallback />}>
-            <AppSidebar />
-          </Suspense>
+          {isAuthenticated ? (
+            <Suspense fallback={<AppSidebarFallback />}>
+              <AppSidebar />
+            </Suspense>
+          ) : (
+            <AppSidebarFallback />
+          )}
         </motion.aside>
 
         {/* Main content */}
@@ -95,9 +99,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
                 className="shrink-0 overflow-hidden"
               >
-                <Suspense fallback={<AppHeaderFallback />}>
-                  <AppHeader />
-                </Suspense>
+                {isAuthenticated ? (
+                  <Suspense fallback={<AppHeaderFallback />}>
+                    <AppHeader />
+                  </Suspense>
+                ) : (
+                  <AppHeaderFallback />
+                )}
               </motion.div>
             )}
           </AnimatePresence>
@@ -109,15 +117,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             // height-constrained and manages its own overflow.
             className="min-w-0 flex-1 overflow-y-auto slim-scrollbar"
           >
-            {children}
+            {isAuthenticated ? children : null}
           </main>
         </div>
 
-        {/* Command Palette */}
-        <CommandPalette
-          open={commandPaletteOpen}
-          onOpenChange={setCommandPaletteOpen}
-        />
+        {isAuthenticated ? (
+          <CommandPalette
+            open={commandPaletteOpen}
+            onOpenChange={setCommandPaletteOpen}
+          />
+        ) : null}
 
         {/* Focus mode exit button — floating in bottom-right */}
         <AnimatePresence>
