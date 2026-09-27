@@ -1,0 +1,19 @@
+apps/web/src/app/(app)/layout.tsx
+  s_afe331801d4351::t_b03132ec73b187 78-84,99-105,117,122-127
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8087ce74ee237d2bf6bb6753b5387943d32b3496",
+  "prompts": {},
+  "sessions": {
+    "s_afe331801d4351": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "57228730-cc80-4f5a-bfb4-bbd4ee82af55",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
