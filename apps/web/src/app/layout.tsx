@@ -4,6 +4,10 @@ import "./globals.css";
 import { Analytics } from "@vercel/analytics/next";
 import { BRAND, resolveBrandAsset } from "@wryte/logic/lib/branding";
 import {
+  clerkFrontendApiOrigin,
+  urlOrigin,
+} from "@wryte/logic/lib/connection-origins";
+import {
   SITE_AUTHOR,
   SITE_AUTHOR_URL,
   SITE_DESCRIPTION,
@@ -20,6 +24,11 @@ import { ServiceWorkerRegistration } from "@/components/providers/service-worker
 import { ThemeProvider } from "@/components/providers/theme-provider";
 
 const BRAND_ICON_URL = resolveBrandAsset(BRAND.icon);
+
+const PRECONNECT_ORIGINS = [
+  clerkFrontendApiOrigin(process.env["NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY"]),
+  urlOrigin(process.env["NEXT_PUBLIC_CONVEX_URL"]),
+].filter((origin): origin is string => origin !== null);
 
 const poppins = Poppins({
   variable: "--font-poppins",
@@ -154,6 +163,9 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <head>
+        {PRECONNECT_ORIGINS.map((origin) => (
+          <link key={origin} rel="preconnect" href={origin} />
+        ))}
         <script
           dangerouslySetInnerHTML={{
             __html: `(function(){try{var d=document.documentElement;var t=JSON.parse(localStorage.getItem("wryte-theme")||"{}");var m=t&&t.state&&t.state.mode;if(m==="dark"||(m==="system"&&window.matchMedia("(prefers-color-scheme:dark)").matches)||(!m&&true)){d.classList.add("dark")}else{d.classList.remove("dark")}}catch(e){}})()`,
