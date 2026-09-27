@@ -1,12 +1,3 @@
-/**
- * AI enhancement — mutations and queries.
- *
- * Runs in the default Convex runtime (NOT Node.js). All actual provider
- * streaming lives in `enhanceActions.ts`. Mutations here resolve the project's
- * configured AI credential row, hand the `vaultSecretId` to the scheduled
- * action, and short-circuit with a friendly error if anything's missing.
- */
-
 import type { StreamId } from "@convex-dev/persistent-text-streaming";
 import {
   PersistentTextStreaming,
@@ -20,17 +11,9 @@ import { getAuthedUserOrNull, getCurrentUser } from "../_lib/auth";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
 import type { AiProvider } from "./_lib/providers";
 
-/* ------------------------------------------------------------------ */
-/*  Streaming instance                                                 */
-/* ------------------------------------------------------------------ */
-
 const streaming = new PersistentTextStreaming(
   components.persistentTextStreaming,
 );
-
-/* ------------------------------------------------------------------ */
-/*  System prompts                                                     */
-/* ------------------------------------------------------------------ */
 
 const ENHANCE_SYSTEM_PROMPT = `You are an expert writing editor. Improve the provided markdown content while preserving the author's voice, intent, and meaning.
 
@@ -70,18 +53,6 @@ export function getFinalDraftSystemPrompt(contentFormat?: string): string {
     : FINAL_DRAFT_SYSTEM_PROMPT;
 }
 
-/* ------------------------------------------------------------------ */
-/*  Shared resolver: auth + project + credential                        */
-/* ------------------------------------------------------------------ */
-
-/**
- * Centralised guard for every AI mutation:
- *  - asserts the caller owns the project (and returns the caller)
- *  - confirms `aiProvider` / `aiModel` are configured
- *  - confirms a credential row exists for that provider with `status === "active"`
- *
- * Throws friendly errors that the client renders directly.
- */
 async function resolveProjectAndCredential(
   ctx: MutationCtx,
   projectId: Doc<"projects">["_id"],
@@ -148,14 +119,6 @@ async function resolveProjectAndCredential(
   };
 }
 
-/* ------------------------------------------------------------------ */
-/*  Mutations & queries                                                */
-/* ------------------------------------------------------------------ */
-
-/**
- * Records who owns the stream so `getStreamBody` can reject reads from
- * other users. Called immediately after every `streaming.createStream`.
- */
 async function trackStreamOwner(
   ctx: MutationCtx,
   streamId: string,
@@ -182,12 +145,10 @@ export const createEnhanceStream = mutation({
       key,
       throws: true,
     });
-    // Deployment-wide backstop (no key → shared bucket across all users).
     await rateLimiter.limit(ctx, "ai:global", { throws: true });
 
     const { user, project, provider, model, vaultSecretId } =
       await resolveProjectAndCredential(ctx, args.projectId);
-    // Per-provider deployment-wide cap (keyed by provider id).
     await rateLimiter.limit(ctx, "ai:provider", {
       key: provider,
       throws: true,
@@ -212,7 +173,6 @@ export const createEnhanceStream = mutation({
   },
 });
 
-/** Reactive query the client uses to render the streamed AI response. */
 export const getStreamBody = query({
   args: { streamId: StreamIdValidator },
   handler: async (ctx, args) => {
@@ -246,7 +206,6 @@ export const createInlineEnhanceStream = mutation({
 
     const { user, project, provider, model, vaultSecretId } =
       await resolveProjectAndCredential(ctx, args.projectId);
-    // Per-provider deployment-wide cap (keyed by provider id).
     await rateLimiter.limit(ctx, "ai:provider", {
       key: provider,
       throws: true,
@@ -276,11 +235,6 @@ export const createInlineEnhanceStream = mutation({
   },
 });
 
-/**
- * Caps at 50 distinct tags across up to 200 of the project's most recent
- * documents — bounded reads on both axes so the mutation stays cheap
- * regardless of project size (never an unbounded `.collect()`).
- */
 async function gatherExistingTags(
   ctx: MutationCtx,
   projectId: Doc<"projects">["_id"],
@@ -318,7 +272,6 @@ export const createFrontmatterStream = mutation({
 
     const { user, project, provider, model, vaultSecretId } =
       await resolveProjectAndCredential(ctx, args.projectId);
-    // Per-provider deployment-wide cap (keyed by provider id).
     await rateLimiter.limit(ctx, "ai:provider", {
       key: provider,
       throws: true,
@@ -376,7 +329,6 @@ export const createFinalDraftStream = mutation({
       model,
       vaultSecretId,
     } = await resolveProjectAndCredential(ctx, args.projectId);
-    // Per-provider deployment-wide cap (keyed by provider id).
     await rateLimiter.limit(ctx, "ai:provider", {
       key: provider,
       throws: true,
@@ -403,8 +355,6 @@ export const createFinalDraftStream = mutation({
         draft.userId === user._id,
     );
 
-    // Draft bodies live in `document_draft_content` (split off the metadata
-    // row for bandwidth).
     const drafts = await Promise.all(
       draftRows.map(async (draft) => {
         const contentRow = draft.contentId
@@ -466,15 +416,6 @@ export const createFinalDraftStream = mutation({
   },
 });
 
-/**
- * Public readiness probe used by the editor to gate AI surface area.
- *
- * Returns `ready: true` only when a project has a provider + model picked
- * AND a credential row exists in `active` status. Anything short of that
- * gives a typed `reason` the UI can use to render the right CTA.
- *
- * Designed to be cheap — every editor render reads it.
- */
 export const isAiReady = query({
   args: { projectId: v.id("projects") },
   handler: async (

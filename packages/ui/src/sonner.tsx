@@ -11,16 +11,12 @@ import {
 import { Toaster as Sonner, type ToasterProps } from "sonner";
 
 const Toaster = ({ ...props }: ToasterProps) => {
-  // The app's theme store keeps "system" as a mode; Sonner gets the concrete
-  // resolved value so toasts always match the applied theme.
   const resolvedTheme = useResolvedTheme();
 
   return (
     <Sonner
       theme={resolvedTheme}
       className="toaster group"
-      // Adds a small × on every toast so the user can dismiss long-running
-      // info messages without waiting for the auto-dismiss timer.
       closeButton
       icons={{
         success: <CircleCheckIcon className="size-4" />,
@@ -54,15 +50,9 @@ const Toaster = ({ ...props }: ToasterProps) => {
           toast:
             "cn-toast !bg-popover !text-popover-foreground !border-border shadow-lg",
           title: "!text-popover-foreground font-medium",
-          // Description was rendering at ~50% opacity against a dark popover
-          // which made it nearly invisible — bump to /80 for legibility.
           description: "!text-popover-foreground/80",
           actionButton: "!bg-primary !text-primary-foreground",
           cancelButton: "!bg-muted !text-muted-foreground",
-          // Style the dismiss button to match the popover palette and stay
-          // visible on hover. Sonner positions it top-left by default; the
-          // `!opacity-100` overrides Sonner's hover-only reveal so it's
-          // always reachable without aiming for an invisible target.
           closeButton:
             "!bg-popover !text-muted-foreground !border-border hover:!bg-muted hover:!text-foreground !opacity-100",
         },

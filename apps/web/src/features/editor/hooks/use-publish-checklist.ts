@@ -15,28 +15,16 @@ import { useConvex } from "convex/react";
 import { useEffect, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 
-/** Bounded one-shot fetch — resolves internal links without a subscription. */
 const KNOWN_DOCS_LIMIT = 500;
 
 type UsePublishChecklistArgs = {
-  /** Gate the one-shot fetch so it only runs while the dialog is open. */
   open: boolean;
   projectId: string;
-  /** Raw frontmatter JSON string stored on the document. */
   frontmatterRaw?: string | undefined;
-  /** The project's frontmatter schema (JSON string of FrontmatterField[]). */
   frontmatterSchema?: string | undefined;
   contentFormat?: "md" | "mdx" | undefined;
 };
 
-/**
- * Computes the pre-publish checklist for the currently open document.
- *
- * Reads live content/title from the editor store (so it reflects unsaved
- * edits), and fetches the project's `{title, slug}` doc metadata exactly once
- * when the dialog opens — a bounded one-shot query, never a subscription — to
- * resolve `[[internal links]]`. Everything else is computed client-side.
- */
 export function usePublishChecklist({
   open,
   projectId,
@@ -55,8 +43,6 @@ export function usePublishChecklist({
   const [knownDocs, setKnownDocs] = useState<KnownDoc[]>([]);
   const [isLoadingDocs, setIsLoadingDocs] = useState(false);
 
-  // One-shot fetch of lean doc metadata when the dialog opens. Cancelled if the
-  // dialog closes (or the project changes) before it resolves.
   useEffect(() => {
     if (!open || !projectId) {
       setKnownDocs([]);

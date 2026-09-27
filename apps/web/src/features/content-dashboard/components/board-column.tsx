@@ -26,7 +26,6 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { BoardCard } from "./board-card";
 
-/** Number of cards shown per page in a single column. */
 const COLUMN_PAGE_SIZE = 8;
 
 type BoardColumnProps = {
@@ -39,13 +38,11 @@ type BoardColumnProps = {
   onToggleSelect?: ((path: string, checked: boolean) => void) | undefined;
   selectedDocIds?: Set<string> | undefined;
   onToggleDocSelect?: ((docId: string, checked: boolean) => void) | undefined;
-  /** True when any card across the board is selected (selection mode). */
   selectionActive?: boolean | undefined;
   onOpenItem: (item: ContentItem) => void;
   onDeleteLocal: (item: ContentItem) => void;
   onDeleteRemote: (item: ContentItem) => void;
   onCreateClick: (initialStatus: string) => void;
-  /** When true, this column is read-only (e.g. remote column). */
   readOnly?: boolean | undefined;
 };
 
@@ -72,12 +69,10 @@ export function BoardColumn({
   const isCollapsed = useBoardStore((s) => s.collapsedColumns.has(column.id));
   const toggleCollapsed = useBoardStore((s) => s.toggleColumnCollapsed);
 
-  // Per-column pagination
   const [currentPage, setCurrentPage] = useState(1);
   const totalItems = items.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / COLUMN_PAGE_SIZE));
 
-  // Clamp page when items shrink
   useEffect(() => {
     setCurrentPage((p) => Math.min(p, totalPages));
   }, [totalPages]);
@@ -149,7 +144,6 @@ export function BoardColumn({
         isOver && "border-primary/40 bg-primary/5",
       )}
     >
-      {/* Column header */}
       <div className="flex items-center justify-between px-3 py-2.5">
         <div className="flex items-center gap-2">
           <Button
@@ -180,7 +174,6 @@ export function BoardColumn({
         </div>
       </div>
 
-      {/* Cards */}
       <div className="flex-1 overflow-y-auto px-2 pb-2 slim-scrollbar">
         <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
           <motion.div
@@ -239,7 +232,6 @@ export function BoardColumn({
         </SortableContext>
       </div>
 
-      {/* Pagination controls — only shown when column has more than one page */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between border-t px-3 py-1.5">
           <p className="text-[10px] text-muted-foreground">
@@ -271,7 +263,6 @@ export function BoardColumn({
         </div>
       )}
 
-      {/* Footer — new article */}
       {!readOnly && (
         <div className="border-t px-2 py-2">
           <Button

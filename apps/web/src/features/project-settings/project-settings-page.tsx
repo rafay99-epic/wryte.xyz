@@ -26,7 +26,6 @@ import { SyndicationSection } from "./components/syndication-section";
 import { ToolsSection } from "./components/tools-section";
 import { TABS } from "./tabs";
 
-/** Stable identity for `useHashTab`'s dependency — never rebuilt per render. */
 const TAB_IDS: readonly SettingsTab[] = TABS.map((t) => t.id);
 
 export function ProjectSettingsPage({
@@ -38,14 +37,8 @@ export function ProjectSettingsPage({
   const router = useRouter();
   const project = useQuery(api.cms.projects.get, { projectId });
   const projectDeleted = project === null;
-  // Deep-link support: `#frontmatter` opens that pane and keeps working on a
-  // fragment-only jump from the command palette.
   const [activeTab, setActiveTab] = useHashTab<SettingsTab>("general", TAB_IDS);
 
-  // Legacy deep-link: `?tab=frontmatter`, still used by in-app banners (e.g.
-  // "Review schema"). Read on the client to avoid useSearchParams' static
-  // prerender Suspense requirement; runs once on mount, and yields to a
-  // fragment when both are present so the two forms can't fight.
   useEffect(() => {
     if (window.location.hash) return;
     const tabParam = new URLSearchParams(window.location.search).get("tab");

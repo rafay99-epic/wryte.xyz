@@ -127,10 +127,6 @@ export function StepSelectRepo({ state, onChange }: StepSelectRepoProps) {
     );
   }, [repos, searchQuery]);
 
-  // Manual-mode branch detection. When the user types a valid `owner/repo`
-  // and we can reach GitHub with their token, swap the free-text branch
-  // input for a dropdown sourced from /api/github/branches. Also auto-pick
-  // the repo's real default branch the first time it loads.
   const manualRepoString = state.selectedRepo?.fullName ?? "";
   const manualRepoLooksValid = /^[^/]+\/[^/]+$/.test(manualRepoString.trim());
   const {
@@ -145,8 +141,6 @@ export function StepSelectRepo({ state, onChange }: StepSelectRepoProps) {
   const manualBranches = manualBranchesData?.branches ?? [];
   const manualDefaultBranch = manualBranchesData?.defaultBranch;
 
-  // Once GitHub tells us the real default, snap to it (unless the user has
-  // already picked something else that exists in the list).
   useEffect(() => {
     if (!state.useManualSetup) return;
     if (!state.selectedRepo) return;
@@ -169,9 +163,6 @@ export function StepSelectRepo({ state, onChange }: StepSelectRepoProps) {
     onChange,
   ]);
 
-  /* ---------------------------------------------------------------- */
-  /*  Manual setup mode                                                */
-  /* ---------------------------------------------------------------- */
   if (state.useManualSetup) {
     return (
       <div className="space-y-5">
@@ -333,9 +324,6 @@ export function StepSelectRepo({ state, onChange }: StepSelectRepoProps) {
     );
   }
 
-  /* ---------------------------------------------------------------- */
-  /*  Repository selection mode                                        */
-  /* ---------------------------------------------------------------- */
   return (
     <div className="space-y-5">
       {isLoading ? (
@@ -366,7 +354,6 @@ export function StepSelectRepo({ state, onChange }: StepSelectRepoProps) {
         </div>
       ) : (
         <>
-          {/* Search */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground/50" />
             <Input
@@ -377,7 +364,6 @@ export function StepSelectRepo({ state, onChange }: StepSelectRepoProps) {
             />
           </div>
 
-          {/* Repository list */}
           <div className="space-y-1">
             {filteredRepos.length === 0 ? (
               <div className="flex flex-col items-center py-10 text-center">
@@ -405,7 +391,6 @@ export function StepSelectRepo({ state, onChange }: StepSelectRepoProps) {
                         : "hover:ring-1 hover:ring-border/60",
                     )}
                   >
-                    {/* Icon / check */}
                     <div
                       className={cn(
                         "flex size-9 shrink-0 items-center justify-center rounded-lg transition-colors",
@@ -421,7 +406,6 @@ export function StepSelectRepo({ state, onChange }: StepSelectRepoProps) {
                       )}
                     </div>
 
-                    {/* Repo info */}
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <span
@@ -468,7 +452,6 @@ export function StepSelectRepo({ state, onChange }: StepSelectRepoProps) {
         </>
       )}
 
-      {/* Project identity — inline when a repo is selected */}
       {state.selectedRepo && !state.useManualSetup && (
         <div className="space-y-3 rounded-lg border border-border/60 bg-muted/30 p-4">
           <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/60">
@@ -507,7 +490,6 @@ export function StepSelectRepo({ state, onChange }: StepSelectRepoProps) {
         </div>
       )}
 
-      {/* Manual setup link */}
       <button
         type="button"
         onClick={handleManualToggle}

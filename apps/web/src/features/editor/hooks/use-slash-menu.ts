@@ -9,7 +9,6 @@ import {
 } from "react";
 
 type CaretPosition = {
-  /** Viewport coords of the caret's line top + its height (for below/above placement). */
   caretTop: number;
   caretLeft: number;
   caretHeight: number;
@@ -36,13 +35,6 @@ const CLOSED: TriggerMenuState = {
   position: null,
 };
 
-/**
- * Watches the textarea for an active `/command` context. When `enabled` is
- * false it attaches NO listeners and does zero work per keystroke — the
- * zero-cost-when-disabled guarantee. Returns the menu open state, current
- * query, the `/` position (for insertion), and the caret pixel position (for
- * the popover). The caller owns filtering, keyboard nav, and insertion.
- */
 export function useSlashMenu(
   textareaRef: RefObject<HTMLTextAreaElement | null>,
   enabled: boolean,
@@ -55,12 +47,6 @@ export function useSlashMenu(
   );
 }
 
-/**
- * Generic caret-trigger menu watcher — the machinery behind the slash menu
- * and the `[[` internal-link menu. `detect` decides whether the caret sits
- * in an active trigger context; `ownSelector` identifies the menu's DOM so
- * scrolling inside it doesn't close it.
- */
 export function useTriggerMenu(
   textareaRef: RefObject<HTMLTextAreaElement | null>,
   enabled: boolean,
@@ -69,7 +55,6 @@ export function useTriggerMenu(
 ): TriggerMenuState & { close: () => void } {
   const [state, setState] = useState<TriggerMenuState>(CLOSED);
   const composingRef = useRef(false);
-  // Stable so consumers can use it in effect deps without re-running.
   const close = useCallback(() => setState((s) => (s.open ? CLOSED : s)), []);
 
   useEffect(() => {
@@ -79,7 +64,6 @@ export function useTriggerMenu(
 
     const evaluate = () => {
       if (composingRef.current) return;
-      // Only a collapsed caret can be a slash context.
       if (ta.selectionStart !== ta.selectionEnd) {
         close();
         return;
@@ -119,7 +103,6 @@ export function useTriggerMenu(
       if (document.activeElement === ta) evaluate();
     };
     const onScroll = (e: Event) => {
-      // Let the menu scroll its own list; only an editor/page scroll closes it.
       const target = e.target;
       if (target instanceof Element && target.closest(ownSelector)) {
         return;
@@ -132,8 +115,6 @@ export function useTriggerMenu(
     ta.addEventListener("compositionend", onCompositionEnd);
     ta.addEventListener("blur", close);
     document.addEventListener("selectionchange", onSelectionChange);
-    // Capture phase catches scrolls on the editor pane (scroll doesn't bubble);
-    // passive since we never preventDefault.
     window.addEventListener("scroll", onScroll, {
       capture: true,
       passive: true,

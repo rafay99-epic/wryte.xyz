@@ -2,7 +2,6 @@ export const ANIMATION_LANGUAGES = ["tsx", "jsx"] as const;
 
 export type AnimationLanguage = (typeof ANIMATION_LANGUAGES)[number];
 
-/** Absent means TypeScript: the default every project starts on. */
 export function resolveAnimationLanguage(
   language: string | undefined,
 ): AnimationLanguage {

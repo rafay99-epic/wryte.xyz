@@ -22,17 +22,6 @@ export type DeletableAnimation = {
   name: string;
 };
 
-/**
- * Reference-checked delete. On open it scans the project's post bodies for
- * `<Name` usages (server-side, delete-time only — see animations.usage):
- *
- *  - referenced → delete is BLOCKED; every referencing post is listed with
- *    a direct editor link so the author can remove the tags first;
- *  - unreferenced → a normal confirm-and-delete.
- *
- * Shared by the gallery cards, the gallery edit sheet, and the editor's
- * insert dialog so the safety rule can't be bypassed from any surface.
- */
 export function DeleteAnimationDialog({
   projectId,
   animation,
@@ -42,7 +31,6 @@ export function DeleteAnimationDialog({
   projectId: Id<"projects">;
   animation: DeletableAnimation | null;
   onClose: () => void;
-  /** Called after a successful delete (e.g. to also close a parent sheet). */
   onDeleted?: () => void;
 }) {
   const open = animation !== null;

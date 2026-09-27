@@ -1,27 +1,3 @@
-/**
- * MCP resources — read-only context an agent should load *before* acting.
- *
- * Tools are verbs; resources are the shape of the world. Each one here exists
- * to remove a class of repeated tool call, which makes them a cost reduction
- * rather than an ergonomic nicety:
- *
- *   - Without `wryte://projects`, an agent re-lists projects every turn to
- *     remember which id is which.
- *   - Without the frontmatter schema, it guesses the frontmatter, gets
- *     rejected, and retries — three tool calls where zero were needed.
- *   - Without board columns, it invents statuses like "in progress" when the
- *     project's board says "wip".
- *
- * Read handlers run host-side and go through the same internal handlers as
- * the tools, with the caller passed in from the identity the gateway resolved
- * (see `_lib/auth.ts → requireCaller`). The gateway rejects anonymous resource
- * reads before a handler runs, and `authorizeResource` in `./authorize.ts`
- * requires the `read` capability for every one of them.
- *
- * The gateway types `ctx.runQuery` as returning `any`, so each result is
- * annotated with the handler's real return type.
- */
-
 import type { FunctionReturnType } from "convex/server";
 import {
   defineMcpResource,
@@ -33,18 +9,11 @@ import { api, internal } from "../_generated/api";
 
 const JSON_MIME = "application/json";
 
-/** Uniform JSON body helper — every resource returns a single JSON part. */
 function jsonPart(uri: string, data: unknown) {
   return [{ uri, mimeType: JSON_MIME, text: JSON.stringify(data, null, 2) }];
 }
 
-// Annotated for the same reason as `tools` in `./tools.ts`: `api`'s generated
-// type covers this module, so an inferred export type would be circular.
 export const resources: McpResourceRegistration[] = [
-  /**
-   * The agent's map. Same projection as `wryte_projects_list`, see
-   * `handlers/projects.ts`.
-   */
   defineMcpResource({
     uri: "wryte://projects",
     name: "wryte-projects",
@@ -64,19 +33,6 @@ export const resources: McpResourceRegistration[] = [
 ];
 
 export const resourceTemplates: McpResourceTemplateProvider[] = [
-  /**
-   * The formatter. A project can define a frontmatter schema, and a document
-   * whose frontmatter doesn't match it is rejected on write. Exposing the
-   * schema means the model writes valid frontmatter the first time instead of
-   * discovering the rules through failed mutations.
-   *
-   * The schema is stored on the project row as a JSON string of
-   * `FrontmatterField[]` (see `@wryte/logic/types/frontmatter` — the backend
-   * cannot import that package, so the minimal shape is restated here). It is
-   * parsed before returning: an agent that has to parse a JSON-in-JSON string
-   * tends to skip the resource entirely and guess the frontmatter, which is
-   * exactly the failure this resource exists to prevent.
-   */
   defineMcpResourceTemplate({
     uriTemplate: "wryte://project/{projectId}/frontmatter-schema",
     name: "wryte-frontmatter-schema",
@@ -95,7 +51,6 @@ export const resourceTemplates: McpResourceTemplateProvider[] = [
       });
       if (!project) return null;
 
-      // Minimal mirror of `FrontmatterField` — only what an agent needs.
       type SchemaField = {
         name: string;
         type: string;
@@ -121,10 +76,6 @@ export const resourceTemplates: McpResourceTemplateProvider[] = [
         .filter((f) => f.required && !f.hidden)
         .map((f) => f.name);
 
-      // Per-field fill guidance. `defaultValue` is the field's configured
-      // pre-populated value; empty defaults for date/datetime fields mean
-      // "use today's date". Everything else empty means the agent invents
-      // the value from the document content.
       const defaults: Record<string, string> = {};
       for (const field of fields) {
         if (field.defaultValue) {
@@ -139,7 +90,6 @@ export const resourceTemplates: McpResourceTemplateProvider[] = [
 
       return jsonPart(uri, {
         projectId: project._id,
-        // Raw string preserved for clients that want the exact contract.
         frontmatterSchema: project.frontmatterSchema ?? null,
         fields,
         requiredFields,
@@ -154,15 +104,6 @@ export const resourceTemplates: McpResourceTemplateProvider[] = [
     },
   }),
 
-  /**
-   * Valid board statuses. `wryte_documents_update` takes `status` as a free
-   * string, and the set of legal values is per-project, so without this an
-   * agent is guessing.
-   *
-   * Still reads through the public `cms/boardColumns.getColumns` (auth from the
-   * token via `ctx.auth`): the defaults and parsing live module-private there,
-   * and this is the one resource not yet on the internal-handler path.
-   */
   defineMcpResourceTemplate({
     uriTemplate: "wryte://project/{projectId}/board-columns",
     name: "wryte-board-columns",
@@ -180,10 +121,6 @@ export const resourceTemplates: McpResourceTemplateProvider[] = [
     },
   }),
 
-  /**
-   * A document as attachable context, so a client can pull one into the
-   * conversation without spending a tool call on it.
-   */
   defineMcpResourceTemplate({
     uriTemplate: "wryte://document/{documentId}",
     name: "wryte-document",

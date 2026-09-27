@@ -4,16 +4,10 @@ import { FieldSkeleton } from "@/components/feedback/skeletons/field-skeleton";
 
 type SectionSkeletonProps = {
   className?: string;
-  /** Number of placeholder fields to render. */
   fields?: number;
-  /** Whether to render a section title above the fields. */
   withTitle?: boolean;
 };
 
-/**
- * Settings-section skeleton — title + N fields. Mirrors the shape used by
- * every settings tab so a single primitive covers them all.
- */
 export function SectionSkeleton({
   className,
   fields = 4,

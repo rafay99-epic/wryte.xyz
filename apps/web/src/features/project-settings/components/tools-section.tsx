@@ -54,8 +54,6 @@ export function ToolsSection({
   );
 }
 
-/* ── Export ──────────────────────────────────────────────────────────── */
-
 type ExportPage = {
   page: {
     _id: string;
@@ -85,17 +83,13 @@ function ExportTool({
     setIsExporting(true);
     setProgress(0);
     try {
-      // Loaded on click: the zip library is only needed for this export.
       const { strToU8, zipSync } = await import("fflate");
-      // Walk the export feed page by page with one-shot queries — no
-      // subscription, nothing reactive, only paid on click.
       const files: Record<string, Uint8Array> = {};
       const usedNames = new Set<string>();
       let cursor: string | null = null;
       let count = 0;
 
       for (;;) {
-        // Explicit annotation breaks the cursor → result type circularity.
         const result: ExportPage = await convex.query(
           api.cms.documents.listForExport,
           { projectId, paginationOpts: { numItems: 50, cursor } },
@@ -109,9 +103,7 @@ function ExportTool({
                 string,
                 unknown
               >;
-            } catch {
-              // Unparseable frontmatter — export the body alone.
-            }
+            } catch {}
           }
           const yamlBlock =
             Object.keys(frontmatter).length > 0
@@ -195,8 +187,6 @@ function ExportTool({
     </div>
   );
 }
-
-/* ── Link checker ────────────────────────────────────────────────────── */
 
 type LinkCheckResult = {
   documentsScanned: number;

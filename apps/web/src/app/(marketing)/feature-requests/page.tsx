@@ -10,12 +10,10 @@ export const metadata: Metadata = {
 export default function FeatureRequestsPage() {
   return (
     <div className="relative min-h-screen">
-      {/* Background glow */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute left-1/2 top-0 h-[420px] w-[820px] -translate-x-1/2 rounded-full bg-amber-500/[0.045] blur-[120px]" />
       </div>
 
-      {/* Header */}
       <header className="relative z-10 border-b border-foreground/[0.06]">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
           <Link
@@ -31,7 +29,6 @@ export default function FeatureRequestsPage() {
       </header>
 
       <main className="relative z-10 mx-auto max-w-3xl px-6 py-16 sm:py-24">
-        {/* Hero */}
         <div className="mb-14 text-center">
           <p className="font-mono text-[11px] font-medium uppercase tracking-[0.25em] text-amber-500/80">
             Build with us

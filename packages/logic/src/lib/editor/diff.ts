@@ -1,11 +1,3 @@
-/**
- * Line-based diff for the snapshot history view. Common prefix/suffix are
- * trimmed first, then the middle is aligned with an LCS table. Documents
- * here are blog posts (hundreds of lines), so the DP stays tiny; a guard
- * degrades gracefully to a remove-all/add-all block if two versions
- * somehow diverge across thousands of lines.
- */
-
 export type DiffLine = {
   type: "same" | "added" | "removed";
   text: string;
@@ -48,7 +40,6 @@ export function diffLines(oldText: string, newText: string): DiffLine[] {
 function lcsDiff(a: string[], b: string[]): DiffLine[] {
   const rows = a.length + 1;
   const cols = b.length + 1;
-  // Flat Int32 table: lengths[i][j] = LCS length of a[i:], b[j:].
   const lengths = new Int32Array(rows * cols);
   for (let i = a.length - 1; i >= 0; i--) {
     for (let j = b.length - 1; j >= 0; j--) {
@@ -104,17 +95,12 @@ export function diffStats(lines: DiffLine[]): DiffStats {
   return { added, removed };
 }
 
-/** Collapse runs of unchanged lines longer than this in diff views. */
 export const DIFF_CONTEXT_LINES = 3;
 
 export type DiffRow =
   | { kind: "line"; line: DiffLine; key: number }
   | { kind: "fold"; count: number; key: number };
 
-/**
- * Fold long unchanged runs down to DIFF_CONTEXT_LINES of context around
- * each change — shared by the snapshot and publish diff sheets.
- */
 export function foldUnchanged(lines: DiffLine[]): DiffRow[] {
   const rows: DiffRow[] = [];
   let i = 0;

@@ -8,12 +8,6 @@ import { ArrowLeft, FileQuestion, LayoutDashboard } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-/**
- * 404 page for the authenticated (app) route group.
- *
- * Renders within the app shell so the sidebar and header remain visible,
- * giving the user easy navigation back to valid pages.
- */
 export default function AppNotFound() {
   const router = useRouter();
 

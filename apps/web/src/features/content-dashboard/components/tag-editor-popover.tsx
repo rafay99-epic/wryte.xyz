@@ -26,21 +26,18 @@ export function TagEditorPopover({
 
   const editor = useTagEditor({ documentId, initialTags: currentTags });
 
-  // Sync tags when prop changes (e.g. external update)
   React.useEffect(() => {
     if (!open) {
       editor.resetTags(currentTags);
     }
   }, [currentTags, open, editor.resetTags]);
 
-  // Focus input when popover opens
   React.useEffect(() => {
     if (open) {
       setTimeout(() => editor.inputRef.current?.focus(), 0);
     }
   }, [open, editor.inputRef]);
 
-  // Close on outside click
   React.useEffect(() => {
     if (!open) return;
 
@@ -73,7 +70,6 @@ export function TagEditorPopover({
 
   return (
     <div className="relative inline-flex" ref={triggerRef}>
-      {/* Trigger */}
       <div
         role="button"
         tabIndex={0}
@@ -94,7 +90,6 @@ export function TagEditorPopover({
         {children}
       </div>
 
-      {/* Popover */}
       {open && (
         <div
           ref={popoverRef}
@@ -105,13 +100,11 @@ export function TagEditorPopover({
             "p-3",
           )}
         >
-          {/* Header */}
           <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
             <Tag className="size-3" />
             Tags
           </div>
 
-          {/* Existing tag badges */}
           {editor.tags.length > 0 && (
             <div className="mb-2 flex flex-wrap gap-1">
               {editor.tags.map((tag) => (
@@ -137,7 +130,6 @@ export function TagEditorPopover({
             </div>
           )}
 
-          {/* Input row */}
           <div className="flex items-center gap-1.5">
             <input
               ref={editor.inputRef}
@@ -173,7 +165,6 @@ export function TagEditorPopover({
             </button>
           </div>
 
-          {/* Autocomplete suggestions */}
           {suggestions.length > 0 && (
             <div className="mt-2 flex flex-col gap-0.5">
               <p className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground/70">
@@ -204,7 +195,6 @@ export function TagEditorPopover({
             </div>
           )}
 
-          {/* Hint */}
           <p className="mt-2.5 text-[10px] text-muted-foreground/50">
             Press Enter or comma to add
           </p>

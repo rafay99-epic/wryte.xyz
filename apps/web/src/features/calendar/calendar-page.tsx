@@ -19,12 +19,10 @@ export function CalendarPage({
 
   const project = useQuery(api.cms.projects.get, { projectId });
 
-  // Set active project in sidebar
   useEffect(() => {
     useEditorStore.getState().setActiveProjectId(projectId);
   }, [projectId]);
 
-  // Not found (loading is handled by the surface's skeleton)
   if (project === null) {
     return (
       <div className="flex h-full items-center justify-center p-6">

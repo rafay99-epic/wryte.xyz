@@ -44,13 +44,6 @@ function escapeMarkdownAlt(value: string): string {
   return value.replaceAll("\\", "\\\\").replaceAll("]", "\\]");
 }
 
-/**
- * Drawer for inserting images into the markdown editor.
- *
- * Library and upload both use the project's configured media provider:
- * GitHub writes to `mediaPath`, Cloudinary uses that folder prefix, and
- * UploadThing routes through the project's saved UploadThing credential.
- */
 export function ImageInsertDialog({
   open,
   onOpenChange,
@@ -263,7 +256,6 @@ export function ImageInsertDialog({
 
                 {imageUrl && (
                   <div className="overflow-hidden rounded-lg border bg-muted/50">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={imageUrl}
                       alt={altText || "preview"}

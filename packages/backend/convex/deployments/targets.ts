@@ -1,8 +1,3 @@
-/**
- * Deployment targets — per-project host integrations used by deployment
- * verification (convex/deployments/verify.ts). Provider tokens go straight
- * into the secret store (WorkOS Vault); only the vault id is persisted.
- */
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
@@ -15,7 +10,6 @@ import {
 } from "../_generated/server";
 import { getAuthedUserOrNull, getCurrentUser } from "../_lib/auth";
 
-/** Targets for the settings UI — never exposes the vault secret id. */
 export const list = query({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
@@ -38,7 +32,6 @@ export const list = query({
   },
 });
 
-/** Ownership gate shared by the connect action (auth propagates into it). */
 export const assertOwner = internalQuery({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
@@ -52,16 +45,10 @@ export const assertOwner = internalQuery({
   },
 });
 
-/**
- * Connect a Vercel project. Validates the token against the Vercel API
- * before saving (fail fast, precise error) and normalizes the project name
- * to its stable ID.
- */
 export const connectVercel = action({
   args: {
     projectId: v.id("projects"),
     token: v.string(),
-    /** Vercel project name or ID, exactly as shown in the Vercel dashboard */
     vercelProject: v.string(),
     teamId: v.optional(v.string()),
   },
@@ -149,7 +136,6 @@ export const remove = mutation({
       throw new Error("Deployment target not found");
     }
     await ctx.db.delete(args.targetId);
-    // Best-effort vault cleanup — the token is useless without the row.
     await ctx.scheduler.runAfter(0, internal.integrations.secretStore._delete, {
       id: target.vaultSecretId,
     });

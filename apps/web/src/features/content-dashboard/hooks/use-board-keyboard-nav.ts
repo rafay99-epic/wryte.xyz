@@ -10,11 +10,6 @@ import { useMutation } from "convex/react";
 import { useCallback, useMemo } from "react";
 import { toast } from "sonner";
 
-/**
- * Registers vim-style keyboard shortcuts for board navigation and
- * card movement. Shortcuts: j/k (up/down), h/l (left/right columns),
- * Enter (open), Escape (clear focus), m+1-9 (move to column N).
- */
 export function useBoardKeyboardNav({
   columns,
   grouped,

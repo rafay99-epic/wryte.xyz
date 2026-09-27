@@ -1,17 +1,3 @@
-/**
- * Public writing profile — `wryte.xyz/@username`.
- *
- * `getPublicProfile` is the one unauthenticated surface here; it follows the
- * same discipline as `cms/shareLinks.getByToken` — it reads freely but
- * returns ONLY a curated shape, never raw user/document rows, never the
- * email. Everything is gated on `profilePublic`; the streak + heatmap are
- * gated again on `profileShowStats` because they reveal writing cadence.
- *
- * The handle mirrors the Clerk username (source of truth). `syncMyUsername`
- * pulls it via the Clerk backend SDK and stores it lowercased for lookup —
- * no webhook needed; the settings UI syncs on mount, so the handle refreshes
- * whenever the user manages their profile.
- */
 import { ConvexError, v } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
 import type { QueryCtx } from "./_generated/server";
@@ -27,8 +13,6 @@ const HANDLE_RE = /^[a-z0-9_-]{1,64}$/;
 const MAX_BIO = 280;
 const MAX_LINKS = 6;
 const MAX_POSTS = 50;
-// Mirror of src/features/profile/accents.ts keys — kept as a small closed set
-// so the Convex validator doesn't reach into the frontend bundle.
 const ACCENT_KEYS = new Set([
   "teal",
   "blue",
@@ -40,10 +24,6 @@ const ACCENT_KEYS = new Set([
 
 export type SocialLink = { label: string; url: string };
 
-/**
- * Force an absolute URL. Project Site URLs are often stored without a scheme
- * (e.g. "rafay99.com"), which the browser would treat as a relative link.
- */
 function toAbsolute(url: string): string {
   if (/^https?:\/\//i.test(url)) return url;
   return `https://${url.replace(/^\/+/, "")}`;
@@ -132,18 +112,11 @@ type ProfileResult = {
   heatmap?: { date: string; words: number }[];
 };
 
-/**
- * Build the curated public shape for a loaded user — shared by the public
- * and preview queries. Read-only; returns only whitelisted fields.
- */
 async function assembleProfile(
   ctx: QueryCtx,
   user: Doc<"users">,
   username: string,
 ): Promise<ProfileResult> {
-  // Published posts across every project the user owns. Only those whose
-  // project has a siteUrl are linkable — a profile link that 404s is worse
-  // than an omitted post.
   const docs = await ctx.db
     .query("documents")
     .withIndex("by_userId_and_status", (q) =>
@@ -179,8 +152,6 @@ async function assembleProfile(
     return info;
   };
 
-  // One pass over published docs: collect linkable posts, tally tags for the
-  // topics cloud, and the distinct sites they live on.
   const linkable: (PostItem & {
     documentId: string;
     siteUrl: string;
@@ -221,7 +192,6 @@ async function assembleProfile(
     projectName: p.projectName,
   });
 
-  // Featured post — pinned to the top and removed from the main list.
   let featured: PostItem | undefined;
   if (user.featuredDocumentId) {
     const match = linkable.find(
@@ -235,7 +205,6 @@ async function assembleProfile(
     .slice(0, MAX_POSTS)
     .map(toPostItem);
 
-  // Distinct sites (homepages), for the "Visit site" buttons.
   const siteMap = new Map<string, string>();
   for (const p of linkable) {
     const abs = toAbsolute(p.siteUrl);
@@ -284,10 +253,6 @@ async function assembleProfile(
   return result;
 }
 
-/**
- * PUBLIC — a handle → curated profile, or null when unknown or private
- * (indistinguishable on purpose).
- */
 export const getPublicProfile = query({
   args: { username: v.string() },
   returns: v.union(v.null(), PUBLIC_PROFILE),
@@ -303,11 +268,6 @@ export const getPublicProfile = query({
   },
 });
 
-/**
- * PREVIEW — the owner's profile via a secret token, visible even while
- * private. The token is the credential (mirrors cms/shareLinks). `isPublic`
- * lets the page badge "private preview" vs "already live".
- */
 export const getProfilePreview = query({
   args: { username: v.string(), token: v.string() },
   returns: v.union(
@@ -330,10 +290,6 @@ export const getProfilePreview = query({
   },
 });
 
-/**
- * Ensure the owner has a preview token (generated client-side, shape-checked
- * here — same convention as shareLinks). Idempotent: reuses the existing one.
- */
 export const ensurePreviewToken = mutation({
   args: { token: v.string() },
   returns: v.string(),
@@ -349,7 +305,6 @@ export const ensurePreviewToken = mutation({
   },
 });
 
-/** Owner view for the settings section. */
 export const getMyProfile = query({
   args: {},
   returns: v.union(
@@ -383,7 +338,6 @@ export const getMyProfile = query({
   },
 });
 
-/** The user's published posts — for the "featured post" picker in settings. */
 export const myPublishedPosts = query({
   args: {},
   returns: v.array(v.object({ id: v.id("documents"), title: v.string() })),
@@ -403,7 +357,6 @@ export const myPublishedPosts = query({
   },
 });
 
-/** Save bio / links / visibility / stats opt-in. */
 export const updateProfile = mutation({
   args: {
     bio: v.optional(v.string()),
@@ -412,7 +365,6 @@ export const updateProfile = mutation({
     profileShowStats: v.optional(v.boolean()),
     profileAccent: v.optional(v.string()),
     feedUrl: v.optional(v.string()),
-    // null clears the pin; an id sets it (validated to be the user's own).
     featuredDocumentId: v.optional(v.union(v.id("documents"), v.null())),
   },
   returns: v.null(),
@@ -426,7 +378,6 @@ export const updateProfile = mutation({
     const patch: DocPatch<"users"> = {};
 
     if (args.profileAccent !== undefined) {
-      // A preset key, or a custom #rrggbb from the color wheel.
       const isHex = /^#[0-9a-fA-F]{6}$/.test(args.profileAccent);
       if (!ACCENT_KEYS.has(args.profileAccent) && !isHex) {
         throw new ConvexError({ message: "Invalid accent color." });
@@ -482,7 +433,6 @@ export const updateProfile = mutation({
         const label = link.label.trim().slice(0, 40);
         const url = link.url.trim();
         if (!label || !url) continue;
-        // https-only — an http/javascript: link on a public page is a footgun.
         let parsed: URL;
         try {
           parsed = new URL(url);
@@ -500,7 +450,6 @@ export const updateProfile = mutation({
     }
 
     if (args.profilePublic !== undefined) {
-      // Can't go public without a handle to be reached at.
       if (args.profilePublic && !user.username) {
         throw new ConvexError({
           message:
@@ -518,12 +467,6 @@ export const updateProfile = mutation({
   },
 });
 
-/**
- * Mirror the Clerk username onto the Convex row (lowercased). Clerk is the
- * source of truth, so the CLIENT passes `clerkUser.username` (it already has
- * it via `useUser()`) — no server-side Clerk SDK call, no cross-runtime
- * Node action. Skips claiming a handle another user already holds.
- */
 export const setMyUsername = mutation({
   args: { username: v.union(v.string(), v.null()) },
   returns: v.object({ username: v.union(v.string(), v.null()) }),
@@ -536,8 +479,6 @@ export const setMyUsername = mutation({
 
     const username = args.username ? args.username.trim().toLowerCase() : null;
 
-    // A Clerk username that isn't URL-handle-shaped can't be a profile URL —
-    // clear ours rather than store something the route can't resolve.
     if (username && !HANDLE_RE.test(username)) {
       if (user.username !== undefined) {
         await ctx.db.patch(user._id, { username: undefined });
@@ -551,7 +492,6 @@ export const setMyUsername = mutation({
         .withIndex("by_username", (q) => q.eq("username", username))
         .first();
       if (holder && holder._id !== user._id) {
-        // Taken by someone else — keep whatever we already had.
         return { username: user.username ?? null };
       }
     }

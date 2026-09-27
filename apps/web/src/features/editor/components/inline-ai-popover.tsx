@@ -18,10 +18,6 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
-/* ------------------------------------------------------------------ */
-/*  Types                                                              */
-/* ------------------------------------------------------------------ */
-
 type SelectionSnapshot = {
   text: string;
   start: number;
@@ -33,17 +29,8 @@ type InlineAiPopoverProps = {
   onOpenChange: (open: boolean) => void;
   selection: SelectionSnapshot | null;
   onAccept: (start: number, end: number, replacement: string) => void;
-  /**
-   * When set, the popover runs this instruction immediately on open
-   * instead of waiting for the user to type one — the path used by the
-   * selection toolbar's quick actions (Improve, Shorten, …).
-   */
   presetInstruction?: string | null;
 };
-
-/* ------------------------------------------------------------------ */
-/*  Component                                                          */
-/* ------------------------------------------------------------------ */
 
 export function InlineAiPopover({
   open,
@@ -71,7 +58,6 @@ export function InlineAiPopover({
     api.ai.enhance.createInlineEnhanceStream,
   );
 
-  // Stream body (reactive)
   const streamBody = useQuery(
     api.ai.enhance.getStreamBody,
     streamId ? { streamId } : "skip",
@@ -85,25 +71,21 @@ export function InlineAiPopover({
   const isDone = streamStatus === "done";
   const isError = streamStatus === "error";
 
-  // Capture selection when popover opens
   useEffect(() => {
     if (open && selection) {
       setSelectionSnapshot(selection);
       setInstruction("");
       setStreamId(undefined);
-      // Focus the input on next tick
       requestAnimationFrame(() => inputRef.current?.focus());
     }
   }, [open, selection]);
 
-  // Auto-scroll result as it streams
   useEffect(() => {
     if (isStreaming && resultRef.current) {
       resultRef.current.scrollTop = resultRef.current.scrollHeight;
     }
   }, [isStreaming]);
 
-  // Reset on close
   useEffect(() => {
     if (open) return;
     const timer = setTimeout(() => {
@@ -141,8 +123,6 @@ export function InlineAiPopover({
     inlineSystemPrompt,
   ]);
 
-  // Auto-run a preset instruction (selection-toolbar quick actions) once
-  // per open, as soon as the selection snapshot has been captured.
   const presetFiredRef = useRef(false);
   useEffect(() => {
     if (!open) {
@@ -252,7 +232,6 @@ export function InlineAiPopover({
           className="fixed left-1/2 top-20 z-50 w-[min(36rem,calc(100%-2rem))] -translate-x-1/2"
         >
           <div className="rounded-xl border border-border/60 bg-popover shadow-xl ring-1 ring-black/5">
-            {/* ── Template pills ── */}
             {!streamId && templates && templates.length > 0 && (
               <div className="flex flex-wrap gap-1.5 border-b border-border/40 px-3 py-2">
                 {templates.map((t) => (
@@ -270,7 +249,6 @@ export function InlineAiPopover({
               </div>
             )}
 
-            {/* ── Prompt input phase ── */}
             {!streamId && (
               <div className="flex items-center gap-2 p-2">
                 <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
@@ -304,7 +282,6 @@ export function InlineAiPopover({
               </div>
             )}
 
-            {/* ── Selected text preview (shown below input when no stream) ── */}
             {!streamId && selectionSnapshot && (
               <div className="border-t border-border/40 px-4 py-2.5">
                 <p className="mb-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/50">
@@ -316,10 +293,8 @@ export function InlineAiPopover({
               </div>
             )}
 
-            {/* ── Streaming / result phase ── */}
             {streamId && (
               <div className="p-3">
-                {/* Header with instruction */}
                 <div className="mb-2 flex items-center gap-2">
                   <Sparkles className="size-3.5 text-primary shrink-0" />
                   <span className="text-xs text-muted-foreground truncate">
@@ -342,7 +317,6 @@ export function InlineAiPopover({
                   )}
                 </div>
 
-                {/* Result content */}
                 <div
                   ref={resultRef}
                   className="max-h-[40vh] overflow-y-auto rounded-lg border border-border/40 bg-background px-4 py-3 slim-scrollbar"
@@ -368,7 +342,6 @@ export function InlineAiPopover({
                   )}
                 </div>
 
-                {/* Error state */}
                 {isError && (
                   <div className="mt-2 flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2">
                     <AlertCircle className="size-4 text-red-500 shrink-0" />
@@ -390,7 +363,6 @@ export function InlineAiPopover({
                   </div>
                 )}
 
-                {/* Action buttons */}
                 {(isDone || isError) && (
                   <div className="mt-2.5 flex items-center justify-end gap-2">
                     <Button
@@ -415,7 +387,6 @@ export function InlineAiPopover({
                   </div>
                 )}
 
-                {/* While streaming, show reject option */}
                 {isStreaming && (
                   <div className="mt-2.5 flex items-center justify-end">
                     <Button

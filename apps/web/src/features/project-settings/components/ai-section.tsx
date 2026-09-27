@@ -205,9 +205,6 @@ function PromptTemplatesEditor({ projectId }: { projectId: Id<"projects"> }) {
   const [isAdding, setIsAdding] = useState(false);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
-  // Edits made within one debounce window, keyed by template id. Each save
-  // merges ALL of them over the latest server snapshot, so a second edit
-  // inside the window can't drop the first.
   const pendingEditsRef = useRef(
     new Map<string, Partial<Record<"name" | "prompt", string>>>(),
   );
@@ -231,7 +228,6 @@ function PromptTemplatesEditor({ projectId }: { projectId: Id<"projects"> }) {
     });
   }, [updateTemplates, projectId]);
 
-  // Leaving the page mid-debounce saves right away instead of dropping it.
   useEffect(() => flushEdits, [flushEdits]);
 
   const handleAdd = useCallback(async () => {

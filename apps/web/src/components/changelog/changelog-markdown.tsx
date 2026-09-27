@@ -10,21 +10,6 @@ import {
   embedComponents,
 } from "@/components/markdown/embed-overrides";
 
-/**
- * Markdown renderer for changelog entries, MCP docs, and draft share
- * previews.
- *
- * Mirrors the editor's `MarkdownPreview` styling. It has no client-only
- * hooks, so it renders on the server when imported from a server component
- * (docs pages); client components (changelog list, share preview) bundle it
- * like any other client code. Pair it with the typography classes from
- * `prose` on the parent element for consistent rendering.
- *
- * Sanitisation is intentionally strict: only `code` language classes, `hljs`
- * span classes, and the post-embed allowances (whitelisted embed iframes +
- * Twitter blockquote) are whitelisted so arbitrary HTML stays blocked while
- * inserted embeds render.
- */
 const baseSchema: Options = {
   ...defaultSchema,
   attributes: {

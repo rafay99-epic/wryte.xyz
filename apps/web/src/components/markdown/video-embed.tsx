@@ -2,10 +2,6 @@
 
 import { cn } from "@wryte/logic/lib/utils";
 
-/**
- * Shared styled renderer for `<video>` tags in both the markdown and MDX
- * previews, mirroring the rounded look of preview images.
- */
 export function VideoEmbed({
   className,
   ...props

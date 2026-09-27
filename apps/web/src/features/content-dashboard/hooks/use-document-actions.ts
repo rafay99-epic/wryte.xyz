@@ -5,10 +5,6 @@ import { useMutation } from "convex/react";
 import { useCallback } from "react";
 import { toast } from "sonner";
 
-/**
- * Shared document actions (duplicate, move-to-column) used by both
- * the board card and the content table row.
- */
 export function useDocumentActions({
   documentId,
   currentStatus,

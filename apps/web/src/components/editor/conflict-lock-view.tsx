@@ -13,13 +13,6 @@ type ConflictLockViewProps = {
   title: string;
 };
 
-/**
- * Replaces the editor surface when a document has an unresolved sync
- * conflict. Editing is blocked both client-side (this view) and
- * server-side (the `documents.update` mutation refuses to write while
- * an open conflict exists), so background autosave from a stale tab
- * can't sneak edits past the lock.
- */
 export function ConflictLockView({
   projectId,
   conflictId,

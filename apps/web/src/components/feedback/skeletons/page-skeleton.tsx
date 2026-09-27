@@ -4,14 +4,9 @@ import { SectionSkeleton } from "@/components/feedback/skeletons/section-skeleto
 
 type PageSkeletonProps = {
   className?: string;
-  /** Number of sections to render. Defaults to 2. */
   sections?: number;
 };
 
-/**
- * Generic page-shell skeleton used by routes while their data loads.
- * Renders a page title + breadcrumb + N section skeletons.
- */
 export function PageSkeleton({ className, sections = 2 }: PageSkeletonProps) {
   return (
     <div className={cn("space-y-6 p-6", className)}>

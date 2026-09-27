@@ -10,11 +10,6 @@ import {
   DialogTitle,
 } from "@wryte/ui/dialog";
 
-/**
- * The one confirmation surface for destructive settings actions —
- * replaces the browser `window.confirm` scattered through credential
- * removals so every "are you sure" in the app looks and behaves the same.
- */
 export function ConfirmActionDialog({
   open,
   onOpenChange,

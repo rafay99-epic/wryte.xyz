@@ -15,17 +15,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useEditorContext } from "./editor-context";
 
-/**
- * Floating find & replace bar for the markdown textarea. Opened with
- * Ctrl/Cmd+F (or the toolbar button); Esc closes and returns focus to the
- * editor. Matching is plain-text (case toggle), navigation selects the
- * match in the textarea and scrolls it into view.
- */
 export function FindReplaceBar() {
   const open = useEditorStore((s) => s.findReplaceOpen);
   const setOpen = useEditorStore((s) => s.setFindReplaceOpen);
 
-  // Ctrl/Cmd+F overrides browser find while an editor document is open.
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (
@@ -58,7 +51,6 @@ function FindReplaceBody({ onClose }: { onClose: () => void }) {
   const [replacement, setReplacement] = useState("");
   const [caseSensitive, setCaseSensitive] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
-  // First Enter selects the current match; later Enters advance.
   const hasJumpedRef = useRef(false);
 
   const matches = useMemo(() => {
@@ -74,7 +66,6 @@ function FindReplaceBody({ onClose }: { onClose: () => void }) {
     return found;
   }, [content, query, caseSensitive]);
 
-  // Clamp when edits shrink the match list.
   useEffect(() => {
     if (activeIndex >= matches.length) {
       setActiveIndex(matches.length > 0 ? matches.length - 1 : 0);
@@ -107,8 +98,6 @@ function FindReplaceBody({ onClose }: { onClose: () => void }) {
     if (matches.length === 0) return;
     const start = matches[activeIndex] as number;
     replaceRange(start, start + query.length, replacement);
-    // Content updates → matches recompute; the same index now points at the
-    // next occurrence, so repeated clicks walk the document.
   }
 
   function replaceAll() {

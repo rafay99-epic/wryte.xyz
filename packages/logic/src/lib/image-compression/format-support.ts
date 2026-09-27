@@ -1,13 +1,5 @@
 import type { ResolvedFormat } from "./types";
 
-/**
- * Probes the browser for native encoder support for WebP. Used by the
- * `"auto"` format picker — when WebP is supported we pick it for the size
- * win, otherwise we fall back to JPEG which is universal.
- *
- * Detection runs once per session and is memoized; subsequent calls reuse
- * the same Promise.
- */
 export type FormatSupport = {
   webp: boolean;
 };
@@ -44,7 +36,6 @@ async function canCanvasEncode(
   }
 }
 
-/** Picks the smallest practical format the browser can natively encode. */
 export function pickAutoFormat(support: FormatSupport): ResolvedFormat {
   if (support.webp) return "webp";
   return "jpeg";

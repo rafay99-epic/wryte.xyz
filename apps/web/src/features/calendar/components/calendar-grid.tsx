@@ -40,7 +40,6 @@ export function CalendarGrid({
     return viewYear === now.getFullYear() && viewMonth === now.getMonth();
   })();
 
-  // Build the cell data for the current month view
   // biome-ignore lint/correctness/useExhaustiveDependencies: todayStr is an intentional invalidation signal so "today" stays fresh past midnight
   const cells = useMemo(() => {
     const today = new Date();
@@ -56,7 +55,6 @@ export function CalendarGrid({
       isPast: boolean;
     }> = [];
 
-    // Previous month padding
     if (firstDay > 0) {
       const prevMonth = viewMonth === 0 ? 11 : viewMonth - 1;
       const prevYear = viewMonth === 0 ? viewYear - 1 : viewYear;
@@ -76,7 +74,6 @@ export function CalendarGrid({
       }
     }
 
-    // Current month
     for (let day = 1; day <= daysInMonth; day++) {
       const date = new Date(viewYear, viewMonth, day);
       const dateKey = getDateKey(date);
@@ -90,7 +87,6 @@ export function CalendarGrid({
       });
     }
 
-    // Next month padding — fill up to complete the last row
     const remaining = result.length % 7 === 0 ? 0 : 7 - (result.length % 7);
     if (remaining > 0) {
       const nextMonth = viewMonth === 11 ? 0 : viewMonth + 1;
@@ -114,7 +110,6 @@ export function CalendarGrid({
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden rounded-lg border">
-      {/* Month navigation header */}
       <div className="flex items-center justify-between border-b bg-muted/30 px-4 py-2.5">
         <div className="flex items-center gap-2">
           <button
@@ -145,7 +140,6 @@ export function CalendarGrid({
         )}
       </div>
 
-      {/* Day-of-week header */}
       <div className="grid grid-cols-7 border-b bg-muted/20">
         {DAYS.map((d) => (
           <div
@@ -157,7 +151,6 @@ export function CalendarGrid({
         ))}
       </div>
 
-      {/* Calendar grid */}
       <AnimatePresence mode="wait">
         <motion.div
           key={`${viewYear}-${viewMonth}`}

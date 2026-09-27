@@ -16,7 +16,6 @@ export const metadata: Metadata = {
 export default function PrivacyPage() {
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-background text-foreground">
-      {/* ── Noise texture ──────────────────────────────────────────── */}
       <div
         className="pointer-events-none fixed inset-0 z-[1] hidden opacity-[0.025] dark:block"
         style={{
@@ -24,17 +23,14 @@ export default function PrivacyPage() {
         }}
       />
 
-      {/* ── Ambient glow ───────────────────────────────────────────── */}
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute left-1/2 top-0 h-[500px] w-[600px] -translate-x-1/2 rounded-full bg-purple-500/[0.04] blur-[120px]" />
         <div className="absolute left-1/4 top-1/2 h-[300px] w-[300px] rounded-full bg-amber-600/[0.03] blur-[100px]" />
       </div>
 
       <div className="relative z-10">
-        {/* ── Header ─────────────────────────────────────────────── */}
         <MarketingNavbar />
 
-        {/* ── Hero ───────────────────────────────────────────────── */}
         <section className="flex flex-col items-center px-6 pt-32 pb-16">
           <div className="text-center">
             <div className="mx-auto mb-6 flex size-14 items-center justify-center rounded-2xl border border-foreground/[0.15] dark:border-foreground/[0.06] bg-foreground/[0.02]">
@@ -52,10 +48,8 @@ export default function PrivacyPage() {
           </div>
         </section>
 
-        {/* ── Divider ────────────────────────────────────────────── */}
         <div className="mx-auto h-px max-w-3xl bg-gradient-to-r from-transparent via-foreground/[0.06] to-transparent" />
 
-        {/* ── Content ────────────────────────────────────────────── */}
         <main className="mx-auto max-w-3xl px-6 py-16">
           <div className="space-y-10">
             <Section delay={0}>

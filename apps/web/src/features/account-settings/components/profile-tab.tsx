@@ -332,7 +332,6 @@ export function ProfileTab() {
             />
           ))}
 
-          {/* Custom color — native OS wheel, styled as a swatch. */}
           <label
             className={cn(
               "relative flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full transition-shadow",

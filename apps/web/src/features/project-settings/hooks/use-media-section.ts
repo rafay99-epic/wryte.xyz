@@ -18,9 +18,6 @@ export function useMediaSection({
   const [mediaPath, setMediaPath] = useState(
     project.mediaPath ?? "public/images",
   );
-  // The project's *default* upload destination. Other connected providers
-  // stay usable — this only decides where an upload with no explicit
-  // destination lands.
   const [mediaStorageMode, setMediaStorageMode] = useState<MediaProvider>(
     project.mediaStorageMode ?? "github",
   );

@@ -1,15 +1,8 @@
-/**
- * Board column CRUD operations for the kanban board.
- *
- * Columns are stored as a JSON string on the project record (`boardColumns`).
- * When no custom columns exist, the client falls back to DEFAULT_BOARD_COLUMNS.
- */
 import { v } from "convex/values";
 import { mutation, query } from "../_generated/server";
 import { getAuthedUserOrNull, getCurrentUser } from "../_lib/auth";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
 
-/** Shape of a single board column definition. */
 interface BoardColumnDef {
   id: string;
   label: string;
@@ -50,10 +43,6 @@ const DEFAULT_BOARD_COLUMNS: BoardColumnDef[] = [
   },
 ];
 
-/**
- * Returns the board columns for a project.
- * Falls back to DEFAULT_BOARD_COLUMNS when the project has no custom config.
- */
 export const getColumns = query({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
@@ -80,10 +69,6 @@ export const getColumns = query({
   },
 });
 
-/**
- * Saves the full set of board columns for a project.
- * Validates: no duplicate IDs, at most one "publish" and one "schedule" behavior.
- */
 export const updateColumns = mutation({
   args: {
     projectId: v.id("projects"),
@@ -103,7 +88,6 @@ export const updateColumns = mutation({
       throw new Error("Unauthorized: you do not own this project");
     }
 
-    // Validate the columns JSON
     let columns: BoardColumnDef[];
     try {
       columns = JSON.parse(args.columns);
@@ -115,7 +99,6 @@ export const updateColumns = mutation({
       throw new Error("At least one column is required");
     }
 
-    // Check for duplicate IDs
     const ids = new Set<string>();
     for (const col of columns) {
       if (ids.has(col.id)) {
@@ -124,7 +107,6 @@ export const updateColumns = mutation({
       ids.add(col.id);
     }
 
-    // Check behavior constraints
     const publishCount = columns.filter((c) => c.behavior === "publish").length;
     const scheduleCount = columns.filter(
       (c) => c.behavior === "schedule",

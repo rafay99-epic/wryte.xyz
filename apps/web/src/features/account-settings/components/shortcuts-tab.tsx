@@ -49,7 +49,6 @@ export function ShortcutsTab() {
         description="Customize bindings to match your workflow"
       />
 
-      {/* Conflict warning */}
       <AnimatePresence>
         {conflict && (
           <motion.div
@@ -171,7 +170,6 @@ export function ShortcutsTab() {
         })}
       </div>
 
-      {/* Reset all */}
       {hasCustomBindings && (
         <motion.div
           variants={staggerItem}

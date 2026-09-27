@@ -53,7 +53,6 @@ const TYPE_CONFIG: Record<
   idea: { label: "Idea", icon: Lightbulb },
 };
 
-/** Short, human-friendly labels for a backlink source's lifecycle status. */
 const STATUS_LABELS: Record<string, string> = {
   draft: "Draft",
   review: "Review",
@@ -69,8 +68,6 @@ export function ResearchPanel({
 }: ResearchPanelProps) {
   const { insertAtCursor, replaceRange, selectRange } = useEditorContext();
   const router = useRouter();
-  // Unlinked-mention suggestions — one metadata query per panel-open, all
-  // scanning client-side and debounced (see the hook for the cost model).
   const { suggestions, loading: suggestionsLoading } = useLinkSuggestions(
     documentId,
     open,
@@ -78,8 +75,6 @@ export function ResearchPanel({
 
   const handleLinkSuggestion = useCallback(
     (suggestion: LinkSuggestion) => {
-      // The scan is debounced, so the offsets can lag fresh keystrokes —
-      // only apply when the range still holds the matched text.
       const current = useEditorStore.getState().content;
       const actual = current.slice(suggestion.start, suggestion.end);
       if (actual.toLowerCase() !== suggestion.matched.toLowerCase()) {
@@ -87,7 +82,6 @@ export function ResearchPanel({
         return;
       }
       replaceRange(suggestion.start, suggestion.end, `[[${actual}]]`);
-      // Highlight the fresh link (offsets: +4 for the two bracket pairs).
       selectRange(suggestion.start, suggestion.end + 4);
     },
     [replaceRange, selectRange],
@@ -95,8 +89,6 @@ export function ResearchPanel({
   const research = useQuery(api.cms.documentResearch.list, {
     documentId: documentId as Id<"documents">,
   });
-  // "Linked from" — only subscribe while the panel is actually open so a
-  // closed research panel never holds a live backlinks subscription.
   const backlinks = useQuery(
     api.cms.documents.getBacklinks,
     open ? { documentId: documentId as Id<"documents"> } : "skip",

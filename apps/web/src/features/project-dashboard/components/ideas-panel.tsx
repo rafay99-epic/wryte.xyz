@@ -11,11 +11,6 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 
-/**
- * Idea inbox — capture post ideas as one-liners, convert to a draft when
- * ready. Converting reuses the standard `documents.create` flow (slug +
- * initial frontmatter) and then drops the idea row.
- */
 export function IdeasPanel({ projectId }: { projectId: Id<"projects"> }) {
   const router = useRouter();
   const ideas = useQuery(api.cms.ideas.list, { projectId });

@@ -72,8 +72,6 @@ export function PublishDialog({
   const [isScheduling, setIsScheduling] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
 
-  // Title only: the body is read in the publish handler, so this dialog
-  // doesn't re-render on every keystroke.
   const title = useEditorStore((state) => state.title);
 
   const document = useQuery(documentsGetMeta, {
@@ -96,21 +94,15 @@ export function PublishDialog({
     projectId ? { projectId: projectId as Id<"projects"> } : "skip",
   );
 
-  // ── Publish actions ──────────────────────────────────────────
-
   const publishToGithub = useAction(publishAction);
   const updateDocument = useMutation(documentsUpdate);
   const schedulePublish = useMutation(api.integrations.scheduling.schedule);
   const cancelSchedule = useMutation(api.integrations.scheduling.cancel);
 
-  // ── Derived state ────────────────────────────────────────────
-
   const isUpdate = Boolean(document?.githubSha);
   const isAlreadyScheduled = document?.status === "scheduled";
   const existingScheduledAt = document?.scheduledAt;
 
-  // getPublicConfig returns a legacy-marker variant without `status` while a
-  // project is still on retired Upload-Post credentials — narrow before use.
   const hasActiveCredential =
     socialConfig != null &&
     "status" in socialConfig &&
@@ -147,8 +139,6 @@ export function PublishDialog({
   const slug = document?.slug ?? "untitled";
   const filePath = `${contentPath}/${slug}${getFileExtension(project?.contentFormat)}`;
 
-  // Seed the commit message from the project template (same substitution the
-  // server applies when no message is passed), falling back to Update/Add.
   const defaultCommitMessage = project?.commitMessageTemplate
     ? renderCommitTemplate(project.commitMessageTemplate, {
         title: title || "document",
@@ -162,25 +152,18 @@ export function PublishDialog({
 
   const attributionEnabled = project?.commitAttribution !== false;
 
-  // ── Publish state ────────────────────────────────────────────
-
   const [commitMessage, setCommitMessage] = useState(defaultCommitMessage);
   const [socialPostText, setSocialPostText] = useState("");
   const [includeSocialPost, setIncludeSocialPost] = useState(true);
 
-  // Reset publish form state when dialog opens
   useEffect(() => {
     if (open) {
       setTab("publish");
       setCommitMessage(defaultCommitMessage);
-      // Empty custom text = the server composes "New blog post: {title}\n\n{url}"
-      // automatically from the live title and framework-aware URL.
       setSocialPostText("");
       setIncludeSocialPost(true);
     }
   }, [open, defaultCommitMessage]);
-
-  // ── Schedule state ───────────────────────────────────────────
 
   const projectTimezone = useMemo(
     () => resolveTimezone(project?.timezone),
@@ -193,7 +176,6 @@ export function PublishDialog({
   const [scheduleHour, setScheduleHour] = useState(9);
   const [scheduleMinute, setScheduleMinute] = useState(0);
 
-  // Initialize schedule form state when dialog opens
   useEffect(() => {
     if (open) {
       setScheduleTimezone(projectTimezone);
@@ -216,7 +198,6 @@ export function PublishDialog({
     }
   }, [open, existingScheduledAt, projectTimezone]);
 
-  // Date/time picker — bump time if selecting today and time is in the past
   const handleDateSelect = (date: Date) => {
     setSelectedDate(date);
     const now = new Date();
@@ -268,8 +249,6 @@ export function PublishDialog({
       scheduledTimestamp,
     )})`;
   }, [scheduledTimestamp, scheduleTimezone]);
-
-  // ── Handlers ─────────────────────────────────────────────────
 
   async function handlePublish() {
     setIsPublishing(true);
@@ -353,7 +332,6 @@ export function PublishDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-3xl gap-0 p-0 overflow-hidden">
-        {/* Header — what's shipping and where, before any controls. */}
         <DialogHeader className="border-b border-border/40 px-6 pt-5 pb-4">
           <DialogTitle className="pr-8">
             {isUpdate ? "Update" : "Publish"} “{title || "Untitled"}”
@@ -374,7 +352,6 @@ export function PublishDialog({
           </div>
         </DialogHeader>
 
-        {/* Tabs */}
         <Tabs
           value={tab}
           onValueChange={(v) => setTab(v as Tab)}
@@ -391,10 +368,8 @@ export function PublishDialog({
             </TabsTrigger>
           </TabsList>
 
-          {/* ── Publish Now tab ─────────────────────────────── */}
           <TabsContent value="publish" className="mt-0 pt-5 pb-0">
             <div className="grid gap-6 sm:grid-cols-[minmax(0,1fr)_280px]">
-              {/* Main column: the two decisions — commit + announcement. */}
               <div className="min-w-0 space-y-5">
                 <div className="space-y-1.5">
                   <Label
@@ -449,7 +424,6 @@ export function PublishDialog({
                 )}
               </div>
 
-              {/* Rail: read-only review — never competes with the inputs. */}
               <div className="min-w-0 sm:border-l sm:border-border/40 sm:pl-5">
                 {projectId && (
                   <PublishChecklist
@@ -464,9 +438,7 @@ export function PublishDialog({
             </div>
           </TabsContent>
 
-          {/* ── Schedule Later tab ──────────────────────────── */}
           <TabsContent value="schedule" className="mt-0 pt-5 pb-0 space-y-4">
-            {/* Status banners */}
             {(() => {
               const status = latestPublish?.status;
               if (status === "failed") {
@@ -528,7 +500,6 @@ export function PublishDialog({
             })()}
 
             <div className="grid gap-6 sm:grid-cols-[minmax(0,1fr)_280px]">
-              {/* Main column: when it goes out. */}
               <div className="min-w-0 space-y-4">
                 <div className="grid grid-cols-[1fr_auto] gap-4">
                   <div className="rounded-lg border border-border/40 p-3">
@@ -569,7 +540,6 @@ export function PublishDialog({
                 </div>
               </div>
 
-              {/* Rail: what happens at that moment. */}
               <div className="min-w-0 space-y-4 sm:border-l sm:border-border/40 sm:pl-5">
                 {formattedDateTime && (
                   <div
@@ -635,7 +605,6 @@ export function PublishDialog({
           </TabsContent>
         </Tabs>
 
-        {/* Footer — plain-words summary of what the primary button does. */}
         <DialogFooter className="mt-6 border-t border-border/40 bg-muted/20 px-6 py-4">
           <div className="flex w-full items-center justify-between gap-3">
             <p className="min-w-0 truncate text-xs text-muted-foreground/70">

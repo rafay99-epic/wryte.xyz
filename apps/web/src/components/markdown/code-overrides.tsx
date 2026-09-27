@@ -2,24 +2,8 @@ import type { ReactNode } from "react";
 import type { Components } from "react-markdown";
 import { MermaidDiagram } from "./mermaid-diagram";
 
-/**
- * Shared `react-markdown` overrides for `pre`/`code`, used by every markdown
- * surface (editor markdown preview, MDX preview, server-rendered changelog /
- * share preview) so code blocks — and Mermaid diagrams — render identically.
- *
- * A ` ```mermaid ` fenced block arrives here as `<code class="language-mermaid">`
- * (its raw text preserved because the surfaces pass `plainText: ["mermaid"]`
- * to rehype-highlight). We swap it for a `<MermaidDiagram>` and drop the code
- * box `<pre>` wrapper so the diagram renders as its own block.
- *
- * This module is intentionally NOT a client module: the changelog surface is a
- * server component, and only the mermaid path pulls in the client renderer, so
- * plain code blocks keep shipping zero JS there.
- */
-
 const MERMAID_CLASS = "language-mermaid";
 
-/** Flatten a react node tree into its concatenated text content. */
 function extractText(node: ReactNode): string {
   if (node == null || typeof node === "boolean") return "";
   if (typeof node === "string") return node;
@@ -33,7 +17,6 @@ function extractText(node: ReactNode): string {
   return "";
 }
 
-/** True when a `<pre>`'s child is a mermaid code block. */
 function isMermaidPre(children: ReactNode): boolean {
   const child = Array.isArray(children) ? children[0] : children;
   return (
@@ -47,7 +30,6 @@ function isMermaidPre(children: ReactNode): boolean {
 
 export const codeComponents: Components = {
   pre: ({ children, ...props }) => {
-    // A mermaid diagram renders as its own block, not inside the code box.
     if (isMermaidPre(children)) return <>{children}</>;
     return (
       <pre

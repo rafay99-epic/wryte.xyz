@@ -19,12 +19,6 @@ import { toast } from "sonner";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
-/**
- * Trash list for a project. Lists soft-deleted documents with their
- * scheduled-cleanup date and one-click Restore / Permanent delete.
- * "Empty trash" requires a confirmation dialog because the action is
- * destructive and large in blast radius.
- */
 export function TrashPage({ projectId: rawProjectId }: { projectId: string }) {
   const projectId = rawProjectId as Id<"projects">;
 

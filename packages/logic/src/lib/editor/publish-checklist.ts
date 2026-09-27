@@ -1,16 +1,3 @@
-/**
- * Pre-publish checklist — pure, offline content checks that run just before an
- * author commits an article to their GitHub repo. Nothing here blocks
- * publishing; the goal is to surface easy-to-miss quality problems (broken
- * frontmatter, alt-less images, dead internal links, leftover TODO/conflict
- * markers, thin structure) while there's still a chance to fix them.
- *
- * Deliberately dependency-free and synchronous so it is trivially unit-testable
- * and cheap enough to recompute whenever the publish dialog is open. It reuses
- * the same primitives the editor already trusts: `validateFrontmatter` for
- * schema checks and `parseOutline` for heading structure.
- */
-
 import {
   summarizeIssues,
   type ValidatableField,
@@ -19,40 +6,25 @@ import {
 import { countWords } from "@wryte/logic/lib/word-count";
 import { parseOutline } from "./outline";
 
-/** Approximate silent-reading speed used for the reading-time estimate. */
 const WORDS_PER_MINUTE = 230;
-/** Below this, an article reads as a stub rather than a finished post. */
 const MIN_WORDS = 50;
 
-/**
- * Nothing here is fatal — publishing is never gated. Severities only shape how
- * loudly a row asks for attention:
- * - `pass`: the check found no problems.
- * - `warn`: something an author probably wants to fix before shipping.
- * - `info`: neutral context (length, or a soft structural note).
- */
 export type ChecklistSeverity = "pass" | "warn" | "info";
 
 export type ChecklistItem = {
-  /** Stable key for React lists and tests. */
   id: string;
-  /** Short row title. */
   label: string;
   severity: ChecklistSeverity;
-  /** One-line explanation of the result. */
   detail: string;
 };
 
-/** Lean {title, slug} metadata for resolving `[[wiki links]]`. */
 export type KnownDoc = {
   title: string;
   slug: string;
 };
 
 export type ChecklistFrontmatter = {
-  /** Raw JSON string as stored on the document (Convex stores JSON, not YAML). */
   raw?: string | undefined;
-  /** The project's frontmatter schema fields (already parsed). */
   schema: ValidatableField[];
 };
 
@@ -66,19 +38,11 @@ export type ChecklistInput = {
 
 export type ChecklistResult = {
   items: ChecklistItem[];
-  /** Number of `warn` rows — drives the dialog's summary line. */
   warnings: number;
 };
 
-/* ────────────────────────── text helpers ────────────────────────── */
-
 const FENCE_LINE_RE = /^(```|~~~)/;
 
-/**
- * Blank out fenced code blocks so scans for images/markers/links don't trip on
- * example snippets. Replaces fenced content (and the fences) with blank lines,
- * preserving overall length so any offsets stay meaningful.
- */
 function stripFencedCode(content: string): string {
   let inFence = false;
   const out: string[] = [];
@@ -93,14 +57,10 @@ function stripFencedCode(content: string): string {
   return out.join("\n");
 }
 
-/** Reading time in whole minutes (min 1 for any non-empty content). */
 export function readingMinutes(words: number): number {
   return words > 0 ? Math.max(1, Math.round(words / WORDS_PER_MINUTE)) : 0;
 }
 
-/* ────────────────────────── individual checks ────────────────────────── */
-
-/** Frontmatter parses as JSON and satisfies the project schema. */
 function checkFrontmatter(input: ChecklistInput): ChecklistItem {
   const base = { id: "frontmatter", label: "Frontmatter" } as const;
   const raw = input.frontmatter.raw;
@@ -139,10 +99,6 @@ function checkFrontmatter(input: ChecklistInput): ChecklistItem {
   };
 }
 
-/**
- * Flatten a parsed frontmatter object into the string/boolean map the schema
- * validator expects (arrays → comma-joined, scalars → string, booleans kept).
- */
 function coerceValues(
   obj: Record<string, unknown>,
 ): Record<string, string | boolean | undefined> {
@@ -161,7 +117,6 @@ function coerceValues(
   return out;
 }
 
-/** `![](...)` with an empty alt, plus `<img>` tags without a real alt. */
 const EMPTY_ALT_MD_RE = /!\[\s*\]\([^)]*\)/g;
 const IMG_TAG_RE = /<img\b[^>]*>/gi;
 const ALT_ATTR_RE = /\balt\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i;
@@ -193,7 +148,6 @@ function checkImageAltText(content: string): ChecklistItem {
   };
 }
 
-/** `[[Target]]` (or `[[Target|alias]]`) that matches no known doc. */
 const WIKI_LINK_RE = /\[\[([^\]\n]+)\]\]/g;
 
 function checkInternalLinks(
@@ -214,7 +168,6 @@ function checkInternalLinks(
   WIKI_LINK_RE.lastIndex = 0;
   let match = WIKI_LINK_RE.exec(scanned);
   while (match) {
-    // Support `[[target|display]]` — resolve against the target only.
     const target = (match[1] as string).split("|")[0]?.trim() ?? "";
     const key = target.toLowerCase();
     if (target && !known.has(key) && !seen.has(key)) {
@@ -240,7 +193,6 @@ function checkInternalLinks(
   };
 }
 
-/** TODO / FIXME / XXX and merge-conflict markers left in the prose. */
 const WORK_MARKER_RE = /\b(TODO|FIXME|XXX)\b/g;
 const CONFLICT_MARKER_RE = /^(<{7}|={7}|>{7})/gm;
 
@@ -268,7 +220,6 @@ function checkWorkMarkers(content: string): ChecklistItem {
   };
 }
 
-/** More than one H1, or suspiciously thin content. */
 function checkStructure(content: string, words: number): ChecklistItem {
   const base = { id: "structure", label: "Structure" } as const;
   const h1Count = parseOutline(content).filter((h) => h.level === 1).length;
@@ -290,16 +241,10 @@ function checkStructure(content: string, words: number): ChecklistItem {
   return { ...base, severity: "pass", detail: "Headings look well-formed." };
 }
 
-/* ────────────────────────── SEO rows ────────────────────────── */
-
-/** Search snippets truncate titles around this length. */
 const SEO_TITLE_MAX = 60;
-/** Meta description sweet spot — below reads thin, above gets cut. */
 const SEO_DESC_MIN = 80;
 const SEO_DESC_MAX = 165;
 
-/** Best-effort parse of the raw frontmatter JSON; null when absent/broken
- *  (the frontmatter row above already warns about parse failures). */
 function parseFrontmatterObject(
   raw: string | undefined,
 ): Record<string, unknown> | null {
@@ -391,7 +336,6 @@ function checkSeoTags(
   };
 }
 
-/** Neutral length / reading-time context row. */
 function lengthRow(words: number): ChecklistItem {
   const minutes = readingMinutes(words);
   return {
@@ -402,13 +346,6 @@ function lengthRow(words: number): ChecklistItem {
   };
 }
 
-/* ────────────────────────── orchestration ────────────────────────── */
-
-/**
- * Run every pre-publish check and return an ordered, typed result. Pure: the
- * same input always yields the same output, so it can be unit-tested in
- * isolation and memoized in the UI.
- */
 export function buildPublishChecklist(input: ChecklistInput): ChecklistResult {
   const words = countWords(input.content);
 

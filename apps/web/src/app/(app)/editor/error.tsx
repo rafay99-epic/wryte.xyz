@@ -14,12 +14,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
-/**
- * Error boundary for the editor route.
- *
- * Renders within the app shell so the sidebar + header stay visible.
- * Provides editor-specific messaging and navigation options.
- */
 export default function EditorError({
   error,
   reset,

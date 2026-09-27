@@ -1,26 +1,11 @@
-/**
- * Shareable draft-preview links: a tokenized, read-only public view of a
- * document's live content at `{app-url}/preview/{token}`.
- *
- * The token is the whole secret — generated client-side with the Web
- * Crypto UUID (the server only validates its shape) and revocable at any
- * time. One active link per document; `create` is idempotent and returns
- * the existing active link when one exists.
- */
 import { v } from "convex/values";
 import { mutation, query } from "../_generated/server";
 import { getAuthedUserOrNull, getCurrentUser } from "../_lib/auth";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
 import { readContent } from "./_lib/documentContent";
 
-/** Client-generated token: long, URL-safe, no exotic characters. */
 const TOKEN_RE = /^[a-zA-Z0-9-]{20,64}$/;
 
-/**
- * PUBLIC — resolves a preview token to the document's current content.
- * No auth on purpose: the token is the credential. Returns null for
- * unknown, revoked, or trashed targets without distinguishing which.
- */
 export const getByToken = query({
   args: { token: v.string() },
   handler: async (ctx, args) => {
@@ -41,18 +26,11 @@ export const getByToken = query({
       title: document.title,
       content: await readContent(ctx, document),
       updatedAt: document.updatedAt,
-      /** Drives the preview renderer: MDX posts compile with components. */
       contentFormat: project?.contentFormat ?? "md",
     };
   },
 });
 
-/**
- * PUBLIC — the animation sources for the shared document's project, keyed
- * by the same preview token. Same trust rule as `getByToken`: whoever can
- * read the post can render its animations; revoking the link kills both.
- * Returns [] unless the project is MDX with the animations feature on.
- */
 export const animationsByToken = query({
   args: { token: v.string() },
   handler: async (ctx, args): Promise<{ name: string; source: string }[]> => {
@@ -81,7 +59,6 @@ export const animationsByToken = query({
   },
 });
 
-/** The document's active share link (owner only), or null. */
 export const getForDocument = query({
   args: { documentId: v.id("documents") },
   handler: async (ctx, args) => {
@@ -124,7 +101,6 @@ export const create = mutation({
       throw new Error("Unauthorized: you do not own this document");
     }
 
-    // Idempotent: reuse the active link instead of minting another.
     const links = await ctx.db
       .query("share_links")
       .withIndex("by_documentId", (q) => q.eq("documentId", args.documentId))
@@ -164,12 +140,6 @@ export const revoke = mutation({
   },
 });
 
-/**
- * OWNER — every share link in the project, newest first, joined with the
- * linked document's title and its live/revoked status. Powers the project
- * Share settings panel so links can be managed in one place instead of
- * hunting through individual posts.
- */
 export const listForProject = query({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
@@ -208,10 +178,6 @@ export const listForProject = query({
   },
 });
 
-/**
- * OWNER — revoke a single link by id. The row stays (audit trail); the
- * `{app-url}/preview/{token}` URL stops resolving immediately.
- */
 export const revokeById = mutation({
   args: { linkId: v.id("share_links") },
   handler: async (ctx, args) => {
@@ -229,10 +195,6 @@ export const revokeById = mutation({
   },
 });
 
-/**
- * OWNER — permanently delete a link row. Clears revoked links from the
- * panel; deleting an active one kills its URL as a side effect.
- */
 export const remove = mutation({
   args: { linkId: v.id("share_links") },
   handler: async (ctx, args) => {

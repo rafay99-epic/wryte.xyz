@@ -42,28 +42,12 @@ type FrontmatterAiDrawerProps = {
   projectId: string;
   documentContent: string;
   currentFrontmatter: string;
-  /**
-   * Fields the AI is allowed to propose values for. Computed by the
-   * caller from the project schema using `isAiEligibleField`.
-   */
   eligibleFields: EligibleField[];
-  /**
-   * Merge accepted suggestions into the frontmatter values. Booleans are
-   * passed through as `boolean`; tags/list/multiselect arrive as
-   * comma-joined strings so they round-trip through the TagChipsInput.
-   */
   onAccept: (values: Record<string, string | boolean>) => void;
 };
 
 type SuggestionMap = Record<string, unknown>;
 
-/**
- * Coerces a single field's AI-suggested value into the storage shape the
- * frontmatter editor expects: strings for text-y types, comma-joined
- * strings for collections, real booleans for toggles, strings for numbers
- * (the field's input is text and parses on submit). Returns null when the
- * value doesn't look reasonable for the field's type.
- */
 function coerceForStorage(
   type: FrontmatterFieldType,
   raw: unknown,
@@ -98,19 +82,11 @@ function coerceForStorage(
     }
     return null;
   }
-  // string | text | url | color | select | json
   if (typeof raw === "string") return raw.trim() || null;
   if (typeof raw === "number" || typeof raw === "boolean") return String(raw);
   return null;
 }
 
-/**
- * Drawer that asks the project's configured LLM to suggest values for
- * every AI-eligible frontmatter field in the schema. Streams JSON,
- * renders each suggestion with the right preview (chip pills for tags,
- * toggle preview for booleans, multi-line text for descriptions), and
- * lets the author accept fields one at a time or in bulk.
- */
 export function FrontmatterAiDrawer({
   open,
   onOpenChange,
@@ -125,8 +101,6 @@ export function FrontmatterAiDrawer({
   const [streamId, setStreamId] = useState<string | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const [accepted, setAccepted] = useState<Set<string>>(new Set());
-  // Per-field regenerate overlays a single field's freshly-streamed value on
-  // top of the main suggestion set without touching the rest.
   const [fieldOverrides, setFieldOverrides] = useState<SuggestionMap>({});
   const [regeneratingField, setRegeneratingField] = useState<string | null>(
     null,
@@ -159,10 +133,6 @@ export function FrontmatterAiDrawer({
     }
   }, [isError, streamBody?.text]);
 
-  // Only attempt to parse once the stream has finished. Re-running JSON.parse
-  // on every chunk is wasted work — JSON is invalid for almost the entire
-  // duration of streaming — and causes the suggestions UI to flash empty as
-  // the parser flips between null (mid-stream) and the final object.
   const suggestions: SuggestionMap | null = useMemo(() => {
     if (!isDone || !streamBody?.text) return null;
     try {
@@ -180,18 +150,11 @@ export function FrontmatterAiDrawer({
     }
   }, [isDone, streamBody?.text]);
 
-  // Merge the one-shot suggestions with any per-field regenerates layered
-  // on top so the rest of the drawer only has one map to read from.
   const effectiveSuggestions: SuggestionMap | null = useMemo(() => {
     if (!suggestions) return null;
     return { ...suggestions, ...fieldOverrides };
   }, [suggestions, fieldOverrides]);
 
-  /**
-   * Field metadata the drawer renders for. Only fields that the AI
-   * actually returned a value for (and that match the eligibility list)
-   * make it into this list, so the UI doesn't show empty cards.
-   */
   const populatedFields = useMemo(() => {
     if (!effectiveSuggestions) return [] as EligibleField[];
     return eligibleFields.filter(
@@ -212,9 +175,6 @@ export function FrontmatterAiDrawer({
     }
   }, [open]);
 
-  // Consume the per-field regenerate stream once it finishes, merging just
-  // that field's fresh value into `fieldOverrides` and re-opening its
-  // "Apply" state since the previously accepted value is now stale.
   useEffect(() => {
     if (!fieldStreamId || !regeneratingField) return;
     if (fieldStreamBody?.status === "done") {
@@ -382,9 +342,6 @@ export function FrontmatterAiDrawer({
 
         <SheetBody>
           <AnimatePresence mode="wait">
-            {/* Streaming — show a skeleton list matching the eligible-field
-                count so the surface settles instead of swapping a spinner
-                for a full list at the end. */}
             {(isStreaming || (!streamId && !error)) && (
               <motion.div
                 key="loading"
@@ -403,7 +360,6 @@ export function FrontmatterAiDrawer({
               </motion.div>
             )}
 
-            {/* Error */}
             {(isError || error) && (
               <motion.div
                 key="error"
@@ -434,7 +390,6 @@ export function FrontmatterAiDrawer({
               </motion.div>
             )}
 
-            {/* Results */}
             {isDone && suggestions && populatedFields.length > 0 && (
               <motion.div
                 key="results"
@@ -463,7 +418,6 @@ export function FrontmatterAiDrawer({
               </motion.div>
             )}
 
-            {/* Empty suggestion set (e.g., article too thin) */}
             {isDone && suggestions && populatedFields.length === 0 && (
               <motion.div
                 key="empty"
@@ -487,7 +441,6 @@ export function FrontmatterAiDrawer({
               </motion.div>
             )}
 
-            {/* Done but bad JSON */}
             {isDone && !suggestions && (
               <motion.div
                 key="parse-error"
@@ -644,16 +597,9 @@ function SuggestionCard({
   );
 }
 
-/** Matches field names loosely — schemas name these fields freely. */
 const TITLE_FIELD_NAME_PATTERN = /title/i;
 const DESCRIPTION_FIELD_NAME_PATTERN = /description|summary/i;
 
-/**
- * Tiny inline char-count hint under title-like and description-like
- * suggestions so the author can see at a glance whether the AI's proposal
- * fits the SEO constraints from the system prompt (title ≤60, description
- * 140–160).
- */
 function FieldCharCount({
   field,
   raw,
@@ -706,8 +652,6 @@ function SuggestionPreview({
   field: EligibleField;
   raw: unknown;
 }) {
-  // Collections render as chip pills, matching the editor's TagChipsInput
-  // so the preview looks like the destination control will once applied.
   if (
     (field.type === "tags" ||
       field.type === "list" ||

@@ -1,24 +1,10 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 
-/**
- * Merges CSS class names with Tailwind CSS conflict resolution.
- *
- * Combines clsx (conditional class joining) with tailwind-merge (deduplicates
- * and resolves conflicting Tailwind utilities, e.g., "px-2 px-4" -> "px-4").
- * This is the standard pattern for components that accept a className prop
- * alongside internal Tailwind classes.
- *
- * @example cn("px-2 py-1", isActive && "bg-blue-500", className)
- */
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-/**
- * Acronyms that should stay fully uppercase when a field name is humanised.
- * Add to this list rather than hard-coding capitalisation logic.
- */
 const FIELD_LABEL_ACRONYMS = new Set([
   "url",
   "uri",
@@ -41,12 +27,6 @@ const FIELD_LABEL_ACRONYMS = new Set([
   "svg",
 ]);
 
-/**
- * Converts a frontmatter field key (camelCase, snake_case, kebab-case) into a
- * human-readable label. The editor falls back to this whenever a field has no
- * explicit `label` set, so `pubDate` renders as "Pub Date" and `canonicalUrl`
- * as "Canonical URL" instead of the raw key.
- */
 export function humanizeFieldName(name: string): string {
   if (!name) return "";
   const spaced = name

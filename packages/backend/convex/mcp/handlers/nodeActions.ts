@@ -1,16 +1,3 @@
-/**
- * MCP handlers whose targets live in `"use node"` modules — GitHub publishing
- * and media upload/list.
- *
- * This file carries the `"use node"` directive itself. Convex bundles each
- * module for one runtime, so a non-node module that imports
- * `media/uploads.ts` or `integrations/github.ts` drags Node built-ins (`path`,
- * the Cloudinary SDK) into the Convex runtime bundle and the build fails. Hence
- * the split from `./publishing.ts` rather than one file for all of them.
- *
- * Actor resolution uses `requireCallerInAction`: actions have no `ctx.db`, so
- * the `users` lookup goes through an internal query.
- */
 "use node";
 
 import { v } from "convex/values";

@@ -26,7 +26,6 @@ export default async function OgImage() {
         overflow: "hidden",
       }}
     >
-      {/* Ambient glow — amber, top-left */}
       <div
         style={{
           position: "absolute",
@@ -40,7 +39,6 @@ export default async function OgImage() {
         }}
       />
 
-      {/* Ambient glow — purple, bottom-right */}
       <div
         style={{
           position: "absolute",
@@ -54,7 +52,6 @@ export default async function OgImage() {
         }}
       />
 
-      {/* Social image — centered, full height */}
       <img
         src={socialSrc}
         alt="Wryte logo"
@@ -63,7 +60,6 @@ export default async function OgImage() {
         style={{ borderRadius: "24px" }}
       />
 
-      {/* Bottom — domain + version */}
       <div
         style={{
           position: "absolute",

@@ -1,6 +1,5 @@
 import { Skeleton } from "@wryte/ui/skeleton";
 
-/** Reusable static shell for instant profile-route navigations. */
 export function ProfileLoading() {
   return (
     <main className="mx-auto min-h-screen w-full max-w-4xl px-6 py-16 sm:py-24">

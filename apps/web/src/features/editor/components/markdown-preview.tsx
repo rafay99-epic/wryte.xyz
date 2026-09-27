@@ -18,19 +18,11 @@ import {
 import { VideoEmbed } from "@/components/markdown/video-embed";
 import { usePreviewJump } from "../hooks/use-preview-jump";
 
-/**
- * Base sanitize schema extended with `<video>` (raw HTML parsed by
- * rehype-raw, then sanitized here — `src` stays restricted to http/https by
- * the default protocol rules), then layered with the post-embed allowances
- * (whitelisted embed iframes + Twitter blockquote).
- */
 const videoSchema: Options = {
   ...defaultSchema,
   tagNames: [...(defaultSchema.tagNames ?? []), "video"],
   attributes: {
     ...defaultSchema.attributes,
-    // Keep the `data-source-line` stamps remarkSourceLines adds — they power
-    // double-click-to-edit and would otherwise be stripped here.
     ["*"]: [...(defaultSchema.attributes?.["*"] ?? []), "data*"],
     ["code"]: [
       ...(defaultSchema.attributes?.["code"] ?? []),
@@ -56,13 +48,9 @@ const videoSchema: Options = {
 };
 const sanitizeSchema = buildEmbedSanitizeSchema(videoSchema);
 
-/**
- * Custom component overrides for polished markdown rendering.
- */
 const components: Components = {
   video: ({ node: _node, ...props }) => <VideoEmbed {...props} />,
   img: ({ alt, src, ...props }) => (
-    // eslint-disable-next-line @next/next/no-img-element
     <img
       src={src}
       alt={alt ?? ""}
@@ -107,15 +95,8 @@ const components: Components = {
   ),
 };
 
-/**
- * Live markdown preview panel with polished typography.
- */
 export function MarkdownPreview() {
   const content = useEditorStore((state) => state.content);
-  // Deferred + memoized: a keystroke re-renders this component urgently but
-  // hits the memo (old content), while the expensive remark/rehype re-parse
-  // runs as an interruptible background render — typing in split mode never
-  // blocks on it.
   const deferredContent = useDeferredValue(content);
   const handleDoubleClick = usePreviewJump(deferredContent);
 

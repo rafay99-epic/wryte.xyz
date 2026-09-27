@@ -24,7 +24,6 @@ import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 type ScheduleTimePopoverProps = {
-  /** IANA timezone for the project. Falls back to the browser timezone. */
   timezone?: string | null;
 };
 
@@ -43,8 +42,6 @@ export function ScheduleTimePopover({ timezone }: ScheduleTimePopoverProps) {
     return parseDateKey(pendingDrop.targetDate);
   }, [pendingDrop]);
 
-  // Interpret the picked day+time in the project's timezone so the resulting
-  // UTC instant matches what the user sees in the UI.
   const timestamp = useMemo(() => {
     if (!targetDate) return null;
     return zonedTimeToUtc(
@@ -88,8 +85,6 @@ export function ScheduleTimePopover({ timezone }: ScheduleTimePopoverProps) {
 
     setIsScheduling(true);
     try {
-      // Token resolved server-side at fire-time by `publishToGithub` —
-      // see the schedule mutation for the rationale.
       await schedulePublish({
         documentId: pendingDrop.documentId as Id<"documents">,
         scheduledAt: timestamp,
@@ -118,7 +113,6 @@ export function ScheduleTimePopover({ timezone }: ScheduleTimePopoverProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -127,7 +121,6 @@ export function ScheduleTimePopover({ timezone }: ScheduleTimePopoverProps) {
         onClick={clearPendingDrop}
       />
 
-      {/* Popover card */}
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 8 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -135,7 +128,6 @@ export function ScheduleTimePopover({ timezone }: ScheduleTimePopoverProps) {
         transition={smoothTransition}
         className="relative z-10 w-[320px] rounded-xl border bg-background/95 p-5 shadow-xl backdrop-blur-sm"
       >
-        {/* Close button */}
         <button
           type="button"
           onClick={clearPendingDrop}
@@ -144,7 +136,6 @@ export function ScheduleTimePopover({ timezone }: ScheduleTimePopoverProps) {
           <X className="size-3.5" />
         </button>
 
-        {/* Date display */}
         <div className="mb-4">
           <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
             <Calendar className="size-4 text-primary" />
@@ -155,7 +146,6 @@ export function ScheduleTimePopover({ timezone }: ScheduleTimePopoverProps) {
           </p>
         </div>
 
-        {/* Time picker */}
         <div className="mb-4">
           <h4 className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">
             <Clock className="size-3" />
@@ -174,7 +164,6 @@ export function ScheduleTimePopover({ timezone }: ScheduleTimePopoverProps) {
           </p>
         </div>
 
-        {/* Validation / preview */}
         {isInPast && (
           <motion.div
             initial={{ opacity: 0 }}
@@ -187,7 +176,6 @@ export function ScheduleTimePopover({ timezone }: ScheduleTimePopoverProps) {
           </motion.div>
         )}
 
-        {/* Actions */}
         <div className="flex items-center gap-2">
           <Button
             variant="outline"

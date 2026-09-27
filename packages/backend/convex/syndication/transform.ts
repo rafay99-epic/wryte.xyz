@@ -1,16 +1,3 @@
-/**
- * Pure markdown transforms applied before pushing a post to an external
- * platform. Both platforms render the markdown on their own domain, so
- * everything site-relative must become absolute, and platform-specific
- * syntax (dev.to Liquid, dev.to frontmatter-in-body) must be neutralized.
- * No runtime deps — trivially unit-testable.
- */
-
-/**
- * Strip a leading YAML (`---`) or TOML (`+++`) frontmatter block. dev.to
- * parses leading YAML in `body_markdown` and lets it OVERRIDE the JSON
- * fields we send — the body must always arrive clean.
- */
 export function stripLeadingFrontmatter(markdown: string): string {
   const match = markdown.match(
     /^(?:---\n[\s\S]*?\n---|\+\+\+\n[\s\S]*?\n\+\+\+)\s*\n?/,
@@ -18,11 +5,6 @@ export function stripLeadingFrontmatter(markdown: string): string {
   return match ? markdown.slice(match[0].length) : markdown;
 }
 
-/**
- * Rewrite site-relative image/link URLs (`](/img/x.png)`) to absolute URLs
- * on the post's canonical origin. Protocol-relative and anchor links are
- * left alone; both platforms break on relative paths otherwise.
- */
 export function absolutizeUrls(markdown: string, canonicalUrl: string): string {
   let origin: string;
   try {
@@ -33,24 +15,12 @@ export function absolutizeUrls(markdown: string, canonicalUrl: string): string {
   return markdown.replace(/(\]\()(\/(?!\/)[^)\s]*)/g, `$1${origin}$2`);
 }
 
-/**
- * Neutralize Liquid syntax for dev.to — raw `{% … %}` in user content is
- * interpreted as a Liquid tag (or 422s on unknown tags), including inside
- * code fences. Wrapping the whole body in `{% raw %}` disables Liquid
- * processing while leaving markdown rendering untouched.
- */
-// ponytail: whole-body raw-wrap kills intentional dev.to embeds too; per-block
-// escaping if a user ever asks for {% embed %} support.
 export function escapeLiquidForDevto(markdown: string): string {
   if (!/\{%/.test(markdown)) return markdown;
   const cleaned = markdown.replace(/\{%-?\s*(?:end)?raw\s*-?%\}/g, "");
   return `{% raw %}\n${cleaned}\n{% endraw %}`;
 }
 
-/**
- * dev.to tag rules (Forem source, `app/models/tag.rb`): alphanumeric only,
- * ≤30 chars, max 4 tags. `next-js` → `nextjs`.
- */
 export function normalizeDevtoTags(tags: string[]): string[] {
   const seen = new Set<string>();
   for (const tag of tags) {
@@ -64,10 +34,6 @@ export function normalizeDevtoTags(tags: string[]): string[] {
   return [...seen];
 }
 
-/**
- * Hashnode tags must be `{ name, slug }` objects — plain strings are
- * rejected. New tags are auto-created from the pair.
- */
 export function toHashnodeTags(
   tags: string[],
 ): { name: string; slug: string }[] {
@@ -86,7 +52,6 @@ export function toHashnodeTags(
   return result;
 }
 
-/** Full body pipeline for one platform. */
 export function prepareBody(opts: {
   content: string;
   canonicalUrl: string;
@@ -98,10 +63,6 @@ export function prepareBody(opts: {
   return body;
 }
 
-/**
- * Cover image from the document's frontmatter, absolutized. Checks the
- * common field names across frameworks; returns undefined when none found.
- */
 export function coverImageFromFrontmatter(
   frontmatterJson: string | undefined,
   canonicalUrl: string,
@@ -132,7 +93,6 @@ export function coverImageFromFrontmatter(
           return undefined;
         }
       }
-      // Bare relative path ("images/x.png") — can't resolve reliably; skip.
       return undefined;
     }
   }

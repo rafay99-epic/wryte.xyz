@@ -22,29 +22,15 @@ import { useEditorContext } from "./editor-context";
 
 type WikiLinkMenuProps = {
   projectId: Id<"projects"> | null;
-  /** Current document — excluded from suggestions. */
   documentId: string;
 };
 
 const MENU_WIDTH = 280;
-/** Rows fetched per page — more stream in as the list is scrolled. */
 const PAGE_SIZE = 6;
 const ITEM_HEIGHT = 48;
-/** Visible height ≈ 6 rows; everything beyond scrolls (and lazy-loads). */
 const MENU_MAX_HEIGHT = PAGE_SIZE * ITEM_HEIGHT + 10;
-/** Debounce for the server-side title search. */
 const SEARCH_DEBOUNCE_MS = 200;
 
-/**
- * `[[` internal-link menu: type `[[` to browse or search the project's
- * documents and insert a markdown link to one.
- *
- * Data flow is deliberately incremental: browsing pulls lean
- * id/title/slug pages of {@link PAGE_SIZE} rows and loads more as the
- * list scrolls toward the bottom; typing switches to the `search_title`
- * index (debounced). Both queries are gated on the menu being open, so
- * normal typing fires zero Convex calls.
- */
 export const WikiLinkMenu = memo(function WikiLinkMenu({
   projectId,
   documentId,
@@ -59,7 +45,6 @@ export const WikiLinkMenu = memo(function WikiLinkMenu({
   const [selectedIndex, setSelectedIndex] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
 
-  // Debounced search term so the server query doesn't fire per keystroke.
   const [term, setTerm] = useState("");
   useEffect(() => {
     if (!menu.open) {
@@ -83,8 +68,6 @@ export const WikiLinkMenu = memo(function WikiLinkMenu({
   );
 
   const results = useMemo(() => {
-    // While the debounce is pending, filter the already-loaded rows so
-    // typing feels instant; the server search replaces them right after.
     const liveQuery = menu.query.trim().toLowerCase();
     const source = searching
       ? (searchDocs ?? [])
@@ -102,9 +85,6 @@ export const WikiLinkMenu = memo(function WikiLinkMenu({
     : browse.status === "LoadingFirstPage";
   const isLoadingMore = !searching && browse.status === "LoadingMore";
 
-  // Infinite scroll: pull the next page when the list nears its bottom.
-  // Programmatic scrolls from keyboard navigation land here too, so
-  // arrowing past the last loaded row also fetches more.
   const handleScroll = useCallback(
     (e: React.UIEvent<HTMLDivElement>) => {
       if (searching || browse.status !== "CanLoadMore") return;
@@ -126,7 +106,6 @@ export const WikiLinkMenu = memo(function WikiLinkMenu({
     [replaceRange, menu.close],
   );
 
-  // Refs for the once-per-open keydown listener (same pattern as slash menu).
   const resultsRef = useRef(results);
   const selectedIndexRef = useRef(selectedIndex);
   const menuRef = useRef(menu);
@@ -149,8 +128,6 @@ export const WikiLinkMenu = memo(function WikiLinkMenu({
     setSelectedIndex(0);
   }, [menu.open, menu.query]);
 
-  // Keep the highlighted item visible when arrowing through the list —
-  // scroll the menu container directly (same approach as the slash menu).
   useEffect(() => {
     const container = listRef.current;
     const el = container?.querySelector<HTMLElement>(

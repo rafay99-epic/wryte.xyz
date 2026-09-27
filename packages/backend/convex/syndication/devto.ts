@@ -1,10 +1,3 @@
-/**
- * Minimal dev.to (Forem API v1) client.
- *
- * REST with an `api-key` header. Operative limits (Forem source): published
- * article creation 9/30s (429 + Retry-After), tags alphanumeric max 4.
- * Every failure maps to the shared {@link SyndicationErrorCode} taxonomy.
- */
 "use node";
 
 import type { SyndicationFailure, SyndicationResult } from "./errors";
@@ -19,7 +12,6 @@ export type DevtoArticleInput = {
   canonical_url?: string;
   description?: string;
   main_image?: string;
-  /** Comma-separated, already normalized (see transform.ts). */
   tags?: string;
 };
 
@@ -70,9 +62,7 @@ async function devtoFetch<T>(
   try {
     const body = (await res.json()) as { error?: string };
     if (body.error) message = `dev.to: ${body.error}`;
-  } catch {
-    // Keep the status-only message.
-  }
+  } catch {}
 
   const failure: SyndicationFailure = (() => {
     if (res.status === 401 || res.status === 403)
@@ -100,7 +90,6 @@ async function devtoFetch<T>(
   return failure;
 }
 
-/** Cheap token probe; the username lands in publicConfig for the UI. */
 export async function verifyDevtoKey(
   apiKey: string,
 ): Promise<SyndicationResult<{ username: string }>> {
@@ -130,12 +119,6 @@ export async function updateDevtoArticle(
   });
 }
 
-/**
- * Dedup fallback for the retry-after-timeout case: a create may have
- * succeeded remotely even though we never saw the response. Matching our
- * canonical URL against the account's own articles adopts the existing
- * post instead of duplicating it.
- */
 export async function findDevtoArticleByCanonical(
   apiKey: string,
   canonicalUrl: string,

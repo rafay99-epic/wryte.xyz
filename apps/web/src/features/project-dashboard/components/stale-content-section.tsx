@@ -6,7 +6,6 @@ import { useQuery } from "convex/react";
 import { RefreshCw } from "lucide-react";
 import Link from "next/link";
 
-/** Published posts untouched for this long count as stale. */
 const STALE_MONTHS = 6;
 
 const MONTH_MS = 30 * 24 * 60 * 60 * 1000;
@@ -20,11 +19,6 @@ type StaleContentSectionProps = {
   projectId: string;
 };
 
-/**
- * Stale-content radar: published articles that haven't been updated in
- * STALE_MONTHS, oldest first — the "what should I refresh next" list.
- * One bounded query, subscribed only while the overview page is open.
- */
 export function StaleContentSection({ projectId }: StaleContentSectionProps) {
   const stale = useQuery(api.cms.documents.listStale, {
     projectId: projectId as Id<"projects">,

@@ -20,7 +20,6 @@ import {
 } from "react";
 import { toast } from "sonner";
 
-/** Coerces a detected type string to a known field type, defaulting to string. */
 function normalizeDetectedType(type: string): FrontmatterFieldType {
   const lower = type.toLowerCase();
   return FIELD_TYPE_OPTIONS.some((o) => o.value === lower)
@@ -65,7 +64,6 @@ function getPlaceholderForType(type: FrontmatterField["type"]): string {
   }
 }
 
-/** Returns a copy with items `a` and `b` swapped, or `items` when out of range. */
 function swapItems<T>(items: T[], a: number, b: number): T[] {
   const itemA = items[a];
   const itemB = items[b];
@@ -100,13 +98,10 @@ export function useFrontmatterSection({
   }, [project.frontmatterSchema]);
 
   const [fields, setFields] = useState<FrontmatterField[]>(initialFields);
-  // Client-only row identities for the visual editor's React keys, kept
-  // index-aligned with `fields`. Never saved, so persisted data is unchanged.
   const [fieldIds, setFieldIds] = useState(() =>
     initialFields.map(() => crypto.randomUUID()),
   );
 
-  /** Wholesale replacement (remote sync, text parse, re-detect): fresh row ids. */
   const replaceFields = useCallback((next: FrontmatterField[]) => {
     setFields(next);
     setFieldIds(next.map(() => crypto.randomUUID()));
@@ -120,10 +115,6 @@ export function useFrontmatterSection({
   const [yamlValue, setYamlValue] = useState("");
   const [yamlError, setYamlError] = useState<string | null>(null);
 
-  // Track the schema we last synced with so reactive query updates (the
-  // user's own save round-tripping, or a sibling tab's save) don't wipe
-  // unsaved local edits. The ref holds a normalized JSON string; we accept
-  // a remote change only when the local fields match the last synced value.
   const lastSyncedRef = useRef<string | null>(null);
 
   const syncRemoteFields = useEffectEvent((remote: FrontmatterField[]) => {
@@ -146,10 +137,6 @@ export function useFrontmatterSection({
     syncRemoteFields(initialFields);
   }, [initialFields]);
 
-  // The fields array last produced by parsing the user's own code/YAML text.
-  // The text views regenerate from `fields` only when the mode switches or
-  // fields change from elsewhere; echoing a parse back would reformat the
-  // text and jump the caret mid-typing.
   const parsedFieldsRef = useRef<FrontmatterField[] | null>(null);
 
   const setEditorMode = useCallback((mode: "visual" | "code" | "yaml") => {
@@ -157,10 +144,6 @@ export function useFrontmatterSection({
     setEditorModeState(mode);
   }, []);
 
-  // The YAML view is a condensed `name: type` representation that mirrors
-  // how a field would look in actual markdown frontmatter -- lossy (drops
-  // required/default/options/etc.) but the round trip preserves those props
-  // for any field whose name still exists after the YAML edit.
   useEffect(() => {
     if (fields === parsedFieldsRef.current) return;
     if (editorMode === "code") {
@@ -201,10 +184,6 @@ export function useFrontmatterSection({
     [replaceFields],
   );
 
-  // Each YAML entry is `name: type`; we merge the result with the existing
-  // fields so a user who only retypes the YAML view doesn't lose props
-  // (required/defaultValue/options/etc.) they configured in Visual mode for
-  // fields whose names are unchanged.
   const handleYamlChange = useCallback(
     (value: string) => {
       setYamlValue(value);
@@ -307,15 +286,6 @@ export function useFrontmatterSection({
     setFieldIds((prev) => swapItems(prev, index, targetIndex));
   }, []);
 
-  /**
-   * Re-runs the framework-aware detection engine against the project's repo and
-   * replaces the schema with the result. This is the in-app path for EXISTING
-   * projects (created before framework-aware detection) to refresh their schema
-   * + framework + frontmatterFormat — the new-project wizard only runs once.
-   *
-   * It persists immediately (schema + framework + format in one write) because
-   * the caller gates it behind an explicit confirmation dialog.
-   */
   const reDetect = useCallback(async () => {
     if (!project.githubRepo || !project.contentPath) {
       toast.error("Connect a GitHub repo and set a content path first");

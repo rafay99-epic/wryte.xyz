@@ -48,38 +48,13 @@ export type BulkImportResultLite = {
 type BulkImportDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Drives which phase the dialog renders. */
   phase: BulkImportPhase;
-  /** Live batch progress driven by the parent's reactive query. */
   batch: BulkImportBatch | null | undefined;
-  /**
-   * Server-returned classification summary. Present once `startBulkImport`
-   * resolves; rendered on the completion screen alongside any batch errors.
-   * Null while a fresh batch is still spinning up.
-   */
   result?: BulkImportResultLite | null;
-  /** Fires when the user dismisses the completion summary. */
   onDone: () => void;
-  /**
-   * Navigate to the conflict resolution UI. Called with the first
-   * unresolved conflict's id when the user clicks "Resolve conflicts".
-   */
   onResolveConflicts?: ((conflictId: Id<"sync_conflicts">) => void) | undefined;
 };
 
-/**
- * Three-state dialog for bulk imports / syncs:
- *
- *   1. **Progress** — visible while the workpool drains `new` /
- *      `fastForward` jobs. Driven by the reactive `batch` row.
- *   2. **Complete** — terminal state. Shows the action's classification
- *      summary (new / fast-forwarded / unchanged / conflicts / missing)
- *      plus any per-job failures from `batch.errors`.
- *
- * The classification summary is what makes a re-sync feel honest:
- * "94 unchanged, 2 imported, 1 conflict" is the user-readable
- * counterpart of "we didn't waste workpool jobs on the 94 unchanged".
- */
 export function BulkImportDialog({
   open,
   onOpenChange,
@@ -140,7 +115,6 @@ function ProgressPhase({
   pct: number;
   succeeded: number;
   failed: number;
-  /** True before any batch exists — server is still classifying files. */
   isChecking: boolean;
 }) {
   return (

@@ -1,15 +1,3 @@
-/**
- * Pure helpers for smart markdown list editing in the textarea:
- * Enter continues a list/quote/checkbox prefix (incrementing numbers),
- * Enter on an empty item removes the marker, and Tab/Shift+Tab
- * indent/outdent list lines. Kept free of DOM access so the behavior
- * is easy to unit-test and reuse.
- */
-
-/**
- * Matches a list-ish line prefix: optional indent, then a checkbox item,
- * bullet, ordered item (`.` or `)` delimiter), or blockquote marker.
- */
 const LIST_PREFIX_RE =
   /^(\s*)(?:([-*+]) \[(?:x|X| )\] |([-*+]) |(\d{1,9})([.)]) |(>) ?)/;
 
@@ -25,11 +13,6 @@ function lineBoundsAt(value: string, caret: number): LineBounds {
   return { lineStart, lineEnd: nextBreak === -1 ? value.length : nextBreak };
 }
 
-/**
- * Decides what Enter should do at `caret`. Returns null when the line has
- * no list prefix (or the caret sits inside the prefix) so the caller can
- * fall through to the default newline behavior.
- */
 export function listEnterAction(
   value: string,
   caret: number,
@@ -42,8 +25,6 @@ export function listEnterAction(
   const prefixLength = match[0].length;
   if (beforeCaret.length < prefixLength) return null;
 
-  // Empty item (nothing typed after the marker, nothing after the caret):
-  // Enter exits the list by deleting the marker instead of continuing it.
   if (beforeCaret.length === prefixLength && caret === lineEnd) {
     return { type: "exit", start: lineStart, end: caret };
   }
@@ -73,18 +54,10 @@ export function listEnterAction(
 
 export type ListIndentAction = {
   lineStart: number;
-  /** Characters to delete at lineStart (outdent). */
   remove?: number;
-  /** Text to insert at lineStart (indent). */
   insert?: string;
 };
 
-/**
- * Decides what Tab (`outdent: false`) or Shift+Tab (`outdent: true`) should
- * do on the line at `caret`. Returns null for non-list lines — and for
- * outdents with no leading whitespace — so the caller falls back to its
- * default Tab behavior.
- */
 export function listIndentAction(
   value: string,
   caret: number,

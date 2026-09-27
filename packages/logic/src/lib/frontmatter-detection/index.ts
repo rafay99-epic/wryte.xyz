@@ -26,26 +26,15 @@ export type {
   RawSampleFile,
 } from "./types";
 
-/** A field present in this fraction of sampled posts is treated as required. */
 const REQUIRED_THRESHOLD = 0.8;
 
 export type DetectInput = {
   framework: DetectionFramework;
-  /** Framework config/archetype files fetched from the repo (may be empty). */
   configFiles: ConfigFile[];
-  /** Raw post files to sample (may be empty). */
   sampleFiles: RawSampleFile[];
-  /** Content dir, used to pick the matching Astro collection. */
   contentPath?: string;
 };
 
-/**
- * The detection cascade. Framework config (Astro Zod, Contentlayer, Hugo
- * taxonomies, Jekyll defaults) is authoritative; multi-file sample aggregation
- * fills gaps and decides required-ness from real data; a single bad post can no
- * longer poison the schema. Pure and synchronous — all I/O happens in the
- * caller, so this is trivially testable and cheap to run at scale.
- */
 export function detectSchema(input: DetectInput): DetectionResult {
   const config = parseConfig(input);
 
@@ -116,16 +105,10 @@ function firstParsed(
   return null;
 }
 
-/** Config files always inform the result when a config parsed successfully. */
 function usedConfigPaths(input: DetectInput): string[] {
   return input.configFiles.map((f) => f.path);
 }
 
-/**
- * Combines the authoritative config schema with sample evidence into the final
- * ordered field list. Config order comes first (matches the source), then any
- * fields seen only in posts, in first-seen order.
- */
 function mergeFields(
   config: ConfigSchema | null,
   aggregated: Map<string, AggregatedField>,
@@ -152,8 +135,6 @@ function mergeFields(
 
     let type: FrontmatterFieldType = "string";
     if (configField && agg) {
-      // Trust a confidently-typed config field; if the config parser fell back
-      // to "string", let real-post evidence override it.
       type = configField.type !== "string" ? configField.type : agg.type;
     } else if (configField) {
       type = configField.type;
@@ -169,7 +150,6 @@ function mergeFields(
       name: key,
       type,
       required,
-      // Never copy a sampled post's values — detection learns shape, not content.
       defaultValue: "",
       options: configField?.options ?? "",
     });
@@ -183,10 +163,6 @@ function dominantFormat(formats: FrontmatterFormat[]): FrontmatterFormat {
   return toml > formats.length - toml ? "toml" : "yaml";
 }
 
-/**
- * Convenience overload of {@link detectSchema} that also identifies the
- * framework from the repo file list when the caller hasn't already.
- */
 export function detectSchemaFromRepo(
   args: Omit<DetectInput, "framework"> & { allPaths: string[] },
 ): DetectionResult {

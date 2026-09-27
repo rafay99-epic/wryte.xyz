@@ -43,9 +43,7 @@ export function useSelfDestructTab() {
           }
         }
         for (const k of toRemove) window.localStorage.removeItem(k);
-      } catch {
-        // localStorage may be disabled in private windows — best effort.
-      }
+      } catch {}
 
       const { vaultOrphaned, scheduledFailedToCancel } = result.summary;
       if (vaultOrphaned > 0 || scheduledFailedToCancel > 0) {

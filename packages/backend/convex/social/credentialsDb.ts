@@ -1,9 +1,3 @@
-/**
- * Non-Node database helpers for `social/credentials`.
- *
- * Mirrors `convex/ai/credentialsDb.ts` — split so the Node-only action
- * file can call into these via `ctx.runQuery` / `ctx.runMutation`.
- */
 import { v } from "convex/values";
 import { internalMutation, internalQuery, query } from "../_generated/server";
 import { getAuthedUserOrNull } from "../_lib/auth";
@@ -55,8 +49,6 @@ export const getPublicConfig = query({
       )
       .unique();
 
-    // Legacy Upload-Post row (posting through it is retired) — surfaced so
-    // the settings UI can show a "reconnect with Buffer" migration prompt.
     const legacy = await ctx.db
       .query("socialCredentials")
       .withIndex("by_projectId_and_provider", (q) =>
@@ -87,11 +79,6 @@ export const getPublicConfig = query({
   },
 });
 
-/* ------------------------------------------------------------------ */
-/*  Internal queries / mutations                                       */
-/* ------------------------------------------------------------------ */
-
-/** Full socialCredentials row — return shape of the internal find queries. */
 const CREDENTIAL_DOC = v.object({
   _id: v.id("socialCredentials"),
   _creationTime: v.number(),

@@ -23,7 +23,6 @@ export function CtaDiff({ isSignedIn }: { isSignedIn: boolean }) {
           </span>
         </div>
 
-        {/* Terminal-style commit line */}
         <div className="mx-auto mb-9 inline-flex max-w-full items-center gap-2 overflow-hidden rounded-lg border border-foreground/[0.08] bg-foreground/[0.02] px-4 py-2.5 dark:border-foreground/[0.05]">
           <span className="font-mono text-[12px] text-emerald-400/60">$</span>
           <span className="truncate font-mono text-[12px] text-foreground/55 dark:text-foreground/40">

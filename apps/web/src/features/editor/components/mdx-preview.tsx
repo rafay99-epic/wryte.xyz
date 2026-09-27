@@ -21,17 +21,9 @@ import { usePreviewJump } from "../hooks/use-preview-jump";
 
 const DEBOUNCE_MS = 300;
 
-/**
- * The editor's live MDX Read view. The compile/run machinery lives in the
- * shared `mdx-runtime` (also used by the public share preview); this
- * component adds the editor concerns — store subscription, debounce,
- * double-click-to-edit, and the project's animation components.
- */
 export function MdxPreview({
   animationsEnabled = false,
 }: {
-  /** Gate the animations subscription — projects without the feature
-   * configured must not pay the list's read cost on every session. */
   animationsEnabled?: boolean;
 }) {
   const content = useEditorStore((state) => state.content);
@@ -41,9 +33,6 @@ export function MdxPreview({
   const [error, setError] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout>>(null);
 
-  // Project animations, compiled once per source change (not per keystroke
-  // of the document — the memo only re-runs when the Convex rows change).
-  // A source that fails to compile falls back to the dashed placeholder.
   const animations = useQuery(
     api.cms.animations.list,
     animationsEnabled && activeProjectId

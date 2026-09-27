@@ -9,12 +9,6 @@ type OverlayBounds = { top: number; bottom: number };
 
 const PADDING_PX = 6;
 
-/**
- * Focus-mode paragraph dimming. Two pointer-events-none washes sit above
- * the textarea, leaving the paragraph under the caret at full contrast.
- * Positions come from the caret-mirror measurement (relative to the
- * textarea's border box, which matches the wrapper's coordinate space).
- */
 export function FocusParagraphOverlay() {
   const { textareaRef } = useEditorContext();
   const [bounds, setBounds] = useState<OverlayBounds | null>(null);

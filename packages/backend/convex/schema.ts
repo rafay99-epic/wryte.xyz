@@ -1,16 +1,3 @@
-/**
- * Database schema for the Wryte CMS backend.
- *
- * Core entities:
- * - users: Authenticated users linked via Clerk token identifiers
- * - projects: Writing projects that map to GitHub repositories
- * - documents: Markdown documents belonging to projects, with lifecycle tracking
- * - media: Records of images uploaded to the project's configured storage provider
- * - mediaCredentials: Per-project, encrypted credentials for UploadThing/Cloudinary (vault-backed)
- * - mediaUsage: Denormalized counters for cheap quota checks
- * - mediaErrorLog: Normalized error log for ops visibility and the UI
- * - scheduled_publishes: Job queue for time-delayed publishing to GitHub
- */
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import { compressionSettingsValidator } from "./_lib/compression";
@@ -21,114 +8,37 @@ import {
 } from "./media/_lib/providers";
 
 export default defineSchema({
-  /**
-   * Singleton row holding the currently deployed app version. Written by
-   * the post-deploy script; read by every connected client via a Convex
-   * subscription so version-change toasts arrive instantly over the
-   * existing websocket — zero polling.
-   */
   app_version: defineTable({
     version: v.string(),
     build: v.string(),
     deployedAt: v.number(),
   }),
 
-  /**
-   * Users table — stores Clerk-authenticated user profiles.
-   * `tokenIdentifier` is the Clerk-issued unique ID used to look up users on every request.
-   */
   users: defineTable({
     tokenIdentifier: v.string(),
-    /**
-     * Clerk-issued user identifier (e.g. "user_2abc..."), parsed once from
-     * `tokenIdentifier` and pinned here so Convex Node actions can call
-     * Clerk's backend SDK without reparsing on every request. Optional
-     * because legacy users predate this field — backfilled lazily inside
-     * `getCurrentUser` on the next authenticated request.
-     */
     clerkUserId: v.optional(v.string()),
     name: v.string(),
     email: v.string(),
     imageUrl: v.optional(v.string()),
-    /** Opaque WorkOS Vault id for the user's GitHub PAT. */
     githubVaultSecretId: v.optional(v.string()),
     githubUsername: v.optional(v.string()),
-    /**
-     * Public writing profile at `wryte.xyz/@username`. `username` mirrors
-     * the Clerk username (source of truth), synced by `profiles.syncMyUsername`
-     * and stored lowercased for the `by_username` lookup. Everything stays
-     * private until `profilePublic` is true; `profileShowStats` gates the
-     * streak + heatmap separately (they reveal writing cadence).
-     * `socialLinks` is a JSON string of `[{label,url}]`, https-only.
-     */
     username: v.optional(v.string()),
     bio: v.optional(v.string()),
     socialLinks: v.optional(v.string()),
     profilePublic: v.optional(v.boolean()),
     profileShowStats: v.optional(v.boolean()),
-    /** Accent preset key (see src/features/profile/accents.ts). */
     profileAccent: v.optional(v.string()),
-    /** "Follow"/RSS URL for the user's own feed (https-only). */
     feedUrl: v.optional(v.string()),
-    /** A published post the user pins to the top of their profile. */
     featuredDocumentId: v.optional(v.id("documents")),
-    /**
-     * Secret token for previewing the profile while it's still private
-     * (mirrors share_links). The token is the credential — anyone with the
-     * link sees the profile regardless of `profilePublic`.
-     */
     profilePreviewToken: v.optional(v.string()),
-    /**
-     * Account-wide default for client-side image compression before upload.
-     * Per-project `compressionSettings` overrides this when set; absent =
-     * client falls back to `DEFAULT_COMPRESSION_SETTINGS` in
-     * `src/lib/image-compression/defaults.ts`.
-     */
     defaultCompressionSettings: v.optional(compressionSettingsValidator),
-    /**
-     * Capabilities granted to this user's MCP clients (see `convex/mcp/`).
-     *
-     * This lives here rather than in the OAuth token because Clerk does not
-     * support custom OAuth scopes yet — its `scopes_supported` is a fixed list
-     * (`openid`, `profile`, `email`, `public_metadata`, `private_metadata`,
-     * `offline_access`), so a `wryte:publish` scope cannot be issued or
-     * consented to. The token proves *identity*; this field decides
-     * *capability*.
-     *
-     * Absent means the default grant (`DEFAULT_GRANT` in `mcp/scopes.ts`:
-     * read + write). Anything with an effect outside Wryte — publishing to
-     * GitHub, spending media provider quota, moving documents to trash —
-     * must be turned on deliberately.
-     *
-     * When Clerk ships custom scopes, intersect the two rather than replacing
-     * this: a token narrower than the user's grant should still be honoured.
-     */
     mcpScopes: v.optional(v.array(v.string())),
     createdAt: v.number(),
   })
     .index("by_tokenIdentifier", ["tokenIdentifier"])
-    // Fallback identity lookup for tokens whose issuer differs from the one
-    // that created the row — specifically Clerk OAuth access tokens from MCP
-    // clients, whose `iss` may not match the session-token issuer byte for
-    // byte. `getCurrentUser` tries `by_tokenIdentifier` first and only falls
-    // through to here. See `_lib/auth.ts`.
     .index("by_clerkUserId", ["clerkUserId"])
     .index("by_username", ["username"]),
 
-  /**
-   * Projects table — each project corresponds to a writing workspace and optionally
-   * maps to a GitHub repository for publishing. Users can configure content/media paths,
-   * the target branch, and a frontmatter schema for consistent metadata across documents.
-   *
-   * `mediaStorageMode` is the project's **default** upload destination — see
-   * `media/_lib/providers.ts` for the full provider list. Several providers can
-   * be connected at once (one `mediaCredentials` row each); this field only
-   * decides where an upload lands when the caller doesn't name a destination.
-   *
-   * `mediaPath` carries the framework-specific destination — e.g. `public/images`
-   * for Astro, `static/images` for SvelteKit, a Cloudinary folder, an R2 key
-   * prefix, etc.
-   */
   projects: defineTable({
     userId: v.id("users"),
     name: v.string(),
@@ -137,34 +47,9 @@ export default defineSchema({
     githubBranch: v.optional(v.string()),
     contentPath: v.optional(v.string()),
     mediaPath: v.optional(v.string()),
-    /**
-     * Repo directory where user-authored animation components (.tsx) are
-     * committed on publish, e.g. "src/components/blog". Like `mediaPath`
-     * this is per-project — every repo lays out components differently.
-     * Absent = the code-animations feature is off for the project.
-     * MDX-only: the editor hides the feature unless contentFormat is "mdx".
-     */
     animationsPath: v.optional(v.string()),
-    /**
-     * Explicit on/off for the code-animations feature. Absent = derived
-     * from `animationsPath` presence (backwards compat); `false` wins over
-     * a configured path so MDX users can opt out without losing the path.
-     */
     animationsEnabled: v.optional(v.boolean()),
-    /**
-     * Language animation components are written and published in. Absent =
-     * "tsx". Only these two: the preview compiles React, and anything else
-     * would not build in the target repo.
-     */
     animationLanguage: v.optional(v.union(v.literal("tsx"), v.literal("jsx"))),
-    /**
-     * Static-analysis level applied to animation sources. Absent = "off",
-     * the pre-existing behaviour where Sucrase parses the file and nothing
-     * else is verified. "contract" adds the SSR/cleanup/accessibility rules
-     * the editor runs locally; "strict" adds a full TypeScript check.
-     * `blockPublish` decides whether failing or unchecked animations stop a
-     * publish or only warn.
-     */
     animationChecks: v.optional(
       v.object({
         level: v.union(
@@ -175,188 +60,56 @@ export default defineSchema({
         blockPublish: v.boolean(),
       }),
     ),
-    /**
-     * Opt-in toggle for importing .md/.mdx files from the local filesystem
-     * (drag-and-drop or file picker). Default off — costs zero until turned
-     * on in project settings.
-     */
     importEnabled: v.optional(v.boolean()),
     mediaStorageMode: v.optional(mediaProviderValidator),
     frontmatterSchema: v.optional(v.string()),
-    /** Custom commit message template, e.g. "docs: update {{filename}}" */
     commitMessageTemplate: v.optional(v.string()),
-    /**
-     * Append the "Published with Wryte" attribution line to publish commits.
-     * Absent = enabled (default ON); false = off. See _lib/commitAttribution.ts.
-     */
     commitAttribution: v.optional(v.boolean()),
-    /**
-     * Custom attribution phrase replacing "Published with Wryte". The
-     * wryte.xyz/gh link is always appended by the module — this is only the
-     * text before it. Validated single-line (see validateAttributionText).
-     */
     commitAttributionText: v.optional(v.string()),
-    /**
-     * Commit via the wryte-xyz GitHub App installation token — committer
-     * becomes wryte-xyz[bot] with a Verified badge, author stays the user.
-     * Requires the App installed on the repo; publishes silently fall back
-     * to the user's token otherwise. Absent = off. See _lib/githubApp.ts.
-     */
     verifiedCommits: v.optional(v.boolean()),
-    /** Filename pattern for new posts, e.g. "{{slug}}.md" or "{{date}}-{{slug}}.md" */
     filenamePattern: v.optional(v.string()),
-    /** Content file format — controls extension (.md or .mdx) and editor behaviour */
     contentFormat: v.optional(v.union(v.literal("md"), v.literal("mdx"))),
-    /** Whether new documents default to draft: true */
     defaultDraft: v.optional(v.boolean()),
-    /** Site URL for preview links and canonical URLs */
     siteUrl: v.optional(v.string()),
-    /**
-     * URL path segment between the site URL and a post's slug, e.g. "blog"
-     * → https://site.com/blog/my-post. Absent = framework default (see
-     * `_lib/publishedUrl.ts`); empty string = posts live at the site root.
-     */
     postUrlPrefix: v.optional(v.string()),
-    /** Webhook URL to trigger after publishing (e.g. Vercel/Netlify deploy hook) */
     deployHookUrl: v.optional(v.string()),
-    /** Frontmatter delimiter format */
     frontmatterFormat: v.optional(
       v.union(v.literal("yaml"), v.literal("toml")),
     ),
-    /**
-     * Static-site framework detected at connect time (astro/nextjs/hugo/jekyll/
-     * gatsby/eleventy/sveltekit/unknown). Stored as a free string so adding a
-     * new detector never requires a schema migration. Drives framework-aware
-     * publishing (e.g. Hugo defaults to TOML frontmatter).
-     */
     framework: v.optional(v.string()),
-    /** Default author name injected into frontmatter for new posts. */
     defaultAuthor: v.optional(v.string()),
-    /**
-     * Default author avatar URL or media path injected into frontmatter for
-     * new posts. Paired with `defaultAuthor` so the editor doesn't have to
-     * re-derive these from the most-recently-detected post on every create.
-     */
     defaultAuthorAvatar: v.optional(v.string()),
-    /** JSON-serialized BoardColumnDef[] for custom kanban columns */
     boardColumns: v.optional(v.string()),
-    /** AI provider for content enhancement — see convex/ai/_lib/providers.ts */
     aiProvider: v.optional(providerValidator),
-    /** AI model identifier, e.g. "claude-sonnet-4-20250514" */
     aiModel: v.optional(v.string()),
-    /** JSON-serialized AiPromptTemplate[] for reusable AI instructions */
     aiPromptTemplates: v.optional(v.string()),
-    /** Auto-post to connected social media when publishing */
     socialPostOnPublish: v.optional(v.boolean()),
-    /**
-     * Cross-post to connected syndication targets (dev.to / Hashnode) when
-     * publishing. Absent = disabled — the publish flow schedules nothing,
-     * so the feature costs zero until a user opts in.
-     */
     syndicateOnPublish: v.optional(v.boolean()),
-    /**
-     * Verify deployments after publish and email on failure (see
-     * convex/deployments/verify.ts). Opt-in: absent = disabled.
-     */
     deployVerificationEnabled: v.optional(v.boolean()),
-    /** Editor: show the readability lens side panel (default off) */
     readabilityLensEnabled: v.optional(v.boolean()),
-    /**
-     * When enabled, uploaded images are scanned for the Gemini AI watermark
-     * (bottom-right "Gemini" logo) and cleaned automatically before storage.
-     * Runs after compression, only when a watermark is detected — saves
-     * compute by skipping clean images. Enabled by default for new projects
-     * (absent = enabled).
-     */
     autoWatermarkRemoval: v.optional(v.boolean()),
-    /** Editor: enable the slash (/) command menu (default off) */
     slashCommandsEnabled: v.optional(v.boolean()),
-    /** Editor: enable per-project reusable text snippets in the / menu (default off) */
     snippetsEnabled: v.optional(v.boolean()),
-    /** Editor: floating toolbar on text selection (default ON — absent means enabled) */
     selectionToolbarEnabled: v.optional(v.boolean()),
-    /**
-     * Denormalized count of rows in the `snippets` table for this project.
-     * Maintained transactionally by the snippet create/remove mutations so the
-     * editor's `/` menu can decide whether to show "Snippets ▸" — and the
-     * settings UI can render the counter — without an extra read. Optional for
-     * backwards compat — absent means 0.
-     */
     snippetCount: v.optional(v.number()),
-    /**
-     * IANA timezone identifier (e.g. "America/New_York"). Drives how
-     * scheduled publish times are interpreted and how the publish-date
-     * frontmatter field is rendered. Absent = fall back to the editor's
-     * browser timezone at schedule time.
-     */
     timezone: v.optional(v.string()),
-    /**
-     * When false, the editor never persists changes automatically — the
-     * author must use the manual save shortcut (Cmd/Ctrl+S). Absent =
-     * auto-save enabled (default behaviour).
-     */
     autoSaveEnabled: v.optional(v.boolean()),
-    /** User-starred project for quick scanning */
     isFavorite: v.optional(v.boolean()),
-    /** Manual display order; set by reorder mutation (0 = first) */
     sortOrder: v.optional(v.number()),
-    /**
-     * Per-project override for image compression. When absent the client
-     * inherits the user's `defaultCompressionSettings`. When that is also
-     * absent, the built-in defaults apply.
-     */
     compressionSettings: v.optional(compressionSettingsValidator),
-    /**
-     * Per-project ceiling on the post-compression size of a single image
-     * upload, in bytes. Enforced on both the client (before sending) and
-     * the backend (in `media/uploads.ts`). Absent → DEFAULT_MAX_UPLOAD_BYTES
-     * (see `src/lib/upload-limits.ts`). Always clamped server-side to
-     * `QUOTAS.MAX_UPLOAD_BYTES`.
-     */
     maxUploadBytes: v.optional(v.number()),
-    /**
-     * How many days a soft-deleted document lingers in the project trash
-     * before the cleanup cron hard-deletes it. Absent → 30 (the default
-     * is read-side; we don't backfill). Set to a very large number to
-     * effectively disable auto-cleanup ("Never").
-     */
     trashRetentionDays: v.optional(v.number()),
-    /**
-     * Denormalized count of non-trashed documents in this project.
-     * Maintained by document create/delete/trash/restore mutations so
-     * `listWithDocumentCounts` avoids an O(N) scan per project.
-     * Optional for backwards compat — absent means "not yet backfilled".
-     */
     documentCount: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   }).index("by_userId", ["userId"]),
 
-  /**
-   * Documents table — markdown documents with draft/scheduled/published lifecycle.
-   * Each document belongs to exactly one project and one user.
-   * `githubPath` and `githubSha` track the file's location and version in GitHub
-   * to support updates (rather than creating duplicates) on subsequent publishes.
-   */
   documents: defineTable({
     projectId: v.id("projects"),
     userId: v.id("users"),
     title: v.string(),
     slug: v.string(),
-    /**
-     * Denormalized first ~200 chars of the body, maintained on every
-     * content write. Lets the board/list cards show a preview without
-     * loading `document_content`. Set at document creation.
-     */
     excerpt: v.optional(v.string()),
-    /**
-     * Direct pointer to this document's `document_content` row. Lets the
-     * autosave hot path patch the body without first re-reading the full
-     * content row via the `by_documentId` index (Convex bills every read
-     * at full row size, so that lookup doubled the per-tick bill from N
-     * to 2N). Optional: set post-insert at document creation; a missing
-     * pointer falls back to the index lookup in `documentContent.writeContent`.
-     */
     contentId: v.optional(v.id("document_content")),
     wordCount: v.optional(v.number()),
     frontmatter: v.optional(v.string()),
@@ -369,13 +122,6 @@ export default defineSchema({
     githubPath: v.optional(v.string()),
     githubSha: v.optional(v.string()),
     githubSyncedAt: v.optional(v.number()),
-    /**
-     * Soft-delete timestamp. When set, the document is in the project
-     * trash — hidden from every user-facing query but retrievable until a
-     * daily cleanup cron hard-deletes it after the project's
-     * `trashRetentionDays`. Reuse `_lib/trash:isTrashed` instead of
-     * comparing this field inline so the convention stays consistent.
-     */
     trashedAt: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -384,39 +130,13 @@ export default defineSchema({
     .index("by_userId", ["userId"])
     .index("by_userId_and_status", ["userId", "status"])
     .index("by_projectId_and_status", ["projectId", "status"])
-    // Drives the dedup-by-githubPath lookups in the GitHub import and
-    // publish paths (`_importFromGithubInternal`, `_upsertImportedDocument`,
-    // …): an O(log n) `.unique()` lookup instead of scanning every document
-    // in the project per imported file.
     .index("by_projectId_and_githubPath", ["projectId", "githubPath"])
-    // Powers the trash list view and the daily cleanup cron. Filtering
-    // `trashedAt` server-side on the indexed range avoids a full project
-    // scan for projects with thousands of active docs.
     .index("by_projectId_and_trashedAt", ["projectId", "trashedAt"])
-    // Title typeahead for the editor's `[[` internal-link menu — search
-    // scoped to the project so results never leak across projects.
-    //
-    // `userId` is a filter field too so a cross-project title search is ONE
-    // indexed read scoped to the owner, instead of one read per owned project
-    // fanned out in a loop. Both filters stay because the `[[` menu genuinely
-    // wants the narrower project scope.
     .searchIndex("search_title", {
       searchField: "title",
       filterFields: ["projectId", "userId"],
     }),
 
-  /**
-   * Document bodies — split out of `documents` (1:1, keyed by documentId)
-   * so the hot reactive queries that list/board/calendar documents never
-   * read article bodies. Convex bills bytes READ from the database, and a
-   * single autosave used to force the list query to re-read every body in
-   * the project; isolating the body here removes that read amplification.
-   *
-   * Reads/writes go through `convex/cms/_lib/documentContent.ts` so the
-   * body access stays in one place. `by_projectId` / `by_userId` exist
-   * purely so the project-delete and account-self-destruct cascades can
-   * drain rows without walking the parent `documents`.
-   */
   document_content: defineTable({
     documentId: v.id("documents"),
     projectId: v.id("projects"),
@@ -427,45 +147,11 @@ export default defineSchema({
     .index("by_documentId", ["documentId"])
     .index("by_projectId", ["projectId"])
     .index("by_userId", ["userId"])
-    // Body full-text behind the command palette's "In content" section — the
-    // ONE place that deliberately opts back into reading bodies. `userId` is
-    // filtered inside the index so a cross-project search is a single read
-    // and no other tenant's body is ever loaded into memory; `projectId`
-    // supports the scoped variant.
-    //
-    // Reading a hit bills its whole body, so `cms/documents.searchContent`
-    // caps the result count and enforces a minimum term length. If this table
-    // ever grows large enough that the backfill blocks a deploy, push this
-    // index once with `staged: true`, wait for the backfill, then remove the
-    // flag — a staged index cannot be queried, so the flag and the query must
-    // not land in the same deploy.
     .searchIndex("search_content", {
       searchField: "content",
       filterFields: ["userId", "projectId"],
     }),
 
-  /**
-   * Directed wiki-link edges — the graph behind the editor's "Linked from"
-   * (backlinks / "what links here") panel. One row per resolved `[[wiki
-   * link]]` from a source document's MAIN body to another document in the
-   * same project. Read via `by_targetDocumentId` to answer "which documents
-   * link to me?" without scanning every body in the project.
-   *
-   * Maintenance is FLUSH-ONLY, never the autosave hot path: the row set for
-   * a source is recomputed (delete-by-source + re-insert) inside the coarse
-   * save/flush mutations — `documents.update` (when content is provided),
-   * `documentDrafts.promoteToMain`, `snapshots.restore`, and the conflict
-   * resolutions that replace main content — all via the shared
-   * `syncDocumentLinks` helper in `cms/_lib/documentLinks.ts`. The 3s
-   * `autosaveBody` path deliberately does NOT touch this table, so link
-   * resolution (which reads project doc metadata) never rides per-keystroke.
-   *
-   * Only resolved, non-self edges are stored; unresolved `[[targets]]` are
-   * surfaced by the pre-publish checklist instead. Drained in both
-   * directions (`by_sourceDocumentId` + `by_targetDocumentId`) by the
-   * per-document purge, and by the project-wipe / account-self-destruct
-   * cascades via `by_projectId` / `by_userId`.
-   */
   document_links: defineTable({
     sourceDocumentId: v.id("documents"),
     targetDocumentId: v.id("documents"),
@@ -478,10 +164,6 @@ export default defineSchema({
     .index("by_projectId", ["projectId"])
     .index("by_userId", ["userId"]),
 
-  /**
-   * Publish history table — tracks every publish to GitHub for a document.
-   * Enables "Published N times" display and one-click rollback to any version.
-   */
   publish_history: defineTable({
     documentId: v.id("documents"),
     projectId: v.id("projects"),
@@ -500,12 +182,6 @@ export default defineSchema({
     .index("by_documentId", ["documentId"])
     .index("by_projectId", ["projectId"]),
 
-  /**
-   * Publish bodies — split out of `publish_history` (1:1, keyed by
-   * publishId). Immutable; read only by rollback and the on-demand
-   * version viewer. Cascade indexes mirror `document_content`.
-   * `frontmatter` rides along because rollback restores both together.
-   */
   publish_history_content: defineTable({
     publishId: v.id("publish_history"),
     documentId: v.id("documents"),
@@ -519,20 +195,12 @@ export default defineSchema({
     .index("by_projectId", ["projectId"])
     .index("by_userId", ["userId"]),
 
-  /**
-   * Draft snapshots — intentional checkpoints before publish. These are
-   * separate from `documents.content` so autosave can keep the live working
-   * copy lightweight while authors preserve v1/v2/final-candidate states.
-   */
   document_drafts: defineTable({
     documentId: v.id("documents"),
     projectId: v.id("projects"),
     userId: v.id("users"),
     label: v.string(),
     frontmatterSnapshot: v.optional(v.string()),
-    /** Direct pointer to the draft's content row — lets the draft autosave
-     *  hot path patch the body without an index read. Set post-insert at
-     *  draft creation (fallback: `by_draftId` lookup). */
     contentId: v.optional(v.id("document_draft_content")),
     summary: v.optional(v.string()),
     wordCount: v.number(),
@@ -543,19 +211,6 @@ export default defineSchema({
     .index("by_projectId", ["projectId"])
     .index("by_userId", ["userId"]),
 
-  /**
-   * Draft bodies — split out of `document_drafts` (1:1, keyed by draftId)
-   * for the same reason `document_content` exists: the draft tab bar
-   * subscribes to the draft list while the user types, and Convex re-bills
-   * every subscribed row in full on each intersecting write. The hot draft
-   * autosave patches ONLY this row; draft metadata (label, wordCount,
-   * updatedAt) is refreshed on the coarser flush cadence.
-   *
-   * `title` lives here (not on the metadata row) so title edits ride the
-   * hot path without invalidating the tab-bar list subscription.
-   * `by_documentId` / `by_projectId` / `by_userId` exist for the
-   * per-document purge, project-wipe, and self-destruct cascades.
-   */
   document_draft_content: defineTable({
     draftId: v.id("document_drafts"),
     documentId: v.id("documents"),
@@ -570,13 +225,6 @@ export default defineSchema({
     .index("by_projectId", ["projectId"])
     .index("by_userId", ["userId"]),
 
-  /**
-   * Automatic version snapshots of the main document content — the safety
-   * net behind the editor's version history. Created on manual save and on
-   * a coarse editing interval (never per keystroke), deduped by content,
-   * and pruned to a fixed cap per document. Distinct from `document_drafts`
-   * (deliberate, named parallel streams) and `publish_history` (publishes).
-   */
   document_snapshots: defineTable({
     documentId: v.id("documents"),
     projectId: v.id("projects"),
@@ -587,11 +235,6 @@ export default defineSchema({
       v.literal("restore"),
     ),
     title: v.string(),
-    /**
-     * Cheap dedup fingerprint (FNV-1a hex of the body). Lets `create`
-     * skip a write when content matches the latest snapshot without
-     * reading that snapshot's full body.
-     */
     contentHash: v.optional(v.string()),
     wordCount: v.number(),
     createdAt: v.number(),
@@ -599,12 +242,6 @@ export default defineSchema({
     .index("by_documentId", ["documentId"])
     .index("by_projectId", ["projectId"]),
 
-  /**
-   * Snapshot bodies — split out of `document_snapshots` (1:1, keyed by
-   * snapshotId). Immutable after insert; read only by the on-demand diff
-   * view (`snapshots.get`) and restore. Cascade indexes mirror
-   * `document_content`.
-   */
   document_snapshot_content: defineTable({
     snapshotId: v.id("document_snapshots"),
     documentId: v.id("documents"),
@@ -617,11 +254,6 @@ export default defineSchema({
     .index("by_projectId", ["projectId"])
     .index("by_userId", ["userId"]),
 
-  /**
-   * Shareable draft-preview links. The token is the secret: anyone with
-   * `{app-url}/preview/{token}` can read the document's live content
-   * (read-only) until the link is revoked. One active link per document.
-   */
   share_links: defineTable({
     documentId: v.id("documents"),
     projectId: v.id("projects"),
@@ -634,11 +266,6 @@ export default defineSchema({
     .index("by_documentId", ["documentId"])
     .index("by_projectId", ["projectId"]),
 
-  /**
-   * Idea inbox — lightweight per-project capture (a title and an optional
-   * note) for posts that aren't worth a full document yet. Converting an
-   * idea creates a draft document and deletes the idea row.
-   */
   ideas: defineTable({
     projectId: v.id("projects"),
     userId: v.id("users"),
@@ -647,10 +274,6 @@ export default defineSchema({
     createdAt: v.number(),
   }).index("by_projectId", ["projectId"]),
 
-  /**
-   * Research/context notes attached to a document. `selectedForAi` lets the
-   * editor build a deliberate context packet without sending every note.
-   */
   document_research: defineTable({
     documentId: v.id("documents"),
     projectId: v.id("projects"),
@@ -676,18 +299,6 @@ export default defineSchema({
     .index("by_userId", ["userId"])
     .index("by_documentId_and_selectedForAi", ["documentId", "selectedForAi"]),
 
-  /**
-   * Media table — records of images uploaded to a project's chosen storage provider.
-   *
-   * `provider` indicates where the binary lives, and what `externalId` means:
-   *  - "github": repo path in the project's repo
-   *  - "uploadthing": the UploadThing file key
-   *  - "cloudinary": the Cloudinary public_id
-   *  - "r2": the object key inside the bucket
-   *
-   * Rows from different providers coexist in one project — the provider is
-   * recorded per upload, not per project.
-   */
   media: defineTable({
     projectId: v.id("projects"),
     userId: v.optional(v.id("users")),
@@ -708,26 +319,12 @@ export default defineSchema({
     .index("by_documentId", ["documentId"])
     .index("by_provider_and_externalId", ["provider", "externalId"]),
 
-  /**
-   * Media credentials — per-project encrypted credentials, one row per
-   * connected provider. Secret values live in WorkOS Vault; we store an opaque
-   * pointer plus non-secret hints (e.g. Cloudinary `cloud_name`, an R2 bucket).
-   *
-   * These rows *are* the set of providers a project can use: connecting a
-   * provider inserts one, and `projects.mediaStorageMode` picks which of them
-   * is the default upload destination. GitHub has no row — it rides the user's
-   * OAuth token.
-   *
-   * `status` is an explicit state machine so the UI can render
-   * "verifying…" / "rotating…" / "invalid — please update" reactively.
-   */
   mediaCredentials: defineTable({
     projectId: v.id("projects"),
     userId: v.id("users"),
     provider: credentialProviderValidator,
     vaultSecretId: v.string(),
     vaultVersionId: v.optional(v.string()),
-    /** JSON-serialized non-secret hints, keyed by credential field name. */
     publicConfig: v.optional(v.string()),
     status: v.union(
       v.literal("active"),
@@ -745,15 +342,6 @@ export default defineSchema({
     .index("by_projectId_and_provider", ["projectId", "provider"])
     .index("by_userId_and_provider", ["userId", "provider"]),
 
-  /**
-   * AI provider credentials — per-project, encrypted in WorkOS Vault.
-   *
-   * Mirrors `mediaCredentials` exactly but for LLM provider keys
-   * (Anthropic / OpenAI / OpenRouter). The project's `aiProvider` field
-   * picks which row to use at call time; `aiModel` picks the model id.
-   *
-   * Only one row per (projectId, provider); insert-or-replace on save.
-   */
   aiCredentials: defineTable({
     projectId: v.id("projects"),
     userId: v.id("users"),
@@ -776,26 +364,12 @@ export default defineSchema({
     .index("by_projectId_and_provider", ["projectId", "provider"])
     .index("by_userId_and_provider", ["userId", "provider"]),
 
-  /**
-   * Social media credentials — per-project, encrypted in WorkOS Vault.
-   *
-   * Mirrors `mediaCredentials` (includes `publicConfig` for non-secret
-   * settings like the Upload-Post profile username and target platforms).
-   * Only one row per (projectId, provider).
-   */
   socialCredentials: defineTable({
     projectId: v.id("projects"),
     userId: v.id("users"),
-    /**
-     * "buffer" is the live provider. "upload-post" rows are legacy — kept so
-     * existing projects surface a "reconnect with Buffer" migration prompt
-     * instead of silently losing their configuration; posting through them
-     * is no longer supported.
-     */
     provider: v.union(v.literal("upload-post"), v.literal("buffer")),
     vaultSecretId: v.string(),
     vaultVersionId: v.optional(v.string()),
-    /** JSON: { username: string, platforms: string[] } */
     publicConfig: v.optional(v.string()),
     status: v.union(
       v.literal("active"),
@@ -813,19 +387,12 @@ export default defineSchema({
     .index("by_projectId_and_provider", ["projectId", "provider"])
     .index("by_userId_and_provider", ["userId", "provider"]),
 
-  /**
-   * Social announcement outcomes — one row per publish × channel, written
-   * only when an announcement is attempted (zero standing cost). Powers the
-   * per-channel status display and the retry button in the publish dialog.
-   */
   social_posts: defineTable({
     projectId: v.id("projects"),
     documentId: v.id("documents"),
-    /** Buffer channel this attempt targeted. */
     channelId: v.string(),
     service: v.string(),
     channelName: v.string(),
-    /** Final composed text that was (or would have been) posted. */
     text: v.string(),
     status: v.union(v.literal("posted"), v.literal("failed")),
     error: v.optional(v.string()),
@@ -834,12 +401,6 @@ export default defineSchema({
     .index("by_documentId", ["documentId"])
     .index("by_projectId", ["projectId"]),
 
-  /**
-   * Syndication credentials (dev.to / Hashnode tokens) — per-project,
-   * encrypted in WorkOS Vault. Mirrors `socialCredentials`. `publicConfig`
-   * JSON: { enabled, username?, publicationId?, publications? } — `enabled`
-   * defaults to false; connecting a token never activates cross-posting.
-   */
   syndicationCredentials: defineTable({
     projectId: v.id("projects"),
     userId: v.id("users"),
@@ -863,13 +424,6 @@ export default defineSchema({
     .index("by_projectId_and_provider", ["projectId", "provider"])
     .index("by_userId_and_provider", ["userId", "provider"]),
 
-  /**
-   * Cross-post outcomes — ONE row per (document, provider), upserted on
-   * every attempt so the table stays bounded. `remoteId` is the idempotency
-   * key: present → the next publish updates the remote article instead of
-   * creating a duplicate. Rows hold ids/urls/error strings only — never the
-   * post body (free-tier storage discipline).
-   */
   syndication_posts: defineTable({
     projectId: v.id("projects"),
     documentId: v.id("documents"),
@@ -881,9 +435,7 @@ export default defineSchema({
     ),
     remoteId: v.optional(v.string()),
     remoteUrl: v.optional(v.string()),
-    /** SyndicationErrorCode (convex/syndication/errors.ts). */
     errorCode: v.optional(v.string()),
-    /** Verbatim platform message — what dev.to/Hashnode actually rejected. */
     errorMessage: v.optional(v.string()),
     attempt: v.number(),
     createdAt: v.number(),
@@ -893,11 +445,6 @@ export default defineSchema({
     .index("by_documentId_and_provider", ["documentId", "provider"])
     .index("by_projectId", ["projectId"]),
 
-  /**
-   * Temporary compatibility table for the retired Plausible/Umami cleanup.
-   * The admin migration drains this table and schedules vault-secret deletion;
-   * remove both retired tables after the migration has completed everywhere.
-   */
   analytics_targets: defineTable({
     projectId: v.id("projects"),
     userId: v.id("users"),
@@ -915,7 +462,6 @@ export default defineSchema({
     updatedAt: v.number(),
   }).index("by_projectId", ["projectId"]),
 
-  /** Temporary compatibility table drained by the external analytics migration. */
   analytics_snapshots: defineTable({
     projectId: v.id("projects"),
     range: v.string(),
@@ -924,11 +470,6 @@ export default defineSchema({
     pagesJson: v.string(),
   }).index("by_projectId", ["projectId"]),
 
-  /**
-   * Media usage counters — denormalized so quota checks don't scan the media table
-   * on every upload. Incremented in the same mutation that writes the media row,
-   * decremented on delete. `uploadsThisMonth` resets when `monthBucket` rolls over.
-   */
   mediaUsage: defineTable({
     projectId: v.id("projects"),
     userId: v.id("users"),
@@ -941,11 +482,6 @@ export default defineSchema({
     .index("by_projectId", ["projectId"])
     .index("by_userId", ["userId"]),
 
-  /**
-   * Normalized error log for media operations. One row per failed upload /
-   * delete / list / ping, mapped to a closed `MediaErrorCode` enum so the UI
-   * can render friendly toasts. Pruned by a daily cron after 30 days.
-   */
   mediaErrorLog: defineTable({
     projectId: v.id("projects"),
     userId: v.id("users"),
@@ -953,32 +489,16 @@ export default defineSchema({
     operation: v.string(),
     errorCode: v.string(),
     errorMessage: v.string(),
-    /** Raw provider error JSON (redacted of secrets) for debugging. */
     providerError: v.optional(v.string()),
     createdAt: v.number(),
   })
     .index("by_projectId_and_createdAt", ["projectId", "createdAt"])
     .index("by_userId_and_createdAt", ["userId", "createdAt"]),
 
-  /**
-   * Import batches — one row per bulk GitHub-to-Convex import. Jobs are
-   * dispatched through the `importPool` workpool (`_pools/import.ts`); the
-   * `onComplete` callback inserts one `import_job_outcomes` row per job, and
-   * `cms/documents:getImportBatch` aggregates them so the UI can render live
-   * progress without polling.
-   *
-   * `succeeded` / `failed` / `errors` are legacy counters kept optional for
-   * rows written before outcomes moved to their own table.
-   */
   import_batches: defineTable({
     projectId: v.id("projects"),
     userId: v.id("users"),
     total: v.number(),
-    // `succeeded`, `failed`, `errors` are legacy fields kept optional for
-    // backwards compatibility with older rows. New writes never touch
-    // them; counts are aggregated from `import_job_outcomes` to avoid
-    // OCC contention when many parallel workpool callbacks try to bump
-    // a shared counter (see https://docs.convex.dev/error#1).
     succeeded: v.optional(v.number()),
     failed: v.optional(v.number()),
     errors: v.optional(
@@ -995,12 +515,6 @@ export default defineSchema({
     .index("by_userId_and_createdAt", ["userId", "createdAt"])
     .index("by_projectId_and_createdAt", ["projectId", "createdAt"]),
 
-  /**
-   * Per-file outcome rows for a bulk import. One row per workpool job,
-   * inserted by `_onImportFileComplete`. Splitting the counter across
-   * rows eliminates the OCC hotspot that comes from N parallel callbacks
-   * patching a single `import_batches` document.
-   */
   import_job_outcomes: defineTable({
     batchId: v.id("import_batches"),
     status: v.union(v.literal("success"), v.literal("failure")),
@@ -1009,20 +523,11 @@ export default defineSchema({
     createdAt: v.number(),
   }).index("by_batchId", ["batchId"]),
 
-  /**
-   * Delete batches — same shape as `import_batches` but for bulk deletes.
-   * `mode` records what the user asked to delete ("local" wipes only the
-   * Convex doc, "github" only touches the repo, "both" does both). Each
-   * job is one item; the workpool's `onComplete` increments counters
-   * here so the UI can stream progress without polling.
-   */
   delete_batches: defineTable({
     projectId: v.id("projects"),
     userId: v.id("users"),
     mode: v.union(v.literal("local"), v.literal("github"), v.literal("both")),
     total: v.number(),
-    // Same story as import_batches — optional legacy fields, counts
-    // come from `delete_job_outcomes` to avoid the OCC hotspot.
     succeeded: v.optional(v.number()),
     failed: v.optional(v.number()),
     errors: v.optional(
@@ -1039,8 +544,6 @@ export default defineSchema({
     .index("by_userId_and_createdAt", ["userId", "createdAt"])
     .index("by_projectId_and_createdAt", ["projectId", "createdAt"]),
 
-  /** Per-item outcome rows for a bulk delete. Mirror of
-   *  `import_job_outcomes`. */
   delete_job_outcomes: defineTable({
     batchId: v.id("delete_batches"),
     status: v.union(v.literal("success"), v.literal("failure")),
@@ -1049,34 +552,14 @@ export default defineSchema({
     createdAt: v.number(),
   }).index("by_batchId", ["batchId"]),
 
-  /**
-   * Sync conflicts — one row per file where the diff-before-enqueue logic
-   * in `startBulkImport` finds that GitHub's SHA has changed AND the local
-   * doc has been edited since the last sync. Both versions are snapshotted
-   * so the conflict UI shows a stable diff even if the user edits the
-   * Convex doc after the conflict is raised.
-   *
-   * Resolution mutations in `convex/cms/conflicts.ts` patch
-   * `documents.{frontmatter,githubSha,githubSyncedAt}` (the body via the
-   * `document_content` side table) and mark the row resolved. Resolved rows are kept for audit, hidden by the
-   * `by_projectId_unresolved` index used by the banner / list queries.
-   */
   sync_conflicts: defineTable({
     projectId: v.id("projects"),
     documentId: v.id("documents"),
     userId: v.id("users"),
     githubPath: v.string(),
     remoteSha: v.string(),
-    /**
-     * Full remote body — only needed while the conflict is OPEN (drives
-     * the side-by-side diff). Cleared (patched to undefined) on resolve so
-     * resolved rows keep only tiny audit metadata instead of 2× full
-     * content forever. Optional for that reason.
-     */
     remoteContent: v.optional(v.string()),
     remoteFrontmatter: v.optional(v.string()),
-    /** Full local body at detection time — same lifecycle as
-     *  `remoteContent`: cleared on resolve. */
     localContentSnapshot: v.optional(v.string()),
     localFrontmatterSnapshot: v.optional(v.string()),
     detectedAt: v.number(),
@@ -1087,26 +570,9 @@ export default defineSchema({
   })
     .index("by_projectId", ["projectId"])
     .index("by_documentId", ["documentId"])
-    // Per-tick autosave/update guard reads ONLY open conflicts (usually 0
-    // rows) instead of paging through resolved history rows.
     .index("by_documentId_unresolved", ["documentId", "resolvedAt"])
     .index("by_projectId_unresolved", ["projectId", "resolvedAt"]),
 
-  /**
-   * Scheduled publishes table — lightweight job queue for deferred publishing.
-   * Pending → processing → completed | failed.
-   */
-  /**
-   * Support tickets — user-submitted feedback, bug reports, or questions.
-   *
-   * `source` distinguishes where the ticket originated:
-   *  - "dashboard": authenticated user from Settings → Support
-   *  - "marketing": anonymous visitor from /contact
-   *
-   * Anonymous submissions populate `email` / `name` from the form.
-   * Authenticated submissions populate them from the user record +
-   * store the foreign key so past tickets are queryable per-user.
-   */
   support_tickets: defineTable({
     userId: v.optional(v.id("users")),
     name: v.string(),
@@ -1139,19 +605,6 @@ export default defineSchema({
     createdAt: v.number(),
   }).index("by_documentId", ["documentId"]),
 
-  /**
-   * Feature requests — community-submitted ideas for new functionality.
-   *
-   * Authoring requires a Clerk-authenticated user; the author's clerk
-   * id is pinned on the row so admins can see who asked for what.
-   * `upvoteCount` is denormalized off the join table so the public
-   * sort-by-popularity query stays O(N) on `featureRequests` instead of
-   * scanning every upvote row on every read.
-   *
-   * `status` is the public lifecycle — admins flip it as ideas move
-   * from "open" through "in_progress" to "shipped" (or "declined").
-   * Hidden statuses (spam, dupes) just get deleted outright.
-   */
   feature_requests: defineTable({
     title: v.string(),
     description: v.string(),
@@ -1164,7 +617,6 @@ export default defineSchema({
     ),
     authorClerkUserId: v.string(),
     authorName: v.string(),
-    /** Denormalized count of rows in `feature_request_upvotes` for this id. */
     upvoteCount: v.number(),
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -1172,11 +624,6 @@ export default defineSchema({
     .index("by_upvoteCount", ["upvoteCount"])
     .index("by_status_and_upvoteCount", ["status", "upvoteCount"]),
 
-  /**
-   * Join rows — one per (user, feature request) pair. The composite
-   * index lets the `toggleUpvote` mutation look up "has this user
-   * already voted?" in one O(log n) read without scanning either side.
-   */
   feature_request_upvotes: defineTable({
     featureRequestId: v.id("feature_requests"),
     clerkUserId: v.string(),
@@ -1185,13 +632,6 @@ export default defineSchema({
     .index("by_featureRequestId", ["featureRequestId"])
     .index("by_user_and_request", ["clerkUserId", "featureRequestId"]),
 
-  /**
-   * Per-user writing analytics — streak tracking, daily progress, lifetime
-   * totals, and a rolling 84-day (`RECENT_ACTIVITY_DAYS`) activity window
-   * for charts. One row per user, updated asynchronously via
-   * `ctx.scheduler.runAfter(0, ...)` from document save mutations so the
-   * primary save path stays fast.
-   */
   writing_stats: defineTable({
     userId: v.id("users"),
     currentStreak: v.number(),
@@ -1200,7 +640,6 @@ export default defineSchema({
     wordsToday: v.number(),
     todayDate: v.string(),
     dailyWordGoal: v.optional(v.number()),
-    /** Rolling 7-day word target — computed client-side from recentActivity. */
     weeklyWordGoal: v.optional(v.number()),
     totalWords: v.number(),
     totalPublished: v.number(),
@@ -1209,12 +648,6 @@ export default defineSchema({
     updatedAt: v.number(),
   }).index("by_userId", ["userId"]),
 
-  /**
-   * Per-project denormalized stats — word counts and document status
-   * breakdowns. Isolates analytics writes from the `projects` table
-   * (which is already write-hot with settings, documentCount, cascades)
-   * to reduce OCC contention.
-   */
   project_stats: defineTable({
     projectId: v.id("projects"),
     userId: v.id("users"),
@@ -1229,13 +662,6 @@ export default defineSchema({
     .index("by_projectId", ["projectId"])
     .index("by_userId", ["userId"]),
 
-  /**
-   * Per-stream ownership record so `getStreamBody` can reject reads from
-   * users who weren't the one who started the stream. The persistent-text-
-   * streaming component's `streams` table has no owner column, so we keep
-   * the binding here. Cleaned up by `projects.remove` (per-project) and
-   * `account.selfDestruct` (per-user).
-   */
   ai_stream_owners: defineTable({
     streamId: v.string(),
     userId: v.id("users"),
@@ -1245,18 +671,8 @@ export default defineSchema({
     .index("by_streamId", ["streamId"])
     .index("by_userId_and_createdAt", ["userId", "createdAt"])
     .index("by_projectId", ["projectId"])
-    // Global time-ordered sweep for the daily cleanup cron (see ai/aiStreams.ts).
     .index("by_createdAt", ["createdAt"]),
 
-  /**
-   * Per-project reusable text snippets — sign-offs, bios, CTAs, disclaimers,
-   * recurring endings. Stored in their own table (not a blob on `projects`) so
-   * a project can hold thousands without bloating the hot project document or
-   * hitting the 1MB doc limit. Surfaced in the editor's `/` menu via the
-   * `search_name` full-text index (top matches as the user types) and managed
-   * — paginated — in Project Settings → Editor. `projects.snippetCount` is the
-   * denormalized counter that gates the `/` submenu's visibility without a read.
-   */
   snippets: defineTable({
     projectId: v.id("projects"),
     name: v.string(),
@@ -1269,27 +685,11 @@ export default defineSchema({
       filterFields: ["projectId"],
     }),
 
-  /**
-   * Per-project user-authored animation components (raw TSX source).
-   * Referenced from MDX bodies by PascalCase `name` (e.g. `<HarnessLoop />`);
-   * the editor preview compiles the source live, and publish commits it as a
-   * `.tsx` file under `projects.animationsPath` with the import injected into
-   * the post. One row per component — shared-mutable across every post that
-   * references it (edits propagate on the next publish of each post).
-   * `by_project_and_name` backs the uniqueness check and publish-time lookup.
-   */
   animations: defineTable({
     projectId: v.id("projects"),
     name: v.string(),
     source: v.string(),
     updatedAt: v.number(),
-    /**
-     * Result of the last editor-side check, recorded by the same mutation
-     * that wrote `source` so the two can never disagree. `sourceHash` is
-     * derived server-side from the stored source: a record whose hash no
-     * longer matches means the source changed without being checked (an MCP
-     * write, say) and the publish gate treats it as unchecked.
-     */
     check: v.optional(
       v.object({
         sourceHash: v.string(),
@@ -1307,12 +707,6 @@ export default defineSchema({
     .index("by_project", ["projectId"])
     .index("by_project_and_name", ["projectId", "name"]),
 
-  /**
-   * Lightweight name-only index for animation existence checks.
-   * Each row is tiny (~50 bytes vs up to ~100KB with source), so a name
-   * check never reads source bodies. Kept in sync by create/update/remove
-   * mutations via the helpers in cms/animations.ts.
-   */
   animation_names: defineTable({
     projectId: v.id("projects"),
     name: v.string(),
@@ -1320,38 +714,21 @@ export default defineSchema({
     .index("by_project", ["projectId"])
     .index("by_project_and_name", ["projectId", "name"]),
 
-  /**
-   * Deployment verification targets — one row per host integration connected
-   * to a project (multiple targets per project supported). Provider API
-   * tokens live in the secret store (WorkOS Vault) referenced by
-   * `vaultSecretId`, never in the database. Only Vercel today; the `provider`
-   * union widens as adapters are added (see convex/deployments/verify.ts).
-   */
   deployment_targets: defineTable({
     projectId: v.id("projects"),
     userId: v.id("users"),
     provider: v.union(v.literal("vercel")),
-    /** Provider-side project ID (normalized from name at connect time) */
     providerProjectId: v.string(),
-    /** Vercel team ID — absent for personal accounts */
     teamId: v.optional(v.string()),
-    /** Secret-store id of the provider API token */
     vaultSecretId: v.string(),
     enabled: v.boolean(),
     createdAt: v.number(),
   }).index("by_projectId", ["projectId"]),
 
-  /**
-   * One verification attempt-chain per publish commit (and per target).
-   * Created when a publish lands on GitHub; resolved by the scheduled
-   * check loop in convex/deployments/verify.ts. `emailSentAt` guarantees
-   * at most one notification email per verification.
-   */
   deploy_verifications: defineTable({
     projectId: v.id("projects"),
     documentId: v.id("documents"),
     userId: v.id("users"),
-    /** Absent for url_poll verifications (no provider integration) */
     targetId: v.optional(v.id("deployment_targets")),
     method: v.union(v.literal("vercel"), v.literal("url_poll")),
     commitSha: v.string(),
@@ -1365,7 +742,6 @@ export default defineSchema({
       v.literal("timeout"),
     ),
     failReason: v.optional(v.string()),
-    /** Provider build-inspector URL when the failure has one */
     deploymentUrl: v.optional(v.string()),
     attempts: v.number(),
     emailSentAt: v.optional(v.number()),

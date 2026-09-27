@@ -1,10 +1,5 @@
 import { motion } from "framer-motion";
 
-/**
- * Shared section heading for the v2 landing page: an uppercase mono eyebrow
- * over a bold title and optional lead paragraph. Keeps every section's
- * typographic rhythm identical.
- */
 export function SectionHeading({
   eyebrow,
   eyebrowClassName = "text-amber-400/70",

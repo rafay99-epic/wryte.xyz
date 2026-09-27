@@ -1,7 +1,3 @@
-/**
- * Bounds of the blank-line-delimited paragraph containing `caret`.
- * Pure string math — used by the focus-mode paragraph overlay.
- */
 export function paragraphBounds(
   value: string,
   caret: number,

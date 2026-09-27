@@ -49,7 +49,6 @@ export default function ContactPage() {
 
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-background text-foreground">
-      {/* Noise texture */}
       <div
         className="pointer-events-none fixed inset-0 z-[1] hidden opacity-[0.025] dark:block"
         style={{
@@ -63,10 +62,8 @@ export default function ContactPage() {
       </div>
 
       <div className="relative z-10">
-        {/* Header */}
         <MarketingNavbar />
 
-        {/* Hero */}
         <section className="flex flex-col items-center px-6 pt-32 pb-8">
           <Section>
             <div className="text-center">
@@ -82,7 +79,6 @@ export default function ContactPage() {
           </Section>
         </section>
 
-        {/* Form — flat, no card wrapper */}
         <section className="mx-auto max-w-md px-6 pb-32">
           <Section delay={0.1}>
             {sent ? (

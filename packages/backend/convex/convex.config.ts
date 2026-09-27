@@ -12,8 +12,5 @@ app.use(resend);
 app.use(persistentTextStreaming);
 app.use(rateLimiter);
 app.use(workpool, { name: "githubImportPool" });
-// MCP server for coding agents. Owns its own tables (tool registry,
-// sessions, audit); the `/mcp` HTTP route, the authorize callback and the
-// tool catalog all live in the host — see `convex/mcp/` and `convex/http.ts`.
 app.use(mcpGateway);
 export default app;

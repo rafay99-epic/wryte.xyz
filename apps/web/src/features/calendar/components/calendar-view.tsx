@@ -36,7 +36,6 @@ type CalendarViewProps = {
   documents: CalendarDoc[];
   columns: BoardColumnDef[];
   projectId: string;
-  /** IANA timezone for the project. Falls back to the browser timezone. */
   timezone?: string | null | undefined;
 };
 
@@ -59,9 +58,6 @@ export function CalendarView({
     useSensor(KeyboardSensor),
   );
 
-  // Group documents by date for the calendar grid, using the project
-  // timezone so a 9 AM Tokyo post lands on its Tokyo-local day regardless
-  // of where the viewer is.
   const documentsByDate = useMemo(() => {
     const map = new Map<string, CalendarDoc[]>();
 
@@ -81,7 +77,6 @@ export function CalendarView({
       }
     }
 
-    // Sort within each date by scheduledAt/publishedAt time
     for (const [, docs] of map) {
       docs.sort((a, b) => {
         const aTime = a.scheduledAt ?? a.publishedAt ?? 0;
@@ -112,9 +107,6 @@ export function CalendarView({
       const doc = active.data.current["document"] as CalendarDoc;
       const overId = String(over.id);
 
-      // Dropping a scheduled article back onto the unscheduled panel cancels
-      // its schedule (the inverse of dragging out to a date). The mutation
-      // reverts the document to draft and clears scheduledAt.
       if (overId === "unscheduled-zone") {
         if (doc.status !== "scheduled") return;
         void cancelSchedule({ documentId: doc._id as Id<"documents"> })
@@ -131,28 +123,23 @@ export function CalendarView({
         return;
       }
 
-      // Only accept drops on date cells (id format: "date-YYYY-MM-DD")
       if (!overId.startsWith("date-")) return;
       const targetDateKey = overId.replace("date-", "");
 
-      // Reject published documents
       if (doc.status === "published") {
         toast.error("Published articles can't be rescheduled");
         return;
       }
 
-      // Reject past dates (double-check — droppable should also be disabled)
       const targetDate = parseDateKey(targetDateKey);
       if (isBeforeToday(targetDate)) {
         toast.error("Can't schedule to a past date");
         return;
       }
 
-      // If the doc is already scheduled on the same date, skip
       const sourceDate = active.data.current["sourceDate"] as string | null;
       if (sourceDate === targetDateKey) return;
 
-      // Determine existing time if rescheduling
       const pendingDropData: {
         documentId: string;
         targetDate: string;
@@ -166,11 +153,6 @@ export function CalendarView({
       if (doc.scheduledAt) {
         const parts = getPartsInTimezone(doc.scheduledAt, resolvedTimezone);
 
-        // Already-scheduled docs reschedule instantly on drop, keeping
-        // their time of day — no confirm popover. The popover only takes
-        // over when the preserved time would land in the past (e.g.
-        // dragging onto today after that hour), where a new time is
-        // genuinely needed.
         const timestamp = zonedTimeToUtc(
           targetDate.getFullYear(),
           targetDate.getMonth() + 1,
@@ -222,7 +204,6 @@ export function CalendarView({
 
   return (
     <div className="flex h-full overflow-hidden">
-      {/* Calendar grid */}
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
@@ -241,7 +222,6 @@ export function CalendarView({
           projectId={projectId}
         />
 
-        {/* Drag overlay */}
         <DragOverlay dropAnimation={null}>
           {activeDocument ? (
             <CalendarDocCard
@@ -255,7 +235,6 @@ export function CalendarView({
         </DragOverlay>
       </DndContext>
 
-      {/* Time picker popover */}
       <AnimatePresence>
         {pendingDrop && <ScheduleTimePopover timezone={resolvedTimezone} />}
       </AnimatePresence>

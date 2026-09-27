@@ -1,16 +1,3 @@
-/**
- * Self-destruct — wipes every user-scoped row in Convex, every vault entry,
- * every scheduled-publish workflow, and resets the user record in place.
- *
- * Three things this deliberately does NOT do:
- *  - Delete the Clerk account (the user stays signed in).
- *  - Touch files in the user's external provider accounts (UploadThing /
- *    Cloudinary / GitHub files persist; only the credentials linking us to
- *    them are removed).
- *  - Delete the Convex `users` row — patched in place so the active session
- *    survives and the next page load sees an empty inventory.
- */
-
 import type { WorkflowId } from "@convex-dev/workflow";
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
@@ -27,14 +14,6 @@ import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
 import { listProjectVaultIds, wipeProjectRows } from "../cms/projects";
 import { publishWorkflowManager } from "../integrations/scheduling";
 
-/* ------------------------------------------------------------------ */
-/*  Public query: pre-flight inventory for the confirmation dialog     */
-/* ------------------------------------------------------------------ */
-
-/**
- * Returns the cost of running self-destruct so the UI can show the user
- * exactly what's about to be wiped. Cheap counts via indexes; no secret data.
- */
 export const selfDestructPreview = query({
   args: {},
   handler: async (ctx) => {
@@ -66,7 +45,6 @@ export const selfDestructPreview = query({
       .take(1);
     const mediaErrorCount = mediaErrorSample.length > 0 ? 1 : 0;
 
-    // Walk every user document and collect pending/processing scheduled publishes.
     const scheduled: Array<{
       documentId: Id<"documents">;
       documentTitle: string;
@@ -113,17 +91,6 @@ export const selfDestructPreview = query({
   },
 });
 
-/* ------------------------------------------------------------------ */
-/*  Public action: the orchestrator                                     */
-/* ------------------------------------------------------------------ */
-
-/**
- * Wipe everything for the signed-in user. Sequenced so partial failures
- * (most commonly: WorkOS vault unavailable) leave Convex in a recoverable
- * state instead of orphaning data we can't see.
- *
- * Returns a structured summary the client can render as a toast.
- */
 export const selfDestruct = action({
   args: {},
   handler: async (
@@ -151,7 +118,6 @@ export const selfDestruct = action({
     });
     if (!user) throw new Error("User not found");
 
-    /* -- Step A: cancel scheduled-publish workflows -- */
     const cancellationTargets = await ctx.runQuery(
       internal.account.selfDestruct._listCancellationTargets,
       { userId: user._id },
@@ -167,13 +133,10 @@ export const selfDestruct = action({
         );
         scheduledCancelled++;
       } catch {
-        // Workflow may already be completed or canceled. Either way the row
-        // is going to be deleted in the wipe loop below — log and continue.
         scheduledFailedToCancel++;
       }
     }
 
-    /* -- Step B: vault cleanup (best-effort) -- */
     const vaultIds = await ctx.runQuery(
       internal.account.selfDestruct._listVaultIds,
       {
@@ -187,16 +150,10 @@ export const selfDestruct = action({
         await ctx.runAction(internal.integrations.secretStore._delete, { id });
         vaultDeleted++;
       } catch {
-        // WorkOS unreachable or entry already gone — keep going. The Convex
-        // wipe below still proceeds; the orphan count comes back in the
-        // summary so the UI can surface a partial-success toast.
         vaultOrphaned++;
       }
     }
 
-    /* -- Step C: chunked Convex wipe -- */
-    // Hard upper bound prevents a buggy mutation from looping forever.
-    // 200 iterations × batch 200 = 40k rows max per invocation.
     let projectsDeleted = 0;
     let documentsDeleted = 0;
     let mediaDeleted = 0;
@@ -214,7 +171,6 @@ export const selfDestruct = action({
       if (chunk.remaining === 0) break;
     }
 
-    /* -- Step D: reset the user row in place -- */
     await ctx.runMutation(internal.account.selfDestruct._resetUserRow, {
       userId: user._id,
     });
@@ -234,15 +190,6 @@ export const selfDestruct = action({
   },
 });
 
-/* ------------------------------------------------------------------ */
-/*  Internal queries used by the orchestrator                           */
-/* ------------------------------------------------------------------ */
-
-/**
- * All scheduled_publishes for the user that still need cancelling.
- * Walks documents → scheduled_publishes because there's no by_userId index
- * on scheduled_publishes (the table is keyed on documentId).
- */
 export const _listCancellationTargets = internalQuery({
   args: { userId: v.id("users") },
   handler: async (
@@ -285,12 +232,6 @@ export const _listCancellationTargets = internalQuery({
   },
 });
 
-/**
- * Every vault id owned by the user — the GitHub PAT pointer plus every
- * credential row's `vaultSecretId`: the user-indexed media/AI/social/
- * syndication credentials, and per project the deployment targets and
- * retired analytics targets (which only have a project index).
- */
 export const _listVaultIds = internalQuery({
   args: { userId: v.id("users") },
   handler: async (ctx, args): Promise<string[]> => {
@@ -337,29 +278,6 @@ export const _listVaultIds = internalQuery({
   },
 });
 
-/* ------------------------------------------------------------------ */
-/*  Internal mutations: chunked wipe + user-row reset                   */
-/* ------------------------------------------------------------------ */
-
-/**
- * Processes up to `batch` deletes across the user's tables and returns
- * `{ remaining }` for the orchestrator to decide whether to loop.
- *
- * Deletion order is deliberate:
- *  1. scheduled_publishes (cleanest if workflows were cancelled in step A)
- *  2. publish_history     (audit rows, no dependents)
- *  3. media               (also drops legacy `_storage` blobs)
- *  4. mediaErrorLog
- *  5. mediaUsage
- *  6. mediaCredentials    (vault entries already removed in step B)
- *  7. documents
- *  8. every remaining project-scoped table, per project (shared with
- *     project deletion via `cms/projects.wipeProjectRows`)
- *  9. projects
- *
- * Inside each table we drain as many rows as the remaining batch budget
- * allows; `remaining` totals what would still need to be processed.
- */
 export const _wipeChunk = internalMutation({
   args: {
     userId: v.id("users"),
@@ -379,7 +297,6 @@ export const _wipeChunk = internalMutation({
     let documentsDeleted = 0;
     let mediaDeleted = 0;
 
-    /* 1. scheduled_publishes via documents */
     if (budget > 0) {
       const documents = await ctx.db
         .query("documents")
@@ -398,7 +315,6 @@ export const _wipeChunk = internalMutation({
       }
     }
 
-    /* 2. publish_history via projects */
     if (budget > 0) {
       const projects = await ctx.db
         .query("projects")
@@ -417,9 +333,6 @@ export const _wipeChunk = internalMutation({
       }
     }
 
-    /* 2b. publish_history_content — bodies live in their own table (see
-     *     `document_content` at step 7c below for the same split); has a
-     *     direct `by_userId` index so no need to walk via projects. */
     if (budget > 0) {
       const rows = await ctx.db
         .query("publish_history_content")
@@ -431,7 +344,6 @@ export const _wipeChunk = internalMutation({
       }
     }
 
-    /* 3. media */
     if (budget > 0) {
       const rows = await ctx.db
         .query("media")
@@ -444,7 +356,6 @@ export const _wipeChunk = internalMutation({
       }
     }
 
-    /* 4. mediaErrorLog */
     if (budget > 0) {
       const rows = await ctx.db
         .query("mediaErrorLog")
@@ -458,7 +369,6 @@ export const _wipeChunk = internalMutation({
       }
     }
 
-    /* 5. mediaUsage */
     if (budget > 0) {
       const rows = await ctx.db
         .query("mediaUsage")
@@ -470,7 +380,6 @@ export const _wipeChunk = internalMutation({
       }
     }
 
-    /* 6. mediaCredentials */
     if (budget > 0) {
       const rows = await ctx.db
         .query("mediaCredentials")
@@ -482,7 +391,6 @@ export const _wipeChunk = internalMutation({
       }
     }
 
-    /* 6b. aiCredentials */
     if (budget > 0) {
       const rows = await ctx.db
         .query("aiCredentials")
@@ -494,7 +402,6 @@ export const _wipeChunk = internalMutation({
       }
     }
 
-    /* 6c. sync_conflicts via projects */
     if (budget > 0) {
       const projects = await ctx.db
         .query("projects")
@@ -513,7 +420,6 @@ export const _wipeChunk = internalMutation({
       }
     }
 
-    /* 6d. import_job_outcomes + import_batches */
     if (budget > 0) {
       const batches = await ctx.db
         .query("import_batches")
@@ -544,7 +450,6 @@ export const _wipeChunk = internalMutation({
       }
     }
 
-    /* 6e. delete_job_outcomes + delete_batches */
     if (budget > 0) {
       const batches = await ctx.db
         .query("delete_batches")
@@ -575,7 +480,6 @@ export const _wipeChunk = internalMutation({
       }
     }
 
-    /* 6f. ai_stream_owners (bookkeeping for AI stream ownership). */
     if (budget > 0) {
       const rows = await ctx.db
         .query("ai_stream_owners")
@@ -589,7 +493,6 @@ export const _wipeChunk = internalMutation({
       }
     }
 
-    /* 7. project_stats */
     if (budget > 0) {
       const rows = await ctx.db
         .query("project_stats")
@@ -601,7 +504,6 @@ export const _wipeChunk = internalMutation({
       }
     }
 
-    /* 7b. writing_stats */
     if (budget > 0) {
       const rows = await ctx.db
         .query("writing_stats")
@@ -613,9 +515,6 @@ export const _wipeChunk = internalMutation({
       }
     }
 
-    /* 7c-i. document_draft_content — draft bodies live in their own table
-     *       with a direct `by_userId` index. The `document_drafts` metadata
-     *       rows are drained per project in step 8b. */
     if (budget > 0) {
       const rows = await ctx.db
         .query("document_draft_content")
@@ -627,8 +526,6 @@ export const _wipeChunk = internalMutation({
       }
     }
 
-    /* 7c-ii. document_snapshot_content — same as 7c-i, mirrored for
-     *        `document_snapshots`. */
     if (budget > 0) {
       const rows = await ctx.db
         .query("document_snapshot_content")
@@ -640,8 +537,6 @@ export const _wipeChunk = internalMutation({
       }
     }
 
-    /* 7c. document_content — bodies live in their own table; drain them
-     *     before the parent documents so no orphaned rows remain. */
     if (budget > 0) {
       const rows = await ctx.db
         .query("document_content")
@@ -653,8 +548,6 @@ export const _wipeChunk = internalMutation({
       }
     }
 
-    /* 7d. document_links — the user's backlink graph. Direct `by_userId`
-     *     index; drained before `documents` so no edge outlives its docs. */
     if (budget > 0) {
       const rows = await ctx.db
         .query("document_links")
@@ -666,7 +559,6 @@ export const _wipeChunk = internalMutation({
       }
     }
 
-    /* 8. documents */
     if (budget > 0) {
       const rows = await ctx.db
         .query("documents")
@@ -679,12 +571,6 @@ export const _wipeChunk = internalMutation({
       }
     }
 
-    /* 8b. Every other project-scoped table (drafts, snapshots, research,
-     *     ideas, share links, snippets, animations, social/syndication
-     *     posts and credentials, deployment targets and verifications, …).
-     *     Shared with project deletion so the two cascades cover the same
-     *     tables. Projects are only deleted in step 9 once this leaves
-     *     budget over, i.e. once every project is fully drained. */
     if (budget > 0) {
       const projects = await ctx.db
         .query("projects")
@@ -699,7 +585,6 @@ export const _wipeChunk = internalMutation({
       }
     }
 
-    /* 9. projects */
     if (budget > 0) {
       const rows = await ctx.db
         .query("projects")
@@ -712,20 +597,12 @@ export const _wipeChunk = internalMutation({
       }
     }
 
-    // What's still pending across every table this user owns.
     const remaining = await countRemaining(ctx, args.userId);
 
     return { remaining, projectsDeleted, documentsDeleted, mediaDeleted };
   },
 });
 
-/**
- * Sum of every still-pending row for the user. Called at the end of each
- * `_wipeChunk` so the orchestrator knows whether to loop another pass.
- * Uses `.take(1)` for tables we just drained (we only care if anything is
- * left, not the exact count), and traverses documents/projects only when
- * the direct-indexed tables are already empty.
- */
 async function countRemaining(
   ctx: MutationCtx,
   userId: Id<"users">,
@@ -844,10 +721,6 @@ async function countRemaining(
   return count;
 }
 
-/**
- * Patches the users row to clear all per-user data while keeping the Clerk
- * identifier intact, so the active session stays valid.
- */
 export const _resetUserRow = internalMutation({
   args: { userId: v.id("users") },
   handler: async (ctx, args) => {

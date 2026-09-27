@@ -4,28 +4,15 @@ import { cn } from "@wryte/logic/lib/utils";
 import type { MediaProvider } from "@wryte/logic/types/media";
 import { MEDIA_PROVIDER_LABELS } from "@wryte/logic/types/media";
 
-/** `"all"` is the merged view; the provider ids filter it. */
 export type MediaProviderFilter = MediaProvider | "all";
 
 export type MediaProviderTab = {
   provider: MediaProvider;
-  /** The project's default upload destination. */
   isDefault: boolean;
-  /** Credentials saved (or a repo configured, for GitHub). */
   configured: boolean;
   status?: "active" | "verifying" | "invalid" | "rotating";
 };
 
-/**
- * Row of connected storage providers, led by an "All" entry.
- *
- * These are filters over listings that are already in memory, not fetch
- * triggers — selecting one costs nothing. Presentational only: the caller owns
- * which providers exist and what selecting does.
- *
- * Renders nothing for a single provider: filtering one bucket by itself is
- * noise.
- */
 export function MediaProviderTabs({
   tabs,
   selected,
@@ -44,8 +31,6 @@ export function MediaProviderTabs({
       role="tablist"
       aria-label="Storage provider"
       className={cn(
-        // Scrolls rather than wraps on narrow screens: four providers plus
-        // "All" would otherwise push the grid down a whole row on a phone.
         "-mx-1 flex items-center gap-1 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:flex-wrap sm:px-0 sm:pb-0",
         className,
       )}

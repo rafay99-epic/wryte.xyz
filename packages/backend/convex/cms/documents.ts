@@ -34,9 +34,6 @@ import {
 } from "./_lib/documentContent";
 import { syncDocumentLinks } from "./_lib/documentLinks";
 
-/** Full `documents` row shape — mirrors `convex/schema.ts`. Shared by every
- *  function returning whole documents (same pattern as
- *  `convex/social/credentialsDb.ts` CREDENTIAL_DOC). */
 const documentFields = {
   _id: v.id("documents"),
   _creationTime: v.number(),
@@ -64,17 +61,11 @@ const documentFields = {
 
 const DOCUMENT_DOC = v.object(documentFields);
 
-/** `documents` row with the body joined back from `document_content`. */
 const DOCUMENT_DOC_WITH_CONTENT = v.object({
   ...documentFields,
   content: v.string(),
 });
 
-/**
- * Verifies that a document exists and that the given user owns the parent project.
- * Follows the chain: document -> project -> project.userId === userId.
- * Returns the document if ownership is confirmed; throws otherwise.
- */
 async function verifyDocumentOwnership(
   ctx: { db: DatabaseReader },
   documentId: Id<"documents">,
@@ -97,16 +88,6 @@ async function verifyDocumentOwnership(
   return document;
 }
 
-/**
- * Lists documents within a project, optionally filtered by status.
- * Uses the compound index `by_projectId_and_status` when a status filter is
- * provided for efficient querying, falling back to `by_projectId` otherwise.
- * Returns an empty array for unauthenticated or unauthorized users.
- *
- * @param args.projectId - The project whose documents to list.
- * @param args.status - Optional filter: "draft", "scheduled", or "published".
- * @returns Documents sorted by most recently updated.
- */
 export const list = query({
   args: {
     projectId: v.id("projects"),
@@ -130,9 +111,6 @@ export const list = query({
 
     let documents: Doc<"documents">[];
     if (args.status) {
-      // No status+trashedAt compound index — keep the in-memory trash
-      // filter but query a larger window so trash doesn't crowd out active
-      // status-matched docs.
       const status = args.status;
       const raw = await ctx.db
         .query("documents")
@@ -143,8 +121,6 @@ export const list = query({
         .take(2000);
       documents = raw.filter((d) => d.trashedAt === undefined);
     } else {
-      // Use the trashedAt-aware index so trashed docs never enter the
-      // candidate set and steal slots from active ones.
       documents = await ctx.db
         .query("documents")
         .withIndex("by_projectId_and_trashedAt", (q) =>
@@ -154,10 +130,6 @@ export const list = query({
         .take(500);
     }
 
-    // The body lives in `document_content` now, so this hot reactive
-    // subscription never reads an article body — `wordCount` and `excerpt`
-    // are denormalized on the document row and maintained on every content
-    // write.
     return documents
       .sort((a, b) => b.updatedAt - a.updatedAt)
       .map((d) => ({
@@ -168,12 +140,6 @@ export const list = query({
   },
 });
 
-/**
- * Paginated lean listing for the editor's `[[` internal-link menu —
- * id/title/slug only, newest first, trash excluded via the composite
- * index. The menu pulls a handful of rows at a time as the user scrolls,
- * so a project with hundreds of posts never ships its whole list at once.
- */
 export const listForLink = query({
   args: {
     projectId: v.id("projects"),
@@ -191,10 +157,6 @@ export const listForLink = query({
   },
 });
 
-/**
- * Title typeahead for the `[[` internal-link menu, backed by the
- * `search_title` index. Bounded result set; trash filtered post-take.
- */
 export const searchForLink = query({
   args: {
     projectId: v.id("projects"),
@@ -230,15 +192,6 @@ export const searchForLink = query({
   },
 });
 
-/**
- * Title search for MCP clients (`wryte_documents_search`), scoped to one
- * project or across every project `userId` owns. Title-only by design: body
- * search costs a full-body read per hit, so it lives in `searchContent`
- * behind the palette's explicit, debounced, capped path instead.
- *
- * Filters inside the `search_title` index — by `projectId` when scoped, by
- * `userId` otherwise — so no other tenant's titles are ever loaded.
- */
 export async function searchDocumentsForUser(
   ctx: QueryCtx,
   userId: Id<"users">,
@@ -250,9 +203,6 @@ export async function searchDocumentsForUser(
 
   const limit = Math.min(Math.max(args.limit ?? 20, 1), 50);
 
-  // Scoped searches verify ownership up front; unscoped ones are scoped by the
-  // index's own `userId` filter, which is the same guarantee without reading
-  // every project row to get it.
   if (args.projectId) {
     const project = await ctx.db.get(args.projectId);
     if (!project || project.userId !== userId) return empty;
@@ -269,10 +219,6 @@ export async function searchDocumentsForUser(
       .take(limit)
   ).filter((doc) => doc.trashedAt === undefined);
 
-  // `projectName` is part of this response's contract (MCP clients show it),
-  // so resolve each distinct parent once — hits cluster into a handful of
-  // projects, which is far cheaper than the owned-projects scan the old
-  // per-project fan-out needed just to build its name map.
   const names = new Map<Id<"projects">, string>();
   for (const doc of matches) {
     if (names.has(doc.projectId)) continue;
@@ -294,20 +240,6 @@ export async function searchDocumentsForUser(
   };
 }
 
-/**
- * Body full-text search behind the command palette's "In content" section —
- * the one path that deliberately opts back into reading article bodies.
- *
- * `document_content` is a separate table precisely so the list/board/calendar
- * queries never read bodies; this query reads them because the user explicitly
- * typed prose, and it is debounced, gated on a minimum term length, and capped
- * at `CONTENT_SEARCH_LIMIT` hits so that cost stays bounded and per-intent.
- *
- * `userId` is filtered inside the search index, so another tenant's body is
- * never loaded into memory. Results stay in the index's relevance order —
- * re-sorting by date here would throw away the BM25 ranking that makes a body
- * search useful.
- */
 export const searchContent = query({
   args: {
     term: v.string(),
@@ -347,11 +279,6 @@ export const searchContent = query({
       )
       .take(CONTENT_SEARCH_LIMIT);
 
-    // Snippets are cut here, before anything is returned, so bodies stay
-    // local to this function — only ~200 characters per hit cross the wire.
-    // No project name is resolved: the palette row shows the snippet instead,
-    // and `projects` rows are large enough that reading eight of them for a
-    // label nobody displays would be the most expensive part of the query.
     const hits = [];
     for (const row of rows) {
       const doc = await ctx.db.get(row.documentId);
@@ -370,12 +297,6 @@ export const searchContent = query({
   },
 });
 
-/**
- * Paginated full-content feed for the one-shot project export in
- * settings. Unlike `list` this DOES ship content + frontmatter — callers
- * walk pages imperatively (no reactive subscription), so the payload is
- * only ever paid when the user clicks Export.
- */
 export const listForExport = query({
   args: {
     projectId: v.id("projects"),
@@ -413,10 +334,6 @@ export const listForExport = query({
   },
 });
 
-/**
- * Documents for the on-demand link checker action — ownership verified
- * via tokenIdentifier since actions can't touch the DB directly.
- */
 export const _listForLinkCheck = internalQuery({
   args: {
     tokenIdentifier: v.string(),
@@ -459,7 +376,6 @@ export const _listForLinkCheck = internalQuery({
   },
 });
 
-/** Returns the N most recently updated documents, optionally scoped to a project. */
 export const listRecent = query({
   args: {
     limit: v.optional(v.number()),
@@ -486,8 +402,6 @@ export const listRecent = query({
       if (!project || project.userId !== user._id) return [];
     }
 
-    // Newest-created first so the bounded window holds recent docs rather
-    // than the oldest 200.
     const documents = pid
       ? await ctx.db
           .query("documents")
@@ -502,9 +416,6 @@ export const listRecent = query({
           .order("desc")
           .take(200);
 
-    // Metadata projection — consumers (command palette, dashboard recents) only
-    // render title/status/time, so never ship the full `content` blob (this
-    // reads up to 200 docs and would otherwise serialize all their bodies).
     return documents
       .filter((d) => d.trashedAt === undefined)
       .sort((a, b) => b.updatedAt - a.updatedAt)
@@ -519,16 +430,6 @@ export const listRecent = query({
   },
 });
 
-/**
- * Lightweight catalog of every non-trashed document the user owns, across
- * all projects — powers the command palette's client-side fuzzy search.
- *
- * One subscription replaces per-keystroke server searches: the client
- * matches locally, so typing in the palette never costs a function call.
- * Returns a metadata projection only (~100 bytes/row), never bodies or
- * excerpts. The read itself still pays for full document rows (excerpt
- * and frontmatter included), just not `document_content`.
- */
 export const listPalette = query({
   args: {},
   returns: v.array(
@@ -546,11 +447,6 @@ export const listPalette = query({
     const user = await getAuthedUserOrNull(ctx);
     if (!user) return [];
 
-    // ponytail: hard cap at 1000 rows, newest-created first so a library
-    // past the cap drops its oldest docs, not its newest. Rows include
-    // excerpt/frontmatter, so this can be a few hundred KB of reads.
-    // Paginate or move to a server-side search index if a library ever
-    // outgrows this.
     const documents = await ctx.db
       .query("documents")
       .withIndex("by_userId", (q) => q.eq("userId", user._id))
@@ -572,13 +468,6 @@ export const listPalette = query({
   },
 });
 
-/**
- * Fetches a single document by ID with full ownership verification.
- *
- * @requires Authentication + document ownership (via parent project)
- * @param args.documentId - The document to retrieve.
- * @returns The document record.
- */
 export const get = query({
   args: { documentId: v.id("documents") },
   returns: v.union(v.null(), DOCUMENT_DOC_WITH_CONTENT),
@@ -587,26 +476,10 @@ export const get = query({
     if (!user) {
       throw new Error("Not authenticated");
     }
-    // Joins the body back from `document_content` so every existing consumer
-    // of `get` (editor, AI synthesis, draft tabs, frontmatter editor) keeps
-    // receiving `document.content` unchanged. Single-document read — it does
-    // NOT reintroduce the list-query read amplification this migration removed.
-    //
-    // NOTE: because the content row is a read-dependency, a LIVE subscription
-    // to this query re-runs (and re-sends the full body) on every autosave
-    // tick. Always-mounted UI must subscribe to `getMeta` instead and fetch the
-    // body one-shot — see `getMeta` below.
     return await documentWithContentForUser(ctx, user._id, args.documentId);
   },
 });
 
-/**
- * `get`'s ownership check and body join, with the actor passed in explicitly.
- *
- * Shared with the MCP handler, which cannot use `ctx.auth`: the gateway
- * dispatches tools from inside its component, where Convex does not propagate
- * identity. See `_lib/auth.ts → requireCaller`.
- */
 export async function documentWithContentForUser(
   ctx: QueryCtx,
   userId: Id<"users">,
@@ -618,7 +491,6 @@ export async function documentWithContentForUser(
   return { ...document, content };
 }
 
-/** `listForLink`'s body with the actor passed in explicitly. */
 export async function documentsPageForUser(
   ctx: QueryCtx,
   userId: Id<"users">,
@@ -647,14 +519,6 @@ export async function documentsPageForUser(
   };
 }
 
-/**
- * Metadata-only variant of {@link get} — same ownership/trash rules, but
- * never reads the `document_content` row, so it does NOT re-run (or
- * re-bill) when autosave writes the body. This is the subscription for
- * always-mounted chrome (app header, draft tab bar, editor shell) that
- * renders title/status/etc. but never the body — mirroring how
- * `documentDrafts.list` deliberately excludes draft bodies.
- */
 export const getMeta = query({
   args: { documentId: v.id("documents") },
   returns: v.union(v.null(), DOCUMENT_DOC),
@@ -675,17 +539,6 @@ export const getMeta = query({
   },
 });
 
-/**
- * "What links here" — the source documents whose MAIN body contains a
- * resolved `[[wiki link]]` to `documentId`. Powers the editor research
- * panel's "Linked from" section.
- *
- * Reads the target's edges via `by_targetDocumentId` (bounded `.take(50)`),
- * then hydrates each source's metadata row (title/status/updatedAt) with a
- * single `ctx.db.get` per edge — metadata-only, no body reads, bounded 50.
- * Returns `[]` (never throws) for unauthenticated / unauthorized callers so
- * the panel degrades quietly.
- */
 export const getBacklinks = query({
   args: { documentId: v.id("documents") },
   returns: v.array(
@@ -703,7 +556,6 @@ export const getBacklinks = query({
   },
 });
 
-/** `getBacklinks`'s body with the actor passed in explicitly. */
 export async function backlinksForUser(
   ctx: QueryCtx,
   userId: Id<"users">,
@@ -729,8 +581,6 @@ export async function backlinksForUser(
   }[] = [];
   for (const edge of edges) {
     const source = await ctx.db.get(edge.sourceDocumentId);
-    // Skip dangling edges and trashed sources — a trashed document
-    // shouldn't advertise itself as linking here.
     if (!source || source.trashedAt !== undefined) continue;
     rows.push({
       _id: source._id,
@@ -743,16 +593,6 @@ export async function backlinksForUser(
   return rows.sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
-/**
- * Creates a new blank document in draft status within the specified project.
- * Verifies the user owns the target project before inserting.
- *
- * @requires Authentication + project ownership
- * @param args.projectId - The project to add the document to.
- * @param args.title - Document title.
- * @param args.slug - URL-safe identifier used as the filename when publishing.
- * @returns The new document's ID.
- */
 export const create = mutation({
   args: {
     projectId: v.id("projects"),
@@ -761,7 +601,6 @@ export const create = mutation({
     status: v.optional(v.string()),
     tags: v.optional(v.array(v.string())),
     frontmatter: v.optional(v.string()),
-    /** Optional body content for imported .md/.mdx files. */
     content: v.optional(v.string()),
   },
   returns: v.id("documents"),
@@ -771,19 +610,6 @@ export const create = mutation({
   },
 });
 
-/**
- * `create`'s body with the actor passed in explicitly.
- *
- * Shared by the public mutation (actor from `ctx.auth`) and the MCP handler
- * (actor injected by the gateway — component-dispatched tools have no
- * `ctx.auth`; see `_lib/auth.ts → requireCaller`).
- *
- * The rate-limit key comes from `user.tokenIdentifier` rather than
- * `getRateLimitKey(ctx)`. Same value on the web path, but it also fixes a bug
- * the MCP path would otherwise have: `getRateLimitKey` reads `ctx.auth`, which
- * is null under component dispatch, so it returns the literal `"anonymous"` —
- * collapsing every MCP user's writes into one shared global bucket.
- */
 export async function createDocumentForUser(
   ctx: MutationCtx,
   user: Doc<"users">,
@@ -815,10 +641,6 @@ export async function createDocumentForUser(
     const now = Date.now();
 
     const status = args.status ?? "draft";
-    // The body starts empty and lives in `document_content`; we don't
-    // create a content row until the first save (an absent row reads as
-    // "" via the documentContent helper) — unless content was provided
-    // via file import.
     const documentId = await ctx.db.insert("documents", {
       projectId: args.projectId,
       userId: user._id,
@@ -835,7 +657,6 @@ export async function createDocumentForUser(
         : {}),
     });
 
-    // If content was provided (file import), create the content row immediately.
     if (args.content) {
       const contentId = await ctx.db.insert("document_content", {
         documentId,
@@ -859,13 +680,6 @@ export async function createDocumentForUser(
   }
 }
 
-/**
- * Partially updates a document's content, metadata, or status.
- * Only fields that are explicitly provided are written; `updatedAt` is always refreshed.
- *
- * @requires Authentication + document ownership
- * @param args.documentId - The document to update.
- */
 export const update = mutation({
   args: {
     documentId: v.id("documents"),
@@ -882,15 +696,6 @@ export const update = mutation({
     await updateDocumentForUser(ctx, await getCurrentUser(ctx), args),
 });
 
-/**
- * `update`'s body with the actor passed in explicitly. Shared with the MCP
- * handler, which has no `ctx.auth` — see `_lib/auth.ts → requireCaller`.
- *
- * Rate-limit key comes from `user.tokenIdentifier`, not `getRateLimitKey(ctx)`:
- * identical on the web path, but `getRateLimitKey` reads `ctx.auth` and would
- * return the literal `"anonymous"` under component dispatch, collapsing every
- * MCP user into one shared bucket.
- */
 export async function updateDocumentForUser(
   ctx: MutationCtx,
   user: Doc<"users">,
@@ -916,12 +721,6 @@ export async function updateDocumentForUser(
     user._id,
   );
 
-  // Status transitions that require side-effects (workflow scheduling /
-  // cancellation, publish history, social cross-post) must go through
-  // their dedicated APIs. Direct writes here would leave the workflow
-  // queue out of sync with the document's apparent state — e.g. a doc
-  // could appear scheduled with no firing workflow, or appear published
-  // with no publish_history row.
   if (args.status !== undefined) {
     if (args.status === "scheduled") {
       throw new Error(
@@ -936,10 +735,6 @@ export async function updateDocumentForUser(
   }
 
   if (args.content !== undefined) {
-    // Convex serializes documents as UTF-8 and enforces a 1MB per-document
-    // ceiling. A `.length` check would be off by ~3× for CJK or emoji-
-    // heavy content (UTF-16 code units vs UTF-8 bytes), so compute the
-    // real byte size before comparing to the cap.
     const byteLength = new TextEncoder().encode(args.content).byteLength;
     if (byteLength > MAX_CONTENT_BYTES) {
       throw new Error(
@@ -948,12 +743,6 @@ export async function updateDocumentForUser(
     }
   }
 
-  // Defense-in-depth lock: if the doc has an unresolved sync
-  // conflict, edits are not allowed. The editor UI also blocks the
-  // flow, but autosave fires from background timers and stale tabs,
-  // so we re-check here to keep the divergence from compounding. The
-  // `by_documentId_unresolved` index reads only OPEN conflicts (normally
-  // zero rows) instead of paging through resolved audit history.
   const openConflict = await ctx.db
     .query("sync_conflicts")
     .withIndex("by_documentId_unresolved", (q) =>
@@ -969,8 +758,6 @@ export async function updateDocumentForUser(
   const { documentId, content, ...updates } = args;
   const fieldsToUpdate: Record<string, unknown> = { updatedAt: Date.now() };
 
-  // `content` is handled separately (it lives in `document_content`); every
-  // other provided field is a plain metadata patch.
   for (const [key, value] of Object.entries(updates)) {
     if (value !== undefined) {
       fieldsToUpdate[key] = value;
@@ -983,11 +770,6 @@ export async function updateDocumentForUser(
     fieldsToUpdate["wordCount"] = newWordCount;
     fieldsToUpdate["excerpt"] = buildExcerpt(content);
     wordCountDelta = newWordCount - (document.wordCount ?? 0);
-    // Pass the denormalized pointer so `writeContent` patches the body
-    // row directly instead of re-reading it first. This `update` path
-    // already patches the `documents` row every call, so when the pointer
-    // isn't set yet we fold the returned id into that same patch — no
-    // extra write.
     const contentId = await writeContent(ctx, {
       documentId,
       projectId: document.projectId,
@@ -995,9 +777,6 @@ export async function updateDocumentForUser(
       content,
       ...(document.contentId ? { contentId: document.contentId } : {}),
     });
-    // Persist when missing OR stale — a stale pointer self-heals inside
-    // `writeContent`, but if it's never written back every future
-    // autosave pays the full-body index read.
     if (document.contentId !== contentId) {
       fieldsToUpdate["contentId"] = contentId;
     }
@@ -1005,9 +784,6 @@ export async function updateDocumentForUser(
 
   await ctx.db.patch(documentId, fieldsToUpdate);
 
-  // Flush-path only: recompute the backlink graph when the MAIN body was
-  // provided (manual save / metadata flush). Deliberately absent from
-  // `autosaveBody` so link resolution never rides the 3s hot path.
   if (content !== undefined) {
     await syncDocumentLinks(ctx, document, content);
   }
@@ -1029,22 +805,6 @@ export async function updateDocumentForUser(
   return null;
 }
 
-/**
- * Hot-path autosave: persists ONLY the document body to `document_content`.
- *
- * Deliberately does NOT touch the `documents` row (no `updatedAt`,
- * `wordCount`, `excerpt`, or word-activity write) when only the body
- * changes. The board/sidebar `list` subscriptions read the `documents`
- * row, so bumping it on every keystroke-batch would force the
- * always-mounted sidebar to re-read the whole project list every few
- * seconds — the dominant remaining database-bandwidth cost during a
- * writing session. The row's derived metadata is refreshed on a coarser
- * cadence (manual save, leaving the editor, status/publish) via `update`.
- *
- * Title is the one field shown in those lists, so a genuine title change
- * is reflected immediately — but that's rare, so it doesn't reintroduce
- * per-keystroke invalidation.
- */
 export const autosaveBody = mutation({
   args: {
     documentId: v.id("documents"),
@@ -1070,10 +830,6 @@ export const autosaveBody = mutation({
       );
     }
 
-    // Same defense-in-depth conflict lock as `update`: background autosave
-    // timers must not write over a document with a pending sync conflict.
-    // Reads only OPEN conflicts via `by_documentId_unresolved` (normally
-    // zero rows) so this per-tick guard never pages resolved history.
     const openConflict = await ctx.db
       .query("sync_conflicts")
       .withIndex("by_documentId_unresolved", (q) =>
@@ -1086,12 +842,6 @@ export const autosaveBody = mutation({
       );
     }
 
-    // Hot path: patch the body row directly via the denormalized pointer so
-    // Convex doesn't bill an N-byte read-before-write on every tick. We
-    // deliberately DON'T persist the pointer back onto `documents` when it's
-    // missing — that would dirty the row and invalidate the always-mounted
-    // list subscriptions. The migration backfills `contentId`; until then
-    // this path self-heals through `writeContent`'s index fallback.
     await writeContent(ctx, {
       documentId: args.documentId,
       projectId: document.projectId,
@@ -1100,7 +850,6 @@ export const autosaveBody = mutation({
       ...(document.contentId ? { contentId: document.contentId } : {}),
     });
 
-    // Only touch the hot `documents` row when the title actually changed.
     if (args.title !== undefined && args.title !== document.title) {
       await ctx.db.patch(args.documentId, {
         title: args.title,
@@ -1111,20 +860,8 @@ export const autosaveBody = mutation({
   },
 });
 
-/** Soft upper bound on document `content` length. Convex's 1MB doc limit
- *  is the hard ceiling — we keep things well below it so other fields
- *  retain budget and the UI doesn't have to deal with cryptic Convex
- *  errors from an oversize patch. */
 const MAX_CONTENT_BYTES = 500 * 1024;
 
-/**
- * Creates a duplicate of an existing document in the same project.
- * Copies content, frontmatter, tags, and status but generates a new slug.
- *
- * @requires Authentication + document ownership
- * @param args.documentId - The document to duplicate.
- * @returns The new document's ID.
- */
 export const duplicate = mutation({
   args: {
     documentId: v.id("documents"),
@@ -1137,7 +874,6 @@ export const duplicate = mutation({
     await duplicateDocumentForUser(ctx, await getCurrentUser(ctx), args),
 });
 
-/** `duplicate`'s body with the actor passed in explicitly. */
 async function duplicateDocumentForUser(
   ctx: MutationCtx,
   user: Doc<"users">,
@@ -1175,8 +911,6 @@ async function duplicateDocumentForUser(
     userId: user._id,
     content: sourceContent,
   });
-  // Persist the pointer at creation time (cheap — the row was just
-  // inserted) so future autosaves skip the read-before-write.
   await ctx.db.patch(newId, { contentId: newContentId });
   await scheduleWordActivity(ctx, {
     userId: user._id,
@@ -1192,14 +926,6 @@ async function duplicateDocumentForUser(
   return { documentId: newId, title: newTitle };
 }
 
-/**
- * Transitions a document's status. When transitioning to "published",
- * `publishedAt` is automatically set to the current timestamp.
- *
- * @requires Authentication + document ownership
- * @param args.documentId - The document to update.
- * @param args.status - The new status: "draft", "scheduled", or "published".
- */
 export const updateStatusArgs = {
   documentId: v.id("documents"),
   status: v.string(),
@@ -1212,8 +938,6 @@ export const updateStatus = mutation({
     await updateStatusForUser(ctx, await getCurrentUser(ctx), args),
 });
 
-/** `updateStatus`'s body with the actor passed in explicitly. Shared with the
- *  MCP handler, which has no `ctx.auth` — see `_lib/auth.ts → requireCaller`. */
 async function updateStatusForUser(
   ctx: MutationCtx,
   user: Doc<"users">,
@@ -1253,20 +977,6 @@ async function updateStatusForUser(
   return null;
 }
 
-/**
- * Soft-deletes a document by setting `trashedAt` and cancelling any
- * pending scheduled publishes. The doc disappears from every
- * user-facing query and surfaces in the project trash instead, where
- * the user can restore it or hard-delete. A daily cron drains items
- * older than the project's `trashRetentionDays` (default 30) — see
- * `convex/cms/trash.ts:_cleanupExpired`.
- *
- * Cancelling scheduled publishes prevents the workflow from firing
- * against a soft-deleted target. Users re-schedule manually on
- * restore.
- *
- * @requires Authentication + document ownership
- */
 export const remove = mutation({
   args: { documentId: v.id("documents") },
   returns: v.null(),
@@ -1274,7 +984,6 @@ export const remove = mutation({
     await trashDocumentForUser(ctx, await getCurrentUser(ctx), args),
 });
 
-/** `remove`'s body (soft delete) with the actor passed in explicitly. */
 export async function trashDocumentForUser(
   ctx: MutationCtx,
   user: Doc<"users">,
@@ -1308,13 +1017,6 @@ export async function trashDocumentForUser(
   return null;
 }
 
-/**
- * Auth-skipped internal twin of `importFromGithub` for the bulk-import
- * workpool job (`integrations/github.ts:_importOneFromGithubJob`). The job has
- * no user session — the parent `startBulkImport` action already verified
- * project ownership before enqueuing, so this mutation just trusts its
- * caller and gets out of the way. Same dedup-by-githubPath behaviour.
- */
 export const _importFromGithubInternal = internalMutation({
   args: {
     projectId: v.id("projects"),
@@ -1332,9 +1034,6 @@ export const _importFromGithubInternal = internalMutation({
       throw new Error("Project not found");
     }
 
-    // Idempotent dedup — re-running the same file path is a no-op so
-    // workpool retries don't duplicate documents. Indexed lookup so a
-    // project with 10k+ docs doesn't melt under bulk-import retries.
     const duplicate = await ctx.db
       .query("documents")
       .withIndex("by_projectId_and_githubPath", (q) =>
@@ -1367,7 +1066,6 @@ export const _importFromGithubInternal = internalMutation({
       userId: project.userId,
       content: args.content,
     });
-    // Stamp the pointer at creation so later edits skip the read-before-write.
     await ctx.db.patch(id, { contentId });
     await adjustDocumentCount(ctx, args.projectId, 1);
     await scheduleWordActivity(ctx, {
@@ -1385,14 +1083,6 @@ export const _importFromGithubInternal = internalMutation({
   },
 });
 
-/**
- * Toggles the bookmarked flag on a document.
- * If the document is currently bookmarked it becomes un-bookmarked, and vice versa.
- *
- * @requires Authentication + document ownership
- * @param args.documentId - The document to toggle.
- * @returns The new bookmarked state.
- */
 export const toggleBookmark = mutation({
   args: { documentId: v.id("documents") },
   returns: v.boolean(),
@@ -1420,30 +1110,17 @@ export const toggleBookmark = mutation({
   },
 });
 
-/**
- * Internal-only query to fetch a document by ID without auth checks.
- * Used by server-side actions that have already verified access.
- */
 export const internalGet = internalQuery({
   args: { documentId: v.id("documents") },
   returns: v.union(v.null(), DOCUMENT_DOC_WITH_CONTENT),
   handler: async (ctx, args) => {
     const document = await ctx.db.get(args.documentId);
     if (!document) return null;
-    // Join the body back so server-side action callers (GitHub publish,
-    // bulk publish) keep seeing `document.content` without each having to
-    // know about the `document_content` table.
     const content = await readContent(ctx, document);
     return { ...document, content };
   },
 });
 
-/**
- * Pre-flight check for bulk delete: returns only those documents whose
- * ID is in `ids` AND whose `projectId` matches. `startBulkDelete`
- * compares `result.length` to `ids.length` to detect cross-project ids
- * before enqueuing N workpool jobs that would silently no-op.
- */
 export const _listByIdsForProject = internalQuery({
   args: {
     ids: v.array(v.id("documents")),
@@ -1461,14 +1138,6 @@ export const _listByIdsForProject = internalQuery({
   },
 });
 
-/**
- * Moves a board card to a new column and position.
- * Used by the kanban board's drag-and-drop handler to update a document's
- * status and ordering in a single atomic operation.
- *
- * Returns the target column's behavior so the client knows whether to
- * trigger publish or schedule flows.
- */
 export const moveCard = mutation({
   args: {
     documentId: v.id("documents"),
@@ -1480,8 +1149,6 @@ export const moveCard = mutation({
     const key = await getRateLimitKey(ctx);
     await rateLimiter.limit(ctx, "documents:moveCard", { key, throws: true });
 
-    // Convex's v.number() accepts NaN and ±Infinity. Clamp to a safe range
-    // so downstream sort / render code doesn't break.
     if (!Number.isFinite(args.boardPosition)) {
       throw new Error("boardPosition must be a finite number");
     }
@@ -1503,7 +1170,6 @@ export const moveCard = mutation({
       updatedAt: Date.now(),
     };
 
-    // Check if the target column has special behavior
     const project = await ctx.db.get(document.projectId as Id<"projects">);
     let behavior = "none";
 
@@ -1520,11 +1186,8 @@ export const moveCard = mutation({
             updates.publishedAt = Date.now();
           }
         }
-      } catch {
-        // Invalid board columns JSON, fall through
-      }
+      } catch {}
     } else {
-      // No custom columns — use default behavior mapping
       if (args.targetStatus === "published") {
         updates.publishedAt = Date.now();
         behavior = "publish";
@@ -1548,10 +1211,6 @@ export const moveCard = mutation({
   },
 });
 
-/**
- * Updates the tags on a document, keeping both the denormalized `tags` array
- * and the `frontmatter` JSON string in sync.
- */
 export const updateTagsArgs = {
   documentId: v.id("documents"),
   tags: v.array(v.string()),
@@ -1564,7 +1223,6 @@ export const updateTags = mutation({
     await updateTagsForUser(ctx, await getCurrentUser(ctx), args),
 });
 
-/** `updateTags`'s body with the actor passed in explicitly. */
 async function updateTagsForUser(
   ctx: MutationCtx,
   user: Doc<"users">,
@@ -1579,14 +1237,11 @@ async function updateTagsForUser(
 
   const doc = await ctx.db.get(args.documentId);
 
-  // Update tags in frontmatter JSON to keep in sync
   let frontmatter: Record<string, unknown> = {};
   if (doc?.frontmatter) {
     try {
       frontmatter = JSON.parse(doc.frontmatter);
-    } catch {
-      // Invalid JSON, start fresh
-    }
+    } catch {}
   }
   frontmatter["tags"] = args.tags;
 
@@ -1598,12 +1253,6 @@ async function updateTagsForUser(
   return null;
 }
 
-/**
- * Internal mutation called after a successful GitHub publish to record
- * the resulting file path, SHA, and publication timestamp on the document.
- * Keeping this separate from the GitHub action allows the action to remain
- * stateless while the mutation handles the database write transactionally.
- */
 export const internalUpdateAfterPublish = internalMutation({
   args: {
     documentId: v.id("documents"),
@@ -1646,14 +1295,6 @@ export const internalUpdateAfterPublish = internalMutation({
   },
 });
 
-/* ------------------------------------------------------------------ */
-/*  Publish history                                                    */
-/* ------------------------------------------------------------------ */
-
-/**
- * Records a publish event in the history table.
- * Called internally after every successful GitHub publish.
- */
 export const internalRecordPublishHistory = internalMutation({
   args: {
     documentId: v.id("documents"),
@@ -1672,10 +1313,6 @@ export const internalRecordPublishHistory = internalMutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    // Body + frontmatter live in the sibling `publish_history_content` table
-    // so `getPublishHistory` (the History panel list, up to 100 rows) never
-    // reads full publish bodies. The metadata row keeps only the small,
-    // list-rendered fields.
     const { contentSnapshot, frontmatterSnapshot, ...metadata } = args;
     const publishId = await ctx.db.insert("publish_history", {
       ...metadata,
@@ -1692,12 +1329,6 @@ export const internalRecordPublishHistory = internalMutation({
         : {}),
     });
 
-    // Prune to the newest 50 publishes per document. Read one page past the
-    // cap (desc) and delete the overflow — both the metadata row and its
-    // content row. Overflow rows may be legacy (body inline on the metadata
-    // row, no content row) or new (body in `publish_history_content`); the
-    // `by_publishId` lookup returns nothing for the former, so both shapes
-    // are handled.
     const PUBLISH_HISTORY_CAP = 50;
     const overflow = await ctx.db
       .query("publish_history")
@@ -1716,12 +1347,6 @@ export const internalRecordPublishHistory = internalMutation({
   },
 });
 
-/**
- * Returns the publish history for a document, newest first. Metadata-only
- * projection — bodies live in `publish_history_content` and are read on
- * demand by `rollbackToVersion`, so opening the History panel never pulls
- * up to 100 full publish bodies.
- */
 export const getPublishHistory = query({
   args: {
     documentId: v.id("documents"),
@@ -1746,7 +1371,6 @@ export const getPublishHistory = query({
   },
 });
 
-/** `getPublishHistory`'s body with the actor passed in explicitly. */
 export async function publishHistoryForUser(
   ctx: QueryCtx,
   userId: Id<"users">,
@@ -1784,12 +1408,6 @@ const PUBLISH_SNAPSHOT = v.object({
   createdAt: v.number(),
 });
 
-/**
- * Content snapshots for a publish-vs-previous-publish diff, read only when
- * a diff sheet opens (never by the History list). `previous` is null for
- * the first publish — the sheet renders that as "everything added". A
- * missing content row (legacy pre-sidecar publishes) returns null overall.
- */
 export const getPublishDiff = query({
   args: { historyId: v.id("publish_history") },
   returns: v.union(
@@ -1831,8 +1449,6 @@ export const getPublishDiff = query({
     const current = await loadSnapshot(entry);
     if (!current) return null;
 
-    // The publish immediately before this one (history is capped at 50, so
-    // one page covers everything retained).
     const older = await ctx.db
       .query("publish_history")
       .withIndex("by_documentId", (q) => q.eq("documentId", entry.documentId))
@@ -1845,10 +1461,6 @@ export const getPublishDiff = query({
   },
 });
 
-/**
- * Rolls back a document to a previous published version.
- * Restores title, content, and frontmatter from the history snapshot.
- */
 export const rollbackToVersion = mutation({
   args: {
     documentId: v.id("documents"),
@@ -1862,7 +1474,6 @@ export const rollbackToVersion = mutation({
     await rollbackDocumentForUser(ctx, await getCurrentUser(ctx), args),
 });
 
-/** `rollbackToVersion`'s body with the actor passed in explicitly. */
 async function rollbackDocumentForUser(
   ctx: MutationCtx,
   user: Doc<"users">,
@@ -1887,7 +1498,6 @@ async function rollbackDocumentForUser(
     );
   }
 
-  // Body + frontmatter live in `publish_history_content`.
   const contentRow = await ctx.db
     .query("publish_history_content")
     .withIndex("by_publishId", (q) => q.eq("publishId", args.historyId))
@@ -1925,12 +1535,6 @@ async function rollbackDocumentForUser(
   };
 }
 
-/**
- * Lightweight query for the content calendar view.
- *
- * Returns all documents for a project with only the fields needed for
- * calendar rendering (no content/frontmatter), keeping the payload small.
- */
 export const listForCalendar = query({
   args: { projectId: v.id("projects") },
   returns: v.array(
@@ -1952,7 +1556,6 @@ export const listForCalendar = query({
   },
 });
 
-/** `listForCalendar`'s body with the actor passed in explicitly. */
 export async function calendarForUser(
   ctx: QueryCtx,
   userId: Id<"users">,
@@ -1969,8 +1572,6 @@ export async function calendarForUser(
     .order("desc")
     .take(500);
 
-  // Read newest-first so a project past the cap keeps its recent docs, then
-  // restore ascending creation order for callers.
   return documents.reverse().map((d) => ({
     _id: d._id,
     title: d.title,
@@ -1983,16 +1584,6 @@ export async function calendarForUser(
   }));
 }
 
-/**
- * Cross-project calendar feed — one lean row per dated document across all
- * of the user's projects. Only documents with a `scheduledAt` or
- * `publishedAt` are returned (the global calendar has no unscheduled
- * panel), so the payload stays proportional to the writing cadence, not
- * the archive size.
- *
- * Bounds: 25 projects × 300 docs read worst-case (well inside transaction
- * limits); mounted only while /calendar is open — no standing cost.
- */
 export const listForCalendarAllProjects = query({
   args: {},
   returns: v.array(
@@ -2013,7 +1604,6 @@ export const listForCalendarAllProjects = query({
   },
 });
 
-/** `listForCalendarAllProjects`'s body with the actor passed in explicitly. */
 async function allProjectsCalendarForUser(ctx: QueryCtx, userId: Id<"users">) {
   const projects = await ctx.db
     .query("projects")
@@ -2055,12 +1645,6 @@ async function allProjectsCalendarForUser(ctx: QueryCtx, userId: Id<"users">) {
   return rows;
 }
 
-/**
- * Stale-content radar: published documents that haven't been touched in
- * `olderThanMonths` (default 6). Bounded index read + in-memory filter —
- * no cron, no extra table; subscribed only while the project overview is
- * on screen. Returns the 10 stalest, oldest first.
- */
 export const listStale = query({
   args: {
     projectId: v.id("projects"),
@@ -2083,8 +1667,6 @@ export const listStale = query({
   },
 });
 
-/** `listStale`'s body with the actor passed in explicitly. Shared with the MCP
- *  handler, which has no `ctx.auth` — see `_lib/auth.ts → requireCaller`. */
 async function staleDocumentsForUser(
   ctx: QueryCtx,
   userId: Id<"users">,
@@ -2119,15 +1701,6 @@ async function staleDocumentsForUser(
     }));
 }
 
-/* ------------------------------------------------------------------ */
-/*  Bulk import — tracking, progress, and workpool callback             */
-/* ------------------------------------------------------------------ */
-
-/**
- * Creates the `import_batches` row that `integrations/github.ts:startBulkImport`
- * uses to track progress. Internal-only because the caller has already
- * resolved auth + ownership in the parent action.
- */
 export const _createImportBatch = internalMutation({
   args: {
     projectId: v.id("projects"),
@@ -2137,10 +1710,6 @@ export const _createImportBatch = internalMutation({
   returns: v.id("import_batches"),
   handler: async (ctx, args): Promise<Id<"import_batches">> => {
     const now = Date.now();
-    // Counts (`succeeded`, `failed`, `errors`) are now derived from
-    // `import_job_outcomes` to avoid OCC contention — leaving them off
-    // the new row entirely. The schema keeps them optional for legacy
-    // rows.
     return await ctx.db.insert("import_batches", {
       projectId: args.projectId,
       userId: args.userId,
@@ -2151,16 +1720,6 @@ export const _createImportBatch = internalMutation({
   },
 });
 
-/**
- * Workpool `onComplete` callback for the GitHub bulk-import pool. Runs
- * once per finished job — succeeded, failed, or canceled.
- *
- * Each callback inserts a brand-new `import_job_outcomes` row instead
- * of patching the parent batch. That eliminates the OCC hotspot that
- * comes from N parallel callbacks fighting over a single row's counters
- * — see https://docs.convex.dev/error#1. The `getImportBatch` query
- * aggregates outcomes to compute live succeeded/failed/errors.
- */
 export const _onImportFileComplete = internalMutation({
   args: vOnCompleteArgs(
     v.object({ batchId: v.id("import_batches"), filePath: v.string() }),
@@ -2170,8 +1729,6 @@ export const _onImportFileComplete = internalMutation({
     const { batchId, filePath } = args.context;
     const { result } = args;
 
-    // Defense in depth: if the batch row is gone (manually cleaned up
-    // before workpool drained), don't leave orphaned outcomes.
     const batch = await ctx.db.get(batchId);
     if (!batch) return null;
 
@@ -2198,18 +1755,6 @@ export const _onImportFileComplete = internalMutation({
   },
 });
 
-/**
- * Reactive read for the import progress UI. Returns the batch row
- * enriched with aggregated `succeeded` / `failed` / `errors` derived
- * from `import_job_outcomes` (which is contention-free — every job
- * inserts its own row). Returns null if the caller doesn't own the
- * batch's project.
- *
- * Note on cost: this aggregates by `collect()`-ing every outcome row
- * for the batch on each read. For our max batch size (200 files) that's
- * fine. If batch sizes grow, replace with the `@convex-dev/aggregate`
- * component which maintains running counters lock-free.
- */
 export const getImportBatch = query({
   args: { batchId: v.id("import_batches") },
   returns: v.union(
@@ -2266,28 +1811,6 @@ export const getImportBatch = query({
   },
 });
 
-/* ------------------------------------------------------------------ */
-/*  Bulk delete — tracking, progress, and workpool callback             */
-/* ------------------------------------------------------------------ */
-
-/**
- * Auth-skipped internal version of `remove` for the bulk-delete workpool
- * job. The job has no user session — the parent `startBulkDelete` action
- * verified the user owns `projectId` before enqueuing.
- *
- * **Project-bound for defense in depth.** Even though the parent action
- * validates ownership of `projectId`, an internal action could in
- * principle be called with a `documentId` that belongs to *another*
- * project (e.g. a future bug, a malicious refactor, or a forged caller).
- * We re-verify here that `doc.projectId === args.projectId` and
- * no-op silently if not. Combined with `startBulkDelete`'s pre-flight
- * filter, this means cross-project deletion is impossible by
- * construction.
- *
- * Preserves the cascade to `scheduled_publishes` via
- * `cascadeDeleteScheduledPublishesForDoc` so no orphaned workflow jobs
- * fire against a deleted doc.
- */
 export const _removeInternal = internalMutation({
   args: {
     documentId: v.id("documents"),
@@ -2298,13 +1821,9 @@ export const _removeInternal = internalMutation({
     const doc = await ctx.db.get(args.documentId);
     if (!doc) return null;
     if (doc.projectId !== args.projectId) {
-      // Refuse to act on docs outside the scope the caller verified.
-      // Silent return rather than throw — callers loop over many docs
-      // and one bad id shouldn't halt the whole batch.
       return null;
     }
     if (doc.trashedAt !== undefined) {
-      // Already trashed — idempotent no-op so retries don't error.
       return null;
     }
 
@@ -2329,17 +1848,6 @@ export const _removeInternal = internalMutation({
   },
 });
 
-/**
- * Bulk soft-delete for "local only" mode in `startBulkDelete`. Skips
- * the workpool entirely — a 50-doc local delete now takes one
- * function call instead of ~250. Caps the batch at 50 ids per call
- * so the mutation stays comfortably under Convex's per-transaction
- * limits; the action layer iterates if more were requested.
- *
- * The caller has already verified that `args.documentIds` all belong
- * to `args.projectId`; we still check each doc defensively so a stale
- * id can't slip past.
- */
 export const _bulkSoftDeleteLocal = internalMutation({
   args: {
     projectId: v.id("projects"),
@@ -2388,13 +1896,6 @@ export const _bulkSoftDeleteLocal = internalMutation({
   },
 });
 
-/**
- * Removes every `scheduled_publishes` row pointing at a document so
- * workflow jobs don't fire against a deleted target. Used by the
- * single-doc `remove` mutation, the bulk-delete workpool job, and the
- * project-cascade `projects.remove` — same cascade, one place to
- * maintain it. Exported so cross-file callers don't duplicate the loop.
- */
 export async function cascadeDeleteScheduledPublishesForDoc(
   ctx: { db: MutationCtxDb },
   documentId: Id<"documents">,
@@ -2408,15 +1909,8 @@ export async function cascadeDeleteScheduledPublishesForDoc(
   }
 }
 
-/** Minimal writer shape for the cascade helper — keeps it usable from
- *  both `mutation` and `internalMutation` ctx without dragging in the
- *  full Convex generic. */
 type MutationCtxDb = import("../_generated/server").MutationCtx["db"];
 
-/**
- * Creates the tracking row for a bulk delete. Mirror of
- * `_createImportBatch`. Caller has already validated ownership.
- */
 export const _createDeleteBatch = internalMutation({
   args: {
     projectId: v.id("projects"),
@@ -2438,11 +1932,6 @@ export const _createDeleteBatch = internalMutation({
   },
 });
 
-/**
- * Workpool `onComplete` callback for bulk delete. Mirror of
- * `_onImportFileComplete` — inserts per-item outcome rows instead of
- * patching shared counters.
- */
 export const _onDeleteFileComplete = internalMutation({
   args: vOnCompleteArgs(
     v.object({ batchId: v.id("delete_batches"), label: v.string() }),
@@ -2478,10 +1967,6 @@ export const _onDeleteFileComplete = internalMutation({
   },
 });
 
-/**
- * Reactive read for the bulk-delete progress UI. Mirrors `getImportBatch`
- * — counts derive from `delete_job_outcomes` rather than the batch row.
- */
 export const getDeleteBatch = query({
   args: { batchId: v.id("delete_batches") },
   returns: v.union(
@@ -2539,26 +2024,6 @@ export const getDeleteBatch = query({
   },
 });
 
-/* ------------------------------------------------------------------ */
-/*  Smart sync — diff-before-enqueue support                            */
-/* ------------------------------------------------------------------ */
-
-/**
- * Returns the existing Convex docs (lite shape) for a set of GitHub
- * paths within a project, used by `startBulkImport` to classify each
- * requested path as new / unchanged / fast-forward / conflict.
- *
- * Trashed docs are excluded — re-importing a path that points to a
- * doc currently in the trash treats it as `new` (the import will
- * create a fresh row, the trashed row stays put until its retention
- * expires). That's deliberate: a user who deleted then re-imported
- * almost certainly wants a clean slate.
- *
- * Per-path indexed lookup so projects with many docs don't pay the
- * cost of a full project scan. Convex's `unique()` on the
- * `by_projectId_and_githubPath` index returns null when no match,
- * which we elide from the result.
- */
 export const _getExistingGithubFilesByPaths = internalQuery({
   args: {
     projectId: v.id("projects"),
@@ -2611,14 +2076,6 @@ export const _getExistingGithubFilesByPaths = internalQuery({
   },
 });
 
-/**
- * Internal upsert used by `_importOneFromGithubJob` after the action's
- * diff-before-enqueue logic has classified the path as `new` or
- * `fast-forward`. Unlike the older `_importFromGithubInternal` it does
- * not dedup-and-return — by this point the caller already knows it
- * wants the doc written. Stamps `githubSyncedAt` so the next sync
- * starts from a clean baseline.
- */
 export const _upsertImportedDocument = internalMutation({
   args: {
     projectId: v.id("projects"),
@@ -2629,12 +2086,6 @@ export const _upsertImportedDocument = internalMutation({
     githubPath: v.string(),
     githubSha: v.string(),
     githubSyncedAt: v.number(),
-    /**
-     * The classifier in `startBulkImport` resolves this. `new` inserts,
-     * `fastForward` patches the existing row. Passed explicitly so
-     * this mutation has no side-channel — it can't accidentally create
-     * duplicate rows for a known path.
-     */
     mode: v.union(v.literal("new"), v.literal("fastForward")),
   },
   returns: v.id("documents"),
@@ -2739,7 +2190,6 @@ export const _upsertImportedDocument = internalMutation({
       userId: project.userId,
       content: args.content,
     });
-    // Stamp the pointer at creation so later edits skip the read-before-write.
     await ctx.db.patch(id, { contentId });
     await adjustDocumentCount(ctx, args.projectId, 1);
     await scheduleWordActivity(ctx, {
@@ -2757,21 +2207,6 @@ export const _upsertImportedDocument = internalMutation({
   },
 });
 
-/**
- * One-shot backfill: any doc that has a `githubSha` set but no
- * `githubSyncedAt` is assumed to be in sync with GitHub as of right now,
- * so the next sync doesn't flag it as a conflict.
- *
- * Implemented as a self-scheduling chunk pattern (per Convex guidelines):
- * each mutation processes one page and reschedules itself for the next.
- * The previous while-loop variant ran every page in a single transaction
- * which risked hitting per-transaction read/write limits on larger
- * deployments and leaving the backfill half-applied.
- *
- * Kick off via the Convex dashboard with `cursor: undefined`. The action
- * returns the per-page counts; the rolled-up `_backfillGithubSyncedAt`
- * entry point reports the totals when the run completes.
- */
 const BACKFILL_BATCH_SIZE = 100;
 
 export const _backfillGithubSyncedAt = internalMutation({
@@ -2813,20 +2248,6 @@ export const _backfillGithubSyncedAt = internalMutation({
   },
 });
 
-/**
- * One-shot backfill of the `document_links` graph for pre-existing documents.
- * Cursor-paginated over every document (small chunk — each doc's link sync
- * reads up to 500 project metadata rows, so we keep the per-transaction
- * footprint bounded), reading each body via the `document_content` helper and
- * running the same `syncDocumentLinks` used by the flush paths.
- *
- * Idempotent: `syncDocumentLinks` deletes-then-reinserts a source's edges, so
- * re-running (or resuming after a partial run) converges to the same graph.
- * CLI-driven only — there is no admin UI:
- *   bun x convex run cms/documents:_backfillDocumentLinks
- * Pass `{ "cursor": "<continueCursor>" }` to resume a specific page; omit to
- * start from the beginning (it self-schedules subsequent pages).
- */
 const BACKFILL_LINKS_BATCH_SIZE = 10;
 
 export const _backfillDocumentLinks = internalMutation({
@@ -2846,8 +2267,6 @@ export const _backfillDocumentLinks = internalMutation({
       cursor: args.cursor ?? null,
     });
     for (const doc of result.page) {
-      // Trashed docs are invisible everywhere else; skip so we don't
-      // resurrect edges for documents on their way out.
       if (doc.trashedAt !== undefined) continue;
       const content = await readContentById(ctx, doc._id);
       await syncDocumentLinks(ctx, doc, content);

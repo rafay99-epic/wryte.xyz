@@ -41,13 +41,6 @@ type VideoInsertDialogProps = {
 
 const ACCEPTED_VIDEO_MIME = "video/mp4,video/webm,video/quicktime,video/ogg";
 
-/**
- * Drawer for embedding videos into the markdown editor. Mirrors the image
- * dialog: pick from the project media library (filtered to video files),
- * paste a hosted URL (UploadThing, Cloudinary, anywhere), or upload through
- * the project's configured media provider. Inserts a raw `<video>` tag —
- * markdown has no native video syntax.
- */
 export function VideoInsertDialog({
   open,
   onOpenChange,

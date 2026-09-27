@@ -2,7 +2,6 @@
 
 const isDevFlavor = process.env["WRYTE_FLAVOR"] === "dev";
 
-// Shared constants for the desktop shell.
 module.exports = {
   isDevFlavor,
   APP_NAME: isDevFlavor ? "Wryte Dev" : "Wryte",
@@ -12,12 +11,10 @@ module.exports = {
   PROD_URL: "https://wryte.xyz",
   REPO_URL: "https://github.com/rafay99-epic/wryte.xyz",
   MAX_LOAD_RETRIES: 5,
-  UPDATE_CHECK_INTERVAL_MS: 6 * 60 * 60 * 1000, // 6h
-  // Connectivity check URL (returns 204 on reachable networks).
+  UPDATE_CHECK_INTERVAL_MS: 6 * 60 * 60 * 1000,
   CONNECTIVITY_CHECK_HOST: "clients3.google.com",
   CONNECTIVITY_CHECK_PATH: "/generate_204",
   CONNECTIVITY_CHECK_INTERVAL_MS: 30 * 1000,
-  // Kill macOS elastic overscroll.
   SCROLL_CSS: `
   html, body { overscroll-behavior: none; }
 `,

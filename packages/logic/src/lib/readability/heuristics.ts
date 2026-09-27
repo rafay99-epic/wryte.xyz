@@ -1,12 +1,5 @@
-/**
- * Word-level heuristics (pure): adverbs, complex words, passive-voice markers.
- * These are intentionally simple/advisory — matching the spirit of Hemingway's
- * own lightweight detectors. False positives are acceptable.
- */
-
 import { countSyllables } from "./flesch";
 
-/** `-ly` words that aren't adverbs. */
 const ADVERB_STOPLIST = new Set([
   "only",
   "family",
@@ -42,7 +35,6 @@ export function isAdverb(word: string): boolean {
   return !ADVERB_STOPLIST.has(w);
 }
 
-/** Words with a simpler, shorter alternative — flagged regardless of length. */
 const COMPLEX_WORDS = new Set([
   "utilize",
   "utilise",

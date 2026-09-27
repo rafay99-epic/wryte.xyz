@@ -1,9 +1,3 @@
-/**
- * Profile accent presets — a small curated set the user picks from. Stored
- * as the key on the user row; resolved to a hex here so the public page and
- * the OG image share one source of truth. No arbitrary hex input (keeps the
- * page on-brand and avoids validating unbounded color strings).
- */
 export const PROFILE_ACCENTS = {
   teal: "#14b8a6",
   blue: "#3b82f6",
@@ -17,7 +11,6 @@ export type ProfileAccent = keyof typeof PROFILE_ACCENTS;
 
 export const DEFAULT_ACCENT: ProfileAccent = "teal";
 
-/** Resolve a stored accent (preset key OR raw #rrggbb) to a hex color. */
 export function accentHex(key: string | undefined): string {
   if (!key) return PROFILE_ACCENTS[DEFAULT_ACCENT];
   if (/^#[0-9a-fA-F]{6}$/.test(key)) return key;
@@ -26,7 +19,6 @@ export function accentHex(key: string | undefined): string {
   );
 }
 
-/** True when the stored accent is a custom hex rather than a preset key. */
 export function isCustomAccent(key: string | undefined): boolean {
   return typeof key === "string" && /^#[0-9a-fA-F]{6}$/.test(key);
 }

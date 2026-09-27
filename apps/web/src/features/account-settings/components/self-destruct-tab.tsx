@@ -45,7 +45,6 @@ export function SelfDestructTab() {
         description="Wipe everything we store for you and start fresh"
       />
 
-      {/* Banner */}
       <motion.div
         variants={staggerItem}
         transition={smoothTransition}
@@ -86,7 +85,6 @@ export function SelfDestructTab() {
         </div>
       </motion.div>
 
-      {/* Inventory */}
       <motion.div
         variants={staggerItem}
         transition={smoothTransition}
@@ -162,7 +160,6 @@ export function SelfDestructTab() {
         )}
       </motion.div>
 
-      {/* Trigger */}
       <motion.div
         variants={staggerItem}
         transition={smoothTransition}
@@ -189,7 +186,6 @@ export function SelfDestructTab() {
         </Button>
       </motion.div>
 
-      {/* Confirmation dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogHeader>

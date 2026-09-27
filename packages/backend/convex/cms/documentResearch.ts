@@ -43,8 +43,6 @@ export const list = query({
   },
 });
 
-/** `list`'s body with the actor passed in explicitly. Shared with the MCP
- *  handler, which has no `ctx.auth` — see `_lib/auth.ts → requireCaller`. */
 export async function researchForUser(
   ctx: QueryCtx,
   userId: Id<"users">,
@@ -74,7 +72,6 @@ export const create = mutation({
     await createResearchForUser(ctx, await getCurrentUser(ctx), args),
 });
 
-/** `create`'s body with the actor passed in explicitly. */
 export async function createResearchForUser(
   ctx: MutationCtx,
   user: Doc<"users">,
@@ -129,7 +126,6 @@ export const update = mutation({
     await updateResearchForUser(ctx, await getCurrentUser(ctx), args),
 });
 
-/** `update`'s body with the actor passed in explicitly. */
 export async function updateResearchForUser(
   ctx: MutationCtx,
   user: Doc<"users">,
@@ -202,7 +198,6 @@ export const remove = mutation({
     await removeResearchForUser(ctx, await getCurrentUser(ctx), args),
 });
 
-/** `remove`'s body with the actor passed in explicitly. */
 export async function removeResearchForUser(
   ctx: MutationCtx,
   user: Doc<"users">,

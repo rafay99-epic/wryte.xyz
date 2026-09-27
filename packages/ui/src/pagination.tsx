@@ -2,37 +2,21 @@ import { cn } from "@wryte/logic/lib/utils";
 import { Button } from "@wryte/ui/button";
 import { ChevronLeft, ChevronRight, MoreHorizontal } from "lucide-react";
 
-/* ------------------------------------------------------------------ */
-/*  Types                                                              */
-/* ------------------------------------------------------------------ */
-
 type PaginationProps = {
-  /** Current 1-based page number. */
   currentPage: number;
-  /** Total number of pages. */
   totalPages: number;
-  /** Called when the user clicks a page button. */
   onPageChange: (page: number) => void;
-  /** Maximum number of sibling pages shown on each side of current. @default 1 */
   siblingCount?: number;
-  /** Optional class name for the wrapper. */
   className?: string;
 };
 
-/* ------------------------------------------------------------------ */
-/*  Helpers                                                            */
-/* ------------------------------------------------------------------ */
-
-/** Build the array of page numbers + ellipsis markers to render. */
 function buildPageRange(
   currentPage: number,
   totalPages: number,
   siblingCount: number,
 ): Array<number | "ellipsis"> {
-  // Total page buttons we want to show (first + last + current + 2×siblings + 2×ellipsis)
   const totalPageNumbers = siblingCount * 2 + 5;
 
-  // If the total pages fit within our desired count, show all
   if (totalPages <= totalPageNumbers) {
     return Array.from({ length: totalPages }, (_, i) => i + 1);
   }
@@ -58,7 +42,6 @@ function buildPageRange(
     return [1, "ellipsis", ...rightRange];
   }
 
-  // Both ellipses
   const middleRange = Array.from(
     { length: rightSiblingIndex - leftSiblingIndex + 1 },
     (_, i) => leftSiblingIndex + i,
@@ -66,14 +49,6 @@ function buildPageRange(
   return [1, "ellipsis", ...middleRange, "ellipsis", totalPages];
 }
 
-/* ------------------------------------------------------------------ */
-/*  Component                                                          */
-/* ------------------------------------------------------------------ */
-
-/**
- * Reusable pagination control with previous/next arrows, page numbers,
- * and ellipsis for large page counts.
- */
 export function Pagination({
   currentPage,
   totalPages,
@@ -90,7 +65,6 @@ export function Pagination({
       aria-label="Pagination"
       className={cn("flex items-center justify-center gap-1", className)}
     >
-      {/* Previous */}
       <Button
         variant="outline"
         size="icon-sm"
@@ -101,7 +75,6 @@ export function Pagination({
         <ChevronLeft className="size-4" />
       </Button>
 
-      {/* Page numbers */}
       {pages.map((page, idx) => {
         if (page === "ellipsis") {
           return (
@@ -134,7 +107,6 @@ export function Pagination({
         );
       })}
 
-      {/* Next */}
       <Button
         variant="outline"
         size="icon-sm"
@@ -148,10 +120,6 @@ export function Pagination({
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  Per-page selector (optional companion)                             */
-/* ------------------------------------------------------------------ */
-
 type PaginationInfoProps = {
   currentPage: number;
   totalPages: number;
@@ -160,9 +128,6 @@ type PaginationInfoProps = {
   className?: string;
 };
 
-/**
- * Displays "Showing X-Y of Z" text alongside the pagination controls.
- */
 export function PaginationInfo({
   currentPage,
   totalPages: _totalPages,

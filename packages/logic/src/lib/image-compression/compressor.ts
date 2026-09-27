@@ -15,20 +15,6 @@ import type {
 } from "./types";
 import { encodeInWorker } from "./worker-client";
 
-/**
- * Compress an image File client-side before upload.
- *
- * Always resolves with a `File`. When compression is disabled, the input is
- * skipped, or compression fails for any reason, the original File is
- * returned with `skipped` describing why. The Convex `media.upload` action
- * is fed `out.arrayBuffer()` either way — callers don't need to branch.
- *
- * The hot path runs in a Web Worker and never touches the main thread for
- * decode or encode. Bitmaps are transferred to the worker (zero-copy).
- *
- * Settings are field-level merged with the built-in defaults, so callers
- * can pass a partial override; missing fields keep their default values.
- */
 export async function compressImageFile(
   file: File,
   settings: Partial<CompressionSettings>,
@@ -51,7 +37,6 @@ export async function compressImageFile(
   let bitmap: ImageBitmap;
   try {
     bitmap = await createImageBitmap(file, {
-      // `from-image` honours EXIF orientation on decode — no manual rotation.
       imageOrientation: "from-image",
     });
   } catch {
@@ -63,9 +48,6 @@ export async function compressImageFile(
     return passthrough(file, "decode-failed");
   }
 
-  // Compression preserves the source dimensions — only format and quality
-  // change. Anyone who needs resize can use their image editor of choice
-  // before upload.
   const width = bitmap.width;
   const height = bitmap.height;
 
@@ -93,10 +75,6 @@ export async function compressImageFile(
 
   const outMime = mimeFromFormat(response.resolvedFormat);
   const outputBytes = response.blob.size;
-  // The MIN_SAVINGS_RATIO skip only makes sense for "pure" recompression —
-  // re-encoding the same format with no visual changes. When the user asked
-  // for a format change or rounded corners, the transformation itself is
-  // the point, so we keep the output regardless of byte savings.
   const isFormatChange = outMime !== file.type;
   const isVisualChange = cornerRadius > 0;
   if (
@@ -144,14 +122,6 @@ function clampQuality(q: number): number {
   return Math.min(1, Math.max(0.1, q));
 }
 
-/**
- * Resolves the user's `format` choice to a concrete encoder.
- *
- * `"auto"` consults `detectFormatSupport()` and picks the smallest format
- * the browser can natively encode (WebP when supported, JPEG otherwise).
- * `"avif"` is a legacy value kept on the validator for back-compat with
- * records saved before AVIF output was removed; it silently maps to WebP.
- */
 async function resolveFormat(
   format: CompressionSettings["format"],
 ): Promise<ResolvedFormat> {

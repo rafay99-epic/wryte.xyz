@@ -8,13 +8,6 @@ import {
   SITE_URL,
 } from "@wryte/logic/lib/seo";
 
-/**
- * `/llms-full.txt` — long-form, plain-text site context for LLM crawlers.
- *
- * Mirrors the structure of `llms.txt` but inlines the prose so an LLM can
- * answer questions about the product without fetching every page.
- */
-
 const BODY = `# ${SITE_TITLE}
 
 ${SITE_DESCRIPTION}

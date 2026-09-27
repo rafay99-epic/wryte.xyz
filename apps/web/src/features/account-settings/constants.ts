@@ -14,17 +14,10 @@ import {
   XCircle,
 } from "lucide-react";
 
-/**
- * Account settings panes. `keywords` mirrors the project-settings registry so
- * both feed the command palette's settings search through one shape — someone
- * typing "api key" or "delete account" should land on the right pane without
- * knowing which tab it lives under.
- */
 export const TABS: {
   id: SettingsTab;
   label: string;
   icon: React.ElementType;
-  /** Search terms for the palette beyond the label. */
   keywords: string[];
 }[] = [
   {

@@ -5,17 +5,6 @@ import { AlertTriangle, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { useSyncConflicts } from "@/components/editor/hooks/use-sync-conflicts";
 
-/**
- * Persistent banner shown above the project dashboard when there are
- * unresolved sync conflicts. Hidden while loading and when the list
- * is empty — the banner is meant to be a quiet companion, not a
- * spinner.
- *
- * Clicking the banner deep-links to the first unresolved conflict.
- * The conflict route itself handles auth + ownership checks, so the
- * banner is fine as a regular anchor (server-side validation guards
- * against tampering with the URL).
- */
 export function SyncConflictsBanner({
   projectId,
 }: {

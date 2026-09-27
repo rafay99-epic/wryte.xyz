@@ -1,9 +1,3 @@
-/**
- * Shared SEO constants used across metadata, robots, sitemap, RSS, and
- * llms.txt. Keep this file the single source of truth — any change here
- * propagates to every generated discovery artifact.
- */
-
 export const SITE_URL = "https://wryte.xyz";
 export const SITE_NAME = "Wryte";
 export const SITE_TITLE = "Wryte – Write Now, Publish Later";
@@ -15,7 +9,6 @@ export const SITE_AUTHOR_URL = "https://rafay99.com";
 export const SITE_TWITTER = "@rafay99-epic";
 export const SITE_GITHUB = "https://github.com/rafay99-epic/wryte.xyz";
 
-/** Public, indexable routes (relative paths). Used by the sitemap. */
 export const PUBLIC_ROUTES = [
   { path: "/", changeFrequency: "weekly", priority: 1.0 },
   { path: "/how-it-works", changeFrequency: "monthly", priority: 0.8 },
@@ -27,10 +20,6 @@ export const PUBLIC_ROUTES = [
   { path: "/terms", changeFrequency: "yearly", priority: 0.3 },
 ] as const;
 
-/**
- * Authenticated app route prefixes. `proxy.ts` requires a session for each
- * (the prefix itself and everything below it); robots.txt disallows them.
- */
 export const APP_ROUTE_PREFIXES = [
   "/dashboard",
   "/articles",
@@ -41,10 +30,8 @@ export const APP_ROUTE_PREFIXES = [
   "/admin",
 ] as const;
 
-/** Clerk sign-in/up routes. Public, but signed-in users are redirected away. */
 export const AUTH_ROUTE_PREFIXES = ["/sign-in", "/sign-up"] as const;
 
-/** Routes that must never be indexed. Used by robots.txt. */
 export const PRIVATE_ROUTE_PATTERNS = [
   ...[...APP_ROUTE_PREFIXES, ...AUTH_ROUTE_PREFIXES].flatMap((prefix) => [
     prefix,
@@ -53,40 +40,30 @@ export const PRIVATE_ROUTE_PATTERNS = [
   "/api/*",
 ];
 
-/**
- * LLM / AI-training crawlers we explicitly allow. Listing them by name (vs
- * relying on the wildcard fallback) makes the policy auditable and lets
- * future-us tighten or relax per-bot rules without touching the wildcard.
- */
 export const LLM_BOTS = [
-  "GPTBot", // OpenAI training crawler
-  "ChatGPT-User", // OpenAI on-demand fetch (user-initiated)
-  "OAI-SearchBot", // OpenAI search index
-  "ClaudeBot", // Anthropic training crawler
-  "Claude-Web", // Anthropic on-demand fetch
-  "Claude-SearchBot", // Anthropic search index
-  "anthropic-ai", // Legacy Anthropic UA
-  "Google-Extended", // Google Gemini training
-  "GoogleOther", // Google research crawler
-  "PerplexityBot", // Perplexity index
-  "Perplexity-User", // Perplexity on-demand fetch
-  "Applebot-Extended", // Apple Intelligence training
-  "Meta-ExternalAgent", // Meta AI fetch
-  "Meta-ExternalFetcher", // Meta AI training
-  "Bytespider", // ByteDance / TikTok
-  "Amazonbot", // Amazon Alexa / AI
-  "cohere-ai", // Cohere
-  "DuckAssistBot", // DuckDuckGo AI
-  "YouBot", // You.com
-  "Diffbot", // Diffbot
-  "MistralAI-User", // Mistral on-demand fetch
+  "GPTBot",
+  "ChatGPT-User",
+  "OAI-SearchBot",
+  "ClaudeBot",
+  "Claude-Web",
+  "Claude-SearchBot",
+  "anthropic-ai",
+  "Google-Extended",
+  "GoogleOther",
+  "PerplexityBot",
+  "Perplexity-User",
+  "Applebot-Extended",
+  "Meta-ExternalAgent",
+  "Meta-ExternalFetcher",
+  "Bytespider",
+  "Amazonbot",
+  "cohere-ai",
+  "DuckAssistBot",
+  "YouBot",
+  "Diffbot",
+  "MistralAI-User",
 ] as const;
 
-/**
- * Abusive scrapers / SEO tools we block outright to reduce noise and
- * server load. These aren't legitimate search or LLM bots — they're
- * commercial backlink crawlers and content scrapers.
- */
 export const BLOCKED_BOTS = [
   "AhrefsBot",
   "SemrushBot",

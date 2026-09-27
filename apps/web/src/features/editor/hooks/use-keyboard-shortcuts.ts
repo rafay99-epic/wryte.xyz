@@ -5,16 +5,10 @@ import {
 import { useShortcutsStore } from "@wryte/logic/stores/shortcuts-store";
 import { type RefObject, useEffect, useRef } from "react";
 
-/** Callbacks for shortcuts whose behavior lives in the parent component. */
 type KeyboardShortcutCallbacks = {
   onInlineAI?: () => void;
 };
 
-/**
- * Wrap the current text selection in the textarea with `before` and `after` strings.
- * If nothing is selected, inserts the markers at the cursor position.
- * Dispatches a synthetic `input` event so React picks up the change.
- */
 function wrapSelection(
   textarea: HTMLTextAreaElement,
   before: string,
@@ -24,28 +18,17 @@ function wrapSelection(
   const selected = value.slice(selectionStart, selectionEnd);
   const replacement = `${before}${selected}${after}`;
 
-  // "select" keeps the replaced text selected so the user can see what changed
   textarea.setRangeText(replacement, selectionStart, selectionEnd, "select");
-  // Bubble an input event so controlled components (React state) stay in sync
   textarea.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
-/**
- * Insert arbitrary text at the current cursor position (replacing any selection).
- * Moves the cursor to the end of the inserted text.
- */
 function insertAtCursor(textarea: HTMLTextAreaElement, text: string) {
   const { selectionStart, selectionEnd } = textarea;
 
-  // "end" places the cursor after the inserted text
   textarea.setRangeText(text, selectionStart, selectionEnd, "end");
   textarea.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
-/**
- * Parse a TanStack-style binding string (e.g. "Mod+j", "Mod+Shift+k")
- * and check if a KeyboardEvent matches it.
- */
 function matchesBinding(event: KeyboardEvent, binding: string): boolean {
   if (!binding) return false;
 
@@ -67,43 +50,17 @@ function matchesBinding(event: KeyboardEvent, binding: string): boolean {
   return event.key.toLowerCase() === key;
 }
 
-/**
- * Registers markdown-oriented keyboard shortcuts on a textarea element.
- *
- * Supported shortcuts (Ctrl/Cmd modifier):
- * - **Ctrl+B** — Bold: wraps selection in `**...**`
- * - **Ctrl+I** — Italic: wraps selection in `*...*`
- * - **Ctrl+K** — Link: wraps selection in `[text](url)` (defaults to "link" if nothing selected)
- * - **Ctrl+Shift+K** — Code block: wraps selection in fenced triple-backtick block
- * - **Configurable** — Inline AI: transform selected text with custom prompt (default Mod+J)
- * - **Enter** — Continues markdown lists/quotes/checkboxes (incrementing numbers);
- *   on an empty item, removes the marker instead
- * - **Tab / Shift+Tab** — Indent/outdent list lines; otherwise Tab inserts two spaces
- *
- * The markdown shortcuts are handled here; Inline AI is delegated to the
- * parent via `onInlineAI`.
- *
- * Uses a stable ref for callbacks so the event listener is not torn down
- * and re-attached on every render (prevents excessive addEventListener cycles).
- *
- * @param textareaRef - Ref to the target textarea element
- * @param callbacks - Handlers for shortcuts the parent implements
- */
 export function useKeyboardShortcuts(
   textareaRef: RefObject<HTMLTextAreaElement | null>,
   callbacks: KeyboardShortcutCallbacks,
 ) {
-  // Store the latest callbacks in a ref to avoid re-registering the listener
-  // every time the parent re-renders with a new callback object.
   const callbacksRef = useRef(callbacks);
   useEffect(() => {
     callbacksRef.current = callbacks;
   });
 
-  // Read the inline AI binding from the shortcuts store (reactive)
   const inlineAiKeys = useShortcutsStore((s) => s.getKeys("inlineAI"));
 
-  // Store the binding in a ref so the keydown handler always reads the latest
   const inlineAiKeysRef = useRef(inlineAiKeys);
   useEffect(() => {
     inlineAiKeysRef.current = inlineAiKeys;
@@ -119,29 +76,24 @@ export function useKeyboardShortcuts(
 
       const cb = callbacksRef.current;
 
-      // Normalize Ctrl (Windows/Linux) and Cmd (macOS) into a single flag
       const isCtrl = event.ctrlKey || event.metaKey;
 
-      // --- Ctrl+B: Bold ---
       if (isCtrl && !event.shiftKey && !event.altKey && event.key === "b") {
         event.preventDefault();
         wrapSelection(target, "**", "**");
         return;
       }
 
-      // --- Ctrl+I: Italic ---
       if (isCtrl && !event.shiftKey && !event.altKey && event.key === "i") {
         event.preventDefault();
         wrapSelection(target, "*", "*");
         return;
       }
 
-      // --- Ctrl+K: Insert markdown link ---
       if (isCtrl && !event.shiftKey && !event.altKey && event.key === "k") {
         event.preventDefault();
         const { selectionStart, selectionEnd, value } = target;
         const selected = value.slice(selectionStart, selectionEnd);
-        // Use the selected text as the link label, or fall back to "link"
         const linkText = selected || "link";
         const replacement = `[${linkText}](url)`;
         target.setRangeText(
@@ -154,12 +106,10 @@ export function useKeyboardShortcuts(
         return;
       }
 
-      // --- Ctrl+Shift+K: Fenced code block ---
       if (isCtrl && event.shiftKey && !event.altKey && event.key === "K") {
         event.preventDefault();
         const { selectionStart, selectionEnd, value } = target;
         const selected = value.slice(selectionStart, selectionEnd);
-        // Surround with newlines so the fences sit on their own lines
         const replacement = `\n\`\`\`\n${selected}\n\`\`\`\n`;
         target.setRangeText(
           replacement,
@@ -171,17 +121,12 @@ export function useKeyboardShortcuts(
         return;
       }
 
-      // --- Inline AI (configurable shortcut, default Mod+J) ---
       if (cb.onInlineAI && matchesBinding(event, inlineAiKeysRef.current)) {
         event.preventDefault();
         cb.onInlineAI();
         return;
       }
 
-      // --- Enter: continue markdown lists / quotes / checkboxes ---
-      // Skipped when the slash menu already consumed the key (it listens in
-      // the capture phase and calls preventDefault), during IME composition,
-      // and when a range is selected (Enter should just replace it).
       if (
         event.key === "Enter" &&
         !isCtrl &&
@@ -209,7 +154,6 @@ export function useKeyboardShortcuts(
         }
       }
 
-      // --- Tab / Shift+Tab: indent or outdent list lines ---
       if (
         event.key === "Tab" &&
         !isCtrl &&
@@ -225,8 +169,6 @@ export function useKeyboardShortcuts(
         if (action) {
           event.preventDefault();
           if (action.insert !== undefined) {
-            // "preserve" shifts the caret by the inserted length since the
-            // edit happens before it on the same line.
             target.setRangeText(
               action.insert,
               action.lineStart,
@@ -246,7 +188,6 @@ export function useKeyboardShortcuts(
         }
       }
 
-      // --- Tab: Soft indent (2 spaces) instead of default focus-switch ---
       if (event.key === "Tab" && !isCtrl && !event.shiftKey && !event.altKey) {
         event.preventDefault();
         insertAtCursor(target, "  ");
@@ -257,6 +198,5 @@ export function useKeyboardShortcuts(
     return () => {
       textarea.removeEventListener("keydown", handleKeyDown);
     };
-    // Only re-register when the textarea ref changes, NOT on callback changes
   }, [textareaRef]);
 }

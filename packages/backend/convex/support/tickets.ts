@@ -4,14 +4,12 @@ import { mutation, query } from "../_generated/server";
 import { getAuthedUserOrNull, getCurrentUser } from "../_lib/auth";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
 
-/** Loose RFC-style email regex — good enough to reject obvious junk
- *  ("not-an-email", "<script>", etc.) without false-rejecting valid forms. */
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const SUBJECT_MAX = 200;
 const MESSAGE_MAX = 5000;
 const NAME_MAX = 200;
-const EMAIL_MAX = 320; // RFC 5321 cap
+const EMAIL_MAX = 320;
 
 function assertSubjectAndMessage(subject: string, message: string) {
   const trimmedSubject = subject.trim();

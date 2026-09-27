@@ -1,11 +1,3 @@
-/**
- * Admin-only cleanup for the retired Plausible/Umami integration.
- *
- * The feature code is gone, but Convex data and vault objects need an explicit
- * cleanup before the compatibility tables can be removed from the schema.
- * This migration is idempotent and drains both tables in bounded batches.
- */
-
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import { action, internalMutation } from "../_generated/server";

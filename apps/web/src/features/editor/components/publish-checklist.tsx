@@ -41,13 +41,6 @@ const SEVERITY_STYLES: Record<
   info: { icon: Info, className: "text-muted-foreground" },
 };
 
-/**
- * Pre-publish quality gate rendered inside the publish dialog. Runs a set of
- * pure, offline checks (frontmatter, alt text, internal links, work markers,
- * structure, length) and — on explicit request — the rate-limited external
- * link probe. Nothing here blocks publishing; it only surfaces easy-to-miss
- * problems while there's still time to fix them.
- */
 export function PublishChecklist({
   open,
   projectId,

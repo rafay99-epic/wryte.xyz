@@ -7,11 +7,6 @@ import {
 import { cn } from "@wryte/logic/lib/utils";
 import { AlertTriangle, CheckCircle2, XCircle } from "lucide-react";
 
-/**
- * Compact status pill for the frontmatter panel header. Green when the post is
- * ready to publish, amber for warnings, red for build-breaking errors. Gives
- * authors an at-a-glance "will this publish cleanly?" signal.
- */
 export function FrontmatterValidationBadge({
   issues,
 }: {
@@ -45,10 +40,6 @@ export function FrontmatterValidationBadge({
   );
 }
 
-/**
- * Inline list of validation issues shown at the top of the open frontmatter
- * panel. Renders nothing when the post is clean.
- */
 export function FrontmatterValidationIssues({
   issues,
 }: {

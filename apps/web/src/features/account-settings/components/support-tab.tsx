@@ -37,7 +37,6 @@ export function SupportTab() {
         description="Submit a ticket or check on previous requests"
       />
 
-      {/* Submit form — flat layout, no card wrapper */}
       <motion.div
         variants={staggerItem}
         transition={smoothTransition}
@@ -94,7 +93,6 @@ export function SupportTab() {
 
       <Divider />
 
-      {/* Past tickets — flat list */}
       <motion.div variants={staggerItem} transition={smoothTransition}>
         <p className="mb-3 text-xs font-medium text-muted-foreground/60">
           Your tickets

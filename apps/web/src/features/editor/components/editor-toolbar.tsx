@@ -60,7 +60,6 @@ import { SprintControl } from "./sprint-control";
 type EditorToolbarProps = {
   projectId: string;
   readabilityEnabled?: boolean;
-  /** MDX project with an animationsPath configured — shows "Animation…" in Insert. */
   animationsEnabled?: boolean;
 };
 
@@ -72,15 +71,6 @@ const VIEW_MODES: { value: ViewMode; label: string }[] = [
   { value: "preview", label: "Read" },
 ];
 
-/**
- * Editor toolbar, kept deliberately sparse:
- * Left: undo/redo, block-type dropdown, core formatting, one Insert menu
- *       (lists, blocks, link, media), find & replace.
- * Right: word count, view switcher, icon-only panel toggles, AI Assistant.
- * Everything that used to be a dedicated button still exists — lists,
- * quote, divider, code, link, image, video all live in the Insert menu
- * (and most have slash-command equivalents).
- */
 export function EditorToolbar({
   projectId,
   readabilityEnabled = false,
@@ -123,20 +113,14 @@ export function EditorToolbar({
 
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
 
-  // Gate the AI Assistant pill: hide entirely until the project has a
-  // provider + model + active credential. Surfaces only through the AI
-  // settings tab; clicking a non-functional button is the wrong UX.
   const aiReadiness = useQuery(api.ai.enhance.isAiReady, {
     projectId: projectId as Id<"projects">,
   });
   const aiReady = aiReadiness?.ready ?? false;
 
-  // Today's words / streak / goal — one lean indexed read, kept fresh by
-  // the same saves that update it.
   const writingStats = useQuery(api.analytics.writingStats.getEditorStats, {});
   const sessionStartWords = useEditorStore((s) => s.sessionStartWords);
 
-  // Word count
   const stats = useMemo(() => {
     const words = countWords(content);
     if (words === 0) return { words: 0, readTime: 0 };
@@ -150,9 +134,7 @@ export function EditorToolbar({
   return (
     <TooltipProvider>
       <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border/40 bg-background px-3 py-1.5">
-        {/* ── Left: Formatting tools ── */}
         <div className="flex items-center gap-0.5">
-          {/* Undo / Redo */}
           <ToolbarButton
             icon={Undo2}
             tooltip="Undo (Ctrl+Z)"
@@ -166,7 +148,6 @@ export function EditorToolbar({
 
           <ToolbarDivider />
 
-          {/* Text type dropdown */}
           <DropdownMenu>
             <Tooltip>
               <TooltipTrigger
@@ -209,7 +190,6 @@ export function EditorToolbar({
 
           <ToolbarDivider />
 
-          {/* Core text formatting — the only always-visible buttons */}
           <ToolbarButton
             icon={Bold}
             tooltip="Bold (Ctrl+B)"
@@ -233,7 +213,6 @@ export function EditorToolbar({
 
           <ToolbarDivider />
 
-          {/* Insert menu — lists, blocks, link, media */}
           <DropdownMenu>
             <Tooltip>
               <TooltipTrigger
@@ -319,9 +298,7 @@ export function EditorToolbar({
           />
         </div>
 
-        {/* ── Right: Stats + View mode + Panels + AI ── */}
         <div className="flex items-center gap-2">
-          {/* Word count + session stats */}
           <AnimatePresence mode="wait">
             {stats.words > 0 && (
               <Tooltip>
@@ -361,10 +338,8 @@ export function EditorToolbar({
             )}
           </AnimatePresence>
 
-          {/* Writing sprint */}
           <SprintControl />
 
-          {/* View mode switcher */}
           <div className="relative flex items-center rounded-lg border border-border/50 bg-muted/40 p-0.5">
             <motion.div
               className="absolute inset-y-0.5 rounded-md bg-background shadow-sm border border-border/40"
@@ -392,7 +367,6 @@ export function EditorToolbar({
             ))}
           </div>
 
-          {/* Side-panel toggles — icon-only to keep the bar light */}
           <div className="flex items-center gap-0.5 rounded-lg border border-border/50 bg-muted/40 p-0.5">
             <PanelToggle
               icon={ListTree}
@@ -440,8 +414,6 @@ export function EditorToolbar({
     </TooltipProvider>
   );
 }
-
-/* ── Sub-components ──────────────────────────────────────────────────── */
 
 function ToolbarButton({
   icon: Icon,

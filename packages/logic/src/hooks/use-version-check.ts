@@ -20,26 +20,11 @@ function getDismissedBuild(): string | null {
 function setDismissedBuild(build: string) {
   try {
     localStorage.setItem(STORAGE_KEY, build);
-  } catch {
-    // private browsing or storage full — silently ignore
-  }
+  } catch {}
 }
 
-/**
- * Prompts the user to refresh when a newer build is deployed.
- *
- * Update detection runs on the git commit SHA (`build`), NOT the
- * human-facing version label. The SHA changes on every deploy and is
- * produced automatically — `next.config.ts` injects `NEXT_PUBLIC_BUILD_SHA`
- * at build time, and `scripts/stamp-version.ts` writes the same SHA to the
- * `app_version` row after deploy — so there is no manual version bump to
- * forget. The `version` field is now purely a cosmetic label (footer,
- * sidebar, OG image) and plays no part in update detection.
- */
 export function useVersionCheck() {
   const deployed = useQuery(api.cms.appVersion.current);
-  // Track which build the toast was last shown for, not just a boolean —
-  // otherwise a second deploy in the same session would never re-notify.
   const shownForBuildRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -48,7 +33,6 @@ export function useVersionCheck() {
 
     const serverBuild = deployed.build;
 
-    // Never nag when either side lacks a real SHA (local dev, missing git).
     if (!serverBuild || serverBuild === "dev" || serverBuild === "unknown") {
       return;
     }

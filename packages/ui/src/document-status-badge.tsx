@@ -14,12 +14,10 @@ export function DocumentStatusBadge({
   status,
   columns,
 }: DocumentStatusBadgeProps) {
-  // Try to find a matching column definition
   const column = columns?.find((c) => c.id === status);
 
   if (column) {
     const colors = getColorClasses(column.color);
-    // Map icons: behavior-based for schedule/publish, id-based for review/ready
     const icon =
       column.behavior === "schedule" ? (
         <Clock className="size-3" />
@@ -39,7 +37,6 @@ export function DocumentStatusBadge({
     );
   }
 
-  // Fallback for legacy or unknown statuses
   const fallbackConfig: Record<
     string,
     { label: string; className: string; icon: React.ReactNode | null }
@@ -86,7 +83,6 @@ export function DocumentStatusBadge({
     );
   }
 
-  // Unknown status — capitalize and show with gray styling
   return (
     <Badge variant="secondary" className="bg-muted text-muted-foreground">
       {status.charAt(0).toUpperCase() + status.slice(1)}

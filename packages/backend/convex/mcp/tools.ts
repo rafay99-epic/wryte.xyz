@@ -1,35 +1,3 @@
-/**
- * The MCP tool catalog.
- *
- * Every entry is a declaration over an internal handler in `./handlers/`.
- * Nothing here contains business logic, and nothing re-implements an ownership
- * check: the gateway injects the verified caller through `identityArg`, the
- * handler resolves it with `requireCaller`, and then delegates to the same
- * `…ForUser` helper the web app's public function uses. Tools cannot use
- * `ctx.auth` because the gateway dispatches them from inside its component,
- * where Convex doesn't propagate identity (see `_lib/auth.ts → requireCaller`).
- * Which caller may run which tool is decided by `metadata.scopes` in
- * `./authorize.ts`; every tool must declare at least one.
- *
- * ## Three rules for adding a tool
- *
- * 1. **Descriptions are one line.** Every description is in the model's
- *    context on every turn. Shape knowledge belongs in `resources.ts` and the
- *    `initializeInstructions` string, not repeated in every tool here.
- *
- * 2. **Never wrap a query written for a reactive UI subscription.** Those
- *    return everything (`cms/documents.list` takes up to 500 rows *with*
- *    excerpts, ~200 KB). Convex bills egress and database reads, and an agent
- *    in a loop is the traffic shape that turns that into a real invoice —
- *    roughly 25x the cost of a paginated equivalent. Prefer the lean,
- *    paginated variants; `cms/documents.listForLink` already exists and is
- *    exactly the right shape.
- *
- * 3. **Set `auditArgs` on anything carrying content.** The gateway stores
- *    caller args verbatim by default, so a tool taking a document body would
- *    write that body twice — once to `document_content`, once to the audit
- *    log — and keep the copy. Redact the payload, keep the metadata.
- */
 import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
 import {
@@ -48,37 +16,17 @@ const WRITE = { scopes: [SCOPES.write] } satisfies WryteToolMetadata;
 const PUBLISH = { scopes: [SCOPES.publish] } satisfies WryteToolMetadata;
 const MEDIA = { scopes: [SCOPES.media] } satisfies WryteToolMetadata;
 
-/** Write tool whose args carry document/research prose. */
 const WRITE_BODY = {
   scopes: [SCOPES.write],
   auditArgs: { redact: ["content", "frontmatter"] },
 } satisfies WryteToolMetadata;
 
-/** Write tool whose args carry component source: never audited. */
 const WRITE_NO_AUDIT = {
   scopes: [SCOPES.write],
   auditArgs: false,
 } satisfies WryteToolMetadata;
 
-/**
- * The explicit `McpToolRegistration[]` annotation is required, not stylistic.
- *
- * Convex's codegen types `api` from *every* module under `convex/`, this one
- * included. So `api`'s type depends on this file, and this file imports `api`
- * — a circular type reference. Without an annotation TypeScript can't resolve
- * `tools` without evaluating `api`, gives up, infers `any`, and the collapse
- * cascades into hundreds of spurious errors in unrelated modules.
- *
- * Annotating the export breaks the cycle: `tools`'s type is now known without
- * evaluating the initializer. The per-tool compile-time checks are unaffected —
- * each `defineMcp*` call still validates its `args` against the real signature
- * of `fn`, which is where the safety actually lives.
- */
 export const tools: McpToolRegistration[] = [
-  /* ---------------------------------------------------------------- */
-  /*  Projects                                                         */
-  /* ---------------------------------------------------------------- */
-
   defineMcpQuery({
     name: "wryte_projects_list",
     description:
@@ -89,16 +37,10 @@ export const tools: McpToolRegistration[] = [
     metadata: READ,
   }),
 
-  /* ---------------------------------------------------------------- */
-  /*  Documents — read                                                 */
-  /* ---------------------------------------------------------------- */
-
   defineMcpQuery({
     name: "wryte_documents_list",
     description:
       "Paginated list of a project's documents (id, title, slug). Page with the returned cursor.",
-    // Lean + paginated by design. Deliberately NOT `documents.list`, which
-    // returns up to 500 rows with excerpts for a reactive UI subscription.
     fn: internal.mcp.handlers.documents.list,
     args: {
       caller: mcpCallerValidator,
@@ -152,10 +94,6 @@ export const tools: McpToolRegistration[] = [
     metadata: READ,
   }),
 
-  /* ---------------------------------------------------------------- */
-  /*  Documents — write                                                */
-  /* ---------------------------------------------------------------- */
-
   defineMcpMutation({
     name: "wryte_documents_create",
     description:
@@ -201,14 +139,8 @@ export const tools: McpToolRegistration[] = [
     fn: internal.mcp.handlers.documents.trash,
     args: { caller: mcpCallerValidator, documentId: v.id("documents") },
     identityArg: "caller",
-    // Soft delete is the only deletion an agent can perform. `permanentDelete`
-    // and `emptyTrash` are absent from this catalog on purpose.
     metadata: { scopes: [SCOPES.trash] } satisfies WryteToolMetadata,
   }),
-
-  /* ---------------------------------------------------------------- */
-  /*  Document drafts — versioned alternates, promoted with promote   */
-  /* ---------------------------------------------------------------- */
 
   defineMcpQuery({
     name: "wryte_drafts_list",
@@ -295,10 +227,6 @@ export const tools: McpToolRegistration[] = [
     metadata: WRITE,
   }),
 
-  /* ---------------------------------------------------------------- */
-  /*  Animations — per-project React components posts can embed       */
-  /* ---------------------------------------------------------------- */
-
   defineMcpQuery({
     name: "wryte_animations_list",
     description:
@@ -370,10 +298,6 @@ export const tools: McpToolRegistration[] = [
     metadata: WRITE,
   }),
 
-  /* ---------------------------------------------------------------- */
-  /*  Research                                                         */
-  /* ---------------------------------------------------------------- */
-
   defineMcpQuery({
     name: "wryte_research_list",
     description: "List research notes attached to a document.",
@@ -432,10 +356,6 @@ export const tools: McpToolRegistration[] = [
     metadata: WRITE,
   }),
 
-  /* ---------------------------------------------------------------- */
-  /*  Calendar & scheduling                                            */
-  /* ---------------------------------------------------------------- */
-
   defineMcpQuery({
     name: "wryte_calendar_get",
     description:
@@ -470,10 +390,6 @@ export const tools: McpToolRegistration[] = [
     metadata: PUBLISH,
   }),
 
-  /* ---------------------------------------------------------------- */
-  /*  Publishing                                                       */
-  /* ---------------------------------------------------------------- */
-
   defineMcpAction({
     name: "wryte_publish_document",
     description:
@@ -488,10 +404,6 @@ export const tools: McpToolRegistration[] = [
     identityArg: "caller",
     metadata: PUBLISH,
   }),
-
-  /* ---------------------------------------------------------------- */
-  /*  Media                                                            */
-  /* ---------------------------------------------------------------- */
 
   defineMcpAction({
     name: "wryte_media_list",
@@ -521,17 +433,11 @@ export const tools: McpToolRegistration[] = [
       documentId: v.optional(v.id("documents")),
     },
     identityArg: "caller",
-    // Never audit the args: a base64 image in an audit row is pure write cost
-    // and the row's other columns already say who uploaded what, and when.
     metadata: {
       scopes: [SCOPES.media],
       auditArgs: false,
     } satisfies WryteToolMetadata,
   }),
-
-  /* ---------------------------------------------------------------- */
-  /*  Stats & insights                                                 */
-  /* ---------------------------------------------------------------- */
 
   defineMcpQuery({
     name: "wryte_stats_get",

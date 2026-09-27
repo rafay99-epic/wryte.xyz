@@ -6,12 +6,6 @@ import type {
   AnalyzeResponseMessage,
 } from "./worker-protocol";
 
-/**
- * Readability worker. Runs the pure `analyze()` off the main thread for large
- * documents. The exact same `analyze()` is used on the main thread by
- * `worker-client.ts` when a worker isn't available, so behavior is identical.
- */
-
 const scope = self as unknown as DedicatedWorkerGlobalScope;
 
 scope.addEventListener(

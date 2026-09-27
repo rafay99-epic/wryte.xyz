@@ -11,9 +11,7 @@ import { useEditorContext } from "./editor-context";
 export type SelectionRange = { text: string; start: number; end: number };
 
 type SelectionToolbarProps = {
-  /** Gates the AI quick actions; formatting buttons always show. */
   aiReady: boolean;
-  /** Run an AI quick action on the given selection. */
   onAiAction: (instruction: string, selection: SelectionRange) => void;
 };
 
@@ -43,31 +41,17 @@ const AI_QUICK_ACTIONS: { label: string; instruction: string }[] = [
   },
 ];
 
-/**
- * Floating toolbar that appears above a settled text selection in the
- * editor: quick formatting plus one-click AI transforms (which route
- * through the inline-AI popover with a preset instruction).
- *
- * Memoized for the same reason as the slash menu — the parent re-renders
- * per keystroke, this only cares about selection state.
- */
 export const SelectionToolbar = memo(function SelectionToolbar({
   aiReady,
   onAiAction,
 }: SelectionToolbarProps) {
   const { textareaRef, wrapSelection } = useEditorContext();
-  // `anchorX` is the point the toolbar centers itself on; the final left
-  // is computed after render from the toolbar's measured width.
   const [position, setPosition] = useState<{
     top: number;
     anchorX: number;
   } | null>(null);
   const barRef = useRef<HTMLDivElement>(null);
 
-  // Center on the anchor and clamp to the viewport using the REAL width —
-  // the toolbar varies (AI buttons present or not, label lengths), so a
-  // fixed-width clamp either clips it or leaves it hugging an edge.
-  // Layout effect: runs before paint, so no visible jump.
   useLayoutEffect(() => {
     const el = barRef.current;
     if (!el || !position) return;
@@ -98,9 +82,6 @@ export const SelectionToolbar = memo(function SelectionToolbar({
       if (!startRect || !endRect) return hide();
       const taRect = textarea.getBoundingClientRect();
 
-      // Single-line selection → center between its ends. Multi-line →
-      // center on the text column, which reads as "above this passage"
-      // instead of jumping to wherever the drag happened to start.
       const sameLine = Math.abs(endRect.top - startRect.top) < 1;
       const anchorX = sameLine
         ? taRect.left + (startRect.left + endRect.left) / 2
@@ -108,8 +89,6 @@ export const SelectionToolbar = memo(function SelectionToolbar({
 
       const top = taRect.top + startRect.top;
       setPosition({
-        // Above the selection's first line; below it when too close to the
-        // viewport top.
         top:
           top - TOOLBAR_HEIGHT - 8 > 8
             ? top - TOOLBAR_HEIGHT - 8
@@ -118,8 +97,6 @@ export const SelectionToolbar = memo(function SelectionToolbar({
       });
     };
 
-    // Debounce so the toolbar appears once the selection settles instead
-    // of chasing the cursor mid-drag.
     const schedule = () => {
       if (timer) clearTimeout(timer);
       timer = setTimeout(evaluate, SHOW_DELAY_MS);
@@ -139,12 +116,6 @@ export const SelectionToolbar = memo(function SelectionToolbar({
       hide();
     };
 
-    // Trigger set: the textarea's native `select` event is the reliable
-    // signal for selections inside a text control (document-level
-    // `selectionchange` is NOT guaranteed to fire for textareas in every
-    // Chromium build). `mouseup`/`keyup` re-evaluate after clicks and
-    // Shift+Arrow changes — including collapses, which `select` never
-    // reports. `selectionchange` stays as a best-effort extra.
     textarea.addEventListener("select", schedule);
     textarea.addEventListener("mouseup", schedule);
     textarea.addEventListener("keyup", schedule);
@@ -198,7 +169,6 @@ export const SelectionToolbar = memo(function SelectionToolbar({
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: 4, scale: 0.97 }}
       transition={{ duration: 0.12, ease: [0.16, 1, 0.3, 1] }}
-      // `left` is set pre-paint by the measuring layout effect above.
       style={{ top: position.top, left: -9999 }}
       className="fixed z-50 flex items-center gap-0.5 whitespace-nowrap rounded-lg border border-border/60 bg-popover p-1 shadow-lg"
     >
@@ -225,7 +195,6 @@ export const SelectionToolbar = memo(function SelectionToolbar({
             <button
               key={action.label}
               type="button"
-              // Keep focus (and the selection) in the textarea.
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => handleAiAction(action.instruction)}
               className="rounded-md px-1.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"

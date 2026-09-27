@@ -91,7 +91,6 @@ export function FrontmatterSection({
         description="Define the metadata fields for your markdown files"
       />
 
-      {/* Visual / Code toggle */}
       <motion.div
         variants={staggerItem}
         transition={smoothTransition}
@@ -187,7 +186,6 @@ export function FrontmatterSection({
         onConfirm={clearAllDefaults}
       />
 
-      {/* Re-detect confirmation — replaces the current schema, so confirm first */}
       <Dialog open={showReDetectConfirm} onOpenChange={setShowReDetectConfirm}>
         <DialogContent>
           <DialogHeader>
@@ -356,7 +354,6 @@ export function FrontmatterSection({
         </div>
       </motion.div>
 
-      {/* YAML Preview */}
       {fields.length > 0 && (
         <>
           <Divider />
@@ -403,7 +400,6 @@ function FrontmatterFieldRow({
 
   return (
     <div className="group flex items-start gap-2 rounded-lg border bg-card p-3 transition-colors hover:bg-muted/20">
-      {/* Reorder handle */}
       <div className="flex flex-col gap-0.5 pt-1.5 opacity-0 transition-opacity group-hover:opacity-100">
         <button
           type="button"
@@ -425,9 +421,7 @@ function FrontmatterFieldRow({
         </button>
       </div>
 
-      {/* Fields */}
       <div className="flex-1 space-y-2">
-        {/* Row 1: Name + Type */}
         <div className="flex gap-2">
           <Input
             placeholder="Field name (YAML key)"
@@ -464,7 +458,6 @@ function FrontmatterFieldRow({
           </Select>
         </div>
 
-        {/* Row 2: Required + Default */}
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
             <Switch
@@ -494,7 +487,6 @@ function FrontmatterFieldRow({
           </button>
         </div>
 
-        {/* Options for select/multiselect */}
         {(field.type === "select" || field.type === "multiselect") && (
           <Input
             placeholder="Options (comma-separated, e.g. tech, lifestyle, travel)"
@@ -504,7 +496,6 @@ function FrontmatterFieldRow({
           />
         )}
 
-        {/* Advanced settings (collapsible) */}
         {showAdvanced && (
           <div className="space-y-2 rounded-lg border border-dashed bg-muted/10 p-2.5">
             <div className="grid grid-cols-2 gap-2">
@@ -570,7 +561,6 @@ function FrontmatterFieldRow({
               />
             </div>
 
-            {/* Number-specific: min, max, step */}
             {field.type === "number" && (
               <div className="grid grid-cols-3 gap-2">
                 <div className="space-y-1">
@@ -630,7 +620,6 @@ function FrontmatterFieldRow({
               </div>
             )}
 
-            {/* String/text: max length */}
             {(field.type === "string" || field.type === "text") && (
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
@@ -654,7 +643,6 @@ function FrontmatterFieldRow({
               </div>
             )}
 
-            {/* Hidden toggle */}
             <div className="flex items-center gap-2">
               <Switch
                 size="sm"
@@ -671,7 +659,6 @@ function FrontmatterFieldRow({
         )}
       </div>
 
-      {/* Delete */}
       <button
         type="button"
         onClick={onRemove}

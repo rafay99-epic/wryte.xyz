@@ -1,35 +1,3 @@
-/**
- * Publish-time frontmatter normalization shared across the publish paths
- * (`publishToGithub` and `bulkPublish` in `convex/integrations/github.ts`).
- *
- * THE ARRAY GUARD
- * ---------------
- * Several frontmatter keys are list-valued across every static-site framework
- * we target (Astro, Hugo, Jekyll, Next, …). If such a value reaches
- * serialization as a *scalar* — because the project's detected schema typed it
- * as `string`, or the author entered a single comma-less value — frameworks
- * with typed content collections reject the build. Astro's
- * `z.array(z.string())` is the canonical example: `tags: "a"` fails, `tags: [a]`
- * passes.
- *
- * This module guarantees those keys always serialize as arrays. It is pure and
- * in-memory, so it adds no I/O to the publish hot path (safe at 1000+
- * concurrent publishes).
- *
- * NOTE: the registry below mirrors the detection-side one in
- * `src/lib/frontmatter-detection/registry.ts`. The two deliberately live apart
- * because Convex cannot import from `src/`. Keep them in sync — same precedent
- * as `findPubDateField` (duplicated between this folder and
- * `src/lib/build-initial-frontmatter.ts`).
- */
-
-/**
- * High-confidence list-valued keys. Only names that are array-valued in
- * essentially every framework belong here. Ambiguous singulars (`author`,
- * `category`, `series`) are intentionally excluded — schema detection types
- * those from the repo, and forcing them to arrays would corrupt sites that use
- * them as scalars.
- */
 const ALWAYS_ARRAY_FIELDS: ReadonlySet<string> = new Set([
   "tags",
   "keywords",
@@ -39,11 +7,6 @@ const ALWAYS_ARRAY_FIELDS: ReadonlySet<string> = new Set([
   "aliases",
 ]);
 
-/**
- * Plural-looking keys that are nonetheless scalar. Excluded from the
- * "plural name + comma" heuristic so we never split a real string like
- * `address: "1, Main St"`.
- */
 const PLURAL_SCALAR_DENYLIST: ReadonlySet<string> = new Set([
   "address",
   "status",
@@ -54,7 +17,6 @@ const PLURAL_SCALAR_DENYLIST: ReadonlySet<string> = new Set([
   "canvas",
 ]);
 
-/** Schema field types from the editor that always serialize as arrays. */
 const ARRAY_SCHEMA_TYPES: ReadonlySet<string> = new Set([
   "tags",
   "list",
@@ -75,7 +37,6 @@ function parseSchemaFields(
   }
 }
 
-/** Normalizes any scalar/array value into a clean string array. */
 function toStringArray(value: unknown): string[] {
   if (Array.isArray(value)) {
     return value.map((v) => String(v).trim()).filter(Boolean);
@@ -90,15 +51,6 @@ function toStringArray(value: unknown): string[] {
   return [String(value)];
 }
 
-/**
- * Returns a copy of `frontmatter` in which every key that *should* be a list is
- * a list. Insertion order is preserved. Decision order per key:
- *   1. already an array               → keep
- *   2. schema type is tags/list/multi → arrayify (overrides a wrong scalar)
- *   3. name in ALWAYS_ARRAY_FIELDS    → arrayify (the bug-fixing case)
- *   4. plural name + comma in value   → arrayify (heuristic, denylist-guarded)
- *   5. otherwise                      → keep
- */
 export function coerceFrontmatterArrays(
   frontmatter: Record<string, unknown>,
   schemaJson?: string | null,
@@ -134,18 +86,6 @@ export function coerceFrontmatterArrays(
   return out;
 }
 
-/**
- * Repairs a stored `frontmatterSchema` JSON string by flipping any
- * high-confidence list field (tags/keywords/…) that was mistyped as a scalar
- * over to the "tags" (array) type. Used by the one-time backfill migration so
- * EXISTING projects — created before framework-aware detection — get the same
- * correct schema new projects get, without re-hitting GitHub.
- *
- * Only the field `type` is touched; every other property (required,
- * defaultValue, options, label, …) is preserved. Returns the original string
- * unchanged when nothing needed fixing, plus a `changed` flag so the caller can
- * skip the write.
- */
 export function normalizeSchemaArrayTypes(
   schemaJson: string | null | undefined,
 ): {

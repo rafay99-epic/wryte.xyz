@@ -1,19 +1,5 @@
 "use client";
 
-/**
- * Shared MDX compile-and-run pipeline — the single implementation behind
- * every surface that renders MDX with live components: the editor's Read
- * view (`mdx-preview.tsx`) and the public share preview (`/preview/[token]`).
- *
- * Trust boundary: compiled MDX runs via `new AsyncFunction` — no closure
- * access, but full browser globals (fetch, window, document.cookie). The
- * editor renders the signed-in user's own content (self-XSS only). The
- * share preview renders content on the AUTHOR's trust: animations are the
- * author's code executing in the visitor's browser — acceptable while
- * authors are a closed, trusted set. GATE: before Wryte opens public
- * signups or any cross-user animation sharing/catalog, this pipeline must
- * move into a sandboxed iframe with a restrictive CSP (see plan v2).
- */
 import { compile } from "@mdx-js/mdx";
 import React, {
   Component,
@@ -46,10 +32,6 @@ export type MdxComponentProps = Record<string, unknown> & {
 };
 export type MdxComponentMap = Record<string, React.ElementType>;
 
-/* ------------------------------------------------------------------ */
-/*  React scope — injected into compiled MDX so hooks/imports work     */
-/* ------------------------------------------------------------------ */
-
 const REACT_SCOPE = {
   React,
   useState,
@@ -78,10 +60,6 @@ const REACT_IMPORT_RE = /^\s*import\b[\s\S]*?\bfrom\s+['"]react['"].*$/gm;
 function stripReactImports(source: string): string {
   return source.replace(REACT_IMPORT_RE, "");
 }
-
-/* ------------------------------------------------------------------ */
-/*  Unknown component placeholders                                     */
-/* ------------------------------------------------------------------ */
 
 function UnknownComponent({
   name,
@@ -113,10 +91,6 @@ function getPlaceholder(name: string): React.ComponentType<MdxComponentProps> {
   return comp;
 }
 
-/* ------------------------------------------------------------------ */
-/*  Styled component overrides for standard HTML elements              */
-/* ------------------------------------------------------------------ */
-
 const baseComponents: MdxComponentMap = {
   ...embedComponents,
   ...codeComponents,
@@ -124,7 +98,6 @@ const baseComponents: MdxComponentMap = {
     <VideoEmbed {...(props as React.VideoHTMLAttributes<HTMLVideoElement>)} />
   ),
   img: ({ alt, src, ...props }: MdxComponentProps) => (
-    // eslint-disable-next-line @next/next/no-img-element
     <img
       src={src as string}
       alt={(alt as string) ?? ""}
@@ -169,18 +142,12 @@ const baseComponents: MdxComponentMap = {
   ),
 };
 
-/* ------------------------------------------------------------------ */
-/*  Build per-compilation component map with placeholders              */
-/* ------------------------------------------------------------------ */
-
 const COMPONENT_TAG_RE = /<([A-Z]\w*)/g;
 
 export function buildComponentMap(
   source: string,
   userComponents: Record<string, React.ComponentType<MdxComponentProps>> = {},
 ): MdxComponentMap {
-  // User-authored animations register ahead of the placeholder loop so a
-  // known `<Anim />` renders live instead of falling to the dashed stub.
   const map: MdxComponentMap = {
     ...baseComponents,
     ...userComponents,
@@ -193,10 +160,6 @@ export function buildComponentMap(
   }
   return map;
 }
-
-/* ------------------------------------------------------------------ */
-/*  Compile + run MDX with React in scope                              */
-/* ------------------------------------------------------------------ */
 
 const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor as new (
   body: string,
@@ -225,10 +188,6 @@ export async function compileMdx(
     __scope: REACT_SCOPE,
   })) as MdxModule;
 }
-
-/* ------------------------------------------------------------------ */
-/*  Error boundary + compile-error card                                */
-/* ------------------------------------------------------------------ */
 
 type ErrorBoundaryProps = { children: ReactNode; fallback: ReactNode };
 type ErrorBoundaryState = { error: Error | null };

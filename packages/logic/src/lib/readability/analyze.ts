@@ -1,9 +1,3 @@
-/**
- * Combines segmentation + heuristics into the full readability result (pure,
- * framework-free, safe to run in a Web Worker). All offsets are character
- * indices into the exact input string, so the panel can select-and-jump.
- */
-
 import {
   countSyllables,
   fleschKincaidGrade,
@@ -45,7 +39,6 @@ export function analyze(text: string): ReadabilityResult {
     complex: 0,
   };
 
-  // ── word-level flags ──
   let totalSyllables = 0;
   for (let i = 0; i < words.length; i++) {
     const w = words[i];
@@ -60,7 +53,6 @@ export function analyze(text: string): ReadabilityResult {
       ranges.push({ start: w.start, end: w.end, type: "complex" });
       counts.complex++;
     }
-    // passive: a be-verb followed within 3 words by a past participle.
     if (isBeVerb(w.text)) {
       for (let j = i + 1; j <= i + 3 && j < words.length; j++) {
         const cand = words[j];
@@ -73,7 +65,6 @@ export function analyze(text: string): ReadabilityResult {
     }
   }
 
-  // ── sentence-level flags (word count per sentence via a monotonic sweep) ──
   let wi = 0;
   for (const s of sentences) {
     while (wi < words.length && (words[wi]?.start ?? Infinity) < s.start) wi++;

@@ -1,12 +1,3 @@
-/**
- * Media provider types — a thin re-export of the backend registry.
- *
- * `packages/backend/convex/media/_lib/providers.ts` is the single source of
- * truth and is browser-safe by design (it imports only `convex/values`). This
- * module exists so front-end code keeps the short `@wryte/logic/types/media`
- * import path without a hand-maintained mirror that can drift from the schema.
- */
-
 export type {
   CredentialField,
   CredentialProvider,

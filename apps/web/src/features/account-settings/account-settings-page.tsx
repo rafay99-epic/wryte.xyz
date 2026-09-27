@@ -19,14 +19,11 @@ import { ShortcutsTab } from "./components/shortcuts-tab";
 import { SupportTab } from "./components/support-tab";
 import { TABS } from "./constants";
 
-/** Stable identity for `useHashTab`'s dependency — never rebuilt per render. */
 const TAB_IDS: readonly SettingsTab[] = TABS.map((t) => t.id);
 
 export function AccountSettingsPage() {
   const { user: clerkUser, isLoaded: clerkLoaded } = useUser();
   const convexUser = useQuery(api.account.users.get);
-  // Deep-link support: `/settings#mcp` opens that pane, including on a
-  // fragment-only jump from the command palette while already on this page.
   const [activeTab, setActiveTab] = useHashTab<SettingsTab>("account", TAB_IDS);
 
   useEffect(() => {

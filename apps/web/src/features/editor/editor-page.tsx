@@ -24,11 +24,6 @@ import { useVersionSnapshots } from "@/features/editor/hooks/use-version-snapsho
 import { AiSynthesisDialog } from "./components/ai-synthesis-dialog";
 
 export function EditorPage({ documentId }: { documentId: string }) {
-  // Deliberately the FULL live subscription (body included) — and the only
-  // always-mounted one allowed to be. The `!isDirty` effect below re-syncs
-  // an idle editor when another device autosaves; without it, typing from a
-  // stale base would overwrite newer content. Chrome that doesn't render
-  // the body (header, draft tab bar) must use `getMeta` instead.
   const document = useQuery(api.cms.documents.get, {
     documentId: documentId as Id<"documents">,
   });
@@ -70,12 +65,6 @@ export function EditorPage({ documentId }: { documentId: string }) {
   const hasInitialized = useRef(false);
   const initializedDocId = useRef<string | null>(null);
 
-  // Initialize the editor store when the document loads, and re-initialize
-  // when the URL switches to a different document. Note: we intentionally
-  // DO NOT eagerly reset on documentId change — that would race with any
-  // pending autosave for the previous document and drop unsaved edits. The
-  // tradeoff is a brief flash of the previous doc's content while the new
-  // document query resolves.
   useEffect(() => {
     if (
       document &&
@@ -117,9 +106,6 @@ export function EditorPage({ documentId }: { documentId: string }) {
     }
   }, [document, isDirty, content, title, initDocument, activeDraftId]);
 
-  // Periodic autosave: body only — never bumps the documents row, so the
-  // always-mounted sidebar/board list subscriptions aren't invalidated on
-  // every keystroke-batch.
   const saveDocumentBody = useCallback(
     async (c: string, t: string) => {
       await autosaveBody({
@@ -131,9 +117,6 @@ export function EditorPage({ documentId }: { documentId: string }) {
     [documentId, autosaveBody],
   );
 
-  // Flush: full update that also refreshes derived metadata (word count,
-  // excerpt, updatedAt, writing stats). Runs on manual save and when leaving
-  // the editor, so the lists reflect the session's final state.
   const saveDocumentFull = useCallback(
     async (c: string, t: string) => {
       await updateDocument({
@@ -145,9 +128,6 @@ export function EditorPage({ documentId }: { documentId: string }) {
     [documentId, updateDocument],
   );
 
-  // Periodic draft autosave: writes ONLY the draft's content side-table row,
-  // never the metadata row — so the always-mounted tab-bar `list`
-  // subscription isn't re-billed on every tick.
   const saveDraftBody = useCallback(
     async (c: string, t: string) => {
       if (!activeDraftId) return;
@@ -160,8 +140,6 @@ export function EditorPage({ documentId }: { documentId: string }) {
     [activeDraftId, autosaveDraftContent],
   );
 
-  // Flush draft save: also refreshes the metadata row's derived fields
-  // (wordCount, updatedAt) so the tab bar reflects the session's final state.
   const saveDraftFull = useCallback(
     async (c: string, t: string) => {
       if (!activeDraftId) return;
@@ -195,8 +173,6 @@ export function EditorPage({ documentId }: { documentId: string }) {
     }
   }, [saveNow]);
 
-  // Version snapshots: captured after manual saves and on a coarse
-  // interval while editing the main stream. Deduped server-side.
   const { snapshotNow } = useVersionSnapshots({
     documentId,
     enabled: document != null && openConflict == null,

@@ -20,11 +20,6 @@ export type SyndicationRow = {
 
 type Busy = { provider: SyndicationProvider | "master"; kind: string } | null;
 
-/**
- * State + actions for the Syndication section: per-provider token lifecycle
- * (save / test / delete), the Active switches, the Hashnode publication
- * picker, the dev.to test-post button, and the project-level master toggle.
- */
 export function useSyndicationSection({
   projectId,
 }: {
@@ -53,7 +48,6 @@ export function useSyndicationSection({
   const [errors, setErrors] = useState<
     Partial<Record<SyndicationProvider, string>>
   >({});
-  /** Draft URL from the last successful test post — kept on screen. */
   const [testPostUrl, setTestPostUrl] = useState<string | null>(null);
 
   const byProvider = useMemo(() => {
@@ -107,7 +101,7 @@ export function useSyndicationSection({
           const message = result.message ?? "Token failed verification.";
           setErrors((prev) => ({ ...prev, [provider]: message }));
           toast.error(message);
-          return; // Keep the typed token so the user can correct and retry.
+          return;
         }
         setErrors((prev) => ({ ...prev, [provider]: undefined }));
         setToken(provider, "");

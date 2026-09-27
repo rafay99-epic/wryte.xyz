@@ -2,13 +2,6 @@ import { analyze } from "./analyze";
 import type { ReadabilityResult } from "./types";
 import type { AnalyzeResponseMessage } from "./worker-protocol";
 
-/**
- * Owns a single readability Web Worker and routes analysis onto it. Worker
- * construction can fail in SSR and some embedded webviews; when it does we set
- * `useMainThread` and run the identical `analyze()` inline. Once fallen back we
- * don't retry. Mirrors `packages/logic/src/lib/image-compression/worker-client.ts`.
- */
-
 let workerSingleton: Worker | null = null;
 let useMainThread = false;
 let nextId = 1;
@@ -48,7 +41,6 @@ function getWorker(): Worker | null {
   }
 }
 
-/** Analyze `text`, off the main thread when a worker is available. */
 export async function analyzeAsync(text: string): Promise<ReadabilityResult> {
   const worker = getWorker();
   if (!worker) return analyze(text);
@@ -57,7 +49,6 @@ export async function analyzeAsync(text: string): Promise<ReadabilityResult> {
   return new Promise<ReadabilityResult>((resolve) => {
     pending.set(id, (res) => {
       if (res.ok) resolve(res.result);
-      // On a worker-side failure, fall back to a main-thread run.
       else resolve(analyze(text));
     });
     worker.postMessage({ id, text });

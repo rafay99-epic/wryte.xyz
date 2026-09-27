@@ -7,11 +7,6 @@ import { toast } from "sonner";
 
 export type BufferChannel = { id: string; service: string; name: string };
 
-/**
- * State + actions for the Buffer social section: API key lifecycle
- * (save / rotate / test / delete), the enabled-channel selection, the
- * project's post-URL prefix, and the legacy Upload-Post migration prompt.
- */
 export function useSocialSection({
   projectId,
   initialPostUrlPrefix,
@@ -31,7 +26,6 @@ export function useSocialSection({
   const updateConfigAction = useAction(api.social.credentials.updateConfig);
   const sendTestPost = useAction(api.social.post.sendTestPost);
 
-  // Narrow the union: a legacy-only project has no Buffer credential row.
   const config = rawConfig && "_id" in rawConfig ? rawConfig : null;
   const hasLegacyUploadPost = Boolean(rawConfig?.hasLegacyUploadPost);
   const hasExisting = config !== null;
@@ -46,11 +40,6 @@ export function useSocialSection({
   const [busy, setBusy] = useState<
     "save" | "test" | "delete" | "config" | "testPost" | "legacy" | null
   >(null);
-  /**
-   * Last connect/rotate failure, kept on screen — a toast alone disappears
-   * before anyone reads it, leaving the form looking "saved" when nothing
-   * was. Cleared by the next successful save.
-   */
   const [lastError, setLastError] = useState<string | null>(null);
 
   const parsedConfig = useMemo(() => {
@@ -133,7 +122,7 @@ export function useSocialSection({
           const message = rotateResult.message ?? "Key rotation failed.";
           setLastError(message);
           toast.error(message);
-          return; // Keep the typed key so the user can correct and retry.
+          return;
         }
         setLastError(null);
         toast.success("Buffer key rotated.");
@@ -143,7 +132,7 @@ export function useSocialSection({
           const message = result.message ?? "Credentials failed verification.";
           setLastError(message);
           toast.error(message);
-          return; // Keep the typed key so the user can correct and retry.
+          return;
         }
         setLastError(null);
         toast.success(

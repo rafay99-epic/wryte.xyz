@@ -1,12 +1,3 @@
-/**
- * Minimal Buffer GraphQL API client.
- *
- * Buffer's API (https://developers.buffer.com) is a single GraphQL endpoint
- * authenticated with a Bearer key the user creates at
- * publish.buffer.com/settings/api. We use exactly three operations:
- * organizations (to scope the channels query), channels (verification +
- * the pickable platform list), and createPost (the announcement itself).
- */
 "use node";
 
 const BUFFER_API_URL = "https://api.buffer.com";
@@ -63,10 +54,6 @@ async function bufferGraphQL<T>(
   }
 }
 
-/**
- * Verify a key and list the account's connected channels. Doubles as the
- * credential check: a key that can't list channels can't post.
- */
 export async function fetchBufferChannels(
   apiKey: string,
 ): Promise<
@@ -84,8 +71,6 @@ export async function fetchBufferChannels(
 
   const channels: BufferChannel[] = [];
   for (const organizationId of orgIds) {
-    // NB: Buffer's schema uses custom scalars (OrganizationId, ChannelId) —
-    // declaring these variables as plain ID! fails GraphQL validation.
     const result = await bufferGraphQL<{ channels: BufferChannel[] }>(
       apiKey,
       `query GetChannels($organizationId: OrganizationId!) {
@@ -104,10 +89,6 @@ export async function fetchBufferChannels(
   return { ok: true, channels };
 }
 
-/**
- * Post text to one channel immediately (shareNow — an announcement should
- * go out with the publish, not sit in a queue slot hours later).
- */
 export async function createBufferPost(
   apiKey: string,
   channelId: string,
@@ -116,8 +97,6 @@ export async function createBufferPost(
   type CreatePostResult = {
     createPost: { post?: { id: string }; message?: string } | null;
   };
-  // `assets` is a required input field (schema introspection) — text-only
-  // posts pass an empty list. ChannelId is a custom scalar, not ID.
   const result = await bufferGraphQL<CreatePostResult>(
     apiKey,
     `mutation CreatePost($channelId: ChannelId!, $text: String!) {

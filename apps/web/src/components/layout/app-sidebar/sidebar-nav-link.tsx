@@ -10,16 +10,10 @@ type SidebarNavLinkProps = {
   href: string;
   icon: React.ElementType;
   label: string;
-  /** Override automatic active detection (e.g. for parent-of-route highlighting). */
   active?: boolean;
-  /** Match `pathname === href` exactly instead of allowing prefix matches. */
   exact?: boolean;
 };
 
-/**
- * Single sidebar navigation row. Uses Framer Motion's `layoutId` to
- * animate the left-edge active indicator between rows as the user navigates.
- */
 export function SidebarNavLink({
   href,
   icon: Icon,

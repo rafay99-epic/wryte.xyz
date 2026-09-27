@@ -1,10 +1,6 @@
 import { motion } from "framer-motion";
 import { commitTicker } from "@/features/marketing/constants";
 
-/**
- * A git-flavoured marquee: a continuous stream of commit pills, evoking the
- * idea that everything you do in Wryte lands as a real commit.
- */
 export function CommitTicker() {
   const items = [...commitTicker, ...commitTicker];
 
@@ -17,7 +13,6 @@ export function CommitTicker() {
       </p>
 
       <div className="relative">
-        {/* Edge fades */}
         <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-24 bg-gradient-to-r from-background to-transparent" />
         <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-24 bg-gradient-to-l from-background to-transparent" />
 

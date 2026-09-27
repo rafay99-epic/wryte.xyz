@@ -1,24 +1,3 @@
-/**
- * GitHub Frontmatter Detection API Route
- *
- * Auto-detects a project's frontmatter schema from an existing content repo.
- * Unlike the old "sample the first markdown file" approach (which inferred a
- * field's type from a single value and mistyped list fields like `tags`), this
- * route feeds a framework-aware detection engine:
- *
- *   1. ONE recursive Git Trees API call enumerates the whole repo (cheap +
- *      scalable — replaces N directory walks).
- *   2. The framework is identified from the file tree (Astro/Hugo/Next/Jekyll/…).
- *   3. The framework's authoritative config (Astro Zod schema, Contentlayer
- *      fields, Hugo taxonomies, Jekyll defaults) is fetched if present.
- *   4. A BOUNDED, parallel sample of real posts is fetched.
- *   5. `detectSchema()` merges config (authoritative) with multi-file sample
- *      aggregation (majority type + required-by-frequency).
- *
- * Each request uses the caller's own GitHub token, so there's no shared
- * rate-limit bottleneck under concurrency.
- */
-
 import { Octokit } from "@octokit/rest";
 import {
   type ConfigFile,
@@ -96,7 +75,6 @@ export async function POST(request: Request) {
 
     const octokit = new Octokit({ auth: tokenResult.token });
 
-    // 1. Enumerate the repo with a single recursive tree call.
     let entries: TreeEntry[];
     let truncated = false;
     try {
@@ -134,12 +112,9 @@ export async function POST(request: Request) {
       .map((e) => e.path)
       .filter((p): p is string => typeof p === "string");
 
-    // 2. Identify framework + pick the markdown files to sample.
     const framework = identifyFramework(allPaths);
 
     let sampleEntries = selectSampleEntries(blobs, contentPath);
-    // Tree truncation only happens on very large repos; fall back to a direct
-    // directory listing of the content path so detection still works.
     if (sampleEntries.length === 0 && truncated) {
       sampleEntries = await fallbackListing(
         octokit,
@@ -160,14 +135,12 @@ export async function POST(request: Request) {
       );
     }
 
-    // 3+4. Fetch config + sample contents in parallel (bounded).
     const configEntries = selectConfigEntries(blobs, framework);
     const [configFiles, sampleFiles] = await Promise.all([
       fetchBlobs(octokit, owner, repoName, configEntries),
       fetchBlobs(octokit, owner, repoName, sampleEntries),
     ]);
 
-    // 5. Run the pure detection engine.
     const result: DetectionResult = detectSchema({
       framework,
       configFiles: configFiles as ConfigFile[],
@@ -192,7 +165,6 @@ export async function POST(request: Request) {
       basis: result.basis,
       sampledCount: result.sampledCount,
       sources: result.sources,
-      // Back-compat with the existing wizard, which reads `sourceFile`.
       sourceFile: result.sources[0] ?? null,
     });
   } catch {
@@ -203,7 +175,6 @@ export async function POST(request: Request) {
   }
 }
 
-/** Resolves a branch (or ref/sha) to a commit SHA for the tree call. */
 async function resolveCommitSha(
   octokit: Octokit,
   owner: string,
@@ -214,7 +185,6 @@ async function resolveCommitSha(
   return data.commit.sha;
 }
 
-/** Fetches blob contents by SHA in parallel; skips any that fail. */
 async function fetchBlobs(
   octokit: Octokit,
   owner: string,
@@ -241,10 +211,6 @@ async function fetchBlobs(
   );
 }
 
-/**
- * Truncated-tree fallback: list the content directory directly (non-recursive)
- * and return its markdown files. Bounded by SAMPLE_LIMIT.
- */
 async function fallbackListing(
   octokit: Octokit,
   owner: string,

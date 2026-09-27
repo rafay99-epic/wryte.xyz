@@ -1,26 +1,11 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-/**
- * The docs table of contents.
- *
- * Static on purpose: the ordering, titles and blurbs are editorial decisions, so
- * they live in code rather than being scraped out of frontmatter. The bodies are
- * plain markdown in `src/content/docs/` and are read at build time — no CMS, no
- * database, no client-side fetching.
- *
- * `tools.md` is **generated** from `convex/mcp/tools.ts` so the reference can't
- * drift from the registry. Re-run the generator after changing the catalog.
- */
 export type DocPage = {
   slug: string;
   title: string;
-  /** Shown on the index cards and as the page subtitle. */
   description: string;
-  /** Short eyebrow label grouping pages in the sidebar. */
   group: "Getting started" | "Reference" | "Operating it";
-  /** lucide icon name, resolved in `docs-icon.tsx` — the registry stays
-   *  server-safe and free of component imports. */
   icon:
     | "rocket"
     | "shield"
@@ -92,10 +77,6 @@ export function getDocPage(slug: string): DocPage | undefined {
   return DOC_PAGES.find((p) => p.slug === slug);
 }
 
-/**
- * Reads a doc body from disk. Server-only — called from a server component at
- * build time, so the markdown never ships to the browser as data.
- */
 export function readDocBody(slug: string): string {
   return readFileSync(
     join(process.cwd(), "src", "content", "docs", `${slug}.md`),
@@ -103,7 +84,6 @@ export function readDocBody(slug: string): string {
   );
 }
 
-/** Previous/next links so a reader can move through the docs in order. */
 export function getDocNeighbours(slug: string): {
   previous: DocPage | undefined;
   next: DocPage | undefined;

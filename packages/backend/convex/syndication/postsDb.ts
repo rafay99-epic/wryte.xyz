@@ -1,11 +1,3 @@
-/**
- * Non-Node database helpers for syndication outcomes.
- *
- * One row per (document, provider) — upserted, not appended — so the row
- * count stays bounded and `remoteId` doubles as the idempotency key: a
- * re-publish with a remoteId on file updates the remote post instead of
- * creating a duplicate. Rows hold ids/urls/errors only, never the body.
- */
 import { v } from "convex/values";
 import { internalMutation, internalQuery, query } from "../_generated/server";
 import { getAuthedUserOrNull } from "../_lib/auth";
@@ -33,7 +25,6 @@ const POST_DOC = v.object({
   updatedAt: v.number(),
 });
 
-/** Cross-post status rows for a document (settings + publish dialog). */
 export const listForDocument = query({
   args: { documentId: v.id("documents") },
   returns: v.array(POST_DOC),
@@ -72,12 +63,6 @@ export const _findByDocumentAndProvider = internalQuery({
   },
 });
 
-/**
- * Upsert the single (document, provider) row. `remoteId`/`remoteUrl` are
- * only ever added, never cleared implicitly — a failed update attempt must
- * not lose the id that makes the next attempt idempotent. Pass
- * `clearRemote: true` for the one legitimate case (remote post deleted).
- */
 export const _upsert = internalMutation({
   args: {
     projectId: v.id("projects"),
@@ -106,7 +91,6 @@ export const _upsert = internalMutation({
         status: args.status,
         attempt: args.attempt,
         updatedAt: now,
-        // `undefined` removes the field — success clears the prior error.
         errorCode: args.errorCode,
         errorMessage: args.errorMessage,
         ...(args.clearRemote

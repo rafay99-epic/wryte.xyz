@@ -1,26 +1,10 @@
 import { useCallback, useState } from "react";
 
-/**
- * Tracks media items whose delete has been confirmed by the user but
- * not yet reflected in the source list. Lets the UI hide them
- * optimistically so the exit animation runs on click instead of after
- * the network round-trip. Caller is expected to call `clear()` when the
- * server confirms (typically inside a `refresh()` handler).
- */
 export type UsePendingDeletesReturn = {
-  /** Set of externalIds whose delete is pending. */
   pendingDeletes: Set<string>;
-  /** Mark an item as pending — call right when the user clicks Delete. */
   markPendingDelete: (externalId: string) => void;
-  /** Roll back a pending mark — call when the delete API throws. */
   restorePendingDelete: (externalId: string) => void;
-  /** Wipe all pending marks — call after a full refresh. */
   clearPendingDeletes: () => void;
-  /**
-   * Drop pending marks for any id NOT in `liveIds`. Use this from a
-   * `useEffect([items])` so that once the server confirms the delete
-   * (the item is no longer in `items`), the pending mark goes away too.
-   */
   pruneAgainst: (liveIds: Set<string>) => void;
 };
 

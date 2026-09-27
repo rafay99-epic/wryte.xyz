@@ -1,9 +1,5 @@
 "use client";
 
-/**
- * Full-width banner shown when the desktop wrapper detects no internet.
- * Renders nothing outside Electron (no `wryteDesktop` API).
- */
 export function DesktopOfflineBanner({ online }: { online: boolean | null }) {
   if (online !== false) return null;
 

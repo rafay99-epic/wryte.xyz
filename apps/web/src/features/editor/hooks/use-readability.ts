@@ -5,16 +5,8 @@ import { useEditorStore } from "@wryte/logic/stores/editor-store";
 import { useEffect, useRef, useState } from "react";
 
 const DEBOUNCE_MS = 300;
-/** ~8k words — above this we route analysis to the worker. */
 const WORKER_CHAR_THRESHOLD = 50_000;
 
-/**
- * Debounced readability analysis of the current editor content. Small docs run
- * inline; large docs route to the Web Worker so the editor never janks. Call
- * only from a component that is mounted exclusively while the panel is open
- * (see ReadabilityPanelBody), so a closed panel does no work and holds no
- * content subscription.
- */
 export function useReadability(): {
   result: ReadabilityResult | null;
   analyzing: boolean;
@@ -35,7 +27,6 @@ export function useReadability(): {
           ? analyzeAsync(content)
           : Promise.resolve(analyze(content));
       void run.then((res) => {
-        // Ignore results from a superseded run.
         if (myReq !== reqRef.current) return;
         setResult(res);
         setAnalyzing(false);

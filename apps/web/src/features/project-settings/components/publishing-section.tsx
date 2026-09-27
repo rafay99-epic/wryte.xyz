@@ -29,11 +29,9 @@ import {
   ToggleRow,
 } from "./shared";
 
-/** README badge markdown — image served from /badge.svg, click measured via /gh. */
 const BADGE_SNIPPET =
   "[![Published with Wryte](https://wryte.xyz/badge.svg)](https://wryte.xyz/gh?utm_medium=badge)";
 
-/** Copy box for the README badge snippet (share-link dialog's copy pattern). */
 function BadgeSnippet() {
   const [copied, setCopied] = useState(false);
 

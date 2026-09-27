@@ -18,15 +18,6 @@ import { Switch } from "@wryte/ui/switch";
 import { Info } from "lucide-react";
 import { useId } from "react";
 
-/**
- * Reusable compression-preferences editor. The same form powers the
- * user-level default in `/settings` and the per-project override in
- * `/projects/[projectId]/settings`, plus the per-upload disclosure inside
- * each upload dialog (via the `compact` prop).
- *
- * Pure controlled component — owns no persisted state. Parents pass
- * `value` and `onChange` and decide when to flush to Convex.
- */
 export function CompressionSettingsForm({
   value,
   onChange,
@@ -35,9 +26,7 @@ export function CompressionSettingsForm({
 }: {
   value: CompressionSettings;
   onChange: (next: CompressionSettings) => void;
-  /** Trim controls for the upload-dialog disclosure. */
   compact?: boolean;
-  /** Optional banner rendered above the controls (e.g. "inherits from account"). */
   inheritanceBanner?: React.ReactNode;
 }) {
   const baseId = useId();

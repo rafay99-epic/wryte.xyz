@@ -33,24 +33,18 @@ export function useContentSection({
   const [filenamePattern, setFilenamePattern] = useState(
     project.filenamePattern ?? defaultPattern,
   );
-  // Code-animations directory — MDX-only feature; "" = disabled.
   const [animationsPath, setAnimationsPath] = useState(
     project.animationsPath ?? "",
   );
-  // Explicit feature toggle. Absent = derived from path presence so
-  // projects configured before the toggle existed keep working.
   const [animationsOn, setAnimationsOn] = useState(
     project.animationsEnabled ?? !!project.animationsPath,
   );
-  // Language animation sources are authored in — TypeScript by default.
   const [animationLanguage, setAnimationLanguage] = useState<AnimationLanguage>(
     project.animationLanguage ?? "tsx",
   );
-  // Static-analysis policy for animation sources — off by default.
   const [animationChecks, setAnimationChecks] = useState<AnimationChecksPolicy>(
     project.animationChecks ?? CHECKS_OFF,
   );
-  // Import feature toggle — off by default (cost-saving).
   const [importOn, setImportOn] = useState(project.importEnabled ?? false);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -99,7 +93,6 @@ export function useContentSection({
         contentPath: contentPath.trim(),
         filenamePattern: filenamePattern.trim(),
         contentFormat,
-        // "" clears the field server-side (feature off).
         animationsPath: animationsPath.trim(),
         animationsEnabled: animationsOn,
         animationLanguage,

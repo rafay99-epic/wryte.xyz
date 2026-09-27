@@ -13,15 +13,6 @@ import {
   type MdxModule,
 } from "@/components/markdown/mdx-runtime";
 
-/**
- * MDX renderer for the public share preview — the same pipeline as the
- * editor's Read view, including the author's animation components, so a
- * shared draft looks exactly like the published post will.
- *
- * Fails soft: if MDX compilation errors (draft mid-edit, broken syntax),
- * it falls back to the plain markdown renderer instead of a dead page —
- * reviewers always see *something*.
- */
 export function SharedMdxContent({
   content,
   animations,

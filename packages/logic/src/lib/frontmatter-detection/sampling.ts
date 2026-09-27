@@ -1,22 +1,15 @@
 import { configCandidatePaths } from "./frameworks";
 import type { DetectionFramework } from "./types";
 
-/** Hard caps that keep a single detection cheap regardless of repo size. */
 export const SAMPLE_LIMIT = 12;
 const CONFIG_LIMIT = 4;
 
-/** Strips leading/trailing slashes so tree paths join cleanly. */
 export function normalizePath(path: string): string {
   return path.trim().replace(/^\/+/, "").replace(/\/+$/, "");
 }
 
 export const MD_RE = /\.mdx?$/i;
 
-/**
- * Picks up to SAMPLE_LIMIT markdown blobs under the content path. Deprioritizes
- * Hugo section pages / template-ish files (`_index.md`, names starting with
- * `_`) so the sample reflects real posts.
- */
 export function selectSampleEntries(
   blobs: Array<{ path: string; sha: string }>,
   contentPath: string,
@@ -46,7 +39,6 @@ function sampleRank(path: string): number {
   return 0;
 }
 
-/** Config/archetype blobs that exist in the repo, capped. */
 export function selectConfigEntries(
   blobs: Array<{ path: string; sha: string }>,
   framework: DetectionFramework,

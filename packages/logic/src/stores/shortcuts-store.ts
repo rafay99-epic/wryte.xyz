@@ -1,31 +1,17 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
 export type ShortcutCategory = "general" | "navigation" | "editor";
 
 export type ShortcutDef = {
-  /** Unique identifier, e.g. "toggleSidebar" */
   id: string;
-  /** Human-readable label, e.g. "Toggle Sidebar" */
   label: string;
-  /** Grouping category for settings UI */
   category: ShortcutCategory;
-  /** Default key binding in TanStack Hotkeys format, e.g. "Mod+\\" */
   defaultKeys: string;
-  /** Short description shown in settings */
   description: string;
 };
 
-// ---------------------------------------------------------------------------
-// Default shortcut definitions — single source of truth
-// ---------------------------------------------------------------------------
-
 export const DEFAULT_SHORTCUTS: ShortcutDef[] = [
-  // General
   {
     id: "commandPalette",
     label: "Command Palette",
@@ -62,7 +48,6 @@ export const DEFAULT_SHORTCUTS: ShortcutDef[] = [
     description: "Close dialogs, command palette, or exit focus mode",
   },
 
-  // Navigation
   {
     id: "newArticle",
     label: "New Article",
@@ -99,7 +84,6 @@ export const DEFAULT_SHORTCUTS: ShortcutDef[] = [
     description: "Open application settings",
   },
 
-  // Editor
   {
     id: "editorBold",
     label: "Bold",
@@ -158,27 +142,17 @@ export const DEFAULT_SHORTCUTS: ShortcutDef[] = [
   },
 ];
 
-/** Lookup map for quick access by ID */
 const DEFAULTS_MAP = new Map(DEFAULT_SHORTCUTS.map((s) => [s.id, s]));
 
-// ---------------------------------------------------------------------------
-// Store
-// ---------------------------------------------------------------------------
-
 type ShortcutsState = {
-  /** User-overridden key bindings: shortcut ID → keys string */
   bindings: Record<string, string>;
 
-  /** Get the current key binding for a shortcut (user override or default) */
   getKeys: (id: string) => string;
 
-  /** Override a shortcut's key binding */
   setBinding: (id: string, keys: string) => void;
 
-  /** Reset a single shortcut to its default */
   resetBinding: (id: string) => void;
 
-  /** Reset all shortcuts to defaults */
   resetAll: () => void;
 };
 
@@ -210,16 +184,11 @@ export const useShortcutsStore = create<ShortcutsState>()(
     }),
     {
       name: "wryte-shortcuts",
-      // Only persist the bindings map, not functions
       partialize: (state) => ({ bindings: state.bindings }),
     },
   ),
 );
 
-/**
- * Check if a key binding conflicts with any existing shortcut.
- * Returns the conflicting shortcut def, or null.
- */
 export function findConflict(
   keys: string,
   excludeId: string,

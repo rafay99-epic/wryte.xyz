@@ -7,12 +7,6 @@ import {
   stripComments,
 } from "./ast-utils";
 
-/**
- * Parses a Contentlayer config (`contentlayer.config.ts`) — the common
- * frontmatter source for Next.js content sites. Its `fields` map is explicitly
- * typed (`{ type: 'list', required: true }`), which makes it the most reliable
- * config to read.
- */
 export function parseContentlayerConfig(source: string): ConfigSchema | null {
   const src = stripComments(source);
   const fieldsBody = findFieldsBody(src);
@@ -28,7 +22,6 @@ export function parseContentlayerConfig(source: string): ConfigSchema | null {
   return schema.size > 0 ? schema : null;
 }
 
-/** Finds the `fields: { ... }` object body of the first document type. */
 function findFieldsBody(src: string): string | null {
   const fieldsIdx = src.search(/\bfields\s*:/);
   if (fieldsIdx < 0) return null;
@@ -38,7 +31,6 @@ function findFieldsBody(src: string): string | null {
   return obj ? obj.inner : null;
 }
 
-/** Maps a Contentlayer field definition object to our field type. */
 function mapFieldDef(def: string): ConfigField {
   const typeMatch = def.match(/\btype\s*:\s*['"`]([a-zA-Z]+)['"`]/);
   const clType = typeMatch?.[1]?.toLowerCase() ?? "string";

@@ -21,10 +21,6 @@ import { useRef } from "react";
 import { MarketingFooter } from "@/components/layout/marketing-footer";
 import { MarketingNavbar } from "@/components/layout/marketing-navbar";
 
-/* ------------------------------------------------------------------ */
-/*  Step card                                                           */
-/* ------------------------------------------------------------------ */
-
 function StepCard({
   num,
   color,
@@ -57,7 +53,6 @@ function StepCard({
       transition={{ duration: 0.7, delay, ease: [0.22, 1, 0.36, 1] }}
     >
       <div className="grid gap-8 lg:grid-cols-2 lg:gap-12">
-        {/* Text side */}
         <div className="flex flex-col justify-center">
           <div className="mb-4 flex items-center gap-3">
             <div className="relative">
@@ -102,16 +97,11 @@ function StepCard({
           </div>
         </div>
 
-        {/* Visual side */}
         <div className="flex items-center justify-center">{visual}</div>
       </div>
     </motion.div>
   );
 }
-
-/* ------------------------------------------------------------------ */
-/*  Visual: Editor mock                                                 */
-/* ------------------------------------------------------------------ */
 
 function EditorVisual() {
   const lines = [
@@ -175,10 +165,6 @@ function EditorVisual() {
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  Visual: Board mock                                                  */
-/* ------------------------------------------------------------------ */
-
 function BoardVisual() {
   const columns = [
     {
@@ -235,10 +221,6 @@ function BoardVisual() {
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  Visual: Publish mock                                                */
-/* ------------------------------------------------------------------ */
-
 function PublishVisual() {
   const steps = [
     { label: "Frontmatter validated", done: true },
@@ -276,17 +258,12 @@ function PublishVisual() {
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  Main page                                                           */
-/* ------------------------------------------------------------------ */
-
 export default function HowItWorksPage() {
   const heroRef = useRef<HTMLDivElement>(null);
   const heroInView = useInView(heroRef, { once: true });
 
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-background text-foreground">
-      {/* Noise texture */}
       <div
         className="pointer-events-none fixed inset-0 z-[1] hidden opacity-[0.025] dark:block"
         style={{
@@ -301,10 +278,8 @@ export default function HowItWorksPage() {
       </div>
 
       <div className="relative z-10">
-        {/* Header */}
         <MarketingNavbar />
 
-        {/* Hero */}
         <section
           ref={heroRef}
           className="flex flex-col items-center px-6 pt-32 pb-20"
@@ -328,9 +303,7 @@ export default function HowItWorksPage() {
           </motion.div>
         </section>
 
-        {/* Steps */}
         <section className="mx-auto max-w-[1000px] space-y-32 px-6 pb-32">
-          {/* Step 1: Write */}
           <StepCard
             num="01"
             color="text-amber-400"
@@ -367,7 +340,6 @@ export default function HowItWorksPage() {
             visual={<EditorVisual />}
           />
 
-          {/* Step 2: Organize */}
           <StepCard
             num="02"
             color="text-purple-400"
@@ -405,7 +377,6 @@ export default function HowItWorksPage() {
             visual={<BoardVisual />}
           />
 
-          {/* Step 3: Ship */}
           <StepCard
             num="03"
             color="text-emerald-400"
@@ -444,7 +415,6 @@ export default function HowItWorksPage() {
           />
         </section>
 
-        {/* CTA */}
         <section className="relative py-24 sm:py-32">
           <div className="absolute left-1/2 top-0 h-px w-3/4 -translate-x-1/2 bg-gradient-to-r from-transparent via-foreground/[0.06] to-transparent" />
 

@@ -1,12 +1,3 @@
-/**
- * Masks a canvas to a rounded rectangle in-place. Returns the same canvas
- * with transparent pixels outside the corner radius.
- *
- * Uses `Path2D.roundRect()` when available (Safari ≥16, Chrome ≥99,
- * Firefox ≥113) and falls back to a quadratic-curve approximation for older
- * targets, mirroring ImageComposer's original implementation. Caller is
- * responsible for forcing PNG output downstream to preserve transparency.
- */
 export function applyRoundedCornerMask(
   canvas: OffscreenCanvas,
   radius: number,
@@ -17,12 +8,8 @@ export function applyRoundedCornerMask(
 
   const w = canvas.width;
   const h = canvas.height;
-  // Clamp so the radius can't exceed half of the shorter side.
   const r = Math.min(radius, Math.floor(Math.min(w, h) / 2));
 
-  // `putImageData` ignores clip paths, so stash the current pixels onto a
-  // temp canvas, clear the destination, set up the clip, then `drawImage`
-  // back through it.
   const tmp = new OffscreenCanvas(w, h);
   const tmpCtx = tmp.getContext("2d");
   if (!tmpCtx) return canvas;

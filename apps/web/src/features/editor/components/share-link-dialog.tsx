@@ -24,12 +24,6 @@ type ShareLinkDialogProps = {
   documentId: string;
 };
 
-/**
- * Create / copy / revoke the document's public preview link. The link is
- * app-URL based — `{origin}/preview/{token}` — with a crypto-random token
- * as the path segment. Anyone with the link sees the live draft content,
- * read-only, until it's revoked.
- */
 export function ShareLinkDialog({
   open,
   onOpenChange,
@@ -53,8 +47,6 @@ export function ShareLinkDialog({
   async function handleCreate() {
     setIsBusy(true);
     try {
-      // Token minted client-side via Web Crypto — the server validates
-      // shape and stores it; the resulting URL stays on the app origin.
       const token = crypto.randomUUID().replaceAll("-", "");
       await createLink({
         documentId: documentId as Id<"documents">,

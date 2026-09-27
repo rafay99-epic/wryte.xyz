@@ -55,14 +55,8 @@ import { CreateDocumentDialog } from "@/features/new-project-document/components
 import { useBulkDelete } from "@/features/project-detail/hooks/use-bulk-delete";
 import { useBulkImport } from "@/features/project-detail/hooks/use-bulk-import";
 
-/** A file entry returned from the GitHub Contents API. */
 type RemoteFile = ContentFile;
 
-/**
- * Project detail page. Owns the project's data subscriptions, search, remote
- * GitHub file listing, and the create/import/delete/schedule flows, then
- * renders `<ContentDashboard>` and the dialogs around it.
- */
 export function ProjectDetailPage({
   projectId: rawProjectId,
 }: {
@@ -79,14 +73,12 @@ export function ProjectDetailPage({
   const columns = boardColumns ?? DEFAULT_BOARD_COLUMNS;
   const projectDeleted = project === null;
 
-  // Redirect to projects list if the project was deleted
   useEffect(() => {
     if (projectDeleted) {
       router.push("/projects");
     }
   }, [projectDeleted, router]);
 
-  // Set active project in sidebar on mount; reset transient state on unmount
   useEffect(() => {
     useEditorStore.getState().setActiveProjectId(projectId);
     return () => {
@@ -95,15 +87,9 @@ export function ProjectDetailPage({
     };
   }, [projectId]);
 
-  // --- Search store (persisted per-project) ---
   const searchQuery = useSearchStore((s) => s.query);
   const setSearchQuery = useSearchStore((s) => s.setQuery);
 
-  // Body search, scoped to this project. The client-side index below only sees
-  // `excerpt` (the denormalized first ~200 characters), so a phrase from deeper
-  // in an article is invisible to it — bodies live in `document_content`
-  // specifically so this page's list query never reads them. This query is the
-  // one that can see them: debounced, length-gated, and capped server-side.
   const debouncedQuery = useDebouncedValue(
     searchQuery.trim(),
     CONTENT_SEARCH_DEBOUNCE_MS,
@@ -133,10 +119,8 @@ export function ProjectDetailPage({
   const [remoteDeleteTarget, setRemoteDeleteTarget] =
     useState<RemoteDeleteTarget | null>(null);
 
-  // Only attempt remote file fetching when the project has GitHub configured.
   const hasGithub = Boolean(project?.githubRepo && project?.contentPath);
 
-  // --- Remote GitHub files via TanStack Query ---
   const {
     data: remoteData,
     isLoading: isLoadingRemote,
@@ -151,12 +135,9 @@ export function ProjectDetailPage({
 
   const { invalidateContent } = useGithubInvalidation();
 
-  /** Refresh remote files — used after delete/import. */
   const fetchRemoteFiles = useCallback(async () => {
     await invalidateContent();
   }, [invalidateContent]);
-
-  // --- Build unified content items ---
 
   const importedPaths = useMemo(() => {
     const s = new Set<string>();
@@ -170,8 +151,6 @@ export function ProjectDetailPage({
     const items: ContentItem[] = [];
 
     for (const doc of documents ?? []) {
-      // `excerpt` + `wordCount` are derived server-side now (the list query no
-      // longer ships full `content` — see convex/cms/documents.ts:list).
       const excerpt = doc.excerpt;
       const hasGithubPath = Boolean(doc.githubPath);
       const isSynced =
@@ -221,7 +200,6 @@ export function ProjectDetailPage({
     return items;
   }, [documents, remoteFiles, importedPaths]);
 
-  // --- Frontmatter map for tags/author ---
   const tagFieldName = useMemo(
     () => getTagFieldName(project?.frontmatterSchema),
     [project?.frontmatterSchema],
@@ -235,7 +213,6 @@ export function ProjectDetailPage({
     return map;
   }, [documents, tagFieldName]);
 
-  // --- All unique tags (for filter UI) ---
   const allTags = useMemo(() => {
     const tagSet = new Set<string>();
     for (const item of contentItems) {
@@ -254,15 +231,12 @@ export function ProjectDetailPage({
     return Array.from(tagSet).sort();
   }, [contentItems, frontmatterMap]);
 
-  // --- Search index (pre-computed for performance) ---
   const searchIndex = useMemo(
     () => buildSearchIndex(contentItems, frontmatterMap),
     [contentItems, frontmatterMap],
   );
 
-  // --- Filter & search ---
   const filteredItems = useMemo(() => {
-    // 1. Tab filter (view filter from tabs)
     let items = contentItems;
     if (viewFilter === "local") {
       items = items.filter((i) => i.kind === "local");
@@ -272,32 +246,26 @@ export function ProjectDetailPage({
       items = items.filter((i) => i.status === viewFilter);
     }
 
-    // 2. Kind filter from search store
     if (kindFilter !== "all") {
       items = items.filter((i) => i.kind === kindFilter);
     }
 
-    // 3. Status filter from search store
     if (statusFilter) {
       items = items.filter((i) => i.status === statusFilter);
     }
 
-    // 4. Tag filters from search store (OR logic — match any selected tag)
     if (tagFilters.length > 0) {
       const tagSet = new Set(tagFilters);
       items = items.filter((i) => {
         const itemTags = i.tags ?? [];
-        // Also check frontmatter tags
         const fm = i.id ? frontmatterMap.get(i.id) : undefined;
         const allTags = [...itemTags, ...(fm?.tags ?? [])];
         return allTags.some((t) => tagSet.has(t));
       });
     }
 
-    // 5. Text search with relevance scoring
     const query = searchQuery.trim();
     if (query) {
-      // Build a filtered search index matching current item set
       const itemIds = new Set(
         items.map((i) => (i.kind === "local" ? i.id : i.path)),
       );
@@ -306,18 +274,12 @@ export function ProjectDetailPage({
       );
       const scored = searchItems(filteredIndex, query);
 
-      // Sort by relevance when searching
       if (sortOrder === "relevance" || sortOrder === "newest") {
         scored.sort((a, b) => b.score - a.score);
       }
 
       const matched = scored.map((s) => s.item);
 
-      // Documents whose BODY matches but whose excerpt/title/tags don't — the
-      // client index cannot see these at all. Appended after the scored rows
-      // (step 6 re-sorts them into the chosen order unless it's relevance) and
-      // drawn from the already-filtered `items`, so tab/status/tag filters
-      // still apply.
       if (bodyHitIds.size > 0) {
         const seen = new Set(
           matched.map((i) => (i.kind === "local" ? i.id : i.path)),
@@ -332,7 +294,6 @@ export function ProjectDetailPage({
       items = matched;
     }
 
-    // 6. Sort (when not in relevance-search mode)
     if (!query || sortOrder !== "relevance") {
       items = [...items].sort((a, b) => {
         switch (sortOrder) {
@@ -345,7 +306,6 @@ export function ProjectDetailPage({
           case "z-a":
             return b.title.localeCompare(a.title);
           default: {
-            // Default: local first, then by date
             if (a.kind !== b.kind) return a.kind === "local" ? -1 : 1;
             if (a.kind === "local" && b.kind === "local") {
               return (b.updatedAt ?? 0) - (a.updatedAt ?? 0);
@@ -370,11 +330,9 @@ export function ProjectDetailPage({
     bodyHitIds,
   ]);
 
-  // --- Auto-import + navigate for remote files ---
   const importFile = useAction(api.integrations.github.importFileFromGithub);
   const [importingPath, setImportingPath] = useState<string | null>(null);
 
-  // Bulk import lifecycle — owns batchId, isStarting, reactive batch query.
   const {
     batch,
     isStarting: isStartingImport,
@@ -390,15 +348,6 @@ export function ProjectDetailPage({
     [projectId, router],
   );
 
-  /**
-   * Wraps the Convex `importFileFromGithub` action with automatic retries on
-   * the rate-limit response. Convex throws a `ConvexError` whose `.data`
-   * carries `{ kind: "RateLimited", retryAfter: <ms> }`; we sleep for that
-   * window and try again (up to 3 attempts). Anything else bubbles up.
-   *
-   * This makes large bulk imports just slow down under throttle instead of
-   * silently failing partway through.
-   */
   const importWithRetry = useCallback(
     async (
       args: { projectId: Id<"projects">; filePath: string },
@@ -429,7 +378,6 @@ export function ProjectDetailPage({
     [importFile],
   );
 
-  // --- Bulk publish ---
   const bulkPublishAction = useAction(api.integrations.github.bulkPublish);
   const [isBulkPublishing, setIsBulkPublishing] = useState(false);
   const [bulkPublishProgress, setBulkPublishProgress] = useState<{
@@ -463,22 +411,11 @@ export function ProjectDetailPage({
     [projectId, importWithRetry, router],
   );
 
-  // Bulk import handler — thin pass-through to the hook. Returns the
-  // hook's result so callers (like the Sync button) can await the
-  // classification before showing UI.
   const handleBatchImport = useCallback(
     (paths: string[]) => startBulkImportFlow(paths),
     [startBulkImportFlow],
   );
 
-  /**
-   * Smart Sync — refresh the GitHub file list, then diff-import any
-   * changed files. Skips unchanged files entirely (no workpool jobs)
-   * and surfaces conflicts via the bulk-import dialog. This replaces
-   * the old "just invalidate the TanStack cache" behavior of the Sync
-   * button so a click means "bring Convex into agreement with GitHub"
-   * instead of "show me the file picker again."
-   */
   const handleSyncFromGithub = useCallback(async () => {
     const refetched = await refetchRemoteFiles();
     const files = refetched.data?.files ?? remoteFiles;
@@ -490,7 +427,6 @@ export function ProjectDetailPage({
     await startBulkImportFlow(allPaths);
   }, [refetchRemoteFiles, remoteFiles, startBulkImportFlow]);
 
-  // --- Bulk publish handler ---
   const handleBulkPublish = useCallback(
     async (docIds: string[]) => {
       if (!hasGithub) {
@@ -540,10 +476,6 @@ export function ProjectDetailPage({
     [projectId, hasGithub, bulkPublishAction],
   );
 
-  // --- Bulk delete ---
-  // Same shape as bulk import: dialog owns progress UI; parent threads
-  // the reactive batch state through. Hook also re-runs the remote file
-  // refresh in `done` because a github/both delete makes that list stale.
   const {
     batch: deleteBatch,
     isStarting: isStartingDelete,
@@ -556,7 +488,6 @@ export function ProjectDetailPage({
     onDone: fetchRemoteFiles,
   });
 
-  // --- Delete handlers ---
   const handleDeleteLocal = useCallback(
     (item: ContentItem) => {
       const doc = (documents ?? []).find((d) => d._id === item.id);
@@ -588,7 +519,6 @@ export function ProjectDetailPage({
 
   return (
     <div className="p-6">
-      {/* Header */}
       <motion.div
         variants={fadeSlideUp}
         initial="initial"
@@ -640,10 +570,8 @@ export function ProjectDetailPage({
         </div>
       </motion.div>
 
-      {/* Pending sync conflicts banner */}
       <SyncConflictsBanner projectId={projectId} />
 
-      {/* Content Dashboard */}
       <ContentDashboard
         items={filteredItems}
         allItems={contentItems}
@@ -683,7 +611,6 @@ export function ProjectDetailPage({
         frontmatterMap={frontmatterMap}
       />
 
-      {/* Dialogs */}
       <CreateDocumentDialog
         projectId={projectId}
         open={createDialogOpen}
@@ -730,19 +657,12 @@ export function ProjectDetailPage({
   );
 }
 
-/**
- * Renders the ScheduleDialog when a card is dropped on a "schedule" column.
- * If the user dismisses without scheduling, the card is reverted to its
- * previous column. We detect this by checking whether the document's status
- * changed to "scheduled" — if so, the schedule succeeded and no revert is needed.
- */
 function BoardScheduleDialog() {
   const pendingDocId = useBoardStore((s) => s.pendingScheduleDocId);
   const pendingPrevStatus = useBoardStore((s) => s.pendingSchedulePrevStatus);
   const clearPendingSchedule = useBoardStore((s) => s.clearPendingSchedule);
   const moveCard = useMutation(api.cms.documents.moveCard);
 
-  // Query the document to check its status on close
   const document = useQuery(
     api.cms.documents.getMeta,
     pendingDocId ? { documentId: pendingDocId as Id<"documents"> } : "skip",
@@ -751,7 +671,6 @@ function BoardScheduleDialog() {
   const handleOpenChange = useCallback(
     (open: boolean) => {
       if (!open && pendingDocId && pendingPrevStatus) {
-        // Only revert if the document was NOT successfully scheduled
         const wasScheduled = document?.status === "scheduled";
         if (!wasScheduled) {
           void moveCard({
@@ -782,8 +701,6 @@ function BoardScheduleDialog() {
     />
   );
 }
-
-// --- Skeleton ---
 
 function ProjectDetailSkeleton() {
   return (

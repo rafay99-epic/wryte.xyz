@@ -1,19 +1,3 @@
-/**
- * socialCredentials — per-project Buffer API key management.
- *
- * Mirrors `ai/credentials.ts`:
- *   - `setCredentials` (first-time save + verify)
- *   - `rotate` (replace the key; verifies before swapping)
- *   - `testCredentials` (re-verify the stored key + refresh channel list)
- *   - `deleteCredentials` (remove vault entry + row; also clears the legacy
- *     Upload-Post row when asked)
- *   - `updateConfig` (change which channels announcements go to)
- *
- * Verification = listing the account's channels via Buffer's GraphQL API —
- * a key that can't list channels can't post. The channel list is cached in
- * `publicConfig` so the settings UI renders it without a live round-trip:
- * `{ channels: [{id, service, name}], enabledChannelIds: string[] }`.
- */
 "use node";
 
 import { ConvexError, v } from "convex/values";
@@ -40,15 +24,10 @@ function buildPublicConfig(
   } satisfies BufferPublicConfig);
 }
 
-/* ------------------------------------------------------------------ */
-/*  Public actions                                                      */
-/* ------------------------------------------------------------------ */
-
 export const setCredentials = action({
   args: {
     projectId: v.id("projects"),
     secret: v.string(),
-    /** Channel ids to announce to; empty = enable all connected channels. */
     enabledChannelIds: v.optional(v.array(v.string())),
   },
   returns: v.object({
@@ -89,8 +68,6 @@ export const setCredentials = action({
       { projectId: args.projectId, provider: "buffer" },
     );
 
-    // Verify-first — never destroy a working vault entry on a bad new secret,
-    // and the channel list doubles as the config we store.
     const verify = await fetchBufferChannels(secret);
     if (!verify.ok) {
       return {
@@ -149,9 +126,7 @@ export const setCredentials = action({
         await ctx.runAction(internal.integrations.secretStore._delete, {
           id: existing.vaultSecretId,
         });
-      } catch {
-        // Orphan vault entry — non-fatal.
-      }
+      } catch {}
     } else {
       const insertArgs: {
         projectId: Id<"projects">;
@@ -185,10 +160,6 @@ export const setCredentials = action({
   },
 });
 
-/**
- * Re-verify the stored key. Also refreshes the cached channel list, so
- * "Test Connection" doubles as "pick up newly connected Buffer channels".
- */
 export const testCredentials = action({
   args: { projectId: v.id("projects") },
   returns: v.object({ ok: v.boolean(), message: v.optional(v.string()) }),
@@ -216,8 +187,6 @@ export const testCredentials = action({
       return verify;
     }
 
-    // Keep prior enabled selection where those channels still exist; newly
-    // connected channels stay unselected until the user opts in.
     const prior = parseConfig(cred.publicConfig);
     await ctx.runMutation(internal.social.credentialsDb._updatePublicConfig, {
       credentialId: cred._id,
@@ -310,7 +279,6 @@ export const rotate = action({
       markArgs.newVersionId = created.versionId;
     await ctx.runMutation(internal.social.credentialsDb._markRotated, markArgs);
 
-    // Refresh the channel cache from the new key's account.
     const prior = parseConfig(cred.publicConfig);
     await ctx.runMutation(internal.social.credentialsDb._updatePublicConfig, {
       credentialId: cred._id,
@@ -324,9 +292,7 @@ export const rotate = action({
       await ctx.runAction(internal.integrations.secretStore._delete, {
         id: cred.vaultSecretId,
       });
-    } catch {
-      // Orphan — non-fatal.
-    }
+    } catch {}
 
     return { credentialId: cred._id, ok: true };
   },
@@ -335,7 +301,6 @@ export const rotate = action({
 export const deleteCredentials = action({
   args: {
     projectId: v.id("projects"),
-    /** Also used to clear the retired Upload-Post row from the migration banner. */
     provider: v.optional(
       v.union(v.literal("buffer"), v.literal("upload-post")),
     ),
@@ -359,9 +324,7 @@ export const deleteCredentials = action({
       await ctx.runAction(internal.integrations.secretStore._delete, {
         id: cred.vaultSecretId,
       });
-    } catch {
-      // Best-effort.
-    }
+    } catch {}
     await ctx.runMutation(internal.social.credentialsDb._delete, {
       credentialId: cred._id,
     });
@@ -369,7 +332,6 @@ export const deleteCredentials = action({
   },
 });
 
-/** Change which connected channels announcements are sent to. */
 export const updateConfig = action({
   args: {
     projectId: v.id("projects"),
@@ -404,10 +366,6 @@ export const updateConfig = action({
     return null;
   },
 });
-
-/* ------------------------------------------------------------------ */
-/*  Helpers                                                             */
-/* ------------------------------------------------------------------ */
 
 export function parseConfig(
   raw: string | undefined,

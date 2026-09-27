@@ -54,7 +54,6 @@ import { useAnimationChecks } from "@/features/editor/hooks/use-animation-checks
 
 const COMPILE_DEBOUNCE_MS = 400;
 
-/* Mirror server rules (convex/cms/animations.ts) for instant feedback. */
 const NAME_RE = /^[A-Z][A-Za-z0-9]*$/;
 const RESERVED_NAMES = new Set(["Fragment", "React", "Component", "Suspense"]);
 
@@ -65,7 +64,6 @@ type CardRow = {
   checkStatus: AnimationCheckStatus | null;
 };
 
-/** Extract the default-exported function/component name from TSX source. */
 function extractDefaultExportName(source: string): string | null {
   const match = source.match(
     /export\s+default\s+(?:function\s+(\w+)|const\s+(\w+)\s*[:=])/,
@@ -75,11 +73,6 @@ function extractDefaultExportName(source: string): string | null {
   return nameMatch?.[1] ?? null;
 }
 
-/**
- * Project-level animation gallery. Cards load lightweight name+date rows
- * from the server; source code is fetched lazily per-card via Intersection-
- * Observer, so loading 200 cards costs ~20KB of reads instead of ~20MB.
- */
 export function AnimationGalleryPage({
   projectId: rawProjectId,
 }: {
@@ -229,10 +222,6 @@ export function AnimationGalleryPage({
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  Card                                                               */
-/* ------------------------------------------------------------------ */
-
 function useCardInView() {
   const ref = useRef<HTMLDivElement | null>(null);
   const [inView, setInView] = useState(false);
@@ -273,8 +262,6 @@ function AnimationCard({
   onDelete: () => void;
 }) {
   const { ref, inView } = useCardInView();
-  // Fetch the source lazily — only when the card is about to enter view.
-  // This keeps the gallery load to ~100 bytes per card instead of ~100KB.
   const source = useQuery(
     api.cms.animations.getSource,
     inView ? { animationId: card._id } : "skip",
@@ -379,14 +366,6 @@ function AnimationCard({
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  Edit / create sheet                                                */
-/* ------------------------------------------------------------------ */
-/* ponytail: form markup overlaps the editor's AnimationInsertDialog —
- * the compile/render logic is shared via lib/animations, only the JSX is
- * duplicated. Extract a shared <AnimationForm> when a third surface needs
- * it. */
-
 function AnimationEditSheet({
   projectId,
   checkLevel,
@@ -400,7 +379,6 @@ function AnimationEditSheet({
   language: AnimationLanguage;
   editing: CardRow | "new" | null;
   onClose: () => void;
-  /** Hands off to the shared reference-checked delete dialog. */
   onRequestDelete: (row: DeletableAnimation) => void;
 }) {
   const createAnimation = useMutation(api.cms.animations.create);
@@ -410,7 +388,6 @@ function AnimationEditSheet({
   const row = isNew || editing === null ? null : editing;
   const open = editing !== null;
 
-  // Fetch the full source on demand when editing an existing animation
   const sourceRow = useQuery(
     api.cms.animations.getSource,
     row ? { animationId: row._id } : "skip",
@@ -423,7 +400,6 @@ function AnimationEditSheet({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const sourceRef = useRef<HTMLTextAreaElement>(null);
 
-  // Populate source once it arrives
   useEffect(() => {
     if (sourceRow) setSource(sourceRow);
   }, [sourceRow]);

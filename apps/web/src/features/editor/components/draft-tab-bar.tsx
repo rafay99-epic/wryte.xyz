@@ -35,7 +35,6 @@ import { DraftCompareSheet } from "./draft-compare-sheet";
 type DraftTabBarProps = {
   documentId: string;
   projectId: string;
-  /** Main doc from the editor page's subscription — no own body query here. */
   mainDocument: { title: string; content: string } | null | undefined;
   onRequestSave: () => Promise<void>;
   onSynthesisOpen: () => void;
@@ -65,16 +64,12 @@ export function DraftTabBar({
 
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
-  // Draft the compare sheet was opened from (null = sheet closed). Seeds the
-  // sheet's right-hand side; left defaults to Main.
   const [compareDraftId, setCompareDraftId] =
     useState<Id<"document_drafts"> | null>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const activeTabRef = useRef<HTMLDivElement>(null);
 
-  // Cached, race-safe switching state machine (per-session content cache,
-  // TTL-bounded revalidation, supersede-on-newer-switch).
   const { switchToDraft, evictDraft, seedDraft, applyPromotedMain } =
     useDraftSwitching({
       projectId,
@@ -110,8 +105,6 @@ export function DraftTabBar({
         documentId: documentId as Id<"documents">,
         copyFromMain: false,
       });
-      // A blank draft's server content is exactly "" / "" — seed the cache
-      // as verified so the switch below is instant and never fetches.
       seedDraft(id, { title: "", content: "" }, true);
       await switchToDraft(id);
       toast.success("New draft created");
@@ -128,10 +121,6 @@ export function DraftTabBar({
         documentId: documentId as Id<"documents">,
         copyFromMain: true,
       });
-      // Seed from the editor page's live Main subscription (threaded down
-      // as a prop — this bar deliberately has no body query of its own) so
-      // the switch is instant; unverified (one background check) in case
-      // the prop lagged the server's copy by a beat.
       if (mainDocument) {
         seedDraft(
           id,
@@ -151,8 +140,6 @@ export function DraftTabBar({
   const handleDelete = useCallback(
     async (draftId: string) => {
       if (activeDraftId === draftId) {
-        // Move off the draft first; abort the delete if that failed so we
-        // never delete the version the editor is still pointed at.
         const switched = await switchToDraft(null);
         if (!switched) return;
       }
@@ -172,9 +159,6 @@ export function DraftTabBar({
   const handlePromote = useCallback(
     async (draftId: string): Promise<boolean> => {
       try {
-        // Persist whatever tab is being edited first: promoting reads the
-        // draft server-side, and the post-promote apply below replaces the
-        // store — without this flush, unsaved edits would be silently lost.
         await onRequestSave();
         const result = await promoteDraft({
           draftId: draftId as Id<"document_drafts">,
@@ -194,8 +178,6 @@ export function DraftTabBar({
 
   const handleCompare = useCallback(
     async (draftId: string) => {
-      // Flush pending keystrokes first so the diff reflects the latest edits
-      // (the active tab's content is only persisted on save).
       await onRequestSave();
       setCompareDraftId(draftId as Id<"document_drafts">);
     },
@@ -228,7 +210,6 @@ export function DraftTabBar({
 
   return (
     <div className="flex items-center border-b border-border/40 bg-muted/20">
-      {/* Scrollable tab area */}
       <div
         ref={scrollRef}
         className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto px-2 py-1 hide-scrollbar"
@@ -349,7 +330,6 @@ export function DraftTabBar({
         ))}
       </div>
 
-      {/* Pinned actions — always visible */}
       <div className="flex shrink-0 items-center gap-1 border-l border-border/30 px-2 py-1">
         <DropdownMenu>
           <DropdownMenuTrigger

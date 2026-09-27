@@ -14,17 +14,6 @@ declare global {
   }
 }
 
-/**
- * Marks the document when running inside the macOS desktop shell so the site's
- * headers can double as the draggable title bar with room for the traffic-light
- * buttons (styling lives in globals.css under `html.wryte-desktop-mac`).
- *
- * Also tracks online/offline state. The offline banner renders when the
- * desktop wrapper detects no internet connectivity.
- *
- * `window.wryteDesktop` is injected by the Electron preload; on the web it's
- * undefined and this renders nothing, so the site is unaffected.
- */
 export function DesktopChrome() {
   const [online, setOnline] = useState<boolean | null>(null);
   const [backOnline, setBackOnline] = useState(false);

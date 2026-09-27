@@ -26,14 +26,12 @@ import { Fragment, useMemo } from "react";
 
 type PublishDiffSheetProps = {
   historyId: Id<"publish_history"> | null;
-  /** The selected entry is the latest publish — offer no Restore for it. */
   isLatest: boolean;
   onOpenChange: (open: boolean) => void;
   onRollback: (historyId: Id<"publish_history">) => void;
   rollingBack: boolean;
 };
 
-/** Pretty-print a frontmatter JSON string for line-diffing; raw on failure. */
 function frontmatterLines(raw: string | undefined): string {
   if (!raw) return "";
   try {
@@ -79,12 +77,6 @@ function DiffBlock({ rows }: { rows: DiffRow[] }) {
   );
 }
 
-/**
- * What one publish changed compared to the publish before it: green lines
- * were added by this publish, red lines removed. First publish diffs
- * against empty ("everything added"). Frontmatter changes render as their
- * own small block above the body diff.
- */
 export function PublishDiffSheet({
   historyId,
   isLatest,

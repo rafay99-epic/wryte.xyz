@@ -1,20 +1,9 @@
-/**
- * Secret store — encrypted credential storage behind a swappable interface.
- *
- * The default impl wraps WorkOS Vault. The interface is intentionally narrow
- * (create / read / update / delete) so a future swap to AWS Secrets Manager,
- * GCP Secret Manager, or an in-house AES-GCM/KMS impl is a localized change.
- *
- * Vault operations run in Node-only Convex actions because the WorkOS SDK
- * uses Node crypto primitives.
- */
 "use node";
 
 import { WorkOS } from "@workos-inc/node";
 import { v } from "convex/values";
 import { internalAction } from "../_generated/server";
 
-/** Metadata attached to every stored secret. Visible in WorkOS audit logs. */
 export interface SecretMeta {
   userId: string;
   projectId?: string;
@@ -46,16 +35,10 @@ function buildClient(): WorkOS {
   return new WorkOS(apiKey);
 }
 
-/**
- * WorkOS Vault implementation. Each vault object holds one secret value with
- * a name + free-form context (used here for {userId, projectId, provider}).
- */
 function makeWorkOSStore(): SecretStore {
   return {
     async create(value, meta) {
       const workos = buildClient();
-      // Names must be unique inside the WorkOS environment; append a random
-      // suffix so the same project/provider can rotate without conflict.
       const suffix = Math.random().toString(36).slice(2, 10);
       const name = `wryte/${meta.label}/${suffix}`;
       const res = await workos.vault.createObject({
@@ -67,8 +50,6 @@ function makeWorkOSStore(): SecretStore {
           provider: meta.provider ?? "",
         },
       });
-      // @workos-inc/node v10 widened versionId to include null — omit the
-      // key entirely when absent (exactOptionalPropertyTypes).
       return {
         id: res.id,
         ...(res.versionId != null ? { versionId: res.versionId } : {}),
@@ -103,13 +84,7 @@ function makeWorkOSStore(): SecretStore {
   };
 }
 
-/** Singleton — the rest of the codebase imports this directly. */
 export const secretStore: SecretStore = makeWorkOSStore();
-
-/* ------------------------------------------------------------------ */
-/*  Internal action wrappers — so other Convex modules can use the    */
-/*  vault from outside Node-only files.                                */
-/* ------------------------------------------------------------------ */
 
 export const _create = internalAction({
   args: {

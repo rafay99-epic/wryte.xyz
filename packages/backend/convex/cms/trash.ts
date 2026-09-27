@@ -1,19 +1,3 @@
-/**
- * Trash subsystem for soft-deleted documents.
- *
- * Every doc deletion (single, bulk-local, workpool bulk) sets
- * `documents.trashedAt` instead of hard-deleting. The trash view
- * lists those docs and offers Restore / Permanent delete actions.
- * A daily cron drains trash older than the project's
- * `trashRetentionDays` (default 30) — see
- * `_cleanupExpired`.
- *
- * Cascade contract: when we soft-delete, we still cancel any pending
- * scheduled publishes for the doc — restoring won't bring them back.
- * Users have to re-schedule on restore. That's intentional: a
- * trashed doc with an active timer would fire and publish a
- * just-restored stale draft.
- */
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
@@ -32,12 +16,6 @@ import { purgeDocumentArtifacts } from "./_lib/purgeDocumentArtifacts";
 const DEFAULT_RETENTION_DAYS = 30;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
-/**
- * Lists trashed docs for a project, ordered by `trashedAt` desc
- * (newest deletion first). Returns the lite shape the trash table
- * needs — title, slug, path, trashedAt, the project's retention
- * (so the UI can render "expires in N days").
- */
 export const listByProject = query({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
@@ -83,11 +61,6 @@ async function loadOwnedTrashedDoc(
   );
 }
 
-/**
- * Ownership-checked read of a trashed document with the actor passed in
- * explicitly. Shared with the MCP handler, which has no `ctx.auth` — see
- * `_lib/auth.ts → requireCaller`.
- */
 async function loadTrashedDocForUser(
   ctx: { db: import("../_generated/server").MutationCtx["db"] },
   user: Doc<"users">,
@@ -107,12 +80,6 @@ async function loadTrashedDocForUser(
   return doc;
 }
 
-/**
- * Restores a trashed doc by clearing `trashedAt`. We deliberately do
- * NOT recreate scheduled publishes — they were dropped at delete time
- * to avoid firing against a soft-deleted target, and re-creating them
- * now would publish a stale draft. Users re-schedule manually.
- */
 export const restore = mutation({
   args: { documentId: v.id("documents") },
   handler: async (ctx, args) =>
@@ -123,8 +90,6 @@ export const restore = mutation({
     ),
 });
 
-/** `restore`'s body with the actor passed in explicitly. Shared with the MCP
- *  handler, which has no `ctx.auth` — see `_lib/auth.ts → requireCaller`. */
 export async function restoreTrashedForUser(
   ctx: MutationCtx,
   user: Doc<"users">,
@@ -156,19 +121,6 @@ export async function restoreTrashedForUser(
   });
 }
 
-/**
- * Permanently deletes a trashed doc. No undo. Use only from the trash
- * view after explicit user confirmation.
- *
- * Also purges every dependent artifact row (drafts, snapshots, sync
- * conflicts, publish history, research notes, share links, scheduled
- * publishes — see `purgeDocumentArtifacts`) so a hard delete never
- * orphans them. `purgeDocumentArtifacts` is bounded per call; in the
- * (very unlikely) case a single document has more artifacts than one
- * call can drain, we schedule a continuation and leave the document row
- * in place until the purge finishes — deleting the parent before its
- * children are gone would make them unreachable forever.
- */
 export const permanentDelete = mutation({
   args: { documentId: v.id("documents") },
   handler: async (ctx, args) => {
@@ -195,18 +147,11 @@ export const permanentDelete = mutation({
   },
 });
 
-/**
- * Continuation for `permanentDelete` (and the batch paths below) when a
- * single document's artifacts exceed `purgeDocumentArtifacts`'s per-call
- * cap. Idempotent and self-resuming: each call just picks up wherever the
- * indexed queries left off, so re-scheduling itself is safe even under
- * retries.
- */
 export const _finishPermanentDelete = internalMutation({
   args: { documentId: v.id("documents") },
   handler: async (ctx, args) => {
     const doc = await ctx.db.get(args.documentId);
-    if (!doc) return; // Already fully deleted by a prior run.
+    if (!doc) return;
 
     const { done } = await purgeDocumentArtifacts(ctx, args.documentId);
     if (!done) {
@@ -224,24 +169,8 @@ export const _finishPermanentDelete = internalMutation({
   },
 });
 
-/**
- * Number of trashed documents processed per `emptyTrash` call. Reduced
- * from the pre-cascade 200: each document can now also drain up to
- * `PER_CALL_CAP` (see `purgeDocumentArtifacts`) dependent artifact rows,
- * so the outer document batch has to shrink to keep the whole mutation
- * safely inside Convex's transaction limits. The UI should warn (and
- * call again) if there's more.
- */
 const EMPTY_TRASH_DOC_BATCH = 25;
 
-/**
- * Empties an entire project's trash. Authoritative permission check
- * happens once; then we iterate the trash list and hard-delete, purging
- * each document's dependent artifacts first (see `permanentDelete`'s
- * doc comment for why a document whose purge doesn't finish in one call
- * is left in place with a scheduled continuation instead of being
- * deleted early).
- */
 export const emptyTrash = mutation({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args): Promise<{ deleted: number; pending: number }> => {
@@ -266,10 +195,6 @@ export const emptyTrash = mutation({
       .take(EMPTY_TRASH_DOC_BATCH);
     let deleted = 0;
     let pending = 0;
-    // Shared artifact budget across every document in this call. Without
-    // it, 25 documents × PER_CALL_CAP artifact deletes each could stack
-    // past Convex's per-transaction limits; docs not reached before the
-    // budget runs out simply stay trashed for the next call.
     let artifactBudget = 300;
     for (const d of trashed) {
       if (artifactBudget <= 0) break;
@@ -298,37 +223,10 @@ export const emptyTrash = mutation({
   },
 });
 
-/**
- * Number of days that flips "Never auto-delete" — projects with at
- * least this retention never enter the cleanup loop's per-project
- * index query, which keeps the daily cron's cost ≈ O(active projects).
- */
 const NEVER_DELETE_THRESHOLD_DAYS = 36500;
 
-/** Projects visited per `_cleanupExpired` transaction. */
 const PROJECT_PAGE_SIZE = 100;
 
-/**
- * Daily cron entry point. For each project, queries only the docs
- * whose `trashedAt` is in `(0, cutoff]` via the
- * `by_projectId_and_trashedAt` index — no full project scan, no
- * client-side filter over fresh docs. Projects with "Never" retention
- * are skipped before the query even fires.
- *
- * Walks projects one page (`PROJECT_PAGE_SIZE`) per transaction and
- * self-reschedules with the next cursor until every project is visited.
- * Per-transaction cap of 100 documents to stay safely inside Convex's
- * mutation transaction budget. Reduced from the pre-cascade 500: each
- * document can now also drain up to `PER_CALL_CAP` (see
- * `purgeDocumentArtifacts`) dependent artifact rows, not just its own two
- * rows, so the per-run document cap has to shrink accordingly. When a page
- * hits the cap, the same page runs again in a fresh transaction, so the
- * whole expired backlog drains in one cron tick.
- *
- * Cost model per transaction: 1 page of projects + 1 indexed query per
- * project (skipping "Never" retention projects) + N purge-then-delete
- * calls bounded by PER_RUN_CAP.
- */
 export const _cleanupExpired = internalMutation({
   args: { cursor: v.optional(v.union(v.string(), v.null())) },
   handler: async (
@@ -354,10 +252,6 @@ export const _cleanupExpired = internalMutation({
     } = await ctx.db
       .query("projects")
       .paginate({ numItems: PROJECT_PAGE_SIZE, cursor });
-    // Shared artifact budget across every document this run — same
-    // rationale as `emptyTrash`: stacked per-document purges must not
-    // multiply past transaction limits. Docs not reached are picked up by
-    // the re-run of this page scheduled below.
     let artifactBudget = 400;
 
     for (const project of projects) {
@@ -370,10 +264,6 @@ export const _cleanupExpired = internalMutation({
       }
       const cutoff = now - retentionDays * MS_PER_DAY;
 
-      // Range query: only expired trashed docs are scanned. `gt(0)`
-      // filters out the always-active rows whose `trashedAt` is
-      // undefined (undefined sorts as smallest in Convex indexes);
-      // `lte(cutoff)` caps to expired ones.
       const expired = await ctx.db
         .query("documents")
         .withIndex("by_projectId_and_trashedAt", (q) =>

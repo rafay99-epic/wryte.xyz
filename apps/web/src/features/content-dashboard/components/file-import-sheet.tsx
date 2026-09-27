@@ -51,7 +51,6 @@ type AnimationItem = {
   source: string;
   error?: string;
   imported: boolean;
-  /** Set when this name already exists — user must resolve. */
   conflict?: "skip" | "rename" | "replace";
 };
 
@@ -65,7 +64,6 @@ type FileImportSheetProps = {
 
 const ACCEPT = ".md,.mdx,.tsx,text/markdown";
 
-/** Extract the default-exported function/component name from TSX source. */
 function extractAnimationName(source: string): string | null {
   const match = source.match(
     /export\s+default\s+(?:function\s+(\w+)|const\s+(\w+)\s*[:=])/,
@@ -109,11 +107,6 @@ function parseContentFile(
   return { title, slug, frontmatter: {}, body: cleaned };
 }
 
-/**
- * Extracts tags from a frontmatter record. Handles both YAML array format
- * (`["AI", "Coding"]`) and comma-separated string (`"AI, Coding"`).
- * Called on the raw parsed frontmatter (before schema merge).
- */
 function extractTags(
   frontmatter: Record<string, unknown>,
 ): string[] | undefined {
@@ -132,11 +125,6 @@ function extractTags(
   return undefined;
 }
 
-/**
- * Sidebar sheet for bulk-importing .md/.mdx content files and .tsx animation
- * files into a project. Drag-and-drop or file picker — everything lands in
- * one queue and gets imported in one click.
- */
 export function FileImportSheet({
   projectId,
   open,
@@ -176,8 +164,6 @@ export function FileImportSheet({
     (fileList: FileList) => {
       const files = Array.from(fileList);
 
-      // Snapshot existing names at the time of dropping (use the ref-style
-      // access to avoid stale closures — items state updates are async).
       const taken = new Set(existingAnimationNames);
 
       const promises: Promise<void>[] = [];
@@ -274,8 +260,6 @@ export function FileImportSheet({
     for (const item of ready) {
       try {
         if (item.kind === "content") {
-          // Extract tags from RAW frontmatter BEFORE schema merge.
-          // This avoids schema defaults clobbering the YAML array.
           const rawTags = extractTags(item.frontmatter);
 
           const schemaFrontmatter = buildInitialFrontmatter(
@@ -403,7 +387,6 @@ export function FileImportSheet({
 
         <SheetBody>
           <div className="space-y-4">
-            {/* Drop zone */}
             <div
               onDrop={handleDrop}
               onDragOver={handleDragOver}
@@ -444,7 +427,6 @@ export function FileImportSheet({
               />
             </div>
 
-            {/* File list */}
             {items.length > 0 && (
               <div className="space-y-2">
                 {items.map((item) => (

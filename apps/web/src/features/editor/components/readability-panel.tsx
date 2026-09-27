@@ -27,7 +27,6 @@ type ReadabilityPanelProps = {
   onClose: () => void;
 };
 
-/** Reading-ease band label + accent color from the Flesch score. */
 function easeBand(score: number): { label: string; className: string } {
   if (score >= 70) return { label: "Easy", className: "text-emerald-500" };
   if (score >= 60) return { label: "Plain", className: "text-green-500" };
@@ -45,9 +44,6 @@ const FLAG_LABELS: Record<FlagType, string> = {
 };
 
 export function ReadabilityPanel({ open, onClose }: ReadabilityPanelProps) {
-  // The shell subscribes to nothing high-frequency. The body — which holds the
-  // content subscription and runs analysis — mounts only inside `open`, so a
-  // closed (but enabled) panel does zero work per keystroke.
   return (
     <AnimatePresence>
       {open && (

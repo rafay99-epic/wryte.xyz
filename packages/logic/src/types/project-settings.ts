@@ -6,7 +6,6 @@ export type AnimationChecksPolicy = {
   blockPublish: boolean;
 };
 
-/** The `projects` row as served to the settings pages. */
 export type ProjectData = Doc<"projects">;
 
 export type SettingsTab =

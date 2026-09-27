@@ -1,12 +1,3 @@
-/**
- * GitHub OAuth Connection Status
- *
- * Reports whether the signed-in user has linked their GitHub account via
- * Clerk. The OAuth token itself is never returned to the browser — all
- * GitHub API calls are proxied through server routes and Convex actions
- * that look the token up server-side.
- */
-
 import { NextResponse } from "next/server";
 import { getGithubToken } from "@/app/api/github/_lib/github-helpers";
 

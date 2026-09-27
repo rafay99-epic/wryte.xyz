@@ -38,10 +38,6 @@ import * as React from "react";
 import { toast } from "sonner";
 import { ColorPicker } from "./color-picker";
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
 type BoardSettingsDialogProps = {
   projectId: Id<"projects">;
   columns: BoardColumnDef[];
@@ -54,10 +50,6 @@ const BEHAVIOR_LABELS: Record<BehaviorOption, string> = {
   schedule: "Auto-schedule",
   publish: "Auto-publish",
 };
-
-// ---------------------------------------------------------------------------
-// Validation helpers
-// ---------------------------------------------------------------------------
 
 type ValidationErrors = {
   duplicateIds: boolean;
@@ -84,10 +76,6 @@ function hasErrors(errors: ValidationErrors): boolean {
   );
 }
 
-// ---------------------------------------------------------------------------
-// Column row sub-component
-// ---------------------------------------------------------------------------
-
 type ColumnRowProps = {
   column: BoardColumnDef;
   isOnly: boolean;
@@ -107,7 +95,6 @@ function ColumnRow({
 }: ColumnRowProps) {
   return (
     <div className="group rounded-lg border border-border/50 bg-muted/30 px-2.5 py-2 transition-colors hover:border-border hover:bg-muted/50">
-      {/* Top row: grip + swatch + label + (desktop: select +) delete */}
       <div className="flex items-center gap-2.5">
         <GripVertical className="size-3.5 shrink-0 cursor-grab text-muted-foreground/40 transition-colors group-hover:text-muted-foreground/70" />
 
@@ -151,7 +138,6 @@ function ColumnRow({
           )}
         />
 
-        {/* Behavior select — hidden on mobile, shown sm+ */}
         <div className="hidden sm:block">
           <Select
             value={column.behavior}
@@ -201,7 +187,6 @@ function ColumnRow({
         </Button>
       </div>
 
-      {/* Bottom row on mobile: behavior select */}
       <div className="mt-1.5 pl-[2.625rem] sm:hidden">
         <Select
           value={column.behavior}
@@ -241,10 +226,6 @@ function ColumnRow({
   );
 }
 
-// ---------------------------------------------------------------------------
-// Main component
-// ---------------------------------------------------------------------------
-
 export function BoardSettingsDialog({
   projectId,
   columns,
@@ -262,10 +243,6 @@ export function BoardSettingsDialog({
       setEditColumns(columns.map((c) => ({ ...c })));
     }
   }, [open, columns]);
-
-  // ---------------------------------------------------------------------------
-  // Handlers
-  // ---------------------------------------------------------------------------
 
   function handleLabelChange(id: string, label: string) {
     setEditColumns((prev) =>
@@ -336,15 +313,7 @@ export function BoardSettingsDialog({
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // Validation errors (live)
-  // ---------------------------------------------------------------------------
-
   const errors = validate(editColumns);
-
-  // ---------------------------------------------------------------------------
-  // Render
-  // ---------------------------------------------------------------------------
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -358,13 +327,11 @@ export function BoardSettingsDialog({
         </SheetHeader>
 
         <SheetBody className="flex flex-col gap-4 px-4 sm:px-6">
-          {/* Column header labels — desktop only */}
           <div className="hidden items-center px-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/60 sm:flex">
             <span className="ml-12">Column</span>
             <span className="ml-auto mr-16">Behavior</span>
           </div>
 
-          {/* Column list */}
           <div className="flex flex-col gap-1.5">
             {editColumns.map((col) => (
               <ColumnRow
@@ -379,7 +346,6 @@ export function BoardSettingsDialog({
             ))}
           </div>
 
-          {/* Add column button */}
           <button
             type="button"
             onClick={handleAddColumn}
@@ -389,7 +355,6 @@ export function BoardSettingsDialog({
             Add column
           </button>
 
-          {/* Validation error messages */}
           {hasErrors(errors) && (
             <div className="flex flex-col gap-1 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2.5 text-xs text-destructive">
               {errors.duplicateIds && (

@@ -157,7 +157,6 @@ export function SocialSection({
           , then paste it below.
         </p>
 
-        {/* API Key */}
         <FieldGroup label="Buffer API Key" htmlFor="social-api-key">
           <div className="flex gap-2">
             <Input
@@ -195,8 +194,6 @@ export function SocialSection({
                     config.status.slice(1)}
               </span>
             ) : (
-              // Explicit resting state — an empty form with no badge left
-              // people unsure whether they were connected at all.
               <span className="inline-flex items-center gap-1 rounded-full bg-muted/60 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
                 <XCircle className="size-3" />
                 Not connected
@@ -215,7 +212,6 @@ export function SocialSection({
           )}
         </FieldGroup>
 
-        {/* Connected channels — live from Buffer, refreshed by Test Connection */}
         {hasExisting && (
           <FieldGroup
             label="Channels"
@@ -252,7 +248,6 @@ export function SocialSection({
           </FieldGroup>
         )}
 
-        {/* Post URL prefix — where published posts live on the site */}
         <FieldGroup
           label="Post URL Path"
           htmlFor="social-url-prefix"
@@ -286,7 +281,6 @@ export function SocialSection({
           )}
         </FieldGroup>
 
-        {/* Action buttons */}
         <div className="flex items-center gap-2">
           {!hasExisting ? (
             <SaveButton

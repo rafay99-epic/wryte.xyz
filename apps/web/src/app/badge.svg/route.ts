@@ -1,15 +1,3 @@
-/**
- * "Published with Wryte" README badge — shields-style, hand-authored SVG.
- *
- * Static content with long cache headers: GitHub's camo proxy (and any
- * CDN) caches it, so READMEs cost this origin roughly one request a day.
- * No user input is interpolated — zero escaping surface. Convex is never
- * involved.
- *
- * Usage (copy snippet lives in Settings → Publishing):
- *   [![Published with Wryte](https://wryte.xyz/badge.svg)](https://wryte.xyz/gh?utm_medium=badge)
- */
-
 const BADGE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="146" height="22" role="img" aria-label="Published with Wryte">
   <title>Published with Wryte</title>
   <defs>
@@ -36,8 +24,6 @@ export function GET() {
   return new Response(BADGE_SVG, {
     headers: {
       "Content-Type": "image/svg+xml; charset=utf-8",
-      // A day at the edge + a week of stale-while-revalidate: camo/CDNs
-      // absorb README traffic; a badge redesign propagates within a day.
       "Cache-Control": "public, max-age=86400, stale-while-revalidate=604800",
     },
   });

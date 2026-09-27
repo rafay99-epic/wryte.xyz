@@ -38,7 +38,6 @@ export function TodaysProgress({
   const goalReached = hasGoal && pct >= 100;
 
   const hasWeeklyGoal = weeklyWordGoal !== null && weeklyWordGoal > 0;
-  // Cap at 100 — a lowered goal never renders a shaming overflow bar.
   const weeklyPct = hasWeeklyGoal
     ? Math.min((wordsThisWeek / weeklyWordGoal) * 100, 100)
     : 0;
@@ -65,9 +64,7 @@ export function TodaysProgress({
       await setGoal({ goal: value });
       setOpen(false);
       setCustomValue("");
-    } catch {
-      // Mutation failed (rate limit / validation) — keep popover open
-    }
+    } catch {}
   }
 
   async function handleCustomSubmit() {
@@ -82,9 +79,7 @@ export function TodaysProgress({
       await setWeeklyGoal({ goal: value });
       setOpen(false);
       setWeeklyValue("");
-    } catch {
-      // Mutation failed (rate limit / validation) — keep popover open
-    }
+    } catch {}
   }
 
   async function handleWeeklySubmit() {

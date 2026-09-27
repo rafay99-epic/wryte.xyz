@@ -1,18 +1,3 @@
-/**
- * syndicationCredentials — per-project dev.to / Hashnode token management.
- *
- * Mirrors `social/credentials.ts`:
- *   - `setCredentials` handles first save AND rotation (verify-first — a bad
- *     new token never destroys a working vault entry)
- *   - `testCredentials` re-verifies + refreshes the cached account info
- *   - `updateConfig` flips the per-provider `enabled` switch / Hashnode
- *     publication choice — connecting alone never activates posting
- *   - `deleteCredentials` removes the vault entry + row
- *
- * Verification: dev.to `GET /users/me`; Hashnode `me { publications }` —
- * which also discriminates "bad token" from "publication needs Pro" (the
- * Hashnode API is paid since 2026-05; see hashnode.ts).
- */
 "use node";
 
 import { ConvexError, v } from "convex/values";
@@ -34,7 +19,6 @@ type VerifyOutcome =
   | { ok: true; config: Omit<SyndicationPublicConfig, "enabled"> }
   | { ok: false; message: string };
 
-/** Provider-specific token probe; returns the non-secret config to cache. */
 async function verifySecret(
   provider: SyndicationProvider,
   secret: string,
@@ -80,10 +64,6 @@ function serializeConfig(
   } satisfies SyndicationPublicConfig);
 }
 
-/* ------------------------------------------------------------------ */
-/*  Public actions                                                      */
-/* ------------------------------------------------------------------ */
-
 export const setCredentials = action({
   args: {
     projectId: v.id("projects"),
@@ -115,8 +95,6 @@ export const setCredentials = action({
     const verify = await verifySecret(args.provider, secret, prior);
     if (!verify.ok) return { ok: false, message: verify.message };
 
-    // Posting stays off until the user flips the Active switch — a freshly
-    // pasted token must never cause a surprise cross-post.
     const publicConfig = serializeConfig(prior.enabled, verify.config);
 
     const created = await ctx.runAction(
@@ -154,9 +132,7 @@ export const setCredentials = action({
         await ctx.runAction(internal.integrations.secretStore._delete, {
           id: existing.vaultSecretId,
         });
-      } catch {
-        // Orphan vault entry — non-fatal.
-      }
+      } catch {}
     } else {
       const insertArgs: {
         projectId: Id<"projects">;
@@ -190,7 +166,6 @@ export const setCredentials = action({
   },
 });
 
-/** Re-verify the stored token and refresh the cached account info. */
 export const testCredentials = action({
   args: {
     projectId: v.id("projects"),
@@ -238,10 +213,6 @@ export const testCredentials = action({
   },
 });
 
-/**
- * Flip the per-provider Active switch or pick the Hashnode publication.
- * Non-secret settings only — no vault round-trip.
- */
 export const updateConfig = action({
   args: {
     projectId: v.id("projects"),
@@ -306,19 +277,13 @@ export const deleteCredentials = action({
       await ctx.runAction(internal.integrations.secretStore._delete, {
         id: cred.vaultSecretId,
       });
-    } catch {
-      // Best-effort.
-    }
+    } catch {}
     await ctx.runMutation(internal.syndication.credentialsDb._delete, {
       credentialId: cred._id,
     });
     return null;
   },
 });
-
-/* ------------------------------------------------------------------ */
-/*  Helpers                                                             */
-/* ------------------------------------------------------------------ */
 
 export async function loadOwnerContext(
   ctx: ActionCtx,

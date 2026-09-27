@@ -24,20 +24,6 @@ import { MarkdownDiffViewer } from "@/components/diff/markdown-diff-viewer";
 
 type ViewMode = "diff" | "merge";
 
-/**
- * Conflict resolution page. Loads a single `sync_conflicts` row and
- * its associated document, renders a split-pane diff (GitHub left,
- * Wryte right), and offers three resolution paths:
- *
- *  - **Use GitHub** — overwrite the doc with the remote snapshot.
- *  - **Keep mine** — adopt the remote SHA as the new baseline
- *    without changing the local content.
- *  - **Manual merge** — open a textarea with both versions stitched
- *    in Git conflict-marker format; the user resolves and saves.
- *
- * All resolutions bump `documents.githubSyncedAt` so the next sync
- * starts from a clean baseline.
- */
 export function ConflictPage({
   conflictId: rawConflictId,
   projectId: rawProjectId,
@@ -58,15 +44,11 @@ export function ConflictPage({
   const [isResolving, setIsResolving] = useState(false);
   const [mergeText, setMergeText] = useState<string>("");
 
-  /** Conflict-marker template — initialized once we have data. */
   const conflictMarkerTemplate = useMemo(() => {
     if (!data) return "";
     return `<<<<<<< GitHub\n${data.conflict.remoteContent ?? ""}\n=======\n${data.conflict.localContentSnapshot ?? ""}\n>>>>>>> Wryte\n`;
   }, [data]);
 
-  // Seed the merge textarea once the data arrives. We use a sentinel
-  // because mergeText is also editable; we don't want to overwrite
-  // every render.
   useEffect(() => {
     if (!data) return;
     setMergeText((prev) => (prev === "" ? conflictMarkerTemplate : prev));
@@ -185,9 +167,6 @@ export function ConflictPage({
       {viewMode === "diff" ? (
         <div className="flex-1 overflow-auto rounded-lg border border-border/60">
           <MarkdownDiffViewer
-            // Content is present on every OPEN conflict; it's only
-            // stripped (undefined) after resolution, and this page only
-            // renders unresolved conflicts. The fallback is type-safety.
             oldValue={conflict.remoteContent ?? ""}
             newValue={conflict.localContentSnapshot ?? ""}
             leftTitle="GitHub (remote)"

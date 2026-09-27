@@ -1,28 +1,9 @@
-/**
- * Cloudinary provider — credentials are passed inline on every call so
- * concurrent requests can use different accounts without trampling
- * the global `cloudinary.config()`.
- *
- * v2 SDK only — `cloudinary.v1` is legacy and not used.
- */
 "use node";
 
 import { v2 as cloudinary } from "cloudinary";
 import { mapCloudinaryError, throwMediaError } from "./errors";
 import { randomSuffix, splitExtension } from "./shared";
 
-/**
- * Cloudinary derives a public_id from the uploaded file's name — but only when
- * it *has* one. We upload a base64 data URI, which carries no filename, so
- * `use_filename` has nothing to work from and Cloudinary falls back to a random
- * id like `quzsyj0cloja0zzh3ggq`. That id is what the media library then shows
- * as the file's name, and because it has no extension the grid can't tell it's
- * an image and renders a placeholder instead of a preview.
- *
- * Passing the public_id explicitly fixes both. The extension is stripped —
- * Cloudinary appends the real format itself — and the characters are reduced to
- * what reads cleanly in a URL.
- */
 function publicIdFromFilename(filename: string): string {
   const slug = splitExtension(filename)
     .stem.normalize("NFKD")
@@ -72,8 +53,6 @@ export async function uploadOne(
       resource_type: "auto",
       ...(opts.folder ? { folder: opts.folder } : {}),
       public_id: publicId,
-      // The suffix in `publicId` already disambiguates, so let Cloudinary use
-      // the id verbatim rather than appending a second random segment.
       unique_filename: false,
       use_filename: false,
     });
@@ -123,9 +102,6 @@ export async function listResources(
       created_at?: string;
     }>;
     const items: CldListItem[] = resources.map((r) => {
-      // public_ids carry no extension. Re-attaching the stored format keeps the
-      // displayed name honest and lets the library recognise it as an image —
-      // including for files uploaded before public_ids were set explicitly.
       const base = r.public_id.split("/").pop() ?? r.public_id;
       const item: CldListItem = {
         externalId: r.public_id,
@@ -166,10 +142,6 @@ export async function destroy(
   publicId: string,
 ): Promise<void> {
   try {
-    // The official type declarations only list a narrow `{ resource_type, type,
-    // invalidate }` options object for `destroy`, but the SDK's runtime layer
-    // accepts auth credentials inline (it forwards them to the signed-URL
-    // builder).
     const options: CloudinaryCreds & {
       resource_type?: "image" | "raw" | "video";
     } = creds;

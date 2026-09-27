@@ -5,18 +5,6 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Loader2 } from "lucide-react";
 import { useReportDirty } from "./settings-dirty-context";
 
-/**
- * The one save affordance for settings sections: an inline bar that renders
- * only while its scope is dirty, sticky to the bottom of the scroll area so
- * it's visible no matter where in a long tab the edit happened.
- *
- * Also reports the dirty state to the shell (tab-switch guard) — sections
- * that adopt SaveBar get the unsaved-changes protection for free.
- *
- * Instant actions (Connect, Test, Rotate…) deliberately do NOT use this
- * component — they keep distinct inline buttons so "apply now" and "batched
- * setting" stay visually different concepts.
- */
 export function SaveBar({
   hasChanges,
   isSaving,

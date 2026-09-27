@@ -42,17 +42,9 @@ type MediaPickerDrawerProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   projectId: string;
-  /** Called with the selected image URL/path. */
   onSelect: (url: string) => void;
 };
 
-/**
- * Reusable media browser drawer.
- *
- * Library tab lists from the project's active media provider (GitHub,
- * UploadThing, or Cloudinary). Recent, Upload, and URL tabs supplement
- * browsing for quick picks and new assets.
- */
 export function MediaPickerDrawer({
   open,
   onOpenChange,
@@ -83,8 +75,6 @@ export function MediaPickerDrawer({
     enabled: open,
   });
 
-  // Project-scoped media records (any provider). These are the rows we wrote
-  // when the editor uploaded an image — the source of truth for "Recent".
   const projectMedia =
     useQuery(
       api.media.uploadsDb.listForProject,
@@ -151,7 +141,6 @@ export function MediaPickerDrawer({
         </SheetHeader>
 
         <SheetBody>
-          {/* Search */}
           <div className="relative mb-4">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -236,7 +225,6 @@ export function MediaPickerDrawer({
               </TabsContent>
             )}
 
-            {/* Recent uploads (project-scoped, any provider) */}
             <TabsContent value="recent">
               {filteredProjectMedia.length === 0 ? (
                 <EmptyState
@@ -263,7 +251,6 @@ export function MediaPickerDrawer({
               )}
             </TabsContent>
 
-            {/* Upload */}
             <TabsContent value="upload">
               <UploadTab
                 projectId={projectId}
@@ -275,7 +262,6 @@ export function MediaPickerDrawer({
               />
             </TabsContent>
 
-            {/* External URL */}
             <TabsContent value="url">
               <div className="space-y-4 pt-2">
                 <div className="space-y-1.5">
@@ -296,7 +282,6 @@ export function MediaPickerDrawer({
 
                 {externalUrl.trim() && (
                   <div className="overflow-hidden rounded-lg border bg-muted/50">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={externalUrl}
                       alt="preview"
@@ -323,10 +308,6 @@ export function MediaPickerDrawer({
     </Sheet>
   );
 }
-
-/* ------------------------------------------------------------------ */
-/*  Internal sub-components                                            */
-/* ------------------------------------------------------------------ */
 
 const PICKER_ITEM_TRANSITION = {
   layout: { duration: 0.22, ease: [0.22, 0.61, 0.36, 1] as const },
@@ -469,7 +450,6 @@ function UploadTab({
   onUploaded,
 }: {
   projectId: string;
-  /** Destination for this upload — the provider selected in the Library tab. */
   provider: MediaProvider;
   onUploaded: (url: string) => void;
 }) {

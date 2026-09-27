@@ -18,7 +18,6 @@ export const TABS: {
   id: SettingsTab;
   label: string;
   icon: React.ElementType;
-  /** Search terms for the settings filter beyond the label. */
   keywords: string[];
 }[] = [
   {

@@ -36,8 +36,6 @@ export function CopyIconButton({
 
   useEffect(() => () => window.clearTimeout(resetTimer.current), []);
 
-  // Only claim "Copied" once the clipboard write actually succeeded; it can
-  // reject (permissions, insecure context), in which case nothing changes.
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(value);

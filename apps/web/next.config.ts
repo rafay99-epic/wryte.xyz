@@ -26,23 +26,12 @@ const buildSha =
   "dev";
 
 const nextConfig: NextConfig = {
-  // Enables Next 16.3's cache-aware route shells. This is required for
-  // Partial Prefetching, which reuses one prefetched shell per route and
-  // makes App Router navigations feel immediate while data streams in.
   cacheComponents: true,
   partialPrefetching: true,
   reactCompiler: true,
-  // Workspace packages ship untranspiled TS/TSX source — Next must compile
-  // them itself rather than treating them as prebuilt node_modules.
   transpilePackages: ["@wryte/ui", "@wryte/logic", "@wryte/backend"],
   experimental: {
-    // Tree-shake barrel imports to per-module paths. `lucide-react` is
-    // already in Next's built-in default list; `framer-motion` is not, so we
-    // add it here (it's imported across ~80 files).
     optimizePackageImports: ["framer-motion"],
-    // Turbopack disk cache between dev runs (beta, Vercel-recommended) —
-    // markedly faster dev-server startup and warm recompiles for a dev
-    // server that runs around the clock.
     turbopackFileSystemCacheForDev: true,
   },
   env: {

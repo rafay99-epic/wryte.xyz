@@ -21,17 +21,6 @@ import {
   Workflow,
 } from "lucide-react";
 
-/**
- * Slash-command registry (pure data). `block` commands insert a line-level
- * marker (a leading newline is added by the menu when not already at line
- * start); `inline` inserts at the caret; `ai` opens the existing inline-AI
- * flow at the caret instead of inserting text; `image`/`video`/`embed` open
- * the media insert dialogs (library / URL / upload, or oEmbed resolver) at
- * the caret; `snippet` pastes a reusable block (treated like `block` for
- * newline handling); `submenu` drills into a nested list instead of
- * inserting anything.
- */
-
 export type SlashCommandKind =
   | "block"
   | "inline"
@@ -50,20 +39,9 @@ export type SlashCommand = {
   keywords: string[];
   icon: LucideIcon;
   kind: SlashCommandKind;
-  /** Text inserted for `block`/`inline`/`snippet` commands. */
   insert?: string;
 };
 
-/**
- * The `Snippets ▸` parent entry shown at the slash-menu root. Selecting it
- * drills into the project's snippets (see slash-menu.tsx). Only appended when
- * the project actually has snippets — the menu owns that gating.
- */
-/**
- * The `Animation` entry — opens the code-animation author sheet. Appended by
- * the menu only when the project is MDX with an animations directory
- * configured (same gating as the toolbar's Insert item).
- */
 export const ANIMATION_COMMAND: SlashCommand = {
   id: "animation",
   label: "Animation",
@@ -82,7 +60,6 @@ export const SNIPPETS_SUBMENU: SlashCommand = {
   kind: "submenu",
 };
 
-/** Maps project snippets (from the search query) into insertable commands. */
 export function snippetCommands(snippets: Snippet[]): SlashCommand[] {
   return snippets.map((s) => ({
     id: `snippet:${s._id}`,
@@ -245,7 +222,6 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   },
 ];
 
-/** Filter by label + keywords. Empty query returns all. */
 export function filterCommands(
   commands: SlashCommand[],
   query: string,

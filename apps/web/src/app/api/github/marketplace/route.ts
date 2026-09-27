@@ -1,17 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-/**
- * GitHub Marketplace webhook receiver for the wryte-xyz App listing.
- *
- * Marketplace requires a webhook endpoint even for free listings. Wryte's
- * only plan is free, so purchase/cancel events carry no billing state to
- * act on — we verify the signature, log the event for visibility, and ack.
- *
- * Signature verification uses GITHUB_MARKETPLACE_WEBHOOK_SECRET (Vercel
- * env var, same value as the Secret field on the GitHub webhook form).
- * Fail-closed: a missing secret or an unsigned/mismatched payload is
- * rejected.
- */
 export async function POST(request: Request) {
   const body = await request.text();
 
@@ -34,9 +22,7 @@ export async function POST(request: Request) {
   let action = "unknown";
   try {
     action = (JSON.parse(body) as { action?: string }).action ?? "unknown";
-  } catch {
-    // Non-JSON payload — still ack; the event header tells us what it was.
-  }
+  } catch {}
   console.info(
     `[marketplace] event=${request.headers.get("x-github-event") ?? "?"} action=${action}`,
   );

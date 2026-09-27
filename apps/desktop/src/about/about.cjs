@@ -5,10 +5,8 @@ const path = require("node:path");
 const config = require("../config.cjs");
 const { openExternal } = require("../window/window.cjs");
 
-/** @type {Electron.BrowserWindow | undefined} */
 let aboutWindow;
 
-/** Branded About window (logo, company, author, repo, license). */
 function openAboutWindow() {
   if (aboutWindow) {
     aboutWindow.focus();

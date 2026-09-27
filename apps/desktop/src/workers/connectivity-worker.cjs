@@ -1,11 +1,5 @@
 "use strict";
 
-/**
- * Child process that periodically checks internet reachability.
- * Spawned by main.cjs via `child_process.fork`. Communicates
- * status changes back to the main process over IPC.
- */
-
 process.on("uncaughtException", (err) => {
   process.stderr.write(`[connectivity-worker] uncaught: ${err.stack}\n`);
   process.exit(1);

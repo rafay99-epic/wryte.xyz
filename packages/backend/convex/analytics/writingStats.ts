@@ -14,10 +14,6 @@ import type { DocPatch } from "../_lib/docPatch";
 import { statusToField } from "../_lib/projectStats";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
 
-/* ------------------------------------------------------------------ */
-/*  Queries                                                            */
-/* ------------------------------------------------------------------ */
-
 export const getDashboardStats = query({
   args: {},
   handler: async (ctx) => {
@@ -27,8 +23,6 @@ export const getDashboardStats = query({
   },
 });
 
-/** `getDashboardStats`'s body with the actor passed in explicitly. Shared with
- *  the MCP handler, which has no `ctx.auth` — see `_lib/auth.ts`. */
 export async function dashboardStatsForUser(
   ctx: QueryCtx,
   userId: Id<"users">,
@@ -118,12 +112,6 @@ export async function dashboardStatsForUser(
   };
 }
 
-/**
- * Lean per-user stats for the editor toolbar: today's words, streak, and
- * goal. One indexed row read — intentionally much lighter than
- * `getDashboardStats` so the editor can subscribe without dragging in
- * project stats.
- */
 export const getEditorStats = query({
   args: {},
   handler: async (
@@ -183,9 +171,6 @@ export const getUpcomingScheduled = query({
     const limit = args.limit ?? 5;
     const now = Date.now();
 
-    // Per-user index keeps the read proportional to this user's scheduled
-    // queue instead of scanning every user's scheduled docs. Bounded; the
-    // future/trash/project filters and soonest-first sort run in memory.
     const scheduled = await ctx.db
       .query("documents")
       .withIndex("by_userId_and_status", (q) =>
@@ -259,15 +244,6 @@ export const getProjectDashboardStats = query({
   },
 });
 
-/* ------------------------------------------------------------------ */
-/*  Public mutations                                                   */
-/* ------------------------------------------------------------------ */
-
-/**
- * Shared upsert for the word-goal mutations. Validates the range,
- * rate-limits, and either patches the user's stats row or creates a
- * fresh one carrying only the goal being set.
- */
 async function upsertWordGoal(
   ctx: MutationCtx,
   field: "dailyWordGoal" | "weeklyWordGoal",
@@ -333,10 +309,6 @@ export const setWeeklyWordGoal = mutation({
   },
 });
 
-/* ------------------------------------------------------------------ */
-/*  Internal mutations — async fire-and-forget from document saves     */
-/* ------------------------------------------------------------------ */
-
 export const _recordActivity = internalMutation({
   args: {
     userId: v.id("users"),
@@ -365,9 +337,6 @@ export const _recordActivity = internalMutation({
 
       let { currentStreak, longestStreak, wordsToday } = stats;
 
-      // Rows seeded by the goal/publish upserts carry `lastActiveDate=today`
-      // with a zero streak, so a zero streak also means "no activity counted
-      // yet" and the first write of the day still starts the streak.
       if (stats.lastActiveDate !== todayStr || currentStreak === 0) {
         currentStreak = isYesterday ? currentStreak + 1 : 1;
       }
@@ -522,18 +491,8 @@ export const _incrementPublished = internalMutation({
   },
 });
 
-/* ------------------------------------------------------------------ */
-/*  Cron maintenance                                                   */
-/* ------------------------------------------------------------------ */
-
-/** `writing_stats` rows pruned per `_dailyMaintenance` transaction. */
 const MAINTENANCE_PAGE_SIZE = 500;
 
-/**
- * Prunes `recentActivity` entries older than `RECENT_ACTIVITY_DAYS`. Walks
- * the table one page per transaction and self-reschedules with the next
- * cursor until every row is visited.
- */
 export const _dailyMaintenance = internalMutation({
   args: { cursor: v.optional(v.union(v.string(), v.null())) },
   handler: async (ctx, args) => {

@@ -10,9 +10,6 @@ import { useMemo, useRef } from "react";
 
 const lowlight = createLowlight({ javascript, typescript });
 
-/* Derived from lowlight's own signature rather than a direct @types/hast
- * dependency: two copies of that package at different patch versions produce
- * two structurally identical but non-assignable `Root` types. */
 type HastRoot = ReturnType<typeof lowlight.highlight>;
 type HastElement = Extract<HastRoot["children"][number], { type: "element" }>;
 type HastNode = HastRoot["children"][number] | HastElement["children"][number];
@@ -51,15 +48,6 @@ function highlight(source: string, language: AnimationLanguage): ReactNode[] {
   return render(tree.children, "t");
 }
 
-/**
- * Textarea with syntax highlighting behind it: a `<pre>` renders the coloured
- * tokens and the textarea sits on top with transparent text and a visible
- * caret. Both share one typography string so the two layers stay aligned;
- * changing font or padding on one without the other is what makes this
- * technique drift. `hljs` goes on the <pre> rather than a nested <code>
- * because globals.css gives `pre code.hljs` its own padding, which would
- * shift the highlight layer off the caret.
- */
 export function CodeEditor({
   value,
   onChange,

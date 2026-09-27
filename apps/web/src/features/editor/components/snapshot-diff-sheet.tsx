@@ -31,11 +31,6 @@ type SnapshotDiffSheetProps = {
   restoring: boolean;
 };
 
-/**
- * Diff between the current editor content and a snapshot, framed as "what
- * restoring would change": green lines are what the snapshot adds back,
- * red lines are what it removes.
- */
 export function SnapshotDiffSheet({
   snapshotId,
   onOpenChange,

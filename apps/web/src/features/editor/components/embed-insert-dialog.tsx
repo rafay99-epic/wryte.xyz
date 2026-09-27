@@ -37,13 +37,6 @@ type EmbedInsertDialogProps = {
 
 const FETCH_DEBOUNCE_MS = 350;
 
-/**
- * Drawer for embedding social posts (Twitter/X, YouTube, Vimeo, Reddit,
- * Bluesky, Spotify, Giphy, Mastodon) into the markdown editor. Paste a post
- * URL; the `oembed` action resolves it server-side and returns portable raw
- * HTML that renders in the editor preview, the draft share preview, and on
- * the published static site.
- */
 export function EmbedInsertDialog({
   open,
   onOpenChange,
@@ -124,8 +117,6 @@ export function EmbedInsertDialog({
     closeDialog();
   }
 
-  // Reset internal state whenever the sheet closes (covers the X button and
-  // escape, which only flip `open`).
   useEffect(() => {
     if (!open) resetForm();
   }, [open, resetForm]);
@@ -180,7 +171,6 @@ export function EmbedInsertDialog({
                 </div>
                 <div className="space-y-2 p-3">
                   {result.thumbnailUrl && (
-                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={result.thumbnailUrl}
                       alt=""

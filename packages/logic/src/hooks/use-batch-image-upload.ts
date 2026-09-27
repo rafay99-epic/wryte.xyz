@@ -58,8 +58,6 @@ export function useBatchImageUpload({
   compressionOverride?: CompressionSettings | null;
 }) {
   const [items, dispatch] = useReducer(batchImageReducer, []);
-  // Latest known batch, advanced synchronously by `addFiles` so back-to-back
-  // calls (before a re-render) validate against each other's additions.
   const itemsRef = useRef(items);
   useEffect(() => {
     itemsRef.current = items;

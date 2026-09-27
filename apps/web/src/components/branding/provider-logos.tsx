@@ -7,12 +7,6 @@ type MarkProps = {
   className?: string;
 };
 
-/**
- * Anthropic brand mark.
- *
- * Source: official Anthropic press kit (Claude brand colour #D97757).
- * Renders as `<svg>` for clean color inheritance / dark-mode handling.
- */
 export function AnthropicMark({ className }: MarkProps) {
   return (
     <svg
@@ -31,7 +25,6 @@ export function AnthropicMark({ className }: MarkProps) {
   );
 }
 
-/** OpenAI brand mark — inherits `currentColor` via `fill-foreground` so it works in both themes. */
 export function OpenAIMark({ className }: MarkProps) {
   return (
     <svg
@@ -47,7 +40,6 @@ export function OpenAIMark({ className }: MarkProps) {
   );
 }
 
-/** OpenRouter doesn't publish a brand mark we can ship — we use an Orbit icon tile. */
 function OpenRouterMark({ className }: MarkProps) {
   return (
     <div
@@ -62,11 +54,6 @@ function OpenRouterMark({ className }: MarkProps) {
   );
 }
 
-/**
- * Google Gemini brand mark — the four-point "spark" with Gemini's
- * blue→purple→pink gradient. Self-contained gradient so it renders correctly
- * in both light and dark themes.
- */
 function GeminiMark({ className }: MarkProps) {
   return (
     <svg
@@ -98,7 +85,6 @@ function GeminiMark({ className }: MarkProps) {
   );
 }
 
-/** Groq doesn't publish a shippable brand mark — a lightning tile nods to its fast LPU inference. */
 function GroqMark({ className }: MarkProps) {
   return (
     <div
@@ -113,7 +99,6 @@ function GroqMark({ className }: MarkProps) {
   );
 }
 
-/** Lookup of brand marks by AiProvider — useful in dynamic grids. */
 export const AI_PROVIDER_MARKS: Record<AiProvider, ComponentType<MarkProps>> = {
   anthropic: AnthropicMark,
   openai: OpenAIMark,

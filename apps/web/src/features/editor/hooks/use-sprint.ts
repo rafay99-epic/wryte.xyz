@@ -11,30 +11,18 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useShallow } from "zustand/react/shallow";
 
-/** Live, derived view of the active sprint for the HUD. */
 export type SprintSnapshot = {
   status: Exclude<SprintStatus, "idle">;
   targetWords: number;
   durationMs: number;
   elapsedMs: number;
   remainingMs: number;
-  /** Words written since the sprint started (never negative). */
   wordsWritten: number;
   wpm: number;
-  /** 0..1 progress toward the word target. */
   progress: number;
   endReason: SprintEndReason | null;
 };
 
-/**
- * Drives the active writing sprint: a 1s ticker while running, live word
- * delta / WPM / progress derivation, and completion detection (word target
- * hit or time up) with a celebratory toast.
- *
- * Mount exactly ONCE per editor (the sprint HUD owns it) — the completion
- * effect transitions the store, so a second consumer would race it.
- * Everything is client-side; no Convex functions are involved.
- */
 export function useSprint(): SprintSnapshot | null {
   const {
     status,
@@ -55,21 +43,13 @@ export function useSprint(): SprintSnapshot | null {
       startedAt: state.sprintStartedAt,
       accumulatedMs: state.sprintAccumulatedMs,
       endReason: state.sprintEndReason,
-      // Only tracked during a sprint, so an idle HUD skips keystrokes.
       content: state.sprintStatus === "idle" ? "" : state.content,
       completeSprint: state.completeSprint,
     })),
   );
 
-  // Counted once per content change, shared by the check and the snapshot.
   const totalWords = useMemo(() => countWords(content), [content]);
 
-  // Heartbeat + completion detection. The check runs whenever the word count
-  // changes (re-running this effect via `totalWords`) AND once per second
-  // via the interval, so time-up fires even when the user isn't typing —
-  // and the 1s re-render keeps the clock display advancing. Word target is
-  // checked first (the happier outcome); `completeSprint` no-ops unless the
-  // sprint is still running, so this can never double-fire.
   const [, setTick] = useState(0);
   useEffect(() => {
     if (status !== "running") return;

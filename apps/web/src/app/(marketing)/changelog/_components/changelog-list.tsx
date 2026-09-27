@@ -11,12 +11,6 @@ const TABS = [
   { label: "Desktop app", value: "desktop" as const },
 ];
 
-/**
- * Timeline of changelog entries. Entries come from the static
- * `changelog.md` (read at build time and passed in as props) and are
- * filtered client-side by the category tabs — the whole list ships at
- * once, so there is no pagination control.
- */
 export function ChangelogList({ entries }: { entries: ChangelogEntry[] }) {
   const [category, setCategory] = useState<"website" | "desktop" | undefined>(
     undefined,

@@ -21,22 +21,17 @@ import { ThemeProvider } from "@/components/providers/theme-provider";
 
 const BRAND_ICON_URL = resolveBrandAsset(BRAND.icon);
 
-// Primary UI font — variable weights allow granular typographic control
 const poppins = Poppins({
   variable: "--font-poppins",
   subsets: ["latin"],
   weight: ["300", "400", "500", "600", "700"],
 });
 
-// Monospace font used in the editor, code blocks, and slug displays
 const jetbrainsMono = JetBrains_Mono({
   variable: "--font-jetbrains-mono",
   subsets: ["latin"],
 });
 
-/* ------------------------------------------------------------------ */
-/*  Full Next.js Metadata export — covers SEO, OG, Twitter, icons      */
-/* ------------------------------------------------------------------ */
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
 
@@ -76,7 +71,6 @@ export const metadata: Metadata = {
     },
   },
 
-  /* Icons — Next.js automatically generates <link> tags from these */
   icons: {
     icon: [
       { url: "/favicon.ico", sizes: "any" },
@@ -87,14 +81,12 @@ export const metadata: Metadata = {
 
   manifest: "/manifest.webmanifest",
 
-  /* iOS home-screen install (PWA) — standalone display + status bar. */
   appleWebApp: {
     capable: true,
     title: SITE_NAME,
     statusBarStyle: "black-translucent",
   },
 
-  /* Open Graph — shared previews on Facebook, LinkedIn, Discord, etc. */
   openGraph: {
     type: "website",
     locale: "en_US",
@@ -113,7 +105,6 @@ export const metadata: Metadata = {
     ],
   },
 
-  /* Twitter / X card */
   twitter: {
     card: "summary_large_image",
     title: SITE_TITLE,
@@ -122,7 +113,6 @@ export const metadata: Metadata = {
     creator: SITE_TWITTER,
   },
 
-  /* Misc */
   category: "Developer Tools",
   alternates: {
     canonical: SITE_URL,
@@ -133,11 +123,6 @@ export const metadata: Metadata = {
     },
   },
 
-  /*
-    Search-console verification slots. Populate via `NEXT_PUBLIC_*_VERIFICATION`
-    env vars when verifying ownership; left undefined here so they're omitted
-    from the rendered HTML when not configured.
-  */
   verification: {
     google: process.env["NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION"],
     yandex: process.env["NEXT_PUBLIC_YANDEX_VERIFICATION"],
@@ -157,22 +142,6 @@ export const viewport: Viewport = {
   colorScheme: "dark light",
 };
 
-/**
- * Root layout for the entire application.
- *
- * Applies the two Google Fonts as CSS custom properties on `<html>` so any
- * descendant can reference `var(--font-poppins)` or `var(--font-jetbrains-mono)`.
- *
- * Provider tree:
- *  - `DesktopChrome` — Electron-only window chrome; renders outside the
- *    providers because it needs neither auth nor data.
- *  - `Providers` — Clerk auth context wrapping the Convex client; everything
- *    below can use auth and Convex hooks.
- *  - `ThemeProvider` — syncs the persisted theme mode onto `<html>`.
- *  - `Toaster` and `ServiceWorkerRegistration` — siblings of the page tree so
- *    they stay mounted across navigations.
- * The React Query client lives in the `(app)` layout, its only consumer.
- */
 export default function RootLayout({
   children,
 }: {
@@ -182,25 +151,15 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${poppins.variable} ${jetbrainsMono.variable} h-full antialiased`}
-      // Suppresses the React hydration mismatch warning caused by the
-      // ThemeProvider injecting a `class` or `data-theme` attribute on the
-      // server vs. client.
       suppressHydrationWarning
     >
       <head>
-        {/*
-          Inline script to prevent FOUC (flash of unstyled content).
-          Reads the persisted theme from localStorage and applies the `dark`
-          class BEFORE React hydrates, so the first paint matches the user's
-          preference. This avoids a white flash on dark-mode users.
-        */}
         <script
           dangerouslySetInnerHTML={{
             __html: `(function(){try{var d=document.documentElement;var t=JSON.parse(localStorage.getItem("wryte-theme")||"{}");var m=t&&t.state&&t.state.mode;if(m==="dark"||(m==="system"&&window.matchMedia("(prefers-color-scheme:dark)").matches)||(!m&&true)){d.classList.add("dark")}else{d.classList.remove("dark")}}catch(e){}})()`,
           }}
         />
 
-        {/* RSS feed autodiscovery link — picked up by feed readers */}
         <link
           rel="alternate"
           type="application/rss+xml"
@@ -208,8 +167,6 @@ export default function RootLayout({
           href={`${SITE_URL}/rss.xml`}
         />
 
-        {/* JSON-LD structured data — Organization + WebSite + SoftwareApplication.
-            The FAQPage entry lives on the landing page, the only page it describes. */}
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{

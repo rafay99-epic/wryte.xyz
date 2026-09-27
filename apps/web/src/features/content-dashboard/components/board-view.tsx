@@ -52,7 +52,6 @@ type BoardViewProps = {
   onSettingsClick: () => void;
   selectedDocIds?: Set<string> | undefined;
   onToggleDocSelect?: ((docId: string, checked: boolean) => void) | undefined;
-  /** True when any card is selected — enables Notion-style selection mode. */
   selectionActive?: boolean | undefined;
 };
 
@@ -73,9 +72,6 @@ export function BoardView({
   onToggleDocSelect,
   selectionActive,
 }: BoardViewProps) {
-  // Pull exactly the slice this view cares about. A bare `useBoardStore()`
-  // would subscribe to every field — focusedCardId, draggedItem, overColumnId,
-  // settingsDialog, etc. — and re-render the whole board on every nudge.
   const {
     activeItem,
     optimisticMoves,
@@ -149,7 +145,6 @@ export function BoardView({
     return groups;
   }, [items, columns, optimisticMoves]);
 
-  // --- Keyboard navigation (vim-style) ---
   useBoardKeyboardNav({ columns, grouped, items, onOpenItem });
 
   const handleDragStart = useCallback(
@@ -180,7 +175,6 @@ export function BoardView({
 
       const { active, over } = event;
       if (!over || !active.data.current) return;
-      // Dropped on itself: nothing moved.
       if (over.id === active.id) return;
 
       const activeData = active.data.current;
@@ -252,9 +246,7 @@ export function BoardView({
                 targetStatus: sourceColumnId,
                 boardPosition: draggedItem.boardPosition ?? 0,
               });
-            } catch {
-              // Best-effort revert
-            }
+            } catch {}
             toast.error(
               err instanceof Error ? err.message : "Failed to publish",
             );

@@ -5,17 +5,14 @@ type ToolMarkProps = {
   className?: string;
 };
 
-/** Claude Code uses Anthropic's official mark. */
 export function ClaudeMark({ className }: ToolMarkProps) {
   return <AnthropicMark className={cn("size-6", className)} />;
 }
 
-/** Codex uses OpenAI's official mark. */
 export function CodexMark({ className }: ToolMarkProps) {
   return <OpenAIMark className={cn("size-6", className)} />;
 }
 
-/** Cursor's angular mark, colored with Wryte's active accent. */
 export function CursorMark({ className }: ToolMarkProps) {
   return (
     <svg
@@ -38,7 +35,6 @@ export function CursorMark({ className }: ToolMarkProps) {
   );
 }
 
-/** Neutral MCP mark for clients without a first-party brand. */
 export function GenericMcpMark({ className }: ToolMarkProps) {
   return (
     <svg

@@ -6,29 +6,17 @@ const fs = require("node:fs");
 const path = require("node:path");
 const config = require("../config.cjs");
 
-/**
- * Auto-update with a visible flow: check → download (live progress) → ready →
- * install & relaunch. Background checks stay silent until an update is ready;
- * the manual "Check for Updates…" menu action shows every step.
- */
-
-/** @type {Electron.BrowserWindow | undefined} */
 let updaterWindow;
-/** Last status pushed — replayed once the window's renderer is ready. */
 let lastStatus = { state: "checking" };
 let wired = false;
 
-// Log to userData so a silent failure (notably macOS Squirrel signature
-// checks on ad-hoc-signed builds) is at least diagnosable after the fact.
 function logLine(level, ...args) {
   try {
     fs.appendFileSync(
       path.join(app.getPath("userData"), "updater.log"),
       `[${level}] ${args.map(String).join(" ")}\n`,
     );
-  } catch {
-    // logging is best-effort
-  }
+  } catch {}
 }
 autoUpdater.logger = {
   info: (...a) => logLine("info", ...a),
@@ -67,7 +55,6 @@ function openWindow() {
   });
   updaterWindow.setMenu(null);
   updaterWindow.loadFile(path.join(__dirname, "updater.html"));
-  // Replay the latest status once the renderer's listener is attached.
   updaterWindow.webContents.on("did-finish-load", () => {
     updaterWindow?.webContents.send("update-status", lastStatus);
   });
@@ -79,8 +66,8 @@ function openWindow() {
 function wire() {
   if (wired) return;
   wired = true;
-  autoUpdater.autoDownload = false; // we drive the download to show progress
-  autoUpdater.autoInstallOnAppQuit = true; // fallback if the user just quits
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = true;
 
   autoUpdater.on("checking-for-update", () => send({ state: "checking" }));
   autoUpdater.on("update-available", (info) => {
@@ -100,7 +87,7 @@ function wire() {
     }),
   );
   autoUpdater.on("update-downloaded", (info) => {
-    openWindow(); // surface it even when the check ran in the background
+    openWindow();
     send({ state: "ready", version: info.version });
   });
   autoUpdater.on("error", (err) =>
@@ -109,13 +96,11 @@ function wire() {
 
   ipcMain.on("update-install", () => {
     send({ state: "installing" });
-    // isSilent=false, isForceRunAfter=true — apply then relaunch.
     setTimeout(() => autoUpdater.quitAndInstall(false, true), 250);
   });
   ipcMain.on("update-close", () => updaterWindow?.close());
 }
 
-/** Background: check on launch + every 6h, silent until an update is ready. */
 function init() {
   wire();
   autoUpdater.checkForUpdates().catch(() => undefined);
@@ -125,7 +110,6 @@ function init() {
   );
 }
 
-/** Menu action: open the window and walk the whole flow with progress. */
 function checkManually() {
   wire();
   openWindow();

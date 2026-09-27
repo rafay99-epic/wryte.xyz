@@ -6,18 +6,6 @@ import { MarketingNavbar } from "@/components/layout/marketing-navbar";
 import { DOC_PAGES, type DocPage } from "../registry";
 import { DocsIcon } from "./docs-icon";
 
-/**
- * Chrome shared by the docs index and every doc page.
- *
- * Uses the same visual vocabulary as the rest of the marketing surface: noise
- * texture, ambient amber/purple glow, `MarketingNavbar` / `MarketingFooter`, and
- * amber as the accent — matching the changelog's timeline dots and version pills.
- *
- * A pure server component. The docs ship no JavaScript beyond what the navbar
- * already needs.
- */
-
-/** Sidebar order follows the registry, grouped by its `group` field. */
 function groupPages(): { group: DocPage["group"]; pages: DocPage[] }[] {
   const order: DocPage["group"][] = [
     "Getting started",
@@ -84,7 +72,6 @@ export function DocsShell({
 }) {
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-background text-foreground">
-      {/* Noise texture — matches the rest of the marketing surface. */}
       <div
         className="pointer-events-none fixed inset-0 z-[1] hidden opacity-[0.025] dark:block"
         style={{
@@ -116,7 +103,6 @@ export function DocsShell({
           </aside>
 
           <main className="min-w-0 flex-1">
-            {/* Mobile nav — the sidebar is hidden below `lg`. */}
             <div className="mb-8 lg:hidden">
               <div className="flex flex-wrap gap-1.5">
                 {DOC_PAGES.map((page) => (

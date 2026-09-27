@@ -23,9 +23,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 export type BulkDeleteMode = "local" | "github" | "both";
 
 export type BulkDeleteCounts = {
-  /** How many selected docs live in Wryte and can be removed here. */
   local: number;
-  /** How many selected items have a GitHub file we can remove there. */
   github: number;
 };
 
@@ -41,36 +39,14 @@ export type BulkDeleteBatch = {
 type BulkDeleteDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** What the user is allowed to delete and how many of each. */
   counts: BulkDeleteCounts;
-  /** Drives which phase the dialog renders. */
   phase: BulkDeletePhase;
-  /** Live batch progress (used during `progress` and `complete` phases). */
   batch: BulkDeleteBatch | null | undefined;
-  /** Fires when the user picks a mode and clicks the primary action. */
   onConfirm: (mode: BulkDeleteMode) => void | Promise<void>;
-  /** Fires when the user dismisses the completion summary. */
   onDone: () => void;
-  /** Set while the start-action is in flight (between confirm click and batch creation). */
   isStarting: boolean;
 };
 
-/**
- * Three-phase dialog for bulk deletes:
- *
- *   1. **confirm** — mode picker. User reads the consequences and picks
- *      one of three scopes (Wryte only / GitHub only / Both).
- *   2. **progress** — live progress bar driven by the parent's reactive
- *      `delete_batches` query. The dialog refuses to close during this
- *      phase so the user can't accidentally walk away from a destructive
- *      operation mid-flight.
- *   3. **complete** — succeeded/failed summary with the first few errors
- *      if any. Closes only when the user clicks "Done".
- *
- * Copy is intentionally non-technical: "Remove from Wryte only" rather
- * than "Delete local copies" — the destination platform is named so the
- * user doesn't have to remember what "local" means.
- */
 export function BulkDeleteDialog({
   open,
   onOpenChange,
@@ -81,7 +57,6 @@ export function BulkDeleteDialog({
   onDone,
   isStarting,
 }: BulkDeleteDialogProps) {
-  // ── Confirm-phase state ──────────────────────────────────────
   const initialMode: BulkDeleteMode =
     counts.local > 0 && counts.github > 0
       ? "both"
@@ -90,8 +65,6 @@ export function BulkDeleteDialog({
         : "github";
   const [mode, setMode] = useState<BulkDeleteMode>(initialMode);
 
-  // Reset the picker every time the dialog reopens — the selection
-  // composition may have changed between two opens.
   useEffect(() => {
     if (open && phase === "confirm") setMode(initialMode);
   }, [open, phase, initialMode]);
@@ -107,9 +80,6 @@ export function BulkDeleteDialog({
     void onConfirm(mode);
   }, [mode, onConfirm]);
 
-  // ── Block close during progress phase ────────────────────────
-  // The Convex jobs keep running regardless of UI state, but closing
-  // mid-delete would strand the user without a finished/failed summary.
   const handleOpenChange = useCallback(
     (next: boolean) => {
       if (!next && phase === "progress") return;
@@ -118,7 +88,6 @@ export function BulkDeleteDialog({
     [phase, onOpenChange],
   );
 
-  // ── Derived progress state ───────────────────────────────────
   const done = batch ? batch.succeeded + batch.failed : 0;
   const total = batch ? batch.total : 0;
   const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
@@ -140,11 +109,7 @@ export function BulkDeleteDialog({
         )}
         {phase === "progress" && (
           <ProgressPhase
-            mode={
-              // Inferred from where we left off in confirm — kept stable
-              // across the transition by parent.
-              mode
-            }
+            mode={mode}
             done={done}
             total={total}
             pct={pct}
@@ -165,10 +130,6 @@ export function BulkDeleteDialog({
     </Dialog>
   );
 }
-
-/* ────────────────────────────────────────────────────────────── */
-/*  Phase 1 — confirm                                              */
-/* ────────────────────────────────────────────────────────────── */
 
 function ConfirmPhase({
   counts,
@@ -252,10 +213,6 @@ function ConfirmPhase({
   );
 }
 
-/* ────────────────────────────────────────────────────────────── */
-/*  Phase 2 — progress                                             */
-/* ────────────────────────────────────────────────────────────── */
-
 function ProgressPhase({
   mode,
   done,
@@ -309,10 +266,6 @@ function ProgressPhase({
     </>
   );
 }
-
-/* ────────────────────────────────────────────────────────────── */
-/*  Phase 3 — complete                                             */
-/* ────────────────────────────────────────────────────────────── */
 
 function CompletePhase({
   total,
@@ -384,10 +337,6 @@ function CompletePhase({
   );
 }
 
-/* ────────────────────────────────────────────────────────────── */
-/*  Pieces                                                          */
-/* ────────────────────────────────────────────────────────────── */
-
 function ProgressBar({ pct }: { pct: number }) {
   return (
     <div
@@ -433,8 +382,6 @@ function DeleteModeOption({
   description: string;
   danger?: boolean;
 }) {
-  // Memoize the selected-color so the both/destructive variant uses the
-  // right ring instead of the default primary one.
   const selectionRing = useMemo(
     () =>
       danger

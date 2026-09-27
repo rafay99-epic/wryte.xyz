@@ -29,14 +29,6 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
-/**
- * Full-page "New Article" flow launched from the dashboard. Lets the
- * author pick a destination project (searchable combobox so it scales to
- * many projects), give the article a title, and override the auto-
- * generated slug. Mirrors the in-project `/projects/:id/documents/new`
- * page's design so authors get a consistent feel regardless of where they
- * started.
- */
 export function NewArticlePage() {
   const router = useRouter();
   const projects = useQuery(api.cms.projects.list);
@@ -51,13 +43,10 @@ export function NewArticlePage() {
   const [isSlugEditing, setIsSlugEditing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Clear the sidebar's "active project" pin so it doesn't visually pretend
-  // the user is inside a specific project while picking one here.
   useEffect(() => {
     useEditorStore.getState().setActiveProjectId(null);
   }, []);
 
-  // Frontmatter schema + content path follow whichever project is picked.
   const selectedProject = useQuery(
     api.cms.projects.get,
     selectedProjectId ? { projectId: selectedProjectId } : "skip",
@@ -78,7 +67,6 @@ export function NewArticlePage() {
     setSlug(generateSlug(value));
   }, []);
 
-  // File path preview shows where the article will land in the repo.
   const filePath = useMemo(() => {
     const contentDir = selectedProject?.contentPath || "content/blog";
     const s = slug || "my-new-post";
@@ -140,7 +128,6 @@ export function NewArticlePage() {
     router,
   ]);
 
-  // Submit on Enter inside the title field once a project is picked.
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key === "Enter" && !e.shiftKey) {
@@ -156,7 +143,6 @@ export function NewArticlePage() {
 
   return (
     <div className="flex h-full flex-col">
-      {/* Breadcrumb */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -174,7 +160,6 @@ export function NewArticlePage() {
         <span className="text-xs font-medium text-foreground">New article</span>
       </motion.div>
 
-      {/* Body */}
       <div className="flex flex-1 items-center justify-center px-6">
         <div className="w-full max-w-xl">
           <motion.div
@@ -220,8 +205,6 @@ export function NewArticlePage() {
               }}
               className="space-y-3"
             >
-              {/* Project picker — sits at the top of the form so the user
-                  commits to a destination before naming. */}
               <ProjectPicker
                 id="new-article-project"
                 projects={projects}
@@ -229,7 +212,6 @@ export function NewArticlePage() {
                 onChange={setSelectedProjectId}
               />
 
-              {/* Title — the hero */}
               <div className="group relative">
                 <div className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground/40 transition-colors group-focus-within:text-primary/60">
                   <FileText className="size-5" />
@@ -244,7 +226,6 @@ export function NewArticlePage() {
                 />
               </div>
 
-              {/* Slug */}
               <div className="flex min-w-0 items-center gap-2 rounded-lg border border-border/40 bg-muted/30 px-3 py-2">
                 <Hash className="size-3.5 shrink-0 text-muted-foreground/50" />
                 {isSlugEditing ? (
@@ -272,7 +253,6 @@ export function NewArticlePage() {
                 )}
               </div>
 
-              {/* File path preview */}
               {selectedProjectId && slug && (
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}
@@ -287,7 +267,6 @@ export function NewArticlePage() {
                 </motion.div>
               )}
 
-              {/* Actions */}
               <div className="mt-2 flex items-center justify-between">
                 <Button
                   variant="ghost"
@@ -314,7 +293,6 @@ export function NewArticlePage() {
                 </Button>
               </div>
 
-              {/* Keyboard hint */}
               <p className="text-center text-[11px] text-muted-foreground/40">
                 Press{" "}
                 <kbd className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground/60">
@@ -330,15 +308,6 @@ export function NewArticlePage() {
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  Project picker — searchable combobox                                */
-/* ------------------------------------------------------------------ */
-
-/**
- * Inline searchable popover for choosing the destination project.
- * Optimised for users with many projects — the list scrolls and the
- * search input filters by substring.
- */
 function ProjectPicker({
   id,
   projects,
@@ -399,9 +368,6 @@ function ProjectPicker({
       <PopoverContent
         align="start"
         sideOffset={6}
-        // Anchor-matched width so the popover reads as a proper dropdown
-        // attached to the trigger instead of a floating island. Base UI
-        // exposes the trigger width via the `--anchor-width` CSS var.
         className="w-(--anchor-width) min-w-56 overflow-hidden p-0"
       >
         <div className="border-b border-border/40 p-1.5">

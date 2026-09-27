@@ -14,7 +14,6 @@ import { DesktopApp } from "@/features/marketing/components/desktop-app";
 import { HeroDiff } from "@/features/marketing/components/hero-diff";
 import { PageBackground } from "@/features/marketing/components/page-background";
 
-/** The marketing landing page. Client-side for scroll navigation and auth state. */
 export function LandingPage() {
   const { isSignedIn } = useUser();
   const containerRef = useRef<HTMLDivElement>(null);

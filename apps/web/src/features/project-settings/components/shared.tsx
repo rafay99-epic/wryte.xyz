@@ -45,9 +45,7 @@ export function FieldGroup({
 }: {
   label: string;
   htmlFor?: string;
-  /** One short line, always visible. Keep it ≤ ~12 words. */
   hint?: string;
-  /** Full explanation, shown on demand behind the ⓘ. */
   info?: React.ReactNode;
   children: React.ReactNode;
 }) {
@@ -68,16 +66,10 @@ export function FieldGroup({
   );
 }
 
-/**
- * Hairline-divided row list — the container that replaces the
- * card-per-setting grid. Rows inside (ToggleRow, custom rows) are
- * borderless; this wrapper provides the single border and the dividers.
- */
 export function RowList({ children }: { children: React.ReactNode }) {
   return <div className="divide-y divide-border/40">{children}</div>;
 }
 
-/** Borderless toggle row — lives inside a RowList or SettingsGroup. */
 export function ToggleRow({
   title,
   line,
@@ -91,7 +83,6 @@ export function ToggleRow({
   info: React.ReactNode;
   checked: boolean;
   onCheckedChange: (checked: boolean) => void;
-  /** data-testid forwarded to the Switch for e2e selectors. */
   testId?: string;
 }) {
   return (
@@ -112,12 +103,6 @@ export function ToggleRow({
   );
 }
 
-/**
- * Collapsible settings group — the antidote to tabs that staple several
- * features together. Closed, the header still informs via `summary`
- * ("Storage: GitHub"); open, the body unfolds with an animated height
- * transition (framer, per the app's motion conventions).
- */
 export function SettingsGroup({
   title,
   summary,
@@ -125,7 +110,6 @@ export function SettingsGroup({
   children,
 }: {
   title: string;
-  /** Current value shown while collapsed, e.g. "GitHub" or "On · 500 KB". */
   summary?: string;
   defaultOpen?: boolean;
   children: React.ReactNode;

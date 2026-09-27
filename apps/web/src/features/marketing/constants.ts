@@ -1,23 +1,8 @@
-/**
- * Data for the v2 ("diff hero + product canvas") landing page.
- *
- * Kept separate from `features/marketing/constants.ts` so the redesign can
- * live alongside the current landing page without touching it. When v2 ships,
- * this can be promoted/merged.
- */
-
-/* ── Hero: animated unified diff ───────────────────────────────────────── */
-
 export type DiffLine = {
-  /** Diff kind drives the gutter sign + color. */
   kind: "context" | "remove" | "add" | "meta";
   text: string;
 };
 
-/**
- * The hero diff tells the core story in one glance: the old multi-tool dance
- * (red) collapses into a single clean Wryte commit (green).
- */
 export const heroDiffLines: DiffLine[] = [
   { kind: "meta", text: "content/posts/shipping-faster.md" },
   { kind: "context", text: "---" },
@@ -36,8 +21,6 @@ export const heroDiffLines: DiffLine[] = [
   { kind: "add", text: "# Write here. Publish. It's already a commit." },
 ];
 
-/* ── Commit ticker (marquee replacement) ───────────────────────────────── */
-
 export const commitTicker: { hash: string; msg: string }[] = [
   { hash: "a3f8b2c", msg: "feat: add getting-started guide" },
   { hash: "9d41e07", msg: "content: refresh api-reference" },
@@ -49,13 +32,10 @@ export const commitTicker: { hash: string; msg: string }[] = [
   { hash: "2db93f1", msg: "feat: tag taxonomy cleanup" },
 ];
 
-/* ── Connected flow: how the pieces actually work together ─────────────── */
-
 export type FlowNode = {
   id: string;
   label: string;
   sub: string;
-  /** Tailwind text-color class for the accent. */
   color: string;
   dot: string;
   glow: string;
@@ -96,8 +76,6 @@ export const flowNodes: FlowNode[] = [
   },
 ];
 
-/* ── Comparison: the "git dance" diff narrative ────────────────────────── */
-
 export const oldWaySteps: string[] = [
   "Write in a proprietary editor",
   "Content lives in their database",
@@ -114,18 +92,13 @@ export const wryteWaySteps: string[] = [
   "Your existing CI deploys. Done.",
 ];
 
-/* ── Comparison matrix ─────────────────────────────────────────────────── */
-
 export type Cell = {
-  /** Visual verdict drives the icon + tint. */
   verdict: "yes" | "no" | "partial";
-  /** Short qualifier shown under the icon. */
   note: string;
 };
 
 export type ComparisonRow = {
   capability: string;
-  /** Columns in this fixed order: payload, tina, sanity, contentful, wryte */
   payload: Cell;
   tina: Cell;
   sanity: Cell;

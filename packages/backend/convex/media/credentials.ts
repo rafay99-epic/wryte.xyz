@@ -1,13 +1,3 @@
-/**
- * mediaCredentials — public actions for the settings UI.
- *
- * All non-action helpers (queries, internal mutations) live in
- * `credentialsDb.ts`; everything in this file runs in Convex's Node
- * runtime because the provider SDKs depend on Node-specific globals.
- *
- * The rotation flow is delegated to `workflows/rotateCredential.ts` so the
- * "verify new → swap pointer → delete old" sequence survives crashes.
- */
 "use node";
 
 import { ConvexError, v } from "convex/values";
@@ -27,21 +17,6 @@ const PROVIDER_VALIDATOR = credentialProviderValidator;
 
 type ProviderName = CredentialProvider;
 
-/* ------------------------------------------------------------------ */
-/*  Partial updates                                                     */
-/* ------------------------------------------------------------------ */
-
-/**
- * Merges a partial credential into the stored one.
- *
- * The settings form never receives secret values — they stay inside Convex —
- * so editing a bucket name would otherwise mean retyping the API secret next
- * to it. Instead the form submits only the fields it has, and the omitted ones
- * are filled in here from the vault.
- *
- * `raw` providers hold a single opaque token, so "partial" can only mean
- * "unchanged": an empty submission keeps what's stored.
- */
 async function mergeWithStoredSecret(
   ctx: ActionCtx,
   provider: ProviderName,
@@ -65,9 +40,7 @@ async function mergeWithStoredSecret(
     if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
       storedFields = parsed as Record<string, unknown>;
     }
-  } catch {
-    // Unparseable stored blob — the incoming one replaces it wholesale.
-  }
+  } catch {}
   let incomingFields: Record<string, unknown> = {};
   try {
     const parsed: unknown = JSON.parse(incoming);
@@ -83,14 +56,6 @@ async function mergeWithStoredSecret(
   return JSON.stringify({ ...storedFields, ...incomingFields });
 }
 
-/**
- * Non-secret credential fields, for pre-filling the settings form.
- *
- * Reads the vault so the database holds no second, plaintext copy of anything.
- * Secret fields are filtered out by the registry's `secret` flag and never
- * cross the wire — the form leaves those blank and
- * {@link mergeWithStoredSecret} fills them back in on save.
- */
 export const getEditableConfig = action({
   args: {
     projectId: v.id("projects"),
@@ -134,14 +99,6 @@ export const getEditableConfig = action({
   },
 });
 
-/* ------------------------------------------------------------------ */
-/*  Public actions                                                      */
-/* ------------------------------------------------------------------ */
-
-/**
- * First-time credential set. Stores the secret in the vault and runs a ping
- * to flip the row to `active` (or `invalid` with a friendly error).
- */
 export const setCredentials = action({
   args: {
     projectId: v.id("projects"),
@@ -179,8 +136,6 @@ export const setCredentials = action({
       { projectId: args.projectId, provider: args.provider },
     );
 
-    // Editing one field submits only that field, so fold the submission into
-    // what's already stored before anything looks at it.
     const secret = existing
       ? await mergeWithStoredSecret(
           ctx,
@@ -191,12 +146,8 @@ export const setCredentials = action({
         )
       : args.secret;
 
-    // Validate the credential shape early so we never persist a malformed
-    // secret — the adapter owns what "well-formed" means for its provider.
     assertValidSecretShape(args.provider, secret);
 
-    // Verify-first when replacing an existing credential — never destroy
-    // the working vault entry on a bad new secret.
     const verify = await runProviderPing(args.provider, secret);
     if (existing && !verify.ok) {
       const failResult: {
@@ -238,22 +189,16 @@ export const setCredentials = action({
       if (created.versionId !== undefined) {
         replaceArgs.newVersionId = created.versionId;
       }
-      // Drop the legacy plaintext mirror on the way past.
       replaceArgs.clearPublicConfig = true;
       await ctx.runMutation(
         internal.media.credentialsDb._replaceVaultId,
         replaceArgs,
       );
-      // Best-effort delete of the prior vault entry. If this fails, the new
-      // pointer is already in place so the user is unaffected.
       try {
         await ctx.runAction(internal.integrations.secretStore._delete, {
           id: existing.vaultSecretId,
         });
       } catch (err) {
-        // The new secret is already in place, so the user is unaffected and
-        // failing here would be worse than leaking one orphan. Log it, though:
-        // silently swallowing meant nobody could tell an orphan had happened.
         console.warn(
           `[media] failed to delete superseded vault secret ${existing.vaultSecretId} for ${args.provider}:`,
           (err as { message?: string })?.message ?? err,
@@ -311,9 +256,6 @@ export const setCredentials = action({
   },
 });
 
-/**
- * Re-verify the active credential against the provider.
- */
 export const testCredentials = action({
   args: {
     projectId: v.id("projects"),
@@ -355,11 +297,6 @@ export const testCredentials = action({
   },
 });
 
-/**
- * Begin a credential rotation. The actual sequencing (verify → swap → delete)
- * happens inside `rotateCredentialWorkflow` so a crash mid-rotation leaves
- * a recoverable state (either the old or the new secret, never both lost).
- */
 export const rotate = action({
   args: {
     projectId: v.id("projects"),
@@ -388,15 +325,9 @@ export const rotate = action({
     );
     assertValidSecretShape(args.provider, secret);
 
-    // Snapshot the prior status so the workflow can revert correctly on a
-    // failed verify — promoting a previously-invalid row to "active" was
-    // the B11 bug that this branch fixes for the ai/social paths too.
     const priorStatus: "active" | "invalid" =
       cred.status === "invalid" ? "invalid" : "active";
 
-    // Store the new secret before the workflow starts so only its vault id
-    // is journaled as a workflow argument, never the plaintext. The workflow
-    // deletes this entry again if verification fails.
     const created = await ctx.runAction(
       internal.integrations.secretStore._create,
       {
@@ -437,8 +368,6 @@ export const rotate = action({
         kickArgs,
       );
     } catch (err) {
-      // No workflow will run, so undo the "rotating" status and the new
-      // vault entry here instead.
       await ctx.runMutation(internal.media.credentialsDb._setStatus, {
         credentialId: cred._id,
         status: priorStatus,
@@ -453,10 +382,6 @@ export const rotate = action({
   },
 });
 
-/**
- * Delete a credential. Refuses if the project's `mediaStorageMode` still
- * points to this provider (user must switch first).
- */
 export const deleteCredentials = action({
   args: {
     projectId: v.id("projects"),
@@ -486,8 +411,6 @@ export const deleteCredentials = action({
         id: cred.vaultSecretId,
       });
     } catch (err) {
-      // Already-deleted vault entries are the common case here, so this stays
-      // non-fatal — but a real failure has to be visible rather than assumed.
       console.warn(
         `[media] failed to delete vault secret ${cred.vaultSecretId} for ${args.provider}:`,
         (err as { message?: string })?.message ?? err,
@@ -498,10 +421,6 @@ export const deleteCredentials = action({
     });
   },
 });
-
-/* ------------------------------------------------------------------ */
-/*  Helpers                                                              */
-/* ------------------------------------------------------------------ */
 
 async function loadOwnedCredential(
   ctx: ActionCtx,
@@ -543,11 +462,6 @@ async function loadOwnedCredential(
   };
 }
 
-/**
- * Rejects a credential blob the adapter can't parse, before it reaches the
- * vault. Surfaced as a `ConvexError` so the settings form shows the adapter's
- * own "missing field X" message rather than a generic failure.
- */
 function assertValidSecretShape(provider: ProviderName, secret: string): void {
   try {
     getAdapter(provider).validateSecret(secret);
@@ -570,9 +484,6 @@ async function runProviderPing(
     await adapter.ping(secret);
     return { ok: true };
   } catch (err) {
-    // Adapters that already normalised the failure throw a `ConvexError`
-    // carrying the code and a provider-worded message; prefer both over
-    // re-deriving them from an error shape that has none.
     const data =
       err instanceof ConvexError
         ? (err.data as { code?: string; message?: string })

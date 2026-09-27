@@ -1,29 +1,7 @@
-/**
- * Centralized rate limit definitions for the entire application.
- *
- * All public mutations, queries, and actions should call
- * `await rateLimiter.limit(ctx, "name", { key, throws: true })`
- * to enforce these limits. Internal functions are exempt (they're
- * already behind auth and called by trusted server code).
- *
- * Rate limits use two strategies:
- * - "fixed window": hard cap per period (good for create/delete ops)
- * - "token bucket": allows short bursts while maintaining a long-term rate
- *                   (good for high-frequency ops like auto-save)
- */
 import { HOUR, MINUTE, RateLimiter } from "@convex-dev/rate-limiter";
 import { components } from "../_generated/api";
 import type { ActionCtx, MutationCtx } from "../_generated/server";
 
-/**
- * Extracts a stable rate-limit key from the authenticated user's identity.
- * Falls back to "anonymous" so unauthenticated requests still get rate-limited
- * (globally, under one shared bucket).
- *
- * Note: Rate limiting is only applied to mutations and actions (not queries)
- * because the rate limiter needs write access to track token consumption.
- * Queries are read-only and already protected by authentication.
- */
 export async function getRateLimitKey(
   ctx: MutationCtx | ActionCtx,
 ): Promise<string> {
@@ -32,11 +10,6 @@ export async function getRateLimitKey(
 }
 
 export const rateLimiter = new RateLimiter(components.rateLimiter, {
-  /* ------------------------------------------------------------------ */
-  /*  Users                                                              */
-  /* ------------------------------------------------------------------ */
-
-  /** User sync on sign-in — very infrequent, but protect against loops. */
   "users:getOrCreate": {
     kind: "token bucket",
     rate: 10,
@@ -55,31 +28,21 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     period: MINUTE,
     capacity: 8,
   },
-  /** GitHub token update — rare, deliberate action. */
   "users:updateGithubToken": {
     kind: "fixed window",
     rate: 10,
     period: MINUTE,
   },
-  /** Account-wide default for image compression — rare, deliberate. */
   "users:updateDefaultCompressionSettings": {
     kind: "fixed window",
     rate: 10,
     period: MINUTE,
   },
-  /**
-   * Self-destruct (account reset). Intentionally tight — this is a
-   * destructive action; nobody should be running it on a loop.
-   */
   "users:selfDestruct": {
     kind: "fixed window",
     rate: 3,
     period: HOUR,
   },
-
-  /* ------------------------------------------------------------------ */
-  /*  Projects                                                           */
-  /* ------------------------------------------------------------------ */
 
   "projects:create": {
     kind: "fixed window",
@@ -98,16 +61,11 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     period: HOUR,
   },
 
-  /* ------------------------------------------------------------------ */
-  /*  Documents — mutations                                              */
-  /* ------------------------------------------------------------------ */
-
   "documents:create": {
     kind: "fixed window",
     rate: 20,
     period: MINUTE,
   },
-  /** Auto-save fires frequently — generous bucket with burst capacity. */
   "documents:update": {
     kind: "token bucket",
     rate: 120,
@@ -130,22 +88,11 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     rate: 20,
     period: MINUTE,
   },
-  /**
-   * Per-batch enqueue. Each batch can contain up to 200 file paths so
-   * this is a "how many bulk imports per minute" cap, not a per-file
-   * cap. Tight on purpose — accidentally clicking "Import" repeatedly
-   * shouldn't spawn dozens of overlapping batches.
-   */
   "documents:startBulkImport": {
     kind: "fixed window",
     rate: 10,
     period: MINUTE,
   },
-  /**
-   * Symmetric cap for bulk deletes. Tighter than bulk imports because
-   * deletes are destructive — accidental fat-finger of "Delete All"
-   * should not be amplifiable.
-   */
   "documents:startBulkDelete": {
     kind: "fixed window",
     rate: 5,
@@ -197,12 +144,6 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     period: MINUTE,
     capacity: 30,
   },
-  /**
-   * Hot draft autosave (3s debounce) — writes ONLY the draft's content
-   * side-table row. Same shape as `documentDrafts:updateContent` (the
-   * coarser flush path): generous bucket with burst capacity so a fast
-   * typist is never blocked.
-   */
   "documentDrafts:autosaveContent": {
     kind: "token bucket",
     rate: 120,
@@ -214,11 +155,6 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     rate: 10,
     period: MINUTE,
   },
-  /**
-   * Version snapshots — created on manual save and on a 10-minute editing
-   * interval, deduped server-side. The bucket allows save-spamming without
-   * errors while keeping the write volume bounded.
-   */
   "snapshots:create": {
     kind: "token bucket",
     rate: 20,
@@ -230,7 +166,6 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     rate: 10,
     period: MINUTE,
   },
-  /** Share links — deliberate one-off actions. */
   "shareLinks:create": {
     kind: "fixed window",
     rate: 20,
@@ -241,7 +176,6 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     rate: 20,
     period: MINUTE,
   },
-  /** Idea inbox — quick captures, deliberate but possibly rapid-fire. */
   "ideas:create": {
     kind: "token bucket",
     rate: 30,
@@ -270,12 +204,6 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     rate: 30,
     period: MINUTE,
   },
-  /**
-   * Sync-conflict resolution. The user can plough through a stack of
-   * conflicts (use github / keep convex / merge), but each resolution
-   * is a deliberate click, not a loop — generous bucket keeps the UI
-   * responsive while protecting against runaway scripts.
-   */
   "conflicts:resolve": {
     kind: "token bucket",
     rate: 60,
@@ -299,19 +227,11 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     period: HOUR,
   },
 
-  /* ------------------------------------------------------------------ */
-  /*  Board columns                                                      */
-  /* ------------------------------------------------------------------ */
-
   "boardColumns:updateColumns": {
     kind: "fixed window",
     rate: 20,
     period: MINUTE,
   },
-
-  /* ------------------------------------------------------------------ */
-  /*  AI prompt templates                                                */
-  /* ------------------------------------------------------------------ */
 
   "promptTemplates:updateTemplates": {
     kind: "fixed window",
@@ -329,16 +249,11 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     period: MINUTE,
   },
 
-  /* ------------------------------------------------------------------ */
-  /*  Editor snippets (reusable text blocks)                             */
-  /* ------------------------------------------------------------------ */
-
   "snippets:create": {
     kind: "fixed window",
     rate: 30,
     period: MINUTE,
   },
-  /** Edits debounce-save from the manager — slightly more generous. */
   "snippets:update": {
     kind: "fixed window",
     rate: 60,
@@ -350,16 +265,11 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     period: MINUTE,
   },
 
-  /* ------------------------------------------------------------------ */
-  /*  Code animations (user-authored .tsx components)                    */
-  /* ------------------------------------------------------------------ */
-
   "animations:create": {
     kind: "fixed window",
     rate: 30,
     period: MINUTE,
   },
-  /** Source edits save from the author sheet — slightly more generous. */
   "animations:update": {
     kind: "fixed window",
     rate: 60,
@@ -371,39 +281,30 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     period: MINUTE,
   },
 
-  /* ------------------------------------------------------------------ */
-  /*  Media                                                              */
-  /* ------------------------------------------------------------------ */
-
-  /** Direct provider uploads — generous burst for paste-heavy writing. */
   "media:upload": {
     kind: "token bucket",
     rate: 60,
     period: MINUTE,
     capacity: 10,
   },
-  /** Library list calls — reactive UI may refresh frequently. */
   "media:list": {
     kind: "token bucket",
     rate: 60,
     period: MINUTE,
     capacity: 20,
   },
-  /** Manual deletes from the media library. */
   "media:delete": {
     kind: "token bucket",
     rate: 30,
     period: MINUTE,
     capacity: 5,
   },
-  /** Per-user concurrency token — only 3 in flight at a time. */
   "media:uploadConcurrency": {
     kind: "token bucket",
     rate: 180,
     period: MINUTE,
     capacity: 3,
   },
-  /** Global circuit breaker — keyed on a constant string. */
   "media:globalUpload": {
     kind: "fixed window",
     rate: 5000,
@@ -431,7 +332,6 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     rate: 5,
     period: HOUR,
   },
-  /** WorkOS Vault reads — protects our WorkOS bill. */
   "vault:read": {
     kind: "token bucket",
     rate: 240,
@@ -445,34 +345,17 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     capacity: 3,
   },
 
-  /* ------------------------------------------------------------------ */
-  /*  Project tools                                                      */
-  /* ------------------------------------------------------------------ */
-
-  /**
-   * On-demand link checker — fans out HTTP requests, so deliberately
-   * tight. Strictly user-initiated (no cron).
-   */
   "tools:linkCheck": {
     kind: "fixed window",
     rate: 6,
     period: HOUR,
   },
-  /**
-   * Post-embed oEmbed resolution. One fetch per inserted embed, deliberate
-   * but a paste-heavy session can fire several — token bucket with a small
-   * burst keeps the UI snappy without allowing runaway scraping.
-   */
   "tools:oembed": {
     kind: "token bucket",
     rate: 20,
     period: MINUTE,
     capacity: 5,
   },
-
-  /* ------------------------------------------------------------------ */
-  /*  Scheduling                                                         */
-  /* ------------------------------------------------------------------ */
 
   "scheduling:schedule": {
     kind: "fixed window",
@@ -485,40 +368,18 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     period: MINUTE,
   },
 
-  /* ------------------------------------------------------------------ */
-  /*  AI enhancement                                                     */
-  /* ------------------------------------------------------------------ */
-
-  /**
-   * Deployment-wide AI backstop (load shedding). Applied with NO key, so all
-   * four stream mutations share ONE global bucket across every user. The
-   * per-user limits below are the primary control; this is a safety valve that
-   * only trips on a thundering-herd spike, protecting Convex action scheduling
-   * and our function-call budget. Generous on purpose — raise it if real peak
-   * traffic legitimately exceeds it (it caps aggregate AI throughput, so don't
-   * set it low). Token bucket so brief bursts pass.
-   */
   "ai:global": {
     kind: "token bucket",
     rate: 3000,
     period: MINUTE,
     capacity: 600,
   },
-  /**
-   * Per-provider deployment-wide cap. Applied with `key: provider`, so each
-   * provider (anthropic / openai / openrouter / google / groq / any future one)
-   * gets its OWN shared bucket across all users — one provider's spike can't
-   * monopolise AI throughput or starve the others. One config entry covers
-   * every provider via the dynamic key, so adding a provider needs no
-   * rate-limit change. Sized below `ai:global`; tune per real traffic.
-   */
   "ai:provider": {
     kind: "token bucket",
     rate: 1500,
     period: MINUTE,
     capacity: 400,
   },
-  /** AI calls are expensive — tight per-user limits. */
   "ai:createEnhanceStream": {
     kind: "fixed window",
     rate: 10,
@@ -562,10 +423,6 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     period: HOUR,
   },
 
-  /* ------------------------------------------------------------------ */
-  /*  Social credentials (Buffer)                                        */
-  /* ------------------------------------------------------------------ */
-
   "socialCredentials:set": {
     kind: "token bucket",
     rate: 5,
@@ -599,10 +456,6 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     period: MINUTE,
     capacity: 3,
   },
-
-  /* ------------------------------------------------------------------ */
-  /*  Syndication credentials (dev.to / Hashnode)                        */
-  /* ------------------------------------------------------------------ */
 
   "syndicationCredentials:set": {
     kind: "token bucket",
@@ -645,10 +498,6 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     period: HOUR,
   },
 
-  /* ------------------------------------------------------------------ */
-  /*  GitHub actions                                                     */
-  /* ------------------------------------------------------------------ */
-
   "github:publish": {
     kind: "fixed window",
     rate: 10,
@@ -659,13 +508,6 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     rate: 5,
     period: MINUTE,
   },
-  /**
-   * Imports are called in a loop when the user bulk-pulls existing posts
-   * from a repo. A token bucket with a generous burst lets a typical
-   * 30-file import go through instantly, then refills steadily for larger
-   * archives. The batch importer also honours `retryAfter` so really large
-   * imports (100+) just slow down rather than fail.
-   */
   "github:importFile": {
     kind: "token bucket",
     rate: 120,
@@ -683,16 +525,6 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     period: MINUTE,
   },
 
-  /* ------------------------------------------------------------------ */
-  /*  Clerk Backend SDK                                                  */
-  /* ------------------------------------------------------------------ */
-
-  /**
-   * Clerk OAuth token fetches. Every Convex action that needs a GitHub
-   * token calls Clerk fresh, so we protect against a retry loop quietly
-   * DOSing our Clerk dashboard. Generous enough to handle a bulk-publish
-   * fanning out to many files.
-   */
   "clerk:getOauthToken": {
     kind: "token bucket",
     rate: 120,
@@ -700,24 +532,17 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     capacity: 30,
   },
 
-  /* ------------------------------------------------------------------ */
-  /*  Feature requests                                                   */
-  /* ------------------------------------------------------------------ */
-
-  /** Public submission — generous but anti-spam. */
   "featureRequests:create": {
     kind: "fixed window",
     rate: 10,
     period: HOUR,
   },
-  /** Upvotes need to feel instant — token bucket with burst capacity. */
   "featureRequests:toggleUpvote": {
     kind: "token bucket",
     rate: 60,
     period: MINUTE,
     capacity: 15,
   },
-  /** Admin moderation — same generous shape as changelog edits. */
   "featureRequests:updateStatus": {
     kind: "token bucket",
     rate: 60,
@@ -730,72 +555,29 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     period: HOUR,
   },
 
-  /* ------------------------------------------------------------------ */
-  /*  One-shot seed scripts                                              */
-  /* ------------------------------------------------------------------ */
-
-  /* ------------------------------------------------------------------ */
-  /*  Writing stats                                                      */
-  /* ------------------------------------------------------------------ */
-
   "writingStats:setGoal": {
     kind: "fixed window",
     rate: 10,
     period: MINUTE,
   },
 
-  /* ------------------------------------------------------------------ */
-  /*  Seed                                                               */
-  /* ------------------------------------------------------------------ */
-
-  /** Tight cap — seeding is a one-off, accidental loops are the only risk. */
   "seed:run": {
     kind: "fixed window",
     rate: 5,
     period: MINUTE,
   },
 
-  /* ------------------------------------------------------------------ */
-  /*  Support tickets                                                    */
-  /* ------------------------------------------------------------------ */
-
-  /** Authenticated dashboard form — tight cap, real users don't submit
-   *  more than a handful per hour. */
   "support:submitFromDashboard": {
     kind: "fixed window",
     rate: 10,
     period: HOUR,
   },
-  /** Marketing form is reachable without auth — tightest bucket. */
   "support:submitFromMarketing": {
     kind: "fixed window",
     rate: 5,
     period: HOUR,
   },
 
-  /* ------------------------------------------------------------------ */
-  /*  MCP server                                                         */
-  /* ------------------------------------------------------------------ */
-
-  /**
-   * MCP limits are keyed on the OAuth token **subject** (the Clerk user id),
-   * not `tokenIdentifier`, so all of one user's agents share a single budget
-   * no matter how many OAuth clients they've registered. Registering a fresh
-   * client must not buy fresh quota.
-   *
-   * These are checked in `convex/mcp/gate.ts` *before* the request reaches
-   * the gateway. That ordering is the point: the gateway writes a session
-   * row, an audit row and dispatches an action, so rejecting here costs one
-   * rate-limiter write instead of three writes plus an action.
-   *
-   * `shards` spreads each bucket over multiple rows so a busy agent fleet
-   * doesn't serialise on one document and generate OCC conflicts. Rule of
-   * thumb from the component docs: shards ≈ peak QPS / 2, and never so many
-   * that a shard holds under ~5 capacity.
-   */
-
-  /** Every MCP request — the outer envelope. Generous burst so a normal
-   *  agent session never notices; the sustained rate is what bounds cost. */
   "mcp:request": {
     kind: "token bucket",
     rate: 600,
@@ -803,40 +585,17 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     capacity: 120,
     shards: 8,
   },
-  /** Session creation. Each `initialize` inserts a row in the gateway's
-   *  session table, so this is the anti-churn limit. */
   "mcp:initialize": {
     kind: "fixed window",
     rate: 20,
     period: MINUTE,
   },
-  /** Changing which capabilities MCP clients get — a deliberate settings
-   *  action, so a tight cap is plenty. */
   "mcp:setGrant": {
     kind: "fixed window",
     rate: 20,
     period: MINUTE,
   },
-  /**
-   * There is deliberately no `mcp:write` / `mcp:action` limit here. Every
-   * mutation and action an MCP tool wraps *already* calls
-   * `rateLimiter.limit(ctx, "<op>", { key })` with its own per-user budget
-   * (155 call sites across 38 modules). Adding an MCP-specific write limit
-   * would spend a second rate-limiter write per call to enforce a ceiling
-   * that the underlying function enforces anyway — cost with no coverage.
-   *
-   * The two limits above cover what those don't: `mcp:request` bounds
-   * *reads* (queries are not rate-limited anywhere else, because the limiter
-   * needs write access), and `mcp:initialize` bounds session-table churn.
-   */
 
-  /**
-   * Unkeyed circuit breaker across all MCP traffic. Every MCP request costs
-   * ~3 mutations, and Convex caps concurrent mutations per deployment class,
-   * so one pathological agent fleet could starve the web app of write
-   * throughput. This is the limit that protects the deployment (and the
-   * bill) when every per-user limit is behaving.
-   */
   "mcp:global": {
     kind: "token bucket",
     rate: 20000,

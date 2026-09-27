@@ -72,8 +72,6 @@ export function MediaSection({
     pathHint,
   } = useMediaSection({ projectId, project });
 
-  // One subscription for every provider's credential state, instead of a
-  // per-card `getPublicConfig`.
   const credentials = useQuery(api.media.credentialsDb.listForProject, {
     projectId,
   });
@@ -113,12 +111,6 @@ export function MediaSection({
             />
           </FieldGroup>
 
-          {/*
-            One row per provider — the radio *is* the default, and the same row
-            connects it. Splitting these into a destination picker plus a
-            separate stack of credential cards meant every provider appeared
-            twice and nothing said the two lists were the same four things.
-          */}
           <div className="space-y-1.5">
             <span className="flex items-center">
               <span className="text-xs font-medium text-muted-foreground">
@@ -490,21 +482,12 @@ function ProjectWatermarkSection({
   );
 }
 
-/** Credential row state, narrowed from `listForProject`. */
 type CredentialRow = {
   provider: CredentialProvider;
   status: MediaCredentialStatus;
   lastVerifyError: string | undefined;
 };
 
-/**
- * One provider, one row: the radio sets it as the upload default, the chip
- * says whether it is usable, and the expander holds its credentials.
- *
- * Keeping all three in a single row is the point — the previous layout put the
- * destination picker and the credential cards in separate lists, so every
- * provider was rendered twice with nothing tying the two together.
- */
 function ProviderRow({
   projectId,
   entry,
@@ -518,7 +501,6 @@ function ProviderRow({
   credential: CredentialRow | null;
   isDefault: boolean;
   onMakeDefault: () => void;
-  /** GitHub is "connected" when the project has a repo and a media directory. */
   githubReady: boolean;
 }) {
   const [open, setOpen] = useState(false);
@@ -545,8 +527,6 @@ function ProviderRow({
               ? "cursor-pointer font-medium"
               : "cursor-not-allowed text-muted-foreground",
           )}
-          // Selecting an unconnected provider as the default would only make
-          // every upload fail, so the radio waits for credentials.
           title={connected ? "Set as upload default" : "Connect it first"}
         >
           {entry.label}
@@ -625,13 +605,6 @@ function ProviderStatusChip({
   return <StatusBadge status={status} />;
 }
 
-/**
- * Connect / verify / rotate / disconnect one storage provider.
- *
- * Entirely driven by the provider's registry entry — the inputs, how they
- * serialise into the vault secret, and which of them are echoed back after
- * saving all come from `entry.fields`. Adding a provider needs no change here.
- */
 function CredentialPanel({
   projectId,
   entry,
@@ -664,9 +637,6 @@ function CredentialPanel({
     setValues((prev) => ({ ...prev, [key]: value }));
   }, []);
 
-  // Pre-fill what's already stored so changing one field doesn't mean retyping
-  // the rest. Only non-secret fields come back — the vault read happens on the
-  // server and secrets never cross the wire.
   useEffect(() => {
     if (!hasExisting) return;
     let cancelled = false;
@@ -674,12 +644,9 @@ function CredentialPanel({
     void getEditableConfig({ projectId, provider })
       .then((config) => {
         if (cancelled || !config) return;
-        // Anything typed before the round-trip landed wins.
         setValues((prev) => ({ ...config, ...prev }));
       })
-      .catch(() => {
-        // Pre-fill is a convenience; a failure just leaves the fields blank.
-      })
+      .catch(() => {})
       .finally(() => {
         if (!cancelled) setIsLoadingValues(false);
       });
@@ -715,8 +682,6 @@ function CredentialPanel({
           toast.error(result.message ?? "Credentials failed verification.");
         }
       }
-      // Clear secrets from component state once they've been handed over; the
-      // non-secret fields stay so the form still shows what was configured.
       setValues((prev) => {
         const next = { ...prev };
         for (const field of entry.fields) {
@@ -817,8 +782,6 @@ function CredentialPanel({
             size="sm"
             variant="ghost"
             onClick={() => setConfirmDelete(true)}
-            // The backend refuses to unlink the provider uploads route to;
-            // disabling here explains why before the request fails.
             disabled={busy !== null || isRotating || isDefault}
             title={
               isDefault ? "Make another provider the default first" : "Remove"

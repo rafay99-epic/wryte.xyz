@@ -31,13 +31,6 @@ const writeStamp = async (
   }
 };
 
-/**
- * Public deploy-time stamp. The deploy script (`scripts/stamp-version.ts`)
- * authenticates by supplying `VERSION_STAMP_SECRET`, which must be set as
- * a Convex env var. Without the secret an anonymous caller could overwrite
- * the singleton row and trigger "new version available" toasts on every
- * connected client (see `useVersionCheck`).
- */
 export const stamp = mutation({
   args: {
     version: v.string(),

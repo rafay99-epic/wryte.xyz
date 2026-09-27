@@ -35,16 +35,8 @@ import { StepConfigurePaths } from "@/features/new-project/wizard/step-configure
 import { StepFrontmatterSchema } from "@/features/new-project/wizard/step-frontmatter-schema";
 import { StepSelectRepo } from "@/features/new-project/wizard/step-select-repo";
 
-/**
- * Shape of the multi-step project creation wizard.
- *
- * All three steps share a single state object so values entered in earlier
- * steps are preserved when navigating back and forth.
- */
-
 export type WizardState = {
   step: 1 | 2 | 3;
-  // Step 1 — repo selection & project identity
   selectedRepo: {
     fullName: string;
     name: string;
@@ -54,29 +46,17 @@ export type WizardState = {
   } | null;
   projectName: string;
   projectSlug: string;
-  /** When true the user skips the GitHub repo picker and enters details manually. */
   useManualSetup: boolean;
-  // Step 2 — directory paths & media config
   contentPath: string;
   mediaPath: string;
   mediaStorageMode: MediaProvider;
-  /**
-   * Credential inputs for the chosen provider, keyed by the field names in the
-   * media provider registry. One map instead of a field per provider, so
-   * adding a storage backend needs no new wizard state.
-   */
   mediaCredentials: CredentialValues;
-  // Step 3 — frontmatter schema definition
   frontmatterFields: FrontmatterField[];
-  /** If frontmatter fields were auto-detected from an existing file, its name is stored here. */
   detectedFromFile: string | null;
-  /** Static-site framework detected during schema detection (astro/hugo/…). */
   detectedFramework: string | null;
-  /** Frontmatter delimiter style observed in the repo's posts. */
   detectedFrontmatterFormat: "yaml" | "toml" | null;
 };
 
-/** Sensible defaults so the wizard is usable without touching every field. */
 const INITIAL_STATE: WizardState = {
   step: 1,
   selectedRepo: null,
@@ -121,7 +101,6 @@ export function NewProjectPage() {
   const [state, setState] = useState<WizardState>(INITIAL_STATE);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Clear active project so sidebar shows default view
   useEffect(() => {
     useEditorStore.getState().setActiveProjectId(null);
   }, []);
@@ -189,12 +168,10 @@ export function NewProjectPage() {
 
   const goToStep = useCallback(
     (target: 1 | 2 | 3) => {
-      // Can always go back. Going forward requires validation.
       if (target < state.step) {
         setState((prev) => ({ ...prev, step: target }));
         return;
       }
-      // Validate all steps up to target
       for (let s = state.step; s < target; s++) {
         if (!validateStep(s as 1 | 2 | 3)) return;
       }
@@ -256,8 +233,6 @@ export function NewProjectPage() {
         args.githubBranch = state.selectedRepo.defaultBranch;
       }
 
-      // Persist what detection learned so publishing is framework-aware
-      // (e.g. Hugo → TOML frontmatter).
       if (state.detectedFramework && state.detectedFramework !== "unknown") {
         args.framework = state.detectedFramework;
       }
@@ -267,9 +242,6 @@ export function NewProjectPage() {
 
       const projectId = await createProject(args);
 
-      // Persist provider credentials when applicable. We do this after the
-      // project exists so a credential save failure leaves a valid project
-      // (the user can rotate the key from settings later).
       const providerEntry = getMediaProvider(state.mediaStorageMode);
       const secret = buildCredentialSecret(
         providerEntry,
@@ -308,10 +280,8 @@ export function NewProjectPage() {
 
   return (
     <div className="flex h-full">
-      {/* ── Left rail: step navigation + summary ─────────────────── */}
       <div className="hidden w-56 shrink-0 border-r border-border/50 lg:block">
         <div className="flex h-full flex-col px-4 py-5">
-          {/* Back to projects */}
           <Link
             href="/projects"
             className="mb-6 inline-flex items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
@@ -320,13 +290,11 @@ export function NewProjectPage() {
             Back to projects
           </Link>
 
-          {/* Page title */}
           <h1 className="mb-1 text-sm font-semibold">New Project</h1>
           <p className="mb-6 text-[11px] text-muted-foreground/60">
             Set up your content project
           </p>
 
-          {/* Step list */}
           <nav className="flex-1 space-y-1">
             {STEPS.map((step) => {
               const isCompleted = state.step > step.number;
@@ -376,7 +344,6 @@ export function NewProjectPage() {
             })}
           </nav>
 
-          {/* Summary — shows what's been configured */}
           {(state.selectedRepo || state.projectName) && (
             <div className="mt-auto border-t border-border/40 pt-4">
               <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/40">
@@ -413,9 +380,7 @@ export function NewProjectPage() {
         </div>
       </div>
 
-      {/* ── Main content ─────────────────────────────────────────── */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Mobile back link + step indicator (visible on smaller screens) */}
         <div className="flex items-center justify-between border-b border-border/40 px-4 py-3 lg:hidden">
           <Link
             href="/projects"
@@ -441,10 +406,8 @@ export function NewProjectPage() {
           </div>
         </div>
 
-        {/* Scrollable content area */}
         <div className="flex-1 overflow-y-auto slim-scrollbar">
           <div className="mx-auto w-full max-w-3xl px-5 py-6 sm:px-8 sm:py-8">
-            {/* Step title */}
             <AnimatePresence mode="wait">
               <motion.div
                 key={state.step}
@@ -475,7 +438,6 @@ export function NewProjectPage() {
               </motion.div>
             </AnimatePresence>
 
-            {/* Step content */}
             <AnimatePresence mode="wait">
               <motion.div
                 key={state.step}
@@ -505,7 +467,6 @@ export function NewProjectPage() {
           </div>
         </div>
 
-        {/* Bottom bar — navigation */}
         <div className="shrink-0 border-t border-border/40 bg-background px-5 py-3 sm:px-8">
           <div className="mx-auto flex max-w-3xl items-center justify-between">
             <Button

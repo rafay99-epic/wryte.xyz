@@ -1,10 +1,3 @@
-/**
- * Non-Node database helpers for social announcement outcomes.
- *
- * Rows are written once per publish (batched — one mutation regardless of
- * channel count) and read only while the publish dialog is open, so the
- * table adds zero standing Convex cost.
- */
 import { v } from "convex/values";
 import { internalMutation, internalQuery, query } from "../_generated/server";
 import { getAuthedUserOrNull } from "../_lib/auth";
@@ -32,7 +25,6 @@ const POST_DOC = v.object({
   createdAt: v.number(),
 });
 
-/** Latest announcement attempts for a document, newest first. */
 export const listForDocument = query({
   args: { documentId: v.id("documents") },
   returns: v.array(POST_DOC),
@@ -83,7 +75,6 @@ export const _get = internalQuery({
   handler: async (ctx, args) => ctx.db.get(args.socialPostId),
 });
 
-/** Flip a row after a retry attempt. */
 export const _setStatus = internalMutation({
   args: {
     socialPostId: v.id("social_posts"),
@@ -94,7 +85,6 @@ export const _setStatus = internalMutation({
   handler: async (ctx, args) => {
     await ctx.db.patch(args.socialPostId, {
       status: args.status,
-      // `undefined` removes the field — a successful retry clears the error.
       error: args.error,
       createdAt: Date.now(),
     });

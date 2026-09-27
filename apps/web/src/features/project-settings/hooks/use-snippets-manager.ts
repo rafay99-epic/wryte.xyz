@@ -5,11 +5,6 @@ import { useMutation, usePaginatedQuery } from "convex/react";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
 
-/**
- * Paginated CRUD for a project's snippets. The list rides a paginated query so
- * the settings screen never loads thousands at once; create/update/remove are
- * granular mutations. Per-row edit debouncing lives in the row component.
- */
 export function useSnippetsManager(projectId: Id<"projects">) {
   const { results, status, loadMore } = usePaginatedQuery(
     api.cms.snippets.list,

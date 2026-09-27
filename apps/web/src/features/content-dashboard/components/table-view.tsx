@@ -12,7 +12,6 @@ type TableViewProps = {
   columns: BoardColumnDef[];
   frontmatterMap: Map<string, ParsedFrontmatter>;
   importingPath: string | null;
-  /** Whether to show the selection checkbox column. */
   showSelection: boolean;
   selectedPaths: Set<string>;
   selectedDocIds?: Set<string> | undefined;

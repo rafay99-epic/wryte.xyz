@@ -70,7 +70,6 @@ export function DesktopApp() {
             />
 
             <div className="overflow-hidden rounded-2xl border border-foreground/[0.12] bg-background/70 shadow-2xl shadow-black/25 backdrop-blur-xl dark:border-foreground/[0.07] dark:bg-foreground/[0.02]">
-              {/* Title bar */}
               <div className="flex items-center gap-2 border-b border-foreground/[0.07] px-4 py-2.5">
                 <div className="flex gap-1.5">
                   <span className="size-2.5 rounded-full bg-foreground/15" />
@@ -100,7 +99,6 @@ export function DesktopApp() {
                   One command, always up to date.
                 </p>
 
-                {/* Brew install command */}
                 <div className="mx-auto max-w-xl">
                   <div className="inline-flex w-full items-center gap-2 overflow-hidden rounded-lg border border-foreground/[0.08] bg-foreground/[0.03] px-3 py-2.5 sm:px-4 sm:py-3 dark:border-foreground/[0.05] dark:bg-foreground/[0.02]">
                     <span className="font-mono text-[12px] text-emerald-400/60 sm:text-[13px]">
@@ -146,7 +144,6 @@ export function DesktopApp() {
                 </div>
               </div>
 
-              {/* Footer bar */}
               <div className="flex items-center gap-4 border-t border-foreground/[0.07] px-4 py-2 font-mono text-[10px] text-foreground/35">
                 <span className="inline-flex items-center gap-1">
                   <ExternalLink className="size-2.5" />

@@ -95,8 +95,6 @@ async function check(request: CheckRequest): Promise<CheckResponse["result"]> {
     );
 
     const diagnostics = runContractChecks(tsApi, sourceFile, request.language);
-    // JavaScript sources carry no annotations to check, so the type pass is
-    // not offered for them (the setting hides the switch too).
     if (request.level === "contract" || request.language === "jsx") {
       return { kind: "checked", diagnostics, typecheck: { kind: "skipped" } };
     }

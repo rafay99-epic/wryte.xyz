@@ -14,7 +14,6 @@ import {
   readDocBody,
 } from "@/features/docs/registry";
 
-/** Every doc page is prerendered — the bodies are files on disk, not data. */
 export function generateStaticParams() {
   return DOC_PAGES.map((page) => ({ slug: page.slug }));
 }
@@ -42,14 +41,11 @@ export default async function DocPage({
   const page = getDocPage(slug);
   if (!page) notFound();
 
-  // The markdown files open with their own `# Heading`, so the page header here
-  // is the eyebrow + subtitle only — no duplicated title.
   const body = readDocBody(page.slug);
   const { previous, next } = getDocNeighbours(page.slug);
 
   return (
     <DocsShell activeSlug={page.slug}>
-      {/* ── Header ────────────────────────────────────────────────── */}
       <div className="mb-8">
         <div className="mb-4 flex items-center gap-2 font-mono text-[10px] font-semibold uppercase tracking-[0.16em]">
           <Link
@@ -76,13 +72,10 @@ export default async function DocPage({
 
       <Separator className="mb-8 bg-foreground/[0.08]" />
 
-      {/* Prose classes mirror the changelog's article styling so markdown reads
-          identically across the marketing surface. */}
       <article className="prose prose-neutral max-w-none dark:prose-invert prose-headings:font-heading prose-headings:font-semibold prose-headings:tracking-tight prose-h1:mb-3 prose-h1:text-[28px] prose-h2:mt-12 prose-h2:mb-3 prose-h2:text-lg prose-h3:mt-8 prose-h3:mb-2 prose-h3:text-[15px] prose-p:leading-[1.75] prose-p:text-foreground/80 prose-a:font-medium prose-a:text-amber-600 prose-a:no-underline hover:prose-a:underline dark:prose-a:text-amber-400 prose-blockquote:border-l-amber-500/40 prose-blockquote:text-foreground/65 prose-strong:font-semibold prose-strong:text-foreground prose-code:rounded prose-code:bg-foreground/[0.06] prose-code:px-1.5 prose-code:py-0.5 prose-code:text-[0.85em] prose-code:font-normal prose-code:before:content-none prose-code:after:content-none prose-pre:border prose-pre:border-foreground/[0.08] prose-pre:bg-foreground/[0.03] prose-pre:text-[12.5px] prose-li:leading-[1.75] prose-li:text-foreground/80 prose-table:text-[13px] prose-thead:border-foreground/15 prose-th:font-heading prose-th:font-semibold prose-td:align-top">
         <ChangelogMarkdown content={body} />
       </article>
 
-      {/* ── Prev / next ───────────────────────────────────────────── */}
       <nav className="mt-16 grid gap-2.5 sm:grid-cols-2">
         {previous ? (
           <Link href={`/docs/${previous.slug}`} className="group">

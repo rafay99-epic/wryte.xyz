@@ -1,11 +1,5 @@
 import type { DetectionFramework } from "./types";
 
-/**
- * Identifies the static-site framework from a repo's file list (paths relative
- * to the repo root, as returned by the Git Trees API). Order matters: more
- * specific markers are checked first so a Next.js repo that also happens to ship
- * an `_config.yml` isn't misread as Jekyll.
- */
 export function identifyFramework(allPaths: string[]): DetectionFramework {
   const set = new Set(allPaths);
   const has = (p: string) => set.has(p);
@@ -48,8 +42,6 @@ export function identifyFramework(allPaths: string[]): DetectionFramework {
 
   if (hasAny("svelte.config.js", "svelte.config.ts")) return "sveltekit";
 
-  // Jekyll: `_config.yml` is the marker, but corroborate with a Jekyll-specific
-  // directory so generic YAML configs in other stacks don't trigger it.
   if (
     has("_config.yml") &&
     (hasPrefix("_posts") || hasPrefix("_layouts") || has("Gemfile"))
@@ -71,11 +63,6 @@ export function identifyFramework(allPaths: string[]): DetectionFramework {
   return "unknown";
 }
 
-/**
- * Candidate repo-relative paths for a framework's authoritative schema config.
- * The route fetches whichever of these exist (filtered against the file tree)
- * and hands the contents to the matching parser. Ordered by preference.
- */
 export function configCandidatePaths(framework: DetectionFramework): string[] {
   switch (framework) {
     case "astro":

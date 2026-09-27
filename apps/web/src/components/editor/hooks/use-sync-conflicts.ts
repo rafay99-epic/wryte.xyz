@@ -9,14 +9,6 @@ export type SyncConflictSummary = {
   detectedAt: number;
 };
 
-/**
- * Subscribes to the unresolved sync conflicts for a project. Powers the
- * persistent banner on the project dashboard and the "Resolve N
- * conflicts" CTA in the bulk-import dialog.
- *
- * Returns `undefined` while the query is loading so callers can render
- * a skeleton; an empty array once loaded with no conflicts.
- */
 export function useSyncConflicts(
   projectId: Id<"projects"> | null | undefined,
 ): SyncConflictSummary[] | undefined {

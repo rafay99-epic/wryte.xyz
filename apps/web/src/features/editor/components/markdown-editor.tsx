@@ -21,10 +21,6 @@ import { type SelectionRange, SelectionToolbar } from "./selection-toolbar";
 import { SlashMenu } from "./slash-menu";
 import { WikiLinkMenu } from "./wiki-link-menu";
 
-/**
- * Raw markdown textarea editor: markdown shortcuts, Cmd+J inline AI on the
- * selection, slash/wiki-link menus, and paste/drop media upload.
- */
 export function MarkdownEditor({
   documentId,
   projectId,
@@ -54,9 +50,6 @@ export function MarkdownEditor({
   const { textareaRef, getSelection, replaceRange, selectRange } =
     useEditorContext();
 
-  // Double-click-to-edit jump from the preview. Runs after mount, so it also
-  // covers the preview→edit switch where the offset was queued before this
-  // textarea existed.
   const pendingCaret = useEditorStore((s) => s.pendingCaret);
   useEffect(() => {
     if (pendingCaret === null) return;
@@ -64,14 +57,12 @@ export function MarkdownEditor({
     useEditorStore.getState().setPendingCaret(null);
   }, [pendingCaret, selectRange]);
 
-  // Inline AI popover state
   const [inlineAiOpen, setInlineAiOpen] = useState(false);
   const [inlineAiSelection, setInlineAiSelection] = useState<{
     text: string;
     start: number;
     end: number;
   } | null>(null);
-  // Set by the selection toolbar's quick actions — runs immediately on open.
   const [presetInstruction, setPresetInstruction] = useState<string | null>(
     null,
   );
@@ -82,9 +73,6 @@ export function MarkdownEditor({
     "+",
   );
 
-  // Inline AI is only available once the project's AI provider has an
-  // active credential. We still register the shortcut so users discover
-  // the feature, but route them to settings when nothing's configured.
   const activeProjectId = useEditorStore((s) => s.activeProjectId);
   const aiReadiness = useQuery(
     api.ai.enhance.isAiReady,
@@ -125,8 +113,6 @@ export function MarkdownEditor({
     setInlineAiOpen(true);
   }, [aiReady, notifyAiNotReady, getSelection, inlineAiLabel]);
 
-  // Selection-toolbar quick actions: open the inline-AI popover with a
-  // preset instruction that runs immediately.
   const handleQuickAiAction = useCallback(
     (instruction: string, selection: SelectionRange) => {
       if (!aiReady) {
@@ -145,8 +131,6 @@ export function MarkdownEditor({
     if (!open) setPresetInstruction(null);
   }, []);
 
-  // Slash-menu "Ask AI to write…" — opens the inline-AI popover with a
-  // collapsed selection at the caret, so the generated text inserts there.
   const handleSlashAi = useCallback(
     (caretIndex: number) => {
       if (!aiReady) {
@@ -162,11 +146,8 @@ export function MarkdownEditor({
 
   useKeyboardShortcuts(textareaRef, { onInlineAI });
 
-  // Paste/drop media upload + paste-URL-over-selection linking.
   useMediaPaste({ documentId, projectId });
 
-  // Typewriter scrolling — focus mode only, and toggleable as a persisted
-  // sub-preference (default ON).
   const focusMode = useEditorStore((s) => s.focusMode);
   const typewriterScrolling = useEditorPreferencesStore(
     (s) => s.typewriterScrolling,
@@ -174,13 +155,6 @@ export function MarkdownEditor({
   const typewriterActive = focusMode && typewriterScrolling;
   useTypewriterScroll(textareaRef, typewriterActive);
 
-  // Tracks the last content value that came from a textarea input event.
-  // The sync effect compares against this so it can distinguish "store
-  // change echoed from the textarea" (skip — preserves the native undo
-  // stack) from "store change came from elsewhere, e.g. AI apply" (write).
-  // A boolean flag was the original approach but it lost the distinction
-  // when an external setContent landed right after a keystroke, leaving
-  // the textarea stuck on stale content while the store advanced.
   const lastInputContentRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -199,9 +173,6 @@ export function MarkdownEditor({
     };
   }, [textareaRef, setContent]);
 
-  // Epoch the textarea was last synced against. A changed epoch means a
-  // different document/draft was loaded into the store, so the echo guard
-  // below must not apply — it belongs to the previous target.
   const lastSyncedEpochRef = useRef(contentEpoch);
 
   useEffect(() => {
@@ -211,11 +182,6 @@ export function MarkdownEditor({
     const epochChanged = lastSyncedEpochRef.current !== contentEpoch;
     lastSyncedEpochRef.current = contentEpoch;
     if (epochChanged) {
-      // A new version was loaded (draft switch, promote, restore). Without
-      // resetting the echo guard, switching back to a tab whose saved text
-      // equals the last thing typed here would skip the write below and
-      // leave the previous tab's content on screen — which autosave would
-      // then persist into the wrong draft.
       lastInputContentRef.current = null;
       if (textarea.value !== content) textarea.value = content;
       return;
@@ -230,7 +196,6 @@ export function MarkdownEditor({
   const handleAcceptInline = useCallback(
     (start: number, end: number, replacement: string) => {
       const current = useEditorStore.getState().content;
-      // Happy path: the captured range still points at the captured text.
       if (
         inlineAiSelection &&
         current.slice(start, end) === inlineAiSelection.text
@@ -238,10 +203,6 @@ export function MarkdownEditor({
         replaceRange(start, end, replacement);
         return;
       }
-      // Content shifted while the AI ran. A bare `indexOf` would silently
-      // hit the wrong occurrence (the user's "the" picked from paragraph A
-      // could land in paragraph Z). Bail with a clear error and let the
-      // user re-trigger after re-selecting.
       toast.error(
         "Original text was modified while the AI was running — please re-select and try again",
       );
@@ -251,7 +212,6 @@ export function MarkdownEditor({
 
   return (
     <div className="relative mx-auto w-full max-w-[860px]">
-      {/* Inline AI popover — floats above the editor */}
       <InlineAiPopover
         open={inlineAiOpen}
         onOpenChange={handleInlineAiOpenChange}
@@ -284,10 +244,6 @@ export function MarkdownEditor({
       <textarea
         ref={textareaRef}
         defaultValue={content}
-        // Locked while a version switch is in flight: a keystroke landing in
-        // the outgoing tab's buffer would otherwise be autosaved into the
-        // wrong version. Cache-hit switches resolve within a tick, so this
-        // never blocks real typing.
         readOnly={isVersionSwitching}
         className="editor-textarea h-full min-h-[calc(100vh-120px)] w-full resize-none border-0 bg-transparent px-10 py-8 text-[15px] leading-[1.85] text-foreground outline-none placeholder:text-muted-foreground/40 focus:ring-0"
         placeholder="Start writing your article..."

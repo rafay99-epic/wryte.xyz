@@ -72,7 +72,6 @@ export function FeatureRequestsBoard() {
 
   return (
     <>
-      {/* Toolbar — tabs + submit */}
       <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-wrap gap-1 rounded-full border border-foreground/10 bg-foreground/[0.02] p-1">
           {STATUS_TABS.map((s) => {
@@ -123,7 +122,6 @@ export function FeatureRequestsBoard() {
         )}
       </div>
 
-      {/* List */}
       {paginationStatus === "LoadingFirstPage" ? (
         <ul className="space-y-3">
           {[0, 1, 2, 3, 4].map((i) => (

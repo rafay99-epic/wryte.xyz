@@ -3,11 +3,6 @@
 import { Button } from "@wryte/ui/button";
 import { FileText, Plus, Search } from "lucide-react";
 
-/**
- * Filter for the content dashboard.
- * "all", "local", "remote" are special built-in values.
- * Any other string maps to a board column ID.
- */
 export type ViewFilter = string;
 
 type ContentEmptyStateProps = {

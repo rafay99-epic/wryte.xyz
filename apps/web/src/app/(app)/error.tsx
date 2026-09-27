@@ -8,12 +8,6 @@ import { AlertTriangle, LayoutDashboard, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { useEffect } from "react";
 
-/**
- * Error boundary for the authenticated (app) route group.
- *
- * Renders within the app shell (sidebar + header remain visible) so
- * the user can navigate away or retry without a full-page reload.
- */
 export default function AppError({
   error,
   reset,

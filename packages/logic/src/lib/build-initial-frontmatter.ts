@@ -7,11 +7,6 @@ type SchemaField = {
   defaultValue?: string | boolean;
 };
 
-/**
- * Project-level defaults the document creator can pull from instead of
- * trusting whatever value happened to leak into the schema during
- * auto-detection. Single source of truth for "who's writing this site".
- */
 export type ProjectAuthorConfig = {
   defaultAuthor?: string | undefined;
   defaultAuthorAvatar?: string | undefined;
@@ -40,13 +35,6 @@ const AUTHOR_AVATAR_FIELD_NAMES = new Set([
   "avatar",
 ]);
 
-/**
- * Field names whose value is genuinely per-post. Auto-detection used to
- * copy these from the first scanned post, leaking them into every
- * subsequent new post's frontmatter. We refuse to pre-fill them even when
- * the schema carries a stale default — the editor presents an empty field
- * so the author has to put real content in it.
- */
 const PER_POST_FIELD_NAMES = new Set([
   "excerpt",
   "summary",
@@ -71,13 +59,6 @@ const PER_POST_FIELD_NAMES = new Set([
   "featured",
 ]);
 
-/**
- * Builds a JSON string of initial frontmatter values for a newly created
- * document. Pre-fills title and slug from the creation dialog, today's
- * date for any date/datetime fields, author + avatar from the project
- * config, and respects only configuration-like schema defaults (booleans,
- * status enums, etc.) — never per-post content like excerpt or keywords.
- */
 export function buildInitialFrontmatter(
   schemaJson: string | undefined | null,
   title: string,
@@ -87,8 +68,8 @@ export function buildInitialFrontmatter(
   const fields = parseFrontmatterSchema(schemaJson, DEFAULT_FIELDS);
   const values: Record<string, string | boolean> = {};
 
-  const todayDate = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-  const nowDatetime = new Date().toISOString().slice(0, 16); // YYYY-MM-DDTHH:MM
+  const todayDate = new Date().toISOString().slice(0, 10);
+  const nowDatetime = new Date().toISOString().slice(0, 16);
 
   for (const field of fields) {
     const name = field.name;
@@ -137,16 +118,10 @@ export function buildInitialFrontmatter(
   return JSON.stringify(values);
 }
 
-/** Priority-ordered field names considered "publish date" fields. */
 const PUB_DATE_CANDIDATES = ["pubDate", "publishDate", "date"];
 
 type PubDateField = { name: string; type: "date" | "datetime" };
 
-/**
- * Scans a project's frontmatter schema for the publish-date field, in
- * `PUB_DATE_CANDIDATES` priority order. Returns null when none is found or
- * the schema JSON is missing/invalid.
- */
 function findPubDateField(
   schemaJson: string | undefined | null,
 ): PubDateField | null {
@@ -169,14 +144,12 @@ function findPubDateField(
   }
 }
 
-/** Name of the publish-date field (e.g. "pubDate"), or null. */
 export function findPubDateFieldName(
   schemaJson: string | undefined | null,
 ): string | null {
   return findPubDateField(schemaJson)?.name ?? null;
 }
 
-/** Type of the publish-date field, or null. */
 export function findPubDateFieldType(
   schemaJson: string | undefined | null,
 ): "date" | "datetime" | null {

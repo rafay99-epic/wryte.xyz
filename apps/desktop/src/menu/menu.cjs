@@ -8,7 +8,6 @@ const updater = require("../updater/updater.cjs");
 
 const isMac = process.platform === "darwin";
 
-/** Build and install the application menu. */
 function build() {
   const help = [
     {

@@ -38,28 +38,11 @@ export type UseBulkDeleteReturn = {
 
 type UseBulkDeleteOptions = {
   projectId: Id<"projects">;
-  /** Local documents — used to resolve `localIds` into the workpool's `items` shape. */
   documents: LocalDocLite[] | undefined;
-  /** Remote files — used to resolve `remotePaths` into the workpool's `items` shape. */
   remoteFiles: RemoteFile[];
-  /**
-   * Called after the user dismisses the completion dialog. Use this to
-   * refresh the remote file list (a github/both delete makes it stale).
-   */
   onDone?: () => void | Promise<void>;
 };
 
-/**
- * Bulk-delete lifecycle as a single hook. Two paths:
- *
- *  - **mode === "local"** — server returns `{ batchId: null,
- *    inlineSummary }`. We feed `inlineSummary` directly into `batch`
- *    state so the completion dialog renders immediately. No workpool
- *    subscription.
- *  - **mode includes github** — server returns `{ batchId }`. We
- *    subscribe to `getDeleteBatch` and the dialog drives off the
- *    reactive row.
- */
 export function useBulkDelete({
   projectId,
   documents,
@@ -159,8 +142,6 @@ export function useBulkDelete({
     void onDone?.();
   }, [onDone]);
 
-  // The dialog accepts either source — when batchId is set we hand
-  // back the reactive row; otherwise the inline summary if present.
   const batch: BulkDeleteBatchState | null | undefined = batchId
     ? (reactiveBatch as BulkDeleteBatchState | null | undefined)
     : inlineBatch;

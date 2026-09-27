@@ -123,7 +123,6 @@ export function PublicProfile({
         </div>
       )}
 
-      {/* Accent glow — theme-agnostic, tinted by the user's accent. */}
       <div
         aria-hidden
         className="pointer-events-none absolute left-1/2 top-0 h-72 w-[42rem] max-w-full -translate-x-1/2 rounded-full bg-[var(--pa)] opacity-[0.12] blur-3xl"
@@ -134,7 +133,6 @@ export function PublicProfile({
       </div>
 
       <main className="relative mx-auto w-full max-w-2xl px-5 py-16 sm:py-24">
-        {/* Identity */}
         <header className="flex flex-col items-center text-center">
           <div className="rounded-full bg-[var(--pa)] p-[2.5px] shadow-lg shadow-[var(--pa)]/20">
             {profile.imageUrl ? (
@@ -173,7 +171,6 @@ export function PublicProfile({
             </p>
           )}
 
-          {/* Actions — copy link is front-and-center */}
           <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
             <button
               type="button"
@@ -234,7 +231,6 @@ export function PublicProfile({
             })}
           </div>
 
-          {/* Topics */}
           {profile.topics.length > 0 && (
             <div className="mt-5 flex flex-wrap items-center justify-center gap-1.5">
               <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/50">
@@ -252,7 +248,6 @@ export function PublicProfile({
           )}
         </header>
 
-        {/* Stats + heatmap */}
         {profile.stats && (
           <section className="mt-12">
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -288,7 +283,6 @@ export function PublicProfile({
           </section>
         )}
 
-        {/* Featured */}
         {profile.featured && (
           <section className="mt-12">
             <a
@@ -315,7 +309,6 @@ export function PublicProfile({
           </section>
         )}
 
-        {/* Posts */}
         <section className="mt-12">
           <h2 className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">
             <span className="h-px flex-1 bg-border/60" />

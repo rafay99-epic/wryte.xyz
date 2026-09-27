@@ -1,16 +1,3 @@
-/**
- * Hemingway-style prose lint (pure, framework-free). Five advisory checks —
- * passive voice, adverb density, sentence-length variance, weasel words, and
- * clichés — over a plain content string. All offsets are character indices
- * into the exact input string, so the panel can select-and-jump the same way
- * the readability lens does.
- *
- * Reuses the readability lens's segmentation + heuristics (masked code
- * ranges, sentence splitting, the be-verb/participle/adverb heuristics)
- * rather than re-implementing them — see `readability/segment.ts` and
- * `readability/heuristics.ts`.
- */
-
 import {
   isAdverb,
   isBeVerb,
@@ -47,9 +34,7 @@ export type StyleLintFinding = {
   kind: StyleLintFindingKind;
   message: string;
   severity: StyleLintSeverity;
-  /** Short, human-readable snippet for the panel's expandable list. */
   excerpt: string;
-  /** Character offsets into the original (unmasked) content string. */
   start: number;
   end: number;
 };
@@ -60,7 +45,6 @@ export type StyleLintCheckMeta = {
   kinds: StyleLintFindingKind[];
 };
 
-/** Metadata the panel uses to render one toggleable row per check. */
 export const STYLE_LINT_CHECKS: StyleLintCheckMeta[] = [
   { id: "passive-voice", label: "Passive voice", kinds: ["passive"] },
   { id: "adverb-density", label: "Adverbs", kinds: ["adverb"] },
@@ -86,16 +70,12 @@ export function checkIdForKind(kind: StyleLintFindingKind): StyleLintCheckId {
   return KIND_TO_CHECK[kind];
 }
 
-/* ────────────────────────── text preparation ────────────────────────── */
-
-/** Leading `---\n...\n---` frontmatter block, if present at the very start. */
 const FRONTMATTER_RE = /^---\r?\n[\s\S]*?\r?\n---\r?\n?/;
 function findFrontmatterRange(text: string): CodeRange[] {
   const m = FRONTMATTER_RE.exec(text);
   return m ? [{ start: 0, end: m[0].length }] : [];
 }
 
-/** Bare http(s) URLs — including inside markdown link targets. */
 const URL_RE = /\bhttps?:\/\/[^\s)>\]"']+/g;
 function findUrlRanges(text: string): CodeRange[] {
   const ranges: CodeRange[] = [];
@@ -108,11 +88,6 @@ function findUrlRanges(text: string): CodeRange[] {
   return ranges;
 }
 
-/**
- * Mask frontmatter, fenced/inline code, and URLs to spaces (newlines kept)
- * so none of them are analyzed, while every remaining character keeps its
- * original offset into `text`.
- */
 export function stripForAnalysis(text: string): string {
   const ranges = [
     ...findFrontmatterRange(text),
@@ -122,8 +97,6 @@ export function stripForAnalysis(text: string): string {
   return maskCode(text, ranges);
 }
 
-/* ────────────────────────── shared helpers ────────────────────────── */
-
 function truncate(raw: string, maxLen = 140): string {
   const clean = raw.replace(/\s+/g, " ").trim();
   return clean.length <= maxLen
@@ -131,7 +104,6 @@ function truncate(raw: string, maxLen = 140): string {
     : `${clean.slice(0, maxLen - 1).trimEnd()}…`;
 }
 
-/** Excerpt for a finding whose start/end already spans what to show. */
 function excerptForSpan(original: string, start: number, end: number): string {
   return truncate(original.slice(start, end));
 }
@@ -146,7 +118,6 @@ function sentenceContaining(
   return null;
 }
 
-/** Excerpt for a word/phrase-level finding: the sentence around it. */
 function excerptForPoint(
   original: string,
   pos: number,
@@ -174,9 +145,6 @@ function buildContext(content: string): LintContext {
   };
 }
 
-/* ────────────────────────── a. passive voice ────────────────────────── */
-
-/** A be-verb followed within 3 words by a past participle. */
 function checkPassiveVoiceImpl(
   content: string,
   { words, sentences }: LintContext,
@@ -205,9 +173,6 @@ function checkPassiveVoiceImpl(
   return findings;
 }
 
-/* ────────────────────────── b. adverb density ────────────────────────── */
-
-/** Flag every `-ly` adverb once overall density exceeds ~1 per 40 words. */
 const ADVERB_DENSITY_THRESHOLD = 1 / 40;
 
 function checkAdverbDensityImpl(
@@ -231,8 +196,6 @@ function checkAdverbDensityImpl(
   }));
 }
 
-/* ─────────────────── c. sentence-length variance ─────────────────── */
-
 const LONG_SENTENCE_WORDS = 35;
 const MONOTONY_MIN_RUN = 3;
 const MONOTONY_BAND = 3;
@@ -254,7 +217,6 @@ function checkSentenceVarianceImpl(
   if (sentences.length === 0) return findings;
   const counts = sentenceWordCounts(masked, sentences);
 
-  // Any single sentence over the hard-to-read threshold.
   for (let i = 0; i < sentences.length; i++) {
     const s = sentences[i];
     const count = counts[i];
@@ -269,8 +231,6 @@ function checkSentenceVarianceImpl(
     });
   }
 
-  // Runs of 3+ consecutive sentences within ±3 words of the run's first
-  // sentence — monotonous rhythm.
   let runStart = 0;
   for (let i = 1; i <= sentences.length; i++) {
     const anchor = counts[runStart] ?? 0;
@@ -301,8 +261,6 @@ function checkSentenceVarianceImpl(
 
   return findings;
 }
-
-/* ────────────────────────── d. weasel words ────────────────────────── */
 
 const WEASEL_WORDS = [
   "very",
@@ -357,8 +315,6 @@ function checkWeaselWordsImpl(
   }
   return findings;
 }
-
-/* ────────────────────────── e. clichés ────────────────────────── */
 
 const CLICHES = [
   "at the end of the day",
@@ -432,9 +388,6 @@ function checkClichesImpl(
   return findings;
 }
 
-/* ────────────────────────── top-level entry point ────────────────────────── */
-
-/** Run every check once over shared segmentation, sorted by document order. */
 export function lintStyle(content: string): StyleLintFinding[] {
   if (!content.trim()) return [];
   const ctx = buildContext(content);
@@ -449,7 +402,6 @@ export function lintStyle(content: string): StyleLintFinding[] {
   return findings;
 }
 
-/** Group findings by their panel row (check id) for the UI. */
 export function groupFindingsByCheck(
   findings: StyleLintFinding[],
 ): Record<StyleLintCheckId, StyleLintFinding[]> {

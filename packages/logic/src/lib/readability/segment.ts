@@ -1,12 +1,3 @@
-/**
- * Markdown-aware text segmentation (pure). Produces character-offset ranges for
- * words and sentences so they map straight onto the editor's textarea string.
- *
- * Code is excluded from analysis: fenced ``` blocks ``` and inline `code` are
- * masked to spaces (newlines preserved) before tokenizing, so terminators and
- * words inside code never count.
- */
-
 export type CodeRange = { start: number; end: number };
 export type WordToken = { start: number; end: number; text: string };
 export type SentenceRange = { start: number; end: number };
@@ -15,7 +6,6 @@ function isSpace(ch: string | undefined): boolean {
   return ch === " " || ch === "\t" || ch === "\n" || ch === "\r" || ch === "\f";
 }
 
-/** Fenced + inline code spans, sorted by start. */
 export function findCodeRanges(text: string): CodeRange[] {
   const ranges: CodeRange[] = [];
   const fence = /```[\s\S]*?```/g;
@@ -37,7 +27,6 @@ export function findCodeRanges(text: string): CodeRange[] {
   return ranges;
 }
 
-/** Replace code chars with spaces (keep newlines) so indices are preserved. */
 export function maskCode(text: string, ranges: CodeRange[]): string {
   if (ranges.length === 0) return text;
   const arr = text.split("");
@@ -65,13 +54,6 @@ const CLOSING_PUNCT = /["'’”)\]]/;
 const PARAGRAPH_SPLIT = /\n\s*\n/;
 const HAS_WORD = /[\p{L}\p{N}]/u;
 
-/**
- * Split into sentences over the masked text. A terminator (`.!?`) ends a
- * sentence only when followed by whitespace/EOL and the next non-space char
- * looks like a new sentence start (uppercase, digit, quote, or markdown line
- * marker) — this naturally skips abbreviations ("e.g. the") and decimals
- * ("3.14") without an abbreviation list. Blank lines also end a sentence.
- */
 export function splitSentences(masked: string): SentenceRange[] {
   const sentences: SentenceRange[] = [];
   const n = masked.length;
@@ -134,7 +116,6 @@ export function splitSentences(masked: string): SentenceRange[] {
   return sentences;
 }
 
-/** Count paragraphs = blank-line-separated blocks that contain a word. */
 export function countParagraphs(masked: string): number {
   const blocks = masked.split(PARAGRAPH_SPLIT);
   let count = 0;

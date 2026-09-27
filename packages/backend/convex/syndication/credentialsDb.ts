@@ -1,9 +1,3 @@
-/**
- * Non-Node database helpers for `syndication/credentials`.
- *
- * Mirrors `convex/social/credentialsDb.ts` — split so the Node-only action
- * file can call into these via `ctx.runQuery` / `ctx.runMutation`.
- */
 import { v } from "convex/values";
 import { internalMutation, internalQuery, query } from "../_generated/server";
 import { getAuthedUserOrNull } from "../_lib/auth";
@@ -28,7 +22,6 @@ const PUBLIC_ROW = v.object({
   updatedAt: v.number(),
 });
 
-/** Both provider rows for the settings section — never includes the secret. */
 export const getPublicConfig = query({
   args: { projectId: v.id("projects") },
   returns: v.array(PUBLIC_ROW),
@@ -60,10 +53,6 @@ export const getPublicConfig = query({
     }));
   },
 });
-
-/* ------------------------------------------------------------------ */
-/*  Internal queries / mutations                                       */
-/* ------------------------------------------------------------------ */
 
 const CREDENTIAL_DOC = v.object({
   _id: v.id("syndicationCredentials"),

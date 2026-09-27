@@ -8,12 +8,6 @@ export const alt = "Writing profile on Wryte";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
-/**
- * Dynamic share card — generated per request, no stored file. Reflects the
- * live profile (name, handle, accent, post count, streak) so a shared link
- * always looks current. Falls back to a neutral Wryte card if the handle
- * isn't a public profile.
- */
 export default async function OgImage({
   params,
 }: {

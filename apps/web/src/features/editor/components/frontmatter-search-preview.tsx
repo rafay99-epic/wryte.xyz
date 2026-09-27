@@ -12,19 +12,12 @@ import { AlertTriangle, ChevronRight, Globe, ImageOff } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 type FrontmatterSearchPreviewProps = {
-  /** Live frontmatter values from the visual editor. */
   values: Record<string, string | boolean>;
-  /** Fallback title when frontmatter has none (the document title). */
   fallbackTitle: string;
   slug: string;
   siteUrl: string | null | undefined;
 };
 
-/**
- * Live Google-result + social-card preview rendered from the frontmatter the
- * editor already holds. Pure client-side — zero queries, zero writes. Sits
- * as a collapsible section at the bottom of the frontmatter panel.
- */
 export function FrontmatterSearchPreview({
   values,
   fallbackTitle,
@@ -98,7 +91,6 @@ export function FrontmatterSearchPreview({
             data-testid="search-preview"
           >
             <div className="space-y-5 px-4 pb-4 pt-1">
-              {/* ── Google result ─────────────────────────────────── */}
               <div>
                 <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">
                   Google
@@ -126,7 +118,6 @@ export function FrontmatterSearchPreview({
                 </div>
               </div>
 
-              {/* ── Social card (OG / Twitter large summary) ─────── */}
               <div>
                 <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">
                   Social card
@@ -134,7 +125,6 @@ export function FrontmatterSearchPreview({
                 <div className="max-w-[440px] overflow-hidden rounded-lg border border-border/60">
                   <div className="flex aspect-[1.91/1] items-center justify-center bg-muted/40">
                     {imageUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={imageUrl}
                         alt="Social card"
@@ -163,7 +153,6 @@ export function FrontmatterSearchPreview({
                 </div>
               </div>
 
-              {/* ── Warnings ─────────────────────────────────────── */}
               {warningCount > 0 && (
                 <ul className="space-y-1">
                   {titleCheck.truncated && (

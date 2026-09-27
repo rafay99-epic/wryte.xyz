@@ -74,7 +74,6 @@ export function GitHubSection({ projectId, project }: GitHubSectionProps) {
         description="Connect your account and configure your repository"
       />
 
-      {/* Connection status */}
       <motion.div variants={staggerItem} transition={smoothTransition}>
         <div
           className={cn(
@@ -123,7 +122,6 @@ export function GitHubSection({ projectId, project }: GitHubSectionProps) {
         </div>
       </motion.div>
 
-      {/* PAT Fallback */}
       <motion.div variants={staggerItem} transition={smoothTransition}>
         {oauthConnected === true && (
           <button
@@ -179,7 +177,6 @@ export function GitHubSection({ projectId, project }: GitHubSectionProps) {
 
       <Divider />
 
-      {/* Repository */}
       <motion.div variants={staggerItem} transition={smoothTransition}>
         <div className="mb-3 flex items-center gap-2">
           <FileCode className="size-4 text-muted-foreground" />

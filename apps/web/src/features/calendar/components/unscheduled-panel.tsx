@@ -17,7 +17,6 @@ import {
 import { useMemo } from "react";
 import { CalendarDocCard } from "./calendar-doc-card";
 
-/** Statuses that should appear in the unscheduled panel. */
 const UNSCHEDULED_STATUSES = ["draft", "review", "ready"];
 
 type UnscheduledPanelProps = {
@@ -41,10 +40,6 @@ export function UnscheduledPanel({
     activeDocument,
   } = useCalendarStore();
 
-  // The panel doubles as a drop target: dragging a SCHEDULED article onto it
-  // cancels the schedule (the reverse of dragging out to a date). Only one of
-  // the two branches below is mounted at a time, so a single droppable id
-  // serves both the open panel and the collapsed strip.
   const { setNodeRef, isOver } = useDroppable({ id: "unscheduled-zone" });
   const unscheduleDropActive = isOver && activeDocument?.status === "scheduled";
 
@@ -54,22 +49,18 @@ export function UnscheduledPanel({
         UNSCHEDULED_STATUSES.includes(d.status) && d.scheduledAt === undefined,
     );
 
-    // Status filter
     if (unscheduledStatusFilter.size > 0) {
       result = result.filter((d) => unscheduledStatusFilter.has(d.status));
     }
 
-    // Search filter
     if (unscheduledSearch.trim()) {
       const q = unscheduledSearch.toLowerCase();
       result = result.filter((d) => d.title.toLowerCase().includes(q));
     }
 
-    // Sort by most recently updated
     return result.sort((a, b) => b.updatedAt - a.updatedAt);
   }, [documents, unscheduledStatusFilter, unscheduledSearch]);
 
-  // Collapse toggle button (always visible)
   if (!unscheduledPanelOpen) {
     return (
       <button
@@ -105,7 +96,6 @@ export function UnscheduledPanel({
           "bg-primary/5 ring-1 ring-inset ring-primary/40",
       )}
     >
-      {/* Header */}
       <div className="flex items-center justify-between border-b px-3 py-2.5">
         <div className="flex items-center gap-2">
           <CalendarPlus className="size-3.5 text-muted-foreground" />
@@ -126,7 +116,6 @@ export function UnscheduledPanel({
         </button>
       </div>
 
-      {/* Search */}
       <div className="border-b px-3 py-2">
         <div className="relative">
           <Search className="absolute left-2 top-1/2 size-3 -translate-y-1/2 text-muted-foreground/50" />
@@ -139,7 +128,6 @@ export function UnscheduledPanel({
         </div>
       </div>
 
-      {/* Status filter chips */}
       <div className="flex gap-1 border-b px-3 py-2">
         {UNSCHEDULED_STATUSES.map((status) => {
           const col = columns.find((c) => c.id === status);
@@ -166,7 +154,6 @@ export function UnscheduledPanel({
         })}
       </div>
 
-      {/* Document list */}
       <div className="flex-1 overflow-y-auto px-2 py-2">
         {filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-10 text-center">
@@ -192,7 +179,6 @@ export function UnscheduledPanel({
         )}
       </div>
 
-      {/* Hint */}
       <div className="border-t px-3 py-2">
         <p className="text-[10px] text-muted-foreground/40">
           Drag articles onto the calendar to schedule them
