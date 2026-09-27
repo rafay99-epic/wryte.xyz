@@ -1,0 +1,21 @@
+packages/backend/convex/_generated/server.d.ts
+  s_afe331801d4351::t_885168f1d3db13 24-34,109-116
+packages/backend/convex/_generated/server.js
+  s_afe331801d4351::t_37a2802a2a01bf 94-101
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "db46a86eed99b40c8f527172a03cc41d4e35fec9",
+  "prompts": {},
+  "sessions": {
+    "s_afe331801d4351": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "57228730-cc80-4f5a-bfb4-bbd4ee82af55",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
