@@ -59,7 +59,7 @@ function probe(port) {
 
 /** Dev → first live local port; packaged → production. `WRYTE_DESKTOP_URL` overrides. */
 async function resolveAppUrl() {
-  if (process.env.WRYTE_DESKTOP_URL) return process.env.WRYTE_DESKTOP_URL;
+  if (process.env["WRYTE_DESKTOP_URL"]) return process.env["WRYTE_DESKTOP_URL"];
 
   // Dev flavor or unpackaged: probe local dev servers.
   if (config.isDevFlavor || !app.isPackaged) {
@@ -161,7 +161,7 @@ function createWindow(appUrl) {
     // tray menu or Cmd+Q (isQuitting lets those actually close the window).
     if (trayEnabled && !isQuitting) {
       event.preventDefault();
-      mainWindow.hide();
+      mainWindow?.hide();
     }
   });
 
@@ -287,7 +287,8 @@ function checkConnectivity() {
       },
       (res) => {
         res.resume();
-        resolve(res.statusCode >= 200 && res.statusCode < 400);
+        const status = res.statusCode ?? 0;
+        resolve(status >= 200 && status < 400);
       },
     );
     req.on("error", () => resolve(false));
@@ -349,7 +350,7 @@ ipcMain.on("offline-retry", () => {
   checkConnectivity().then((online) => {
     if (!mainWindow || mainWindow.isDestroyed()) return;
     logger.info(`offline retry — online=${online}`);
-    if (online) {
+    if (online && pendingAppUrl) {
       mainWindow.loadURL(pendingAppUrl);
     }
     // If still offline, stay on offline page — user can click Retry again.

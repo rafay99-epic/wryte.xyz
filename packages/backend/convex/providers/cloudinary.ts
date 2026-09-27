@@ -169,12 +169,11 @@ export async function destroy(
     // The official type declarations only list a narrow `{ resource_type, type,
     // invalidate }` options object for `destroy`, but the SDK's runtime layer
     // accepts auth credentials inline (it forwards them to the signed-URL
-    // builder). Cast through `unknown` so we keep per-request creds without
-    // mutating the global `cloudinary.config()`.
-    await cloudinary.uploader.destroy(
-      publicId,
-      creds as unknown as { resource_type?: "image" | "raw" | "video" },
-    );
+    // builder).
+    const options: CloudinaryCreds & {
+      resource_type?: "image" | "raw" | "video";
+    } = creds;
+    await cloudinary.uploader.destroy(publicId, options);
   } catch (err) {
     throwMediaError(
       {

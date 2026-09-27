@@ -1,4 +1,4 @@
-const isDev = process.env.WRYTE_FLAVOR === "dev";
+const isDev = process.env["WRYTE_FLAVOR"] === "dev";
 
 const publishConfig = isDev
   ? undefined
@@ -13,7 +13,6 @@ const publishConfig = isDev
 const _ext = "${ext}";
 const winArtifact = `Wryte-Setup.${_ext}`;
 
-/** @type {import('electron-builder').Configuration} */
 const config = {
   appId: isDev ? "xyz.wryte.desktop.dev" : "xyz.wryte.desktop",
   productName: isDev ? "Wryte Dev" : "Wryte",
@@ -21,8 +20,8 @@ const config = {
   // exactly `electron-builder.js` — electron-builder auto-discovers the base
   // name `electron-builder`, so an `electron-builder.config.js` is silently
   // ignored and every setting below reverts to defaults.
-  extraMetadata: process.env.WRYTE_VERSION
-    ? { version: process.env.WRYTE_VERSION }
+  extraMetadata: process.env["WRYTE_VERSION"]
+    ? { version: process.env["WRYTE_VERSION"] }
     : undefined,
   files: ["main.cjs", "src/**", "assets/**"],
   npmRebuild: false,

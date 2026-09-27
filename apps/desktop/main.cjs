@@ -44,8 +44,7 @@ app.commandLine.appendSwitch("enable-gpu-rasterization");
 // ── Worker processes ────────────────────────────────────────────────────────
 /** @type {import("node:child_process").ChildProcess | undefined} */
 let connectivityWorker;
-/** @type {boolean | null} */
-let lastOnline = null;
+const connectivity = { known: false, online: false };
 
 function spawnWorkers() {
   const workerDir = path.join(__dirname, "src", "workers");
@@ -71,13 +70,23 @@ function spawnWorkers() {
     path.join(workerDir, "connectivity-worker.cjs"),
   );
   connectivityWorker.on("message", (msg) => {
-    if (msg?.type === "connectivity-change") {
-      lastOnline = msg.online;
-      webContents.getAllWebContents().forEach((wc) => {
-        wc.send("connectivity-change", msg.online);
-      });
-      win.onConnectivityChange(msg.online);
+    if (
+      typeof msg !== "object" ||
+      msg === null ||
+      !("type" in msg) ||
+      msg.type !== "connectivity-change" ||
+      !("online" in msg) ||
+      typeof msg.online !== "boolean"
+    ) {
+      return;
     }
+    const { online } = msg;
+    connectivity.known = true;
+    connectivity.online = online;
+    webContents.getAllWebContents().forEach((wc) => {
+      wc.send("connectivity-change", online);
+    });
+    win.onConnectivityChange(online);
   });
   connectivityWorker.send({ type: "start" });
 }
@@ -103,21 +112,12 @@ if (!app.requestSingleInstanceLock()) {
     contents.on("will-attach-webview", (e) => e.preventDefault());
   });
 
-  // ── Performance: memory pressure handler ──────────────────────────────
-  // When the OS signals low memory, clear the session HTTP cache.
-  app.on("memory-pressure", (_e, level) => {
-    logger.info(`memory-pressure: ${level}`);
-    if (level === "critical" || level === "moderate") {
-      session.defaultSession.clearCache().catch(() => undefined);
-    }
-  });
-
   // ── IPC: renderer subscribes to connectivity ──────────────────────────
   // Late subscribers get the last known state immediately; later changes
   // arrive via the broadcast in spawnWorkers().
   ipcMain.on("connectivity-subscribe", (event) => {
-    if (lastOnline !== null)
-      event.sender.send("connectivity-change", lastOnline);
+    if (connectivity.known)
+      event.sender.send("connectivity-change", connectivity.online);
   });
 
   // ── IPC: renderer forwards logs to the main-process logger ────────────
@@ -218,9 +218,6 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   // Renderer process crash / hang detection.
-  app.on("renderer-process-crashed", (_event, wc, killed) => {
-    logger.crash(`renderer crashed wcId=${wc?.id} killed=${killed}`);
-  });
   app.on("render-process-gone", (_event, wc, details) => {
     logger.crash(
       `renderer gone wcId=${wc?.id} reason=${details.reason} exitCode=${details.exitCode}`,

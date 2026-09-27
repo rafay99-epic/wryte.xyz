@@ -1,6 +1,6 @@
 "use strict";
 
-const isDevFlavor = process.env.WRYTE_FLAVOR === "dev";
+const isDevFlavor = process.env["WRYTE_FLAVOR"] === "dev";
 
 // Shared constants for the desktop shell.
 module.exports = {

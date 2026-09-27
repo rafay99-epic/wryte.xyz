@@ -49,10 +49,15 @@ export type OembedProvider = {
   loader: EmbedLoader | null;
 };
 
-/* ── Loader global typings (kept local; only the predicates read them) ── */
-
 type TwitterGlobal = { widgets: { load: (el?: HTMLElement) => void } };
 type TiktokGlobal = { lib: { render: (nodes: HTMLElement[]) => void } };
+
+declare global {
+  interface Window {
+    twttr?: TwitterGlobal;
+    tiktokEmbed?: TiktokGlobal;
+  }
+}
 
 export const PROVIDERS: readonly OembedProvider[] = [
   {
@@ -97,13 +102,9 @@ export const PROVIDERS: readonly OembedProvider[] = [
     loader: {
       src: "https://platform.twitter.com/widgets.js",
       scriptId: "twitter-widgets-loader",
-      isReady: () => {
-        const w = window as unknown as { twttr?: TwitterGlobal };
-        return Boolean(w.twttr?.widgets);
-      },
+      isReady: () => Boolean(window.twttr?.widgets),
       render: (el) => {
-        const w = window as unknown as { twttr?: TwitterGlobal };
-        const widgets = w.twttr?.widgets;
+        const widgets = window.twttr?.widgets;
         if (widgets) widgets.load(el);
       },
     },
@@ -122,13 +123,9 @@ export const PROVIDERS: readonly OembedProvider[] = [
     loader: {
       src: "https://www.tiktok.com/embed.js",
       scriptId: "tiktok-embed-loader",
-      isReady: () => {
-        const w = window as unknown as { tiktokEmbed?: TiktokGlobal };
-        return Boolean(w.tiktokEmbed?.lib);
-      },
+      isReady: () => Boolean(window.tiktokEmbed?.lib),
       render: (el) => {
-        const w = window as unknown as { tiktokEmbed?: TiktokGlobal };
-        const lib = w.tiktokEmbed?.lib;
+        const lib = window.tiktokEmbed?.lib;
         if (lib) lib.render([el]);
       },
     },

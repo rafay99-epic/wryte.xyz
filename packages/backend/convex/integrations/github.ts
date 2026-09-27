@@ -1999,13 +1999,7 @@ export const startBulkImport = action({
       const remoteSha = remoteShaByPath.get(path);
       const local = localByPath.get(path);
 
-      if (!remoteSha && !local) {
-        // Requested path doesn't exist on GitHub *and* not in Convex.
-        // Could be a typo from the caller; surface as missing.
-        missing.push(path);
-        continue;
-      }
-      if (!remoteSha && local) {
+      if (!remoteSha) {
         missing.push(path);
         continue;
       }
@@ -2027,8 +2021,7 @@ export const startBulkImport = action({
         conflictCandidates.push({
           path,
           documentId: local.documentId,
-          // biome-ignore lint/style/noNonNullAssertion: presence checked above
-          remoteSha: remoteSha!,
+          remoteSha,
           localContentSnapshot: local.content,
           localFrontmatterSnapshot: local.frontmatter,
         });

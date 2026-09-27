@@ -1,3 +1,4 @@
+import { vOnCompleteArgs } from "@convex-dev/workpool";
 import { paginationOptsValidator } from "convex/server";
 import { type ObjectType, v } from "convex/values";
 import { internal } from "../_generated/api";
@@ -2161,21 +2162,13 @@ export const _createImportBatch = internalMutation({
  * aggregates outcomes to compute live succeeded/failed/errors.
  */
 export const _onImportFileComplete = internalMutation({
-  args: {
-    workId: v.string(),
-    context: v.any(),
-    result: v.any(),
-  },
+  args: vOnCompleteArgs(
+    v.object({ batchId: v.id("import_batches"), filePath: v.string() }),
+  ),
   returns: v.null(),
   handler: async (ctx, args) => {
-    const { batchId, filePath } = args.context as {
-      batchId: Id<"import_batches">;
-      filePath: string;
-    };
-    const result = args.result as
-      | { kind: "success"; returnValue: unknown }
-      | { kind: "failed"; error: string }
-      | { kind: "canceled" };
+    const { batchId, filePath } = args.context;
+    const { result } = args;
 
     // Defense in depth: if the batch row is gone (manually cleaned up
     // before workpool drained), don't leave orphaned outcomes.
@@ -2451,21 +2444,13 @@ export const _createDeleteBatch = internalMutation({
  * patching shared counters.
  */
 export const _onDeleteFileComplete = internalMutation({
-  args: {
-    workId: v.string(),
-    context: v.any(),
-    result: v.any(),
-  },
+  args: vOnCompleteArgs(
+    v.object({ batchId: v.id("delete_batches"), label: v.string() }),
+  ),
   returns: v.null(),
   handler: async (ctx, args) => {
-    const { batchId, label } = args.context as {
-      batchId: Id<"delete_batches">;
-      label: string;
-    };
-    const result = args.result as
-      | { kind: "success"; returnValue: unknown }
-      | { kind: "failed"; error: string }
-      | { kind: "canceled" };
+    const { batchId, label } = args.context;
+    const { result } = args;
 
     const batch = await ctx.db.get(batchId);
     if (!batch) return null;

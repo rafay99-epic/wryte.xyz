@@ -13,8 +13,13 @@ const { app, screen } = require("electron");
  */
 
 const DEFAULT_STATE = { width: 1280, height: 840, zoom: 0 };
+
+function withDefaults(saved) {
+  return { ...DEFAULT_STATE, ...saved };
+}
+
 /** @type {WinState} */
-let winState = { ...DEFAULT_STATE };
+let winState = withDefaults({});
 /** @type {NodeJS.Timeout | undefined} */
 let saveTimer;
 
@@ -25,10 +30,7 @@ function stateFile() {
 /** Load persisted state; falls back to defaults on first launch. */
 function load() {
   try {
-    winState = {
-      ...DEFAULT_STATE,
-      ...JSON.parse(fs.readFileSync(stateFile(), "utf8")),
-    };
+    winState = withDefaults(JSON.parse(fs.readFileSync(stateFile(), "utf8")));
   } catch {
     // First launch / unreadable — defaults are fine.
   }
@@ -69,16 +71,14 @@ function capture(win) {
  * window saved on an unplugged monitor would open off-screen.
  */
 function positionVisible() {
-  if (typeof winState.x !== "number" || typeof winState.y !== "number") {
+  const { x, y } = winState;
+  if (typeof x !== "number" || typeof y !== "number") {
     return false;
   }
   return screen.getAllDisplays().some((d) => {
     const a = d.workArea;
     return (
-      winState.x < a.x + a.width &&
-      winState.x + 100 > a.x &&
-      winState.y < a.y + a.height &&
-      winState.y + 40 > a.y
+      x < a.x + a.width && x + 100 > a.x && y < a.y + a.height && y + 40 > a.y
     );
   });
 }

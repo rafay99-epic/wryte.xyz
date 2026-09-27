@@ -5,7 +5,12 @@
  * The workflow waits until the scheduled time, then publishes to GitHub
  * with automatic retry on failure. No cron polling needed.
  */
-import { type WorkflowId, WorkflowManager } from "@convex-dev/workflow";
+import {
+  vResultValidator,
+  vWorkflowId,
+  type WorkflowId,
+  WorkflowManager,
+} from "@convex-dev/workflow";
 import { v } from "convex/values";
 import { components, internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
@@ -407,20 +412,16 @@ async function revertScheduledToDraft(
  */
 export const onPublishComplete = internalMutation({
   args: {
-    workflowId: v.string(),
-    context: v.any(),
-    result: v.any(),
+    workflowId: vWorkflowId,
+    context: v.object({
+      publishId: v.id("scheduled_publishes"),
+      documentId: v.id("documents"),
+    }),
+    result: vResultValidator,
   },
   handler: async (ctx, args) => {
-    const { publishId, documentId } = args.context as {
-      publishId: Id<"scheduled_publishes">;
-      documentId: Id<"documents">;
-    };
-
-    const result = args.result as
-      | { kind: "success"; returnValue: unknown }
-      | { kind: "failed"; error: string }
-      | { kind: "canceled" };
+    const { publishId, documentId } = args.context;
+    const { result } = args;
 
     if (result.kind === "failed") {
       // Mark as failed with the error message

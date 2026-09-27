@@ -100,27 +100,15 @@ export async function listFiles(
   const limit = opts.limit ?? 50;
   const offset = opts.offset ?? 0;
   const res = await client(token).listFiles({ limit, offset });
-  // The v7 response shape: { files: [...], hasMore: boolean }
-  const files = (
-    res as unknown as {
-      files: Array<{
-        key: string;
-        name: string;
-        size: number;
-        uploadedAt?: number;
-      }>;
-      hasMore?: boolean;
-    }
-  ).files;
   return {
-    items: files.map((f) => ({
+    items: res.files.map((f) => ({
       externalId: f.key,
       filename: f.name,
       size: f.size,
       url: buildFileUrl(token, f.key),
-      ...(f.uploadedAt !== undefined ? { uploadedAt: f.uploadedAt } : {}),
+      uploadedAt: f.uploadedAt,
     })),
-    hasMore: Boolean((res as unknown as { hasMore?: boolean }).hasMore),
+    hasMore: res.hasMore,
   };
 }
 

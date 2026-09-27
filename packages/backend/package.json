@@ -19,7 +19,7 @@
     "dev": "convex dev",
     "dev:local": "convex dev --local",
     "deploy": "convex deploy --cmd-url-env-var-name NEXT_PUBLIC_CONVEX_URL --cmd 'cd ../../apps/web && bun run build'",
-    "type": "tsc --noEmit -p convex/tsconfig.json",
+    "type": "tsc --noEmit -p convex/tsconfig.json && tsc --noEmit -p tests/tsconfig.json",
     "test": "bun test tests"
   },
   "dependencies": {
