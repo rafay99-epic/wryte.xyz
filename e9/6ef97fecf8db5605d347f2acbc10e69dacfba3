@@ -1,0 +1,153 @@
+packages/backend/convex/_lib/animationChecker/environment.ts
+  s_51d491ab3b108d::t_9bc45baecfe09b 1-72,76-87,114-115
+  s_51d491ab3b108d::t_8bef7ce823101c 73-75,88,112,116
+  s_51d491ab3b108d::t_e2b89395be3063 89-111,113,117-119,122,125,128,130-132,134-163
+packages/backend/convex/_lib/animationChecker/contract.ts
+  s_51d491ab3b108d::t_9bc45baecfe09b 1-306
+AGENTS.md
+  s_a849b5fcccee2f::t_d6a05e4b090f36 38,40,43,65
+apps/web/src/content/docs/capabilities.md
+  s_51d491ab3b108d::t_35a109e309c33d 3,8-9,11,19-21,29,44,49-50
+apps/web/src/content/docs/overview.md
+  s_51d491ab3b108d::t_ac849b05d1ad76 4-5,79-81,85,90-93,100-101
+apps/web/src/content/docs/resources.md
+  s_51d491ab3b108d::t_f05c2ac5c4aaa2 12,14-15,24-25,29-32
+apps/web/src/content/docs/tools.md
+  s_a849b5fcccee2f::t_df976cd8cd1165 3,5-6,12-14,19-27,29-31,33,37,39-41,45,47-49,53,55-65,69,71-73,77,79-81,85,87-89,93,95-97,101,103-105,107,109,111-113,115,117,119,121-123,125,127,129-131,135,137-139,141,143,145-147,151,153-155,161,163-165,169,171-173,177,179-181,185,187-189,191,193,195,197-199,201,203,205-207,209,211,213-215,217,219,221-223,231-233,235,237,239-241,243,245,247-251,253,255,257-259,261-263,265-267
+apps/web/src/features/account-settings/components/mcp-tab.tsx
+  s_51d491ab3b108d::t_b879b097fd1608 50-51,186-187
+apps/web/src/features/editor/hooks/use-animation-checks.ts
+  s_51d491ab3b108d::t_8efa219ac508d4 8
+apps/web/src/features/editor/lib/animations/checks/client.ts
+  s_51d491ab3b108d::t_e596bae6ab3d9f 3-5
+apps/web/src/features/editor/lib/animations/checks/worker.ts
+  s_0c0e82820cda47::t_f06e7cda57669a 1,7-9,12,14
+bun.lock
+  s_51d491ab3b108d::t_c044f4f9cec464 105,2168-2169
+package.json
+  s_51d491ab3b108d::t_5573dfe9b75b9e 25
+packages/backend/convex/_generated/api.d.ts
+  s_0c0e82820cda47::t_ff0183ec932065 12-14,16,75-76,78-80,83,88,94-95,100,141-143,145,204-205,207-209,212,217,223-224,229
+packages/backend/convex/_lib/animationChecker/run.ts
+  s_51d491ab3b108d::t_f154f4147eebbc 1-119
+packages/backend/convex/_lib/animationChecks.ts
+  s_51d491ab3b108d::t_d20b632c39f295 25-80
+packages/backend/convex/_lib/animationInput.ts
+  s_0c0e82820cda47::t_98408f1d740671 1-35
+packages/backend/convex/_lib/animationTransform.ts
+  s_51d491ab3b108d::t_a1a7a0692c512b 123-143
+packages/backend/convex/_lib/quotas.ts
+  s_51d491ab3b108d::t_ceaf629432d45b 32-40
+packages/backend/convex/cms/animations.ts
+  s_a849b5fcccee2f::t_ecea76388b8317 7-11,201-202,274-275,314-345,375,410,436,455-457,465
+packages/backend/convex/cms/boardColumns.ts
+  s_51d491ab3b108d::t_9c3b2caa7eff5c 2,7,13,47-79,93
+packages/backend/convex/cms/documentDrafts.ts
+  s_51d491ab3b108d::t_ffd1403d83d192 132,275-306,314,408
+packages/backend/convex/cms/documentResearch.ts
+  s_a849b5fcccee2f::t_23e52865edb735 1,12,21-60,102-111,115,118-131,134,145-166,218-222
+packages/backend/convex/http.ts
+  s_51d491ab3b108d::t_3127dfbf2f3285 7-8,28-36,89-94
+packages/backend/convex/integrations/github.ts
+  s_51d491ab3b108d::t_89f6d85271b3fd 862
+packages/backend/convex/integrations/scheduling.ts
+  s_51d491ab3b108d::t_2719acf3f2ba3e 102,214
+packages/backend/convex/mcp/agentFunctions.ts
+  s_a849b5fcccee2f::t_0bdd1ae5bcffea 1-92
+packages/backend/convex/mcp/agentInput.ts
+  s_a849b5fcccee2f::t_9a618f77b2c0d0 1-98
+packages/backend/convex/mcp/documentView.ts
+  s_0c0e82820cda47::t_d496a8639da09d 1-17
+packages/backend/convex/mcp/draftReport.ts
+  s_0c0e82820cda47::t_5ac121d3474daa 1-34
+packages/backend/convex/mcp/frontmatterSchema.ts
+  s_0c0e82820cda47::t_9e6882494ada74 1-93
+packages/backend/convex/mcp/gate.ts
+  s_0c0e82820cda47::t_0021d1ac1eb8da 48
+packages/backend/convex/mcp/handlers/animationUpsert.ts
+  s_a849b5fcccee2f::t_c280488e1f645d 1-105
+packages/backend/convex/mcp/handlers/animations.ts
+  s_51d491ab3b108d::t_f5f9aaf9be8224 3,8,10,12-13,15,28,36-37,40-52,56,62,67,71
+packages/backend/convex/mcp/handlers/content.ts
+  s_51d491ab3b108d::t_962df71d1af2ee 5,8-9,12,14,22,26,31,35,39,53
+packages/backend/convex/mcp/handlers/documents.ts
+  s_a849b5fcccee2f::t_e30d21022aa5e0 4-10,12-14,19,26-36,39-52,54-64,79,93,97-174,178,186,194,202,214-232,236,245-258,262,266-271
+packages/backend/convex/mcp/handlers/drafts.ts
+  s_a849b5fcccee2f::t_d2ced46174ed0f 3-4,12,14-16,18-31,39,47,59-73,77,81-83,89-116,118-136,140
+packages/backend/convex/mcp/handlers/media.ts
+  s_51d491ab3b108d::t_771c475e9d03cc 1-83
+packages/backend/convex/mcp/handlers/nodeActions.ts
+  s_51d491ab3b108d::t_df15a25c5e45e3 5-7,9-17,19-21,23-28,30-42,44-46,60-74,78-110,113,116-125
+packages/backend/convex/mcp/handlers/projects.ts
+  s_51d491ab3b108d::t_12bd50e50e49cb 1,6-7,17,22,30-41
+packages/backend/convex/mcp/handlers/publishing.ts
+  s_51d491ab3b108d::t_dfe91c63c345fe 6,8,16
+packages/backend/convex/mcp/handlers/resources.ts
+  s_51d491ab3b108d::t_052645ad3f9c27 4-7,9,20,24,30-31
+packages/backend/convex/mcp/mediaRoute.ts
+  s_51d491ab3b108d::t_8956bf4928ba98 1-80
+packages/backend/convex/mcp/projectContext.ts
+  s_51d491ab3b108d::t_6e66396b7089ac 1-60
+packages/backend/convex/mcp/resources.ts
+  s_0c0e82820cda47::t_5b1d08754c626a 8,12-15,26,45,50-54,56-58,68,70,73-78,86-87,98
+packages/backend/convex/mcp/tools.ts
+  s_51d491ab3b108d::t_0a09138099530b 11-15,24,32-36,41,48-57,61,75,90,97-106,109,118,128,146,155,161,168-176,179,188,198-199,214-217,221-223,233,242,251,256,264,269,282,293,295-296,302-312,314-315,318-321,324,328-331,333,337-339,342-344,347,350-354,358-360,369,374-378,382-392
+packages/backend/convex/media/_lib/remote.ts
+  s_51d491ab3b108d::t_bbbcd2f0d5030d 1-71
+packages/backend/convex/media/uploads.ts
+  s_51d491ab3b108d::t_fb30a8b0acee90 8,20-24,136,213-214,221,235-236,238-281
+packages/backend/e2e/mcp.ts
+  s_a849b5fcccee2f::t_a25bcdb5408190 1-668
+packages/backend/e2e/mcpClient.ts
+  s_51d491ab3b108d::t_b4244188450d9e 1-135
+packages/backend/e2e/tsconfig.json
+  s_51d491ab3b108d::t_05c0ec68949915 1-7
+packages/backend/package.json
+  s_51d491ab3b108d::t_e29d306b1d0b93 22-24,45
+packages/backend/tests/animation-checker.test.ts
+  s_51d491ab3b108d::t_9360821a2713e0 1-41
+packages/backend/tests/animationTransform.test.ts
+  s_51d491ab3b108d::t_af51fbe6b17781 3,136-143
+packages/backend/tests/mcp-project-context.test.ts
+  s_51d491ab3b108d::t_455cd2be4826ce 1-65
+packages/backend/tests/media-remote.test.ts
+  s_51d491ab3b108d::t_6fa923e18a5cd5 1-56
+packages/logic/src/lib/animations/checks/protocol.ts
+  s_51d491ab3b108d::t_6a32bcac325aa3 2-3,16
+packages/backend/convex/cms/documents.ts
+  s_a849b5fcccee2f::t_0b25fd0ee97c55 483-491,539,1241,1244-1247,1249-1252,1256-1258
+packages/backend/convex/schema.ts
+  s_a849b5fcccee2f::t_b71f67c495b1ba 134,323-334
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e96ef97fecf8db5605d347f2acbc10e69dacfba3",
+  "prompts": {},
+  "sessions": {
+    "s_0c0e82820cda47": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d4945d05-b893-46d0-bd97-1de4f1adbd01",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    },
+    "s_51d491ab3b108d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "35078144-b318-44f1-9e76-65d6e0627a13",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    },
+    "s_a849b5fcccee2f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e79a3165-3f4e-46ce-91e2-4e27810e790d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
