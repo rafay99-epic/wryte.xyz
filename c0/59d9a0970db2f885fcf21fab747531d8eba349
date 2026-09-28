@@ -1,0 +1,113 @@
+apps/web/src/features/editor/components/image-insert-dialog.tsx
+  s_a849b5fcccee2f::t_0cb1569eea28be 5
+  s_a849b5fcccee2f::t_b13807b1cde4e7 60
+apps/web/src/features/calendar/calendar-page.tsx
+  s_a849b5fcccee2f::t_0cb1569eea28be 5
+  s_a849b5fcccee2f::t_b13807b1cde4e7 20
+apps/web/src/features/editor/components/animation-insert-dialog.tsx
+  s_a849b5fcccee2f::t_b13807b1cde4e7 89
+  s_a849b5fcccee2f::t_0cb1569eea28be 9
+apps/web/src/features/project-settings/project-settings-page.tsx
+  s_a849b5fcccee2f::t_b13807b1cde4e7 38
+  s_a849b5fcccee2f::t_0cb1569eea28be 5
+apps/web/src/features/animation-gallery/animation-gallery-page.tsx
+  s_a849b5fcccee2f::t_0cb1569eea28be 10
+  s_a849b5fcccee2f::t_b13807b1cde4e7 84
+apps/web/src/features/calendar/components/calendar-surface.tsx
+  s_a849b5fcccee2f::t_b13807b1cde4e7 21
+  s_a849b5fcccee2f::t_0cb1569eea28be 5
+apps/web/src/features/media-library/media-library-page.tsx
+  s_a849b5fcccee2f::t_0cb1569eea28be 5
+  s_a849b5fcccee2f::t_b13807b1cde4e7 39,79
+apps/web/src/features/content-dashboard/components/file-import-sheet.tsx
+  s_a849b5fcccee2f::t_b13807b1cde4e7 140
+  s_a849b5fcccee2f::t_0cb1569eea28be 5
+apps/web/src/features/editor/components/frontmatter-editor.tsx
+  s_a849b5fcccee2f::t_0cb1569eea28be 5
+  s_a849b5fcccee2f::t_b13807b1cde4e7 345,354,358
+apps/web/src/features/editor/components/schedule-dialog.tsx
+  s_a849b5fcccee2f::t_0cb1569eea28be 5
+  s_a849b5fcccee2f::t_b13807b1cde4e7 71,74
+packages/logic/src/hooks/use-upload-limit.ts
+  s_a849b5fcccee2f::t_0cb1569eea28be 5
+  s_a849b5fcccee2f::t_b13807b1cde4e7 21
+packages/backend/convex/_lib/animationChecker/contract.ts
+  s_51d491ab3b108d::t_9bc45baecfe09b 1-306
+apps/web/e2e/smoke/pre-auth.authed.spec.ts
+  s_a849b5fcccee2f::t_7e87776199938a 1-42,46-48
+  s_a849b5fcccee2f::t_705e8585b20653 43-45
+packages/logic/src/hooks/use-authed-query.ts
+  s_a849b5fcccee2f::t_7c322355b4395a 1-16
+apps/web/src/features/new-project-document/components/create-document-dialog.tsx
+  s_a849b5fcccee2f::t_b13807b1cde4e7 12,42
+  s_a849b5fcccee2f::t_0cb1569eea28be 5
+apps/web/src/features/editor/components/ai-enhance-button.tsx
+  s_a849b5fcccee2f::t_b13807b1cde4e7 67
+  s_a849b5fcccee2f::t_0cb1569eea28be 5
+apps/web/src/features/project-detail/project-detail-page.tsx
+  s_a849b5fcccee2f::t_b13807b1cde4e7 69,667
+  s_a849b5fcccee2f::t_0cb1569eea28be 9
+packages/logic/src/hooks/use-image-compression.ts
+  s_a849b5fcccee2f::t_0cb1569eea28be 5
+  s_a849b5fcccee2f::t_b13807b1cde4e7 28
+apps/web/src/features/editor/editor-page.tsx
+  s_a849b5fcccee2f::t_b13807b1cde4e7 28,31
+  s_a849b5fcccee2f::t_0cb1569eea28be 5
+packages/logic/src/hooks/use-watermark-removal.ts
+  s_a849b5fcccee2f::t_0cb1569eea28be 5
+  s_a849b5fcccee2f::t_b13807b1cde4e7 21
+apps/web/src/features/editor/components/video-insert-dialog.tsx
+  s_a849b5fcccee2f::t_0cb1569eea28be 5
+  s_a849b5fcccee2f::t_b13807b1cde4e7 30,59
+apps/web/src/features/editor/components/media-picker-drawer.tsx
+  s_a849b5fcccee2f::t_b13807b1cde4e7 55
+  s_a849b5fcccee2f::t_0cb1569eea28be 5
+apps/web/src/features/editor/components/ai-synthesis-dialog.tsx
+  s_a849b5fcccee2f::t_0cb1569eea28be 5
+  s_a849b5fcccee2f::t_b13807b1cde4e7 50
+apps/web/src/features/project-dashboard/components/ideas-panel.tsx
+  s_a849b5fcccee2f::t_b13807b1cde4e7 18
+  s_a849b5fcccee2f::t_0cb1569eea28be 5
+apps/web/src/features/new-project-document/new-project-document-page.tsx
+  s_a849b5fcccee2f::t_b13807b1cde4e7 12,35
+  s_a849b5fcccee2f::t_0cb1569eea28be 5
+packages/backend/convex/_lib/animationChecker/environment.ts
+  s_51d491ab3b108d::t_9bc45baecfe09b 1-72,76-87,114
+  s_51d491ab3b108d::t_8bef7ce823101c 73-75,112
+apps/web/src/features/editor/components/editor-layout.tsx
+  s_a849b5fcccee2f::t_0cb1569eea28be 5
+  s_a849b5fcccee2f::t_b13807b1cde4e7 49
+apps/web/src/features/new-article/new-article-page.tsx
+  s_a849b5fcccee2f::t_0cb1569eea28be 5
+  s_a849b5fcccee2f::t_b13807b1cde4e7 51
+apps/web/src/features/editor/components/publish-dialog.tsx
+  s_a849b5fcccee2f::t_0cb1569eea28be 9
+  s_a849b5fcccee2f::t_b13807b1cde4e7 78,81
+apps/web/src/components/layout/app-header.tsx
+  s_a849b5fcccee2f::t_b13807b1cde4e7 91,96
+  s_a849b5fcccee2f::t_0cb1569eea28be 5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c059d9a0970db2f885fcf21fab747531d8eba349",
+  "prompts": {},
+  "sessions": {
+    "s_51d491ab3b108d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "35078144-b318-44f1-9e76-65d6e0627a13",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    },
+    "s_a849b5fcccee2f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e79a3165-3f4e-46ce-91e2-4e27810e790d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
