@@ -2,6 +2,7 @@
 
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
+import { useAuthedQuery } from "@wryte/logic/hooks/use-authed-query";
 import { getColorClasses } from "@wryte/logic/lib/board-colors";
 import { cn } from "@wryte/logic/lib/utils";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
@@ -87,12 +88,12 @@ export function AppHeader() {
     })),
   );
 
-  const project = useQuery(
+  const project = useAuthedQuery(
     api.cms.projects.get,
     activeProjectId ? { projectId: activeProjectId as Id<"projects"> } : "skip",
   );
 
-  const document = useQuery(
+  const document = useAuthedQuery(
     api.cms.documents.getMeta,
     isEditorPage && documentId
       ? { documentId: documentId as Id<"documents"> }

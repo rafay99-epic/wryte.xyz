@@ -2,6 +2,7 @@
 
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
+import { useAuthedQuery } from "@wryte/logic/hooks/use-authed-query";
 import { useImageCompression } from "@wryte/logic/hooks/use-image-compression";
 import {
   type MediaLibraryItem,
@@ -51,7 +52,7 @@ export function MediaPickerDrawer({
   projectId,
   onSelect,
 }: MediaPickerDrawerProps) {
-  const project = useQuery(
+  const project = useAuthedQuery(
     api.cms.projects.get,
     projectId ? { projectId: projectId as Id<"projects"> } : "skip",
   );

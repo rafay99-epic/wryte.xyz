@@ -2,6 +2,7 @@
 
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
+import { useAuthedQuery } from "@wryte/logic/hooks/use-authed-query";
 import {
   type MediaLibraryItem,
   useProjectMediaLibrary,
@@ -26,7 +27,7 @@ import {
   SheetTitle,
 } from "@wryte/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@wryte/ui/tabs";
-import { useAction, useQuery } from "convex/react";
+import { useAction } from "convex/react";
 import { Check, Film, Loader2, Search, Upload } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -55,7 +56,7 @@ export function VideoInsertDialog({
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const project = useQuery(api.cms.projects.get, {
+  const project = useAuthedQuery(api.cms.projects.get, {
     projectId: projectId as Id<"projects">,
   });
   const uploadMedia = useAction(api.media.uploads.upload);

@@ -7,6 +7,7 @@ import type {
   AnimationCheckStatus,
   AnimationLanguage,
 } from "@wryte/backend/_lib/animationChecks";
+import { useAuthedQuery } from "@wryte/logic/hooks/use-authed-query";
 import { compileAnimation } from "@wryte/logic/lib/animations/compile-animation";
 import { starterSource } from "@wryte/logic/lib/animations/templates";
 import { cn } from "@wryte/logic/lib/utils";
@@ -80,7 +81,7 @@ export function AnimationGalleryPage({
 }) {
   const projectId = rawProjectId as Id<"projects">;
 
-  const project = useQuery(api.cms.projects.get, { projectId });
+  const project = useAuthedQuery(api.cms.projects.get, { projectId });
   const cards = useQuery(api.cms.animations.listNames, { projectId });
   const duplicateAnimation = useMutation(api.cms.animations.duplicate);
 

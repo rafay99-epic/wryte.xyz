@@ -2,9 +2,9 @@
 
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
+import { useAuthedQuery } from "@wryte/logic/hooks/use-authed-query";
 import { fadeSlideUp, smoothTransition } from "@wryte/logic/lib/motion";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
-import { useQuery } from "convex/react";
 import { motion } from "framer-motion";
 import { CalendarDays } from "lucide-react";
 import { useEffect } from "react";
@@ -17,7 +17,7 @@ export function CalendarPage({
 }) {
   const projectId = rawProjectId as Id<"projects">;
 
-  const project = useQuery(api.cms.projects.get, { projectId });
+  const project = useAuthedQuery(api.cms.projects.get, { projectId });
 
   useEffect(() => {
     useEditorStore.getState().setActiveProjectId(projectId);

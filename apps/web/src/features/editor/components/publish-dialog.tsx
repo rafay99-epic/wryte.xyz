@@ -6,6 +6,7 @@ import {
   attributionLine,
   renderCommitTemplate,
 } from "@wryte/backend/_lib/commitAttribution";
+import { useAuthedQuery } from "@wryte/logic/hooks/use-authed-query";
 import { getFileExtension } from "@wryte/logic/lib/content-format";
 import {
   bufferServiceLabel,
@@ -74,10 +75,10 @@ export function PublishDialog({
 
   const title = useEditorStore((state) => state.title);
 
-  const document = useQuery(documentsGetMeta, {
+  const document = useAuthedQuery(documentsGetMeta, {
     documentId: documentId as Id<"documents">,
   });
-  const project = useQuery(
+  const project = useAuthedQuery(
     projectsGet,
     projectId ? { projectId: projectId as Id<"projects"> } : "skip",
   );

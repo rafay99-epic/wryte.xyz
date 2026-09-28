@@ -2,6 +2,7 @@
 
 import { api } from "@wryte/backend/_generated/api";
 import type { Doc, Id } from "@wryte/backend/_generated/dataModel";
+import { useAuthedQuery } from "@wryte/logic/hooks/use-authed-query";
 import { buildInitialFrontmatter } from "@wryte/logic/lib/build-initial-frontmatter";
 import { generateSlug } from "@wryte/logic/lib/markdown";
 import { Input } from "@wryte/ui/input";
@@ -14,7 +15,7 @@ import { toast } from "sonner";
 export function IdeasPanel({ projectId }: { projectId: Id<"projects"> }) {
   const router = useRouter();
   const ideas = useQuery(api.cms.ideas.list, { projectId });
-  const project = useQuery(api.cms.projects.get, { projectId });
+  const project = useAuthedQuery(api.cms.projects.get, { projectId });
   const createIdea = useMutation(api.cms.ideas.create);
   const removeIdea = useMutation(api.cms.ideas.remove);
   const createDocument = useMutation(api.cms.documents.create);

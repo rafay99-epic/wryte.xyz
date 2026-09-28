@@ -2,6 +2,7 @@
 
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
+import { useAuthedQuery } from "@wryte/logic/hooks/use-authed-query";
 import { fadeSlideUp, smoothTransition } from "@wryte/logic/lib/motion";
 import { cn } from "@wryte/logic/lib/utils";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
@@ -24,10 +25,10 @@ import { useVersionSnapshots } from "@/features/editor/hooks/use-version-snapsho
 import { AiSynthesisDialog } from "./components/ai-synthesis-dialog";
 
 export function EditorPage({ documentId }: { documentId: string }) {
-  const document = useQuery(api.cms.documents.get, {
+  const document = useAuthedQuery(api.cms.documents.get, {
     documentId: documentId as Id<"documents">,
   });
-  const project = useQuery(
+  const project = useAuthedQuery(
     api.cms.projects.get,
     document ? { projectId: document.projectId } : "skip",
   );

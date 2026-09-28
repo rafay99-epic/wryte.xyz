@@ -2,10 +2,10 @@
 
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
+import { useAuthedQuery } from "@wryte/logic/hooks/use-authed-query";
 import { useHashTab } from "@wryte/logic/hooks/use-hash-tab";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
 import type { SettingsTab } from "@wryte/logic/types/project-settings";
-import { useQuery } from "convex/react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { SettingsShell } from "@/components/settings/settings-shell";
@@ -35,7 +35,7 @@ export function ProjectSettingsPage({
 }) {
   const projectId = rawProjectId as Id<"projects">;
   const router = useRouter();
-  const project = useQuery(api.cms.projects.get, { projectId });
+  const project = useAuthedQuery(api.cms.projects.get, { projectId });
   const projectDeleted = project === null;
   const [activeTab, setActiveTab] = useHashTab<SettingsTab>("general", TAB_IDS);
 

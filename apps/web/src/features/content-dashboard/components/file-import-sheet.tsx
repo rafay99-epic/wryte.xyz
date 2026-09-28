@@ -2,6 +2,7 @@
 
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
+import { useAuthedQuery } from "@wryte/logic/hooks/use-authed-query";
 import { compileAnimation } from "@wryte/logic/lib/animations/compile-animation";
 import { buildInitialFrontmatter } from "@wryte/logic/lib/build-initial-frontmatter";
 import { parseFrontmatter } from "@wryte/logic/lib/frontmatter-detection/parse";
@@ -136,7 +137,7 @@ export function FileImportSheet({
   const [previewId, setPreviewId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const project = useQuery(api.cms.projects.get, { projectId });
+  const project = useAuthedQuery(api.cms.projects.get, { projectId });
   const existingNameList: string[] | undefined = useQuery(
     api.cms.animations.checkNames,
     open ? { projectId: projectId as Id<"projects"> } : "skip",

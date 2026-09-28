@@ -6,6 +6,7 @@ import type {
   AnimationCheckLevel,
   AnimationLanguage,
 } from "@wryte/backend/_lib/animationChecks";
+import { useAuthedQuery } from "@wryte/logic/hooks/use-authed-query";
 import { compileAnimation } from "@wryte/logic/lib/animations/compile-animation";
 import { starterSource } from "@wryte/logic/lib/animations/templates";
 import { Button } from "@wryte/ui/button";
@@ -85,7 +86,7 @@ export function AnimationInsertDialog({
     api.cms.animations.list,
     open ? { projectId: projectId as Id<"projects"> } : "skip",
   );
-  const project = useQuery(
+  const project = useAuthedQuery(
     api.cms.projects.get,
     open ? { projectId: projectId as Id<"projects"> } : "skip",
   );

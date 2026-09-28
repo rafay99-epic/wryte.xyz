@@ -2,6 +2,7 @@
 
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
+import { useAuthedQuery } from "@wryte/logic/hooks/use-authed-query";
 import { getStreamErrorMessage } from "@wryte/logic/lib/stream-error";
 import { cn } from "@wryte/logic/lib/utils";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
@@ -63,7 +64,7 @@ export function AiEnhanceButton({
 }: AiEnhancePanelProps) {
   const setContent = useEditorStore((state) => state.setContent);
 
-  const project = useQuery(api.cms.projects.get, {
+  const project = useAuthedQuery(api.cms.projects.get, {
     projectId: projectId as Id<"projects">,
   });
   const createEnhanceStream = useMutation(api.ai.enhance.createEnhanceStream);

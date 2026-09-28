@@ -2,6 +2,7 @@
 
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
+import { useAuthedQuery } from "@wryte/logic/hooks/use-authed-query";
 import { getStreamErrorMessage } from "@wryte/logic/lib/stream-error";
 import { cn } from "@wryte/logic/lib/utils";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
@@ -46,7 +47,7 @@ export function AiSynthesisDialog({
   const [isClosing, setIsClosing] = useState(false);
   const docArgs =
     open || isClosing ? { documentId: documentId as Id<"documents"> } : "skip";
-  const document = useQuery(api.cms.documents.get, docArgs);
+  const document = useAuthedQuery(api.cms.documents.get, docArgs);
   const drafts = useQuery(api.cms.documentDrafts.list, docArgs);
   const research = useQuery(api.cms.documentResearch.list, docArgs);
 
