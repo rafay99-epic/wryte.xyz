@@ -131,6 +131,7 @@ export default defineSchema({
     .index("by_userId_and_status", ["userId", "status"])
     .index("by_projectId_and_status", ["projectId", "status"])
     .index("by_projectId_and_githubPath", ["projectId", "githubPath"])
+    .index("by_projectId_and_slug", ["projectId", "slug"])
     .index("by_projectId_and_trashedAt", ["projectId", "trashedAt"])
     .searchIndex("search_title", {
       searchField: "title",
@@ -318,6 +319,18 @@ export default defineSchema({
     .index("by_projectId_and_createdAt", ["projectId", "createdAt"])
     .index("by_documentId", ["documentId"])
     .index("by_provider_and_externalId", ["provider", "externalId"]),
+
+  mcp_upload_tickets: defineTable({
+    token: v.string(),
+    userId: v.id("users"),
+    projectId: v.id("projects"),
+    documentId: v.optional(v.id("documents")),
+    filename: v.optional(v.string()),
+    alt: v.optional(v.string()),
+    expiresAt: v.number(),
+  })
+    .index("by_token", ["token"])
+    .index("by_userId_and_expiresAt", ["userId", "expiresAt"]),
 
   mediaCredentials: defineTable({
     projectId: v.id("projects"),

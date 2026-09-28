@@ -22,6 +22,7 @@
     "type": "turbo run type",
     "test": "turbo run test",
     "test:e2e": "bun run --filter @wryte/web test:e2e",
+    "test:mcp": "bun run --filter @wryte/backend test:mcp",
     "changelog:new": "bun run --filter @wryte/web changelog:new",
     "desktop:pack": "bun run --filter @wryte/desktop pack",
     "desktop:dist": "bun run --filter @wryte/desktop dist"

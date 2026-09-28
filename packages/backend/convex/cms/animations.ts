@@ -4,16 +4,15 @@ import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { internalQuery, mutation, query } from "../_generated/server";
 import type { AnimationCheckRecord } from "../_lib/animationChecks";
 import { hashAnimationSource } from "../_lib/animationChecks";
+import {
+  ANIMATION_NAME_RE,
+  normalizeAnimationName,
+  validateAnimationSource,
+} from "../_lib/animationInput";
 import { getAuthedUserOrNull, getCurrentUser } from "../_lib/auth";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
 
 const MAX_ANIMATIONS = 200;
-const MAX_ANIMATION_NAME = 60;
-const MAX_ANIMATION_SOURCE = 100_000;
-
-const NAME_RE = /^[A-Z][A-Za-z0-9]*$/;
-
-const RESERVED_NAMES = new Set(["Fragment", "React", "Component", "Suspense"]);
 
 export const checkSummaryValidator = v.object({
   status: v.union(v.literal("pass"), v.literal("warn"), v.literal("fail")),
@@ -116,35 +115,6 @@ async function deleteNameRow(
   if (existing) await ctx.db.delete(existing._id);
 }
 
-function normalizeName(raw: string): string {
-  const name = raw.trim();
-  if (!name) throw new Error("Component name is required");
-  if (name.length > MAX_ANIMATION_NAME) {
-    throw new Error(
-      `Component name must be ${String(MAX_ANIMATION_NAME)} characters or fewer`,
-    );
-  }
-  if (!NAME_RE.test(name)) {
-    throw new Error(
-      "Component name must be PascalCase — start with a capital letter, letters and digits only (e.g. HarnessLoop)",
-    );
-  }
-  if (RESERVED_NAMES.has(name)) {
-    throw new Error(`"${name}" is a reserved name — pick another`);
-  }
-  return name;
-}
-
-function validateSource(raw: string): string {
-  if (!raw.trim()) throw new Error("Component source is required");
-  if (raw.length > MAX_ANIMATION_SOURCE) {
-    throw new Error(
-      `Component source must be ${String(MAX_ANIMATION_SOURCE)} characters or fewer`,
-    );
-  }
-  return raw;
-}
-
 export const listNames = query({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
@@ -228,7 +198,8 @@ export const usage = query({
   }> => {
     const project = await ownedProjectForQuery(ctx, args.projectId);
     if (!project) return { posts: [], truncated: false };
-    if (!NAME_RE.test(args.name)) return { posts: [], truncated: false };
+    if (!ANIMATION_NAME_RE.test(args.name))
+      return { posts: [], truncated: false };
 
     const tagRe = new RegExp(`<${args.name}[\\s/>]`);
     const SCAN_LIMIT = 500;
@@ -300,8 +271,8 @@ export async function createAnimationForUser(
 
   await requireOwnedProjectForUser(ctx, user, args.projectId);
 
-  const name = normalizeName(args.name);
-  const source = validateSource(args.source);
+  const name = normalizeAnimationName(args.name);
+  const source = validateAnimationSource(args.source);
 
   const existing = await ctx.db
     .query("animations")
@@ -340,6 +311,38 @@ export async function createAnimationForUser(
   return { _id: animationId, name, source, updatedAt: now };
 }
 
+export async function upsertAnimationForUser(
+  ctx: MutationCtx,
+  user: Doc<"users">,
+  args: {
+    projectId: Id<"projects">;
+    name: string;
+    source: string;
+    check?: CheckSummary | undefined;
+  },
+): Promise<{ animationId: Id<"animations">; created: boolean }> {
+  const existing = await ctx.db
+    .query("animations")
+    .withIndex("by_project_and_name", (q) =>
+      q
+        .eq("projectId", args.projectId)
+        .eq("name", normalizeAnimationName(args.name)),
+    )
+    .unique();
+
+  if (existing) {
+    await updateAnimationForUser(ctx, user, {
+      animationId: existing._id,
+      source: args.source,
+      check: args.check,
+    });
+    return { animationId: existing._id, created: false };
+  }
+
+  const created = await createAnimationForUser(ctx, user, args);
+  return { animationId: created._id, created: true };
+}
+
 export const create = mutation({
   args: {
     projectId: v.id("projects"),
@@ -369,7 +372,7 @@ export async function updateAnimationForUser(
   if (!animation) throw new Error("Animation not found");
   await requireOwnedProjectForUser(ctx, user, animation.projectId);
 
-  const source = validateSource(args.source);
+  const source = validateAnimationSource(args.source);
   await ctx.db.patch(args.animationId, {
     source,
     updatedAt: Date.now(),
@@ -404,7 +407,7 @@ export const duplicate = mutation({
     const original = await ctx.db.get(args.animationId);
     if (!original) throw new Error("Original animation not found");
 
-    const newName = normalizeName(args.newName);
+    const newName = normalizeAnimationName(args.newName);
     const source = original.source;
 
     const existing = await ctx.db
@@ -430,7 +433,7 @@ export const duplicate = mutation({
   },
 });
 
-export async function replaceAnimationByNameForUser(
+async function replaceAnimationByNameForUser(
   ctx: MutationCtx,
   user: Doc<"users">,
   args: {
@@ -449,7 +452,9 @@ export async function replaceAnimationByNameForUser(
   const row = await ctx.db
     .query("animations")
     .withIndex("by_project_and_name", (q) =>
-      q.eq("projectId", args.projectId).eq("name", normalizeName(args.name)),
+      q
+        .eq("projectId", args.projectId)
+        .eq("name", normalizeAnimationName(args.name)),
     )
     .unique();
   if (!row) {
@@ -457,7 +462,7 @@ export async function replaceAnimationByNameForUser(
   }
 
   await ctx.db.patch(row._id, {
-    source: validateSource(args.source),
+    source: validateAnimationSource(args.source),
     updatedAt: Date.now(),
     check: undefined,
   });

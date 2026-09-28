@@ -480,6 +480,15 @@ export const get = query({
   },
 });
 
+export async function documentForUser(
+  ctx: QueryCtx,
+  userId: Id<"users">,
+  documentId: Id<"documents">,
+): Promise<Doc<"documents"> | null> {
+  const document = await verifyDocumentOwnership(ctx, documentId, userId);
+  return document.trashedAt === undefined ? document : null;
+}
+
 export async function documentWithContentForUser(
   ctx: QueryCtx,
   userId: Id<"users">,
@@ -527,15 +536,7 @@ export const getMeta = query({
     if (!user) {
       throw new Error("Not authenticated");
     }
-    const document = await verifyDocumentOwnership(
-      ctx,
-      args.documentId,
-      user._id,
-    );
-    if (document.trashedAt !== undefined) {
-      return null;
-    }
-    return document;
+    return await documentForUser(ctx, user._id, args.documentId);
   },
 });
 
@@ -1237,17 +1238,24 @@ async function updateTagsForUser(
 
   const doc = await ctx.db.get(args.documentId);
 
-  let frontmatter: Record<string, unknown> = {};
+  let parsed: unknown = {};
   if (doc?.frontmatter) {
     try {
-      frontmatter = JSON.parse(doc.frontmatter);
-    } catch {}
+      parsed = JSON.parse(doc.frontmatter);
+    } catch {
+      parsed = null;
+    }
   }
-  frontmatter["tags"] = args.tags;
+  const mergeable =
+    typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
+      ? parsed
+      : null;
 
   await ctx.db.patch(args.documentId, {
     tags: args.tags,
-    frontmatter: JSON.stringify(frontmatter),
+    ...(mergeable !== null
+      ? { frontmatter: JSON.stringify({ ...mergeable, tags: args.tags }) }
+      : {}),
     updatedAt: Date.now(),
   });
   return null;

@@ -4,6 +4,8 @@ import { components } from "./_generated/api";
 import { httpAction } from "./_generated/server";
 import { createAuthorizers } from "./mcp/authorize";
 import { preGate } from "./mcp/gate";
+import { MCP_MEDIA_PATH } from "./mcp/handlers/media";
+import { mediaUploadRoute } from "./mcp/mediaRoute";
 import { resources, resourceTemplates } from "./mcp/resources";
 import { tools } from "./mcp/tools";
 
@@ -23,14 +25,15 @@ http.route({
 const gateway = new McpGateway(components.mcpGateway);
 
 const INSTRUCTIONS = [
-  "Wryte is a writing CMS. Work inside a project: list projects, then documents.",
-  "To draft a new post: search existing documents for related work, create the document,",
-  "file research findings with wryte_research_create (not in the body), then write the body.",
-  "Read wryte://project/{projectId}/frontmatter-schema before writing frontmatter, and",
-  "wryte://project/{projectId}/board-columns before setting a status.",
-  "List tools are paginated — follow the cursor rather than raising limit.",
-  "For substantial rewrites, branch with wryte_drafts_create and promote when done.",
-].join(" ");
+  "Wryte is a writing CMS. The user writes the Main version of every post by hand; you add everything around it.",
+  "1. Call wryte_project_context once per project and follow it.",
+  "2. New post: wryte_documents_create with title, slug and frontmatter. Existing post: wryte_documents_workspace first.",
+  "3. Research: wryte_research_create with items[]. Never put research in a draft body.",
+  "4. Animations: wryte_animations_upsert. Fix every error it returns, then embed as <Name /> on its own line.",
+  "5. Images go to the project's own media provider. File on disk: wryte_media_upload_url, then curl the file to it. Web image: wryte_media_upload with sourceUrl. Paste the returned markdown into the draft.",
+  '6. Draft: wryte_drafts_snapshot, labelled "<model> · <harness>". Revise it with wryte_drafts_update.',
+  "7. On a rate limit, wait for retryAfter and retry.",
+].join("\n");
 
 const MCP_PATH = "/mcp";
 
@@ -82,6 +85,12 @@ for (const path of ["/mcp/", "/mcp"]) {
     http.route({ path, method, handler: mcp });
   }
 }
+
+http.route({
+  path: MCP_MEDIA_PATH,
+  method: "POST",
+  handler: mediaUploadRoute,
+});
 
 const protectedResourceMetadata = httpAction(async (ctx, request) => {
   await ensureOAuthConfig(ctx, request);

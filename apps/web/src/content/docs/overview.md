@@ -1,8 +1,8 @@
 # MCP server
 
 Wryte ships a Model Context Protocol server, so a coding agent — Claude Code,
-Cursor, or anything that speaks MCP — can read your posts, do research, draft,
-schedule and publish, working as you.
+Cursor, or anything that speaks MCP — can research, write drafts, build animations
+and upload images around your posts. You write the Main version and publish.
 
 It runs **inside Wryte's Convex backend**. There is no separate service to
 deploy, no API token to create, and no secret stored on your machine.
@@ -76,27 +76,29 @@ The canonical loop this was built for:
 > Look at my existing posts, research this topic, file what you find, then write
 > me a first draft.
 
-That works out of the box — read and write are granted by default. Publishing,
-media upload and trash are opt-in, because they have effects outside Wryte:
-commits land in your GitHub repo, uploads spend your storage provider's quota,
-and deletion is deletion.
+That works out of the box: read and write are granted by default. Media upload
+and trash are opt-in, because uploads spend your storage provider's quota and
+deletion is deletion. Publishing is never available to an agent.
 
 ## Design notes worth knowing
 
-- **34 tools, deliberately.** An earlier cut had 48. Every tool description sits
+- **30 tools, deliberately.** An earlier cut had 48. Every tool description sits
   in the model's context on every turn, and near-duplicate tools make models pick
   wrong and retry. Fewer, better-shaped tools cost less and work better.
 - **Nothing irreversible is reachable.** No permanent delete, no project delete,
   no account deletion, and nothing that touches stored credentials. The worst an
-  agent can do is move a document to the trash, which you can restore.
+  agent can do is trash a post whose Main version is still empty, which you can
+  restore.
+- **Main is yours.** Agents write draft tabs. No tool reads or writes the Main
+  body, promotes a draft, schedules or publishes.
 - **Agents share your app's rules.** Tools call the same functions the web app
   does, so every ownership check, quota and rate limit already applies.
 
 ## Read next
 
 - [Authentication](/docs/authentication) — how the OAuth flow works and why there's no API token
-- [Capabilities](/docs/capabilities) — the five permissions and how to change them
-- [Tool reference](/docs/tools) — all 21 tools with arguments
+- [Capabilities](/docs/capabilities) — the four permissions and how to change them
+- [Tool reference](/docs/tools) — all 30 tools with arguments
 - [Resources](/docs/resources) — context an agent should read before acting
 - [Rate limits](/docs/rate-limits) — what's enforced, and what happens when you hit it
 - [Troubleshooting](/docs/troubleshooting) — every error message and what it means

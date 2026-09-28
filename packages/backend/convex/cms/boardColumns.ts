@@ -1,15 +1,16 @@
 import { v } from "convex/values";
+import type { Doc } from "../_generated/dataModel";
 import { mutation, query } from "../_generated/server";
 import { getAuthedUserOrNull, getCurrentUser } from "../_lib/auth";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
 
-interface BoardColumnDef {
+export type BoardColumnDef = {
   id: string;
   label: string;
   color: string;
   behavior: "none" | "schedule" | "publish";
   position: number;
-}
+};
 
 const DEFAULT_BOARD_COLUMNS: BoardColumnDef[] = [
   { id: "draft", label: "Draft", color: "gray", behavior: "none", position: 0 },
@@ -43,6 +44,39 @@ const DEFAULT_BOARD_COLUMNS: BoardColumnDef[] = [
   },
 ];
 
+function isBoardColumn(value: unknown): value is BoardColumnDef {
+  if (typeof value !== "object" || value === null) return false;
+  return (
+    "id" in value &&
+    typeof value.id === "string" &&
+    "label" in value &&
+    typeof value.label === "string" &&
+    "color" in value &&
+    typeof value.color === "string" &&
+    "position" in value &&
+    typeof value.position === "number" &&
+    "behavior" in value &&
+    (value.behavior === "none" ||
+      value.behavior === "schedule" ||
+      value.behavior === "publish")
+  );
+}
+
+export function boardColumnsForProject(
+  project: Pick<Doc<"projects">, "boardColumns">,
+): BoardColumnDef[] {
+  if (!project.boardColumns) return DEFAULT_BOARD_COLUMNS;
+  try {
+    const parsed: unknown = JSON.parse(project.boardColumns);
+    if (!Array.isArray(parsed) || !parsed.every(isBoardColumn)) {
+      return DEFAULT_BOARD_COLUMNS;
+    }
+    return [...parsed].sort((a, b) => a.position - b.position);
+  } catch {
+    return DEFAULT_BOARD_COLUMNS;
+  }
+}
+
 export const getColumns = query({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
@@ -56,16 +90,7 @@ export const getColumns = query({
       return DEFAULT_BOARD_COLUMNS;
     }
 
-    if (!project.boardColumns) {
-      return DEFAULT_BOARD_COLUMNS;
-    }
-
-    try {
-      const columns = JSON.parse(project.boardColumns) as BoardColumnDef[];
-      return columns.sort((a, b) => a.position - b.position);
-    } catch {
-      return DEFAULT_BOARD_COLUMNS;
-    }
+    return boardColumnsForProject(project);
   },
 });
 

@@ -859,7 +859,7 @@ export const publish = action({
   },
 });
 
-export async function publishForUser(
+async function publishForUser(
   ctx: ActionCtx,
   user: Doc<"users">,
   args: {

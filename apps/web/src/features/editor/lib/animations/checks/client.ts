@@ -1,6 +1,8 @@
-import type { AnimationLanguage } from "@wryte/backend/_lib/animationChecks";
 import type {
   ActiveCheckLevel,
+  AnimationLanguage,
+} from "@wryte/backend/_lib/animationChecks";
+import type {
   CheckRequest,
   CheckResponse,
 } from "@wryte/logic/lib/animations/checks/protocol";

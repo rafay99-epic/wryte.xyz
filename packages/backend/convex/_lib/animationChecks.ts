@@ -22,6 +22,62 @@ export type AnimationDiagnostic = {
   column: number;
 };
 
+export type AnimationRule = {
+  rule: string;
+  severity: DiagnosticSeverity;
+  summary: string;
+};
+
+export const ANIMATION_RULES: readonly AnimationRule[] = [
+  {
+    rule: "no-module-scope-dom",
+    severity: "error",
+    summary:
+      "Never read window, document, navigator or storage while the module loads. Do it inside an effect.",
+  },
+  {
+    rule: "effect-needs-cleanup",
+    severity: "error",
+    summary:
+      "An effect that starts a timer, animation frame or listener must return a cleanup.",
+  },
+  {
+    rule: "no-explicit-any",
+    severity: "error",
+    summary: "No `any`. Use `unknown` and narrow, or name the real shape.",
+  },
+  {
+    rule: "no-typescript-in-javascript",
+    severity: "error",
+    summary: "JavaScript projects publish .jsx, so no type syntax at all.",
+  },
+  {
+    rule: "respect-reduced-motion",
+    severity: "warning",
+    summary: "Skip the animation when prefers-reduced-motion: reduce matches.",
+  },
+  {
+    rule: "svg-needs-accessible-name",
+    severity: "warning",
+    summary: 'Every <svg> needs role="img" with aria-label, or a <title>.',
+  },
+];
+
+export type ActiveCheckLevel = Exclude<AnimationCheckLevel, "off">;
+
+export type TypecheckState =
+  | { kind: "ran" }
+  | { kind: "skipped" }
+  | { kind: "unavailable"; reason: string };
+
+export type AnimationCheckResult =
+  | {
+      kind: "checked";
+      diagnostics: AnimationDiagnostic[];
+      typecheck: TypecheckState;
+    }
+  | { kind: "failed"; error: string };
+
 export type AnimationCheckOutcome =
   | { kind: "idle" }
   | { kind: "running" }

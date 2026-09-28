@@ -1,7 +1,6 @@
 export const SCOPES = {
   read: "wryte:read",
   write: "wryte:write",
-  publish: "wryte:publish",
   media: "wryte:media",
   trash: "wryte:trash",
 } as const;

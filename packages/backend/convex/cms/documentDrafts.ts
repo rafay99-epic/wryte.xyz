@@ -129,7 +129,7 @@ export const getContent = query({
   },
 });
 
-export async function createDraftForUser(
+async function createDraftForUser(
   ctx: MutationCtx,
   user: Doc<"users">,
   args: {
@@ -272,6 +272,38 @@ export const createSnapshot = mutation({
     await createDraftSnapshotForUser(ctx, await getCurrentUser(ctx), args),
 });
 
+export async function updateDraftMetaForUser(
+  ctx: MutationCtx,
+  user: Doc<"users">,
+  args: {
+    draftId: Id<"document_drafts">;
+    label?: string;
+    summary?: string;
+    frontmatter?: string;
+  },
+): Promise<null> {
+  await rateLimiter.limit(ctx, "documentDrafts:update", {
+    key: user.tokenIdentifier,
+    throws: true,
+  });
+
+  assertMetaLengths(args.label, args.summary);
+  const draft = await ctx.db.get(args.draftId);
+  if (!draft || draft.userId !== user._id) {
+    throw new Error("Draft not found");
+  }
+
+  await ctx.db.patch(args.draftId, {
+    updatedAt: Date.now(),
+    ...(args.label !== undefined ? { label: args.label.trim() } : {}),
+    ...(args.summary !== undefined ? { summary: args.summary.trim() } : {}),
+    ...(args.frontmatter !== undefined
+      ? { frontmatterSnapshot: args.frontmatter }
+      : {}),
+  });
+  return null;
+}
+
 export const update = mutation({
   args: {
     draftId: v.id("document_drafts"),
@@ -279,28 +311,7 @@ export const update = mutation({
     summary: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const key = await getRateLimitKey(ctx);
-    await rateLimiter.limit(ctx, "documentDrafts:update", {
-      key,
-      throws: true,
-    });
-
-    assertMetaLengths(args.label, args.summary);
-    const user = await getCurrentUser(ctx);
-    const draft = await ctx.db.get(args.draftId);
-    if (!draft || draft.userId !== user._id) {
-      throw new Error("Draft not found");
-    }
-
-    const updates: {
-      label?: string;
-      summary?: string;
-      updatedAt: number;
-    } = { updatedAt: Date.now() };
-    if (args.label !== undefined) updates.label = args.label.trim();
-    if (args.summary !== undefined) updates.summary = args.summary.trim();
-
-    await ctx.db.patch(args.draftId, updates);
+    await updateDraftMetaForUser(ctx, await getCurrentUser(ctx), args);
   },
 });
 
@@ -394,7 +405,7 @@ export const updateContent = mutation({
     await updateDraftContentForUser(ctx, await getCurrentUser(ctx), args),
 });
 
-export async function promoteDraftToMainForUser(
+async function promoteDraftToMainForUser(
   ctx: MutationCtx,
   user: Doc<"users">,
   args: { draftId: Id<"document_drafts"> },

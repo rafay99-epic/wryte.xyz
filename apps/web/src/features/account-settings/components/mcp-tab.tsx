@@ -19,7 +19,6 @@ import {
   LockKeyhole,
   PenLine,
   Plug,
-  Send,
   Terminal,
   Trash2,
 } from "lucide-react";
@@ -48,15 +47,9 @@ const CAPABILITIES: Capability[] = [
   {
     scope: SCOPES.write,
     label: "Write",
-    description: "Create and edit documents and research notes.",
+    description:
+      "Create posts, write drafts, research and animations. Never the Main version.",
     icon: PenLine,
-  },
-  {
-    scope: SCOPES.publish,
-    label: "Publish",
-    description: "Commit to GitHub and schedule or cancel publishing.",
-    icon: Send,
-    optional: true,
   },
   {
     scope: SCOPES.media,
@@ -190,8 +183,8 @@ export function McpTab() {
           <h3 className="text-sm font-semibold tracking-tight">Permissions</h3>
           <InfoHint>
             These permissions apply to every tool connected to your Wryte
-            account. Read and write are the usual starting point; publishing,
-            media and trash are optional.
+            account. Read and write are the usual starting point; media and
+            trash are optional. Publishing and the Main version stay yours.
           </InfoHint>
         </div>
 
