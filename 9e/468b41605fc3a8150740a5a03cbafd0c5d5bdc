@@ -1,0 +1,37 @@
+apps/web/package.json
+  s_a849b5fcccee2f::t_989882b23582c5 3
+AGENTS.md
+  s_a849b5fcccee2f::t_5767290aabeb25 69-79
+package.json
+  s_a849b5fcccee2f::t_3811ba7a4cfa5d 32
+  s_a849b5fcccee2f::t_989882b23582c5 3
+packages/backend/package.json
+  s_a849b5fcccee2f::t_989882b23582c5 3
+apps/web/src/content/changelog.md
+  s_a849b5fcccee2f::t_999cc2cf35d360 10-35
+  s_a849b5fcccee2f::t_f004db8ca6c954 9
+bun.lock
+  s_a849b5fcccee2f::t_8f61ca456f0d1c 9,15,28,85,118,143,642,644,646,648,650,652,2158
+packages/ui/package.json
+  s_a849b5fcccee2f::t_989882b23582c5 3
+packages/logic/package.json
+  s_a849b5fcccee2f::t_989882b23582c5 3
+apps/desktop/package.json
+  s_a849b5fcccee2f::t_989882b23582c5 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "9e468b41605fc3a8150740a5a03cbafd0c5d5bdc",
+  "prompts": {},
+  "sessions": {
+    "s_a849b5fcccee2f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e79a3165-3f4e-46ce-91e2-4e27810e790d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
