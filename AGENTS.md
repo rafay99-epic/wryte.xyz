@@ -66,3 +66,14 @@ Long term maintainability is a core priority. If you add new functionality, firs
 - **UI changes**: verify in the **T3 Code browser** against the running dev server (`http://localhost:3000`). For flows the browser can't reach, `bun run test:e2e` runs the Playwright suite against the running app.
 
 Stop with the fucking builing up the project, I will build the project myself, and the dev server is running all the time, constantly, so stop fucking building the server again and again and again and wasting tokens. If you want to verify that it is working or not, just run the `bun run lint` command or the type check to make sure that it is up to the quality standards.
+
+<!-- BEGIN:turborepo-agent-rules -->
+
+# This is NOT the Turborepo you know
+
+Turborepo configuration, task behavior, and CLI commands can vary between installed versions and may differ from your training data. Resolve the `turbo` package from this file's directory or relevant workspace; in monorepos, it may not be visible from the repository root. For example, run `node -p "require.resolve('turbo/package.json')"` from a workspace that depends on `turbo`.
+
+Read `docs/README.md` inside that installed package first, then read the relevant pages from its `docs/` directory before changing Turborepo configuration or commands. Heed deprecation notices. These bundled docs match the installed package version and are available without network access.
+
+This block is written and re-added by `turbo` before repository-scoped commands when an AI agent is detected. In the Turborepo source repository, its template is defined in `crates/turborepo-cli/src/cli/agent_guidance.rs`. Removing the managed block while updates are enabled means a later qualifying invocation will add it again. Set `"agentGuidance": false` in the root `turbo.json` or `turbo.jsonc` to opt out; this does not remove an existing block. Keep the block committed with your work to avoid an uncommitted change on the next agent invocation.
+<!-- END:turborepo-agent-rules -->

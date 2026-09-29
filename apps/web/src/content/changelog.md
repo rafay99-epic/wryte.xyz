@@ -7,6 +7,33 @@ entry body rendered on /changelog. Append new entries at the top —
 `bun run changelog:new` does this for you.
 
 <!-- changelog-entry
+slug: mcp-agents-write-drafts-not-main
+title: Agents write drafts, you write Main
+date: 2026-09-29
+category: website
+build: unreleased
+version: 1.7.0
+description: The MCP server now keeps agents to draft tabs, research, animations and media, checks their input before saving, and installs in one click from the docs.
+-->
+## What's new
+
+- **Agents write drafts, you write Main.** MCP tools can create a post, write draft tabs, file research, build animations and upload images. They can no longer read or change the Main version, promote a draft, schedule or publish.
+- **One-click install.** The docs and Settings → MCP Server have buttons for Claude Code, Cursor, VS Code and ChatGPT.
+- **Clear refusals.** Slugs, titles, frontmatter, tags, draft labels and research links are checked before saving, and a refused call says exactly what to fix.
+
+## Fixes
+
+- Pages no longer log "Not authenticated" on first load while sign-in finishes.
+- An expired or malformed MCP token now asks the client to sign in again instead of failing with a server error.
+- Retagging a post no longer wipes frontmatter it can't read.
+- Docs pages load without waiting on the URL, so moving between them is instant.
+- Saving MCP settings works again for accounts that had the old Publish capability on.
+
+## Upgrading
+
+Existing MCP connections keep working with nothing to reinstall. Restart your client to pick up the new tools. Removed tools and their replacements are listed in the MCP docs overview.
+
+<!-- changelog-entry
 slug: search-preview-auto-expands-on-seo-issues
 title: Search preview auto-expands on SEO issues
 date: 2026-08-25
