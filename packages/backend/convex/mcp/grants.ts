@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import { internalQuery, mutation, query } from "../_generated/server";
 import { getAuthedUserOrNull, getCurrentUser } from "../_lib/auth";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
-import { ALL_SCOPES, DEFAULT_GRANT } from "./scopes";
+import { ALL_SCOPES, currentScopes } from "./scopes";
 
 export const _forSubject = internalQuery({
   args: { subject: v.string() },
@@ -13,7 +13,7 @@ export const _forSubject = internalQuery({
       .withIndex("by_clerkUserId", (q) => q.eq("clerkUserId", args.subject))
       .unique();
     if (!user) return null;
-    return user.mcpScopes ?? [...DEFAULT_GRANT];
+    return currentScopes(user.mcpScopes);
   },
 });
 
@@ -22,7 +22,7 @@ export const myGrant = query({
   returns: v.array(v.string()),
   handler: async (ctx) => {
     const user = await getAuthedUserOrNull(ctx);
-    return user?.mcpScopes ?? [...DEFAULT_GRANT];
+    return currentScopes(user?.mcpScopes);
   },
 });
 
