@@ -2,6 +2,7 @@
 
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
+import { useAuthedQuery } from "@wryte/logic/hooks/use-authed-query";
 import { useDebouncedValue } from "@wryte/logic/hooks/use-debounced-value";
 import {
   type MediaFilter,
@@ -35,7 +36,7 @@ import {
   SheetTitle,
 } from "@wryte/ui/sheet";
 import { Skeleton } from "@wryte/ui/skeleton";
-import { useAction, useQuery } from "convex/react";
+import { useAction } from "convex/react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Copy,
@@ -75,7 +76,7 @@ export function MediaLibraryPage({
   projectId: string;
 }) {
   const projectId = rawProjectId as Id<"projects">;
-  const project = useQuery(api.cms.projects.get, { projectId });
+  const project = useAuthedQuery(api.cms.projects.get, { projectId });
 
   useEffect(() => {
     useEditorStore.getState().setActiveProjectId(projectId);

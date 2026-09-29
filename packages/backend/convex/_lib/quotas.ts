@@ -29,3 +29,12 @@ export function currentMonthBucket(now: number = Date.now()): string {
 export function isAllowedMime(mime: string): boolean {
   return QUOTAS.ALLOWED_MIME.includes(mime.toLowerCase());
 }
+
+export function projectUploadLimit(project: {
+  maxUploadBytes?: number | undefined;
+}): number {
+  return typeof project.maxUploadBytes === "number" &&
+    project.maxUploadBytes > 0
+    ? Math.min(project.maxUploadBytes, QUOTAS.MAX_UPLOAD_BYTES)
+    : QUOTAS.MAX_UPLOAD_BYTES;
+}

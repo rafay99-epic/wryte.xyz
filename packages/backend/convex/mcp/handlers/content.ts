@@ -1,24 +1,17 @@
 import { v } from "convex/values";
 import { mcpCallerValidator } from "convex-mcp-gateway";
-import { internalMutation, internalQuery } from "../../_generated/server";
 import { requireCaller } from "../../_lib/auth";
 import {
-  createResearchForUser,
+  createResearchBatchForUser,
   removeResearchForUser,
   researchForUser,
+  researchItemValidator,
+  researchTypeValidator,
   updateResearchForUser,
 } from "../../cms/documentResearch";
+import { agentMutation, agentQuery } from "../agentFunctions";
 
-export const RESEARCH_TYPE = v.union(
-  v.literal("note"),
-  v.literal("source"),
-  v.literal("quote"),
-  v.literal("outline"),
-  v.literal("idea"),
-  v.literal("ai_summary"),
-);
-
-export const researchList = internalQuery({
+export const researchList = agentQuery({
   args: { caller: mcpCallerValidator, documentId: v.id("documents") },
   handler: async (ctx, args) => {
     const user = await requireCaller(ctx, args.caller);
@@ -26,29 +19,24 @@ export const researchList = internalQuery({
   },
 });
 
-export const researchCreate = internalMutation({
+export const researchCreate = agentMutation({
   args: {
     caller: mcpCallerValidator,
     documentId: v.id("documents"),
-    type: RESEARCH_TYPE,
-    title: v.string(),
-    content: v.string(),
-    url: v.optional(v.string()),
-    sourceName: v.optional(v.string()),
-    selectedForAi: v.optional(v.boolean()),
+    items: v.array(researchItemValidator),
   },
   handler: async (ctx, args) => {
     const user = await requireCaller(ctx, args.caller);
     const { caller: _caller, ...rest } = args;
-    return await createResearchForUser(ctx, user, rest);
+    return await createResearchBatchForUser(ctx, user, rest);
   },
 });
 
-export const researchUpdate = internalMutation({
+export const researchUpdate = agentMutation({
   args: {
     caller: mcpCallerValidator,
     researchId: v.id("document_research"),
-    type: v.optional(RESEARCH_TYPE),
+    type: v.optional(researchTypeValidator),
     title: v.optional(v.string()),
     content: v.optional(v.string()),
     url: v.optional(v.string()),
@@ -62,7 +50,7 @@ export const researchUpdate = internalMutation({
   },
 });
 
-export const researchRemove = internalMutation({
+export const researchRemove = agentMutation({
   args: {
     caller: mcpCallerValidator,
     researchId: v.id("document_research"),

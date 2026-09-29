@@ -2,6 +2,7 @@
 
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
+import { useAuthedQuery } from "@wryte/logic/hooks/use-authed-query";
 import { buildInitialFrontmatter } from "@wryte/logic/lib/build-initial-frontmatter";
 import { getFileExtension } from "@wryte/logic/lib/content-format";
 import { generateSlug } from "@wryte/logic/lib/markdown";
@@ -47,7 +48,7 @@ export function NewArticlePage() {
     useEditorStore.getState().setActiveProjectId(null);
   }, []);
 
-  const selectedProject = useQuery(
+  const selectedProject = useAuthedQuery(
     api.cms.projects.get,
     selectedProjectId ? { projectId: selectedProjectId } : "skip",
   );

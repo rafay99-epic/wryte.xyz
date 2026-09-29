@@ -4,6 +4,12 @@ Every error the MCP server can return, and what to do about it.
 
 ## Connection
 
+**`Unknown tool: wryte_...`**
+
+The tool was removed in the drafts-only upgrade. **Upgrading from the earlier
+server** in the [overview](/docs/overview) lists its replacement. If your client still lists old tools, restart it or reconnect
+`wryte` so it fetches the new list.
+
 **`Protected resource ...\/mcp\/ does not match expected ...\/mcp`**
 
 The configured URL and the advertised one disagree on the trailing slash. Use the
@@ -36,7 +42,7 @@ The backend is serving an older build, or every capability is off. Check
 **`No Wryte account for this identity. Sign in at wryte.xyz once, then reconnect.`**
 
 Your token is valid but no Wryte account matches it. This happens if you
-authorize an agent before ever signing in through the browser — the account row
+authorize an agent before ever signing in through the browser; the account row
 is created on first web sign-in. Sign in once, then retry. No need to
 re-authorize.
 
@@ -45,11 +51,11 @@ re-authorize.
 Exactly what it says: the token is fine, the capability is off. Enable it in
 **Settings → MCP Server**. It applies immediately, with no reconnect.
 
-Note this is a `403`, not a `401`, on purpose — a `401` would make your client
+Note this is a `403`, not a `401`, on purpose: a `401` would make your client
 throw away a working token and re-run OAuth, which cannot help. The fix is a
 toggle, not a fresh token.
 
-**Publish or media tools aren't in the list at all**
+**Media or trash tools aren't in the list at all**
 
 Working as designed. Tools you can't call are hidden rather than shown and then
 refused. Enable the capability and they appear.
@@ -71,7 +77,7 @@ the audit log and your Convex logs.
 **A write is rejected for invalid frontmatter**
 
 Your project defines a frontmatter schema and the document doesn't satisfy it.
-Have the agent read `wryte://project/{projectId}/frontmatter-schema` first — see
+Have the agent read `wryte://project/{projectId}/frontmatter-schema` first. See
 [Resources](/docs/resources).
 
 **A status value is rejected**
@@ -88,6 +94,6 @@ permanent delete over MCP at any capability.
 
 **An agent and the editor both edited one document**
 
-Last write wins on a field-by-field basis. For substantial rewrites, ask the
-agent to branch a draft and promote it when done, rather than editing the live
-document while you have it open.
+They can't. Agents only write draft tabs, never the Main version, so your
+editor and an agent never write the same text. Two agents writing the same draft
+tab: last write wins.

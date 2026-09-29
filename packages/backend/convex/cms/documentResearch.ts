@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { type Infer, v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type {
   DatabaseReader,
@@ -9,7 +9,7 @@ import { mutation, query } from "../_generated/server";
 import { getAuthedUserOrNull, getCurrentUser } from "../_lib/auth";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
 
-const researchTypeValidator = v.union(
+export const researchTypeValidator = v.union(
   v.literal("note"),
   v.literal("source"),
   v.literal("quote"),
@@ -17,6 +17,46 @@ const researchTypeValidator = v.union(
   v.literal("idea"),
   v.literal("ai_summary"),
 );
+
+export const researchItemValidator = v.object({
+  type: researchTypeValidator,
+  title: v.string(),
+  content: v.string(),
+  url: v.optional(v.string()),
+  sourceName: v.optional(v.string()),
+  selectedForAi: v.optional(v.boolean()),
+});
+
+export type ResearchItem = Infer<typeof researchItemValidator>;
+
+export const MAX_RESEARCH_BATCH = 15;
+const MAX_RESEARCH_CONTENT_BYTES = 100 * 1024;
+
+function assertResearchContent(content: string): void {
+  if (
+    new TextEncoder().encode(content).byteLength > MAX_RESEARCH_CONTENT_BYTES
+  ) {
+    throw new Error(
+      `Research content is too large (max ${String(MAX_RESEARCH_CONTENT_BYTES / 1024)} KB).`,
+    );
+  }
+}
+
+function researchUrl(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return "";
+  const url = /^[a-z][a-z0-9+.-]*:/i.test(trimmed)
+    ? trimmed
+    : `https://${trimmed}`;
+  let protocol = "";
+  try {
+    protocol = new URL(url).protocol;
+  } catch {}
+  if (protocol !== "http:" && protocol !== "https:") {
+    throw new Error("Research url must be an http or https link.");
+  }
+  return url;
+}
 
 async function verifyDocumentOwnership(
   ctx: { db: DatabaseReader },
@@ -59,34 +99,39 @@ export async function researchForUser(
 }
 
 export const create = mutation({
-  args: {
-    documentId: v.id("documents"),
-    type: researchTypeValidator,
-    title: v.string(),
-    content: v.string(),
-    url: v.optional(v.string()),
-    sourceName: v.optional(v.string()),
-    selectedForAi: v.optional(v.boolean()),
+  args: { documentId: v.id("documents"), ...researchItemValidator.fields },
+  handler: async (ctx, args) => {
+    const { documentId, ...item } = args;
+    const [id] = await createResearchBatchForUser(
+      ctx,
+      await getCurrentUser(ctx),
+      { documentId, items: [item] },
+    );
+    if (!id) throw new Error("Research was not created");
+    return id;
   },
-  handler: async (ctx, args) =>
-    await createResearchForUser(ctx, await getCurrentUser(ctx), args),
 });
 
-export async function createResearchForUser(
+export async function createResearchBatchForUser(
   ctx: MutationCtx,
   user: Doc<"users">,
-  args: {
-    documentId: Id<"documents">;
-    type: Doc<"document_research">["type"];
-    title: string;
-    content: string;
-    url?: string;
-    sourceName?: string;
-    selectedForAi?: boolean;
-  },
-) {
+  args: { documentId: Id<"documents">; items: ResearchItem[] },
+): Promise<Id<"document_research">[]> {
+  if (args.items.length === 0) {
+    throw new Error("Send at least one research item.");
+  }
+  if (args.items.length > MAX_RESEARCH_BATCH) {
+    throw new Error(
+      `At most ${String(MAX_RESEARCH_BATCH)} research items per call.`,
+    );
+  }
+
+  const urls = args.items.map((item) => researchUrl(item.url ?? ""));
+  for (const item of args.items) assertResearchContent(item.content);
+
   await rateLimiter.limit(ctx, "documentResearch:create", {
     key: user.tokenIdentifier,
+    count: args.items.length,
     throws: true,
   });
 
@@ -97,19 +142,28 @@ export async function createResearchForUser(
   );
   const now = Date.now();
 
-  return await ctx.db.insert("document_research", {
-    documentId: args.documentId,
-    projectId: document.projectId,
-    userId: user._id,
-    type: args.type,
-    title: args.title.trim() || "Untitled research",
-    content: args.content,
-    ...(args.url?.trim() ? { url: args.url.trim() } : {}),
-    ...(args.sourceName?.trim() ? { sourceName: args.sourceName.trim() } : {}),
-    selectedForAi: args.selectedForAi ?? true,
-    createdAt: now,
-    updatedAt: now,
-  });
+  const ids: Id<"document_research">[] = [];
+  for (const [index, item] of args.items.entries()) {
+    const url = urls[index];
+    ids.push(
+      await ctx.db.insert("document_research", {
+        documentId: args.documentId,
+        projectId: document.projectId,
+        userId: user._id,
+        type: item.type,
+        title: item.title.trim() || "Untitled research",
+        content: item.content,
+        ...(url ? { url } : {}),
+        ...(item.sourceName?.trim()
+          ? { sourceName: item.sourceName.trim() }
+          : {}),
+        selectedForAi: item.selectedForAi ?? true,
+        createdAt: now,
+        updatedAt: now,
+      }),
+    );
+  }
+  return ids;
 }
 
 export const update = mutation({
@@ -161,8 +215,11 @@ export async function updateResearchForUser(
   if (args.type !== undefined) updates.type = args.type;
   if (args.title !== undefined)
     updates.title = args.title.trim() || "Untitled research";
-  if (args.content !== undefined) updates.content = args.content;
-  if (args.url !== undefined) updates.url = args.url.trim();
+  if (args.content !== undefined) {
+    assertResearchContent(args.content);
+    updates.content = args.content;
+  }
+  if (args.url !== undefined) updates.url = researchUrl(args.url);
   if (args.sourceName !== undefined)
     updates.sourceName = args.sourceName.trim();
   if (args.selectedForAi !== undefined)

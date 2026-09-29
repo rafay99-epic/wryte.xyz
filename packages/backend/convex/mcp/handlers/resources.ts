@@ -1,10 +1,12 @@
 import { v } from "convex/values";
 import { mcpCallerValidator } from "convex-mcp-gateway";
-import { internalQuery } from "../../_generated/server";
 import { requireCaller } from "../../_lib/auth";
-import { documentWithContentForUser } from "../../cms/documents";
+import { documentForUser } from "../../cms/documents";
+import { agentQuery } from "../agentFunctions";
+import { agentDocumentView } from "../documentView";
+import { projectContext } from "../projectContext";
 
-export const project = internalQuery({
+export const project = agentQuery({
   args: { caller: mcpCallerValidator, projectId: v.string() },
   handler: async (ctx, args) => {
     const user = await requireCaller(ctx, args.caller);
@@ -15,16 +17,17 @@ export const project = internalQuery({
     if (project.userId !== user._id) {
       throw new Error("Unauthorized: you do not own this project");
     }
-    return project;
+    return projectContext(project);
   },
 });
 
-export const document = internalQuery({
+export const document = agentQuery({
   args: { caller: mcpCallerValidator, documentId: v.string() },
   handler: async (ctx, args) => {
     const user = await requireCaller(ctx, args.caller);
     const documentId = ctx.db.normalizeId("documents", args.documentId);
     if (!documentId) return null;
-    return await documentWithContentForUser(ctx, user._id, documentId);
+    const document = await documentForUser(ctx, user._id, documentId);
+    return document ? agentDocumentView(document) : null;
   },
 });

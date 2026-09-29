@@ -2,9 +2,9 @@
 
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
+import { useAuthedQuery } from "@wryte/logic/hooks/use-authed-query";
 import { cn } from "@wryte/logic/lib/utils";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
-import { useQuery } from "convex/react";
 import dynamic from "next/dynamic";
 import { useSplitScrollSync } from "../hooks/use-split-scroll-sync";
 import { DraftTabBar } from "./draft-tab-bar";
@@ -46,7 +46,7 @@ export function EditorLayout({
   onRequestSave,
   onSynthesisOpen,
 }: EditorLayoutProps) {
-  const project = useQuery(api.cms.projects.get, {
+  const project = useAuthedQuery(api.cms.projects.get, {
     projectId: projectId as Id<"projects">,
   });
   const isMdx = project?.contentFormat === "mdx";

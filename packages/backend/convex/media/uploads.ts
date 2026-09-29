@@ -5,7 +5,7 @@ import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { ActionCtx } from "../_generated/server";
 import { action } from "../_generated/server";
-import { isAllowedMime, QUOTAS } from "../_lib/quotas";
+import { isAllowedMime, projectUploadLimit, QUOTAS } from "../_lib/quotas";
 import { rateLimiter } from "../_lib/rateLimits";
 import {
   DEFAULT_MESSAGES,
@@ -17,6 +17,11 @@ import {
   mediaProviderValidator,
   type NormalizedMediaItem,
 } from "./_lib/providers";
+import {
+  filenameFromUrl,
+  parseRemoteMediaUrl,
+  readCapped,
+} from "./_lib/remote";
 import {
   resolveProvider,
   resolveProviderName,
@@ -128,12 +133,7 @@ export async function uploadForUser(
 
   const owned = await requireOwnedProject(ctx, user, args.projectId);
 
-  const projectMax =
-    typeof owned.project.maxUploadBytes === "number" &&
-    owned.project.maxUploadBytes > 0
-      ? Math.min(owned.project.maxUploadBytes, QUOTAS.MAX_UPLOAD_BYTES)
-      : QUOTAS.MAX_UPLOAD_BYTES;
-  if (args.bytes.byteLength > projectMax) {
+  if (args.bytes.byteLength > projectUploadLimit(owned.project)) {
     throw new ConvexError({
       code: "FILE_TOO_LARGE" as MediaErrorCode,
       message: DEFAULT_MESSAGES.FILE_TOO_LARGE,
@@ -210,32 +210,15 @@ export async function uploadForUser(
 
 const BASE64_RE = /^[A-Za-z0-9+/_-]+={0,2}$/;
 
-export async function uploadBase64ForUser(
-  ctx: ActionCtx,
-  user: Doc<"users">,
-  args: {
-    projectId: Id<"projects">;
-    base64: string;
-    mime: string;
-    filename: string;
-    documentId?: Id<"documents">;
-    provider?: MediaProvider;
-  },
-): Promise<{
-  mediaId: Id<"media">;
-  url: string;
-  provider: MediaProvider;
-  externalId: string;
-}> {
-  const approxBytes = Math.floor((args.base64.length * 3) / 4);
-  if (approxBytes > QUOTAS.MAX_UPLOAD_BYTES) {
+function decodeBase64(raw: string): ArrayBuffer {
+  if (Math.floor((raw.length * 3) / 4) > QUOTAS.MAX_UPLOAD_BYTES) {
     throw new ConvexError({
       code: "FILE_TOO_LARGE" as MediaErrorCode,
       message: DEFAULT_MESSAGES.FILE_TOO_LARGE,
     });
   }
 
-  const base64 = args.base64.replace(/\s+/g, "");
+  const base64 = raw.replace(/\s+/g, "");
   const unpadded = base64.replace(/=+$/, "");
   const validBase64 =
     base64.length > 0 &&
@@ -249,18 +232,53 @@ export async function uploadBase64ForUser(
     });
   }
   const buffer = Buffer.from(base64, "base64");
+  return new Uint8Array(buffer).buffer;
+}
 
-  return await uploadForUser(ctx, user, {
-    projectId: args.projectId,
-    bytes: buffer.buffer.slice(
-      buffer.byteOffset,
-      buffer.byteOffset + buffer.byteLength,
-    ) as ArrayBuffer,
-    mime: args.mime,
-    filename: args.filename,
-    ...(args.documentId !== undefined ? { documentId: args.documentId } : {}),
-    ...(args.provider !== undefined ? { provider: args.provider } : {}),
-  });
+export type MediaSource =
+  | { kind: "url"; url: string }
+  | { kind: "base64"; base64: string };
+
+export type LoadedMedia = {
+  bytes: ArrayBuffer;
+  mime: string | null;
+  filename: string | null;
+};
+
+export async function loadMediaSource(
+  source: MediaSource,
+): Promise<LoadedMedia> {
+  switch (source.kind) {
+    case "base64":
+      return {
+        bytes: decodeBase64(source.base64),
+        mime: null,
+        filename: null,
+      };
+    case "url": {
+      const url = parseRemoteMediaUrl(source.url);
+      const response = await fetch(url, { redirect: "follow" });
+      if (!response.ok) {
+        throw new Error(
+          `sourceUrl responded ${String(response.status)} ${response.statusText}`,
+        );
+      }
+      parseRemoteMediaUrl(response.url || url.toString());
+      const mime =
+        response.headers.get("content-type")?.split(";")[0]?.trim() ?? "";
+      if (!isAllowedMime(mime)) {
+        throw new ConvexError({
+          code: "UNSUPPORTED_MIME" as MediaErrorCode,
+          message: DEFAULT_MESSAGES.UNSUPPORTED_MIME,
+        });
+      }
+      return {
+        bytes: await readCapped(response, QUOTAS.MAX_UPLOAD_BYTES),
+        mime,
+        filename: filenameFromUrl(url, mime),
+      };
+    }
+  }
 }
 
 export const list = action({

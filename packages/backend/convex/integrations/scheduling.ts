@@ -99,7 +99,7 @@ export const schedule = mutation({
     await scheduleForUser(ctx, await getCurrentUser(ctx), args),
 });
 
-export async function scheduleForUser(
+async function scheduleForUser(
   ctx: MutationCtx,
   user: Doc<"users">,
   args: {
@@ -211,7 +211,7 @@ export const cancel = mutation({
     await cancelScheduleForUser(ctx, await getCurrentUser(ctx), args),
 });
 
-export async function cancelScheduleForUser(
+async function cancelScheduleForUser(
   ctx: MutationCtx,
   user: Doc<"users">,
   args: { documentId: Id<"documents"> },

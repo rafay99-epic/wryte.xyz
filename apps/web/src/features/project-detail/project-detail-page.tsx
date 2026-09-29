@@ -6,6 +6,7 @@ import {
   CONTENT_SEARCH_DEBOUNCE_MS,
   MIN_CONTENT_TERM,
 } from "@wryte/backend/cms/_lib/documentContent";
+import { useAuthedQuery } from "@wryte/logic/hooks/use-authed-query";
 import { useDebouncedValue } from "@wryte/logic/hooks/use-debounced-value";
 import {
   type ContentFile,
@@ -65,7 +66,7 @@ export function ProjectDetailPage({
   const projectId = rawProjectId as Id<"projects">;
   const router = useRouter();
 
-  const project = useQuery(api.cms.projects.get, { projectId });
+  const project = useAuthedQuery(api.cms.projects.get, { projectId });
   const documents = useQuery(api.cms.documents.list, { projectId });
   const boardColumns = useQuery(api.cms.boardColumns.getColumns, {
     projectId,
@@ -663,7 +664,7 @@ function BoardScheduleDialog() {
   const clearPendingSchedule = useBoardStore((s) => s.clearPendingSchedule);
   const moveCard = useMutation(api.cms.documents.moveCard);
 
-  const document = useQuery(
+  const document = useAuthedQuery(
     api.cms.documents.getMeta,
     pendingDocId ? { documentId: pendingDocId as Id<"documents"> } : "skip",
   );

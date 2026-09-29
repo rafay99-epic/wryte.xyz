@@ -2,6 +2,7 @@
 
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
+import { useAuthedQuery } from "@wryte/logic/hooks/use-authed-query";
 import {
   findPubDateFieldName,
   findPubDateFieldType,
@@ -67,10 +68,10 @@ export function ScheduleDialog({
   const [isScheduling, setIsScheduling] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
 
-  const document = useQuery(api.cms.documents.getMeta, {
+  const document = useAuthedQuery(api.cms.documents.getMeta, {
     documentId: documentId as Id<"documents">,
   });
-  const project = useQuery(
+  const project = useAuthedQuery(
     api.cms.projects.get,
     document ? { projectId: document.projectId } : "skip",
   );

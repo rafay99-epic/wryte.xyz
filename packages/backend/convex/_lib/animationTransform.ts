@@ -120,3 +120,24 @@ export function transformMdxWithAnimations(
 
   return { body: rewritten, components };
 }
+
+export type MdxComponentScan = { names: string[] } | { error: string };
+
+export function mdxComponentNames(body: string): MdxComponentScan {
+  try {
+    const tree = unified().use(remarkParse).use(remarkMdx).parse(body);
+    const names = new Set<string>();
+    visit(tree, ["mdxJsxFlowElement", "mdxJsxTextElement"], (node) => {
+      if (
+        "name" in node &&
+        typeof node.name === "string" &&
+        /^[A-Z]/.test(node.name)
+      ) {
+        names.add(node.name);
+      }
+    });
+    return { names: [...names].sort() };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : String(error) };
+  }
+}

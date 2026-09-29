@@ -1,9 +1,9 @@
+import type ts from "typescript6";
 import type {
   AnimationDiagnostic,
   AnimationLanguage,
   DiagnosticSeverity,
-} from "@wryte/backend/_lib/animationChecks";
-import type ts from "typescript";
+} from "../animationChecks";
 
 const SSR_UNSAFE_GLOBALS = new Set([
   "window",

@@ -45,7 +45,7 @@ export async function preGate(
 ): Promise<Response | null> {
   if (request.method === "OPTIONS") return null;
 
-  const identity = await ctx.auth.getUserIdentity();
+  const identity = await ctx.auth.getUserIdentity().catch(() => null);
   if (!identity) return unauthorized(request);
 
   const key = identity.subject;

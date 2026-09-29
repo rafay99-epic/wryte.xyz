@@ -8,17 +8,20 @@ import {
   mcpCallerValidator,
 } from "convex-mcp-gateway";
 import { internal } from "../_generated/api";
-import { RESEARCH_TYPE } from "./handlers/content";
+import {
+  MAX_RESEARCH_BATCH,
+  researchItemValidator,
+  researchTypeValidator,
+} from "../cms/documentResearch";
 import { SCOPES, type WryteToolMetadata } from "./scopes";
 
 const READ = { scopes: [SCOPES.read] } satisfies WryteToolMetadata;
 const WRITE = { scopes: [SCOPES.write] } satisfies WryteToolMetadata;
-const PUBLISH = { scopes: [SCOPES.publish] } satisfies WryteToolMetadata;
 const MEDIA = { scopes: [SCOPES.media] } satisfies WryteToolMetadata;
 
 const WRITE_BODY = {
   scopes: [SCOPES.write],
-  auditArgs: { redact: ["content", "frontmatter"] },
+  auditArgs: { redact: ["content", "frontmatter", "items"] },
 } satisfies WryteToolMetadata;
 
 const WRITE_NO_AUDIT = {
@@ -26,11 +29,16 @@ const WRITE_NO_AUDIT = {
   auditArgs: false,
 } satisfies WryteToolMetadata;
 
+const MEDIA_NO_AUDIT = {
+  scopes: [SCOPES.media],
+  auditArgs: false,
+} satisfies WryteToolMetadata;
+
 export const tools: McpToolRegistration[] = [
   defineMcpQuery({
     name: "wryte_projects_list",
     description:
-      "List the caller's writing projects with repo, branch, content paths and media storage mode.",
+      "List the caller's writing projects with repo, branch, content path and format, and media storage mode.",
     fn: internal.mcp.handlers.projects.list,
     args: { caller: mcpCallerValidator },
     identityArg: "caller",
@@ -38,9 +46,19 @@ export const tools: McpToolRegistration[] = [
   }),
 
   defineMcpQuery({
+    name: "wryte_project_context",
+    description:
+      "Everything an agent must follow for one project: frontmatter schema, statuses an agent may set, md or mdx, animation language, check level and rules, media provider and limits. Call once per project before writing.",
+    fn: internal.mcp.handlers.projects.context,
+    args: { caller: mcpCallerValidator, projectId: v.id("projects") },
+    identityArg: "caller",
+    metadata: READ,
+  }),
+
+  defineMcpQuery({
     name: "wryte_documents_list",
     description:
-      "Paginated list of a project's documents (id, title, slug). Page with the returned cursor.",
+      "Paginated list of a project's posts (id, title, slug). Page with the returned cursor.",
     fn: internal.mcp.handlers.documents.list,
     args: {
       caller: mcpCallerValidator,
@@ -54,7 +72,7 @@ export const tools: McpToolRegistration[] = [
   defineMcpQuery({
     name: "wryte_documents_search",
     description:
-      "Search document titles across one project or all of them. Start here when looking for an existing post.",
+      "Search post titles across one project or all of them. Start here when looking for an existing post.",
     fn: internal.mcp.handlers.documents.search,
     args: {
       caller: mcpCallerValidator,
@@ -69,7 +87,7 @@ export const tools: McpToolRegistration[] = [
   defineMcpQuery({
     name: "wryte_documents_get",
     description:
-      "Get one document by id: frontmatter, body, tags, status, publish state.",
+      "One post's title, slug, status, tags, frontmatter and Main word count. The Main body belongs to the user and is never returned.",
     fn: internal.mcp.handlers.documents.get,
     args: { caller: mcpCallerValidator, documentId: v.id("documents") },
     identityArg: "caller",
@@ -77,8 +95,18 @@ export const tools: McpToolRegistration[] = [
   }),
 
   defineMcpQuery({
+    name: "wryte_documents_workspace",
+    description:
+      "Everything around a post in one call: metadata, draft tabs, research, animations referenced by drafts with their check state, and uploaded images. Start here before adding to an existing post.",
+    fn: internal.mcp.handlers.documents.workspace,
+    args: { caller: mcpCallerValidator, documentId: v.id("documents") },
+    identityArg: "caller",
+    metadata: READ,
+  }),
+
+  defineMcpQuery({
     name: "wryte_documents_backlinks",
-    description: "List documents that link to this one.",
+    description: "List posts that link to this one.",
     fn: internal.mcp.handlers.documents.backlinks,
     args: { caller: mcpCallerValidator, documentId: v.id("documents") },
     identityArg: "caller",
@@ -87,7 +115,7 @@ export const tools: McpToolRegistration[] = [
 
   defineMcpQuery({
     name: "wryte_documents_history",
-    description: "Publish history for a document, newest first.",
+    description: "Publish history for a post, newest first.",
     fn: internal.mcp.handlers.documents.history,
     args: { caller: mcpCallerValidator, documentId: v.id("documents") },
     identityArg: "caller",
@@ -97,7 +125,7 @@ export const tools: McpToolRegistration[] = [
   defineMcpMutation({
     name: "wryte_documents_create",
     description:
-      "Create a document. Read the project's frontmatter-schema resource first and pass a complete frontmatter including all required fields.",
+      "Create a post shell: title, slug, frontmatter, optional status and tags. The Main body stays empty for the user; put your writing in a draft with wryte_drafts_snapshot.",
     fn: internal.mcp.handlers.documents.create,
     args: {
       caller: mcpCallerValidator,
@@ -107,7 +135,6 @@ export const tools: McpToolRegistration[] = [
       status: v.optional(v.string()),
       tags: v.optional(v.array(v.string())),
       frontmatter: v.optional(v.string()),
-      content: v.optional(v.string()),
     },
     identityArg: "caller",
     metadata: WRITE_BODY,
@@ -116,36 +143,40 @@ export const tools: McpToolRegistration[] = [
   defineMcpMutation({
     name: "wryte_documents_update",
     description:
-      "Update a document's title, slug, body, frontmatter, status or tags. Send only the fields that change.",
+      "Move a post on the board or retag it. Only statuses from wryte_project_context are allowed; scheduling and publishing stay with the user.",
     fn: internal.mcp.handlers.documents.update,
     args: {
       caller: mcpCallerValidator,
       documentId: v.id("documents"),
-      title: v.optional(v.string()),
-      slug: v.optional(v.string()),
-      content: v.optional(v.string()),
-      frontmatter: v.optional(v.string()),
       status: v.optional(v.string()),
       tags: v.optional(v.array(v.string())),
     },
     identityArg: "caller",
-    metadata: WRITE_BODY,
+    metadata: WRITE,
   }),
 
   defineMcpMutation({
     name: "wryte_documents_trash",
     description:
-      "Move a document to the project trash. Recoverable with wryte_trash_restore.",
+      "Move a post to the project trash. Refused once the user has written its Main version. Recoverable with wryte_trash_restore.",
     fn: internal.mcp.handlers.documents.trash,
     args: { caller: mcpCallerValidator, documentId: v.id("documents") },
     identityArg: "caller",
     metadata: { scopes: [SCOPES.trash] } satisfies WryteToolMetadata,
   }),
 
+  defineMcpMutation({
+    name: "wryte_trash_restore",
+    description: "Restore a trashed post.",
+    fn: internal.mcp.handlers.publishing.trashRestore,
+    args: { caller: mcpCallerValidator, documentId: v.id("documents") },
+    identityArg: "caller",
+    metadata: WRITE,
+  }),
+
   defineMcpQuery({
     name: "wryte_drafts_list",
-    description:
-      "List a document's draft versions (metadata only, newest last).",
+    description: "List a post's draft tabs (metadata only, oldest first).",
     fn: internal.mcp.handlers.drafts.list,
     args: { caller: mcpCallerValidator, documentId: v.id("documents") },
     identityArg: "caller",
@@ -154,7 +185,7 @@ export const tools: McpToolRegistration[] = [
 
   defineMcpQuery({
     name: "wryte_drafts_get",
-    description: "Get one draft with its title and body.",
+    description: "Get one draft with its title, body and frontmatter.",
     fn: internal.mcp.handlers.drafts.get,
     args: { caller: mcpCallerValidator, draftId: v.id("document_drafts") },
     identityArg: "caller",
@@ -162,25 +193,10 @@ export const tools: McpToolRegistration[] = [
   }),
 
   defineMcpMutation({
-    name: "wryte_drafts_create",
-    description:
-      "Create an empty draft tab for a document, optionally copying the main body (copyFromMain).",
-    fn: internal.mcp.handlers.drafts.create,
-    args: {
-      caller: mcpCallerValidator,
-      documentId: v.id("documents"),
-      label: v.optional(v.string()),
-      copyFromMain: v.optional(v.boolean()),
-    },
-    identityArg: "caller",
-    metadata: WRITE,
-  }),
-
-  defineMcpMutation({
     name: "wryte_drafts_snapshot",
     description:
-      "Write a full draft version (label, title, body, optional frontmatter snapshot and summary) in one call. Use this to save a complete alternate version of a document.",
-    fn: internal.mcp.handlers.drafts.createSnapshot,
+      'Add a full draft tab to a post: label, title, body, optional frontmatter and summary. Label it "<model> · <harness>", e.g. "Opus 5.5 · Claude Code". Returns unknownComponents (tags with no matching animation) and mdxError for mdx projects.',
+    fn: internal.mcp.handlers.drafts.snapshot,
     args: {
       caller: mcpCallerValidator,
       documentId: v.id("documents"),
@@ -195,12 +211,16 @@ export const tools: McpToolRegistration[] = [
   }),
 
   defineMcpMutation({
-    name: "wryte_drafts_update_content",
-    description: "Update a draft's title and/or body.",
-    fn: internal.mcp.handlers.drafts.updateContent,
+    name: "wryte_drafts_update",
+    description:
+      "Change any part of a draft: label, summary, frontmatter, title or body. Send only what changes. Returns the same checks as wryte_drafts_snapshot when the body changes.",
+    fn: internal.mcp.handlers.drafts.update,
     args: {
       caller: mcpCallerValidator,
       draftId: v.id("document_drafts"),
+      label: v.optional(v.string()),
+      summary: v.optional(v.string()),
+      frontmatter: v.optional(v.string()),
       title: v.optional(v.string()),
       content: v.optional(v.string()),
     },
@@ -209,20 +229,62 @@ export const tools: McpToolRegistration[] = [
   }),
 
   defineMcpMutation({
-    name: "wryte_drafts_promote",
-    description:
-      "Promote a draft to be the document's main title, body and frontmatter.",
-    fn: internal.mcp.handlers.drafts.promote,
+    name: "wryte_drafts_remove",
+    description: "Delete a draft tab. The Main version is untouched.",
+    fn: internal.mcp.handlers.drafts.remove,
     args: { caller: mcpCallerValidator, draftId: v.id("document_drafts") },
     identityArg: "caller",
     metadata: WRITE,
   }),
 
+  defineMcpQuery({
+    name: "wryte_research_list",
+    description: "List research attached to a post.",
+    fn: internal.mcp.handlers.content.researchList,
+    args: { caller: mcpCallerValidator, documentId: v.id("documents") },
+    identityArg: "caller",
+    metadata: READ,
+  }),
+
   defineMcpMutation({
-    name: "wryte_drafts_remove",
-    description: "Delete a draft version. The main document is untouched.",
-    fn: internal.mcp.handlers.drafts.remove,
-    args: { caller: mcpCallerValidator, draftId: v.id("document_drafts") },
+    name: "wryte_research_create",
+    description: `File research against a post, up to ${String(MAX_RESEARCH_BATCH)} items per call (note, source, quote, outline, idea). Every draft of the post shares this pool. Never put research in a draft body.`,
+    fn: internal.mcp.handlers.content.researchCreate,
+    args: {
+      caller: mcpCallerValidator,
+      documentId: v.id("documents"),
+      items: v.array(researchItemValidator),
+    },
+    identityArg: "caller",
+    metadata: WRITE_BODY,
+  }),
+
+  defineMcpMutation({
+    name: "wryte_research_update",
+    description: "Update a research item.",
+    fn: internal.mcp.handlers.content.researchUpdate,
+    args: {
+      caller: mcpCallerValidator,
+      researchId: v.id("document_research"),
+      type: v.optional(researchTypeValidator),
+      title: v.optional(v.string()),
+      content: v.optional(v.string()),
+      url: v.optional(v.string()),
+      sourceName: v.optional(v.string()),
+      selectedForAi: v.optional(v.boolean()),
+    },
+    identityArg: "caller",
+    metadata: WRITE_BODY,
+  }),
+
+  defineMcpMutation({
+    name: "wryte_research_remove",
+    description: "Delete a research item.",
+    fn: internal.mcp.handlers.content.researchRemove,
+    args: {
+      caller: mcpCallerValidator,
+      researchId: v.id("document_research"),
+    },
     identityArg: "caller",
     metadata: WRITE,
   }),
@@ -246,44 +308,17 @@ export const tools: McpToolRegistration[] = [
     metadata: READ,
   }),
 
-  defineMcpMutation({
-    name: "wryte_animations_create",
+  defineMcpAction({
+    name: "wryte_animations_upsert",
     description:
-      "Create an animation component (PascalCase name + React TSX source) a post can embed as <Name />. Fails if the name exists — use wryte_animations_replace_by_name to overwrite.",
-    fn: internal.mcp.handlers.animations.create,
+      "Create or replace an animation by PascalCase name (React source, tsx or jsx per wryte_project_context). Runs the project's contract and type checks, records the result, and returns diagnostics. Fix every error and upsert again. dryRun checks without saving.",
+    fn: internal.mcp.handlers.animationUpsert.upsert,
     args: {
       caller: mcpCallerValidator,
       projectId: v.id("projects"),
       name: v.string(),
       source: v.string(),
-    },
-    identityArg: "caller",
-    metadata: WRITE_NO_AUDIT,
-  }),
-
-  defineMcpMutation({
-    name: "wryte_animations_update",
-    description: "Replace an animation's source by id. Names are immutable.",
-    fn: internal.mcp.handlers.animations.update,
-    args: {
-      caller: mcpCallerValidator,
-      animationId: v.id("animations"),
-      source: v.string(),
-    },
-    identityArg: "caller",
-    metadata: WRITE_NO_AUDIT,
-  }),
-
-  defineMcpMutation({
-    name: "wryte_animations_replace_by_name",
-    description:
-      "Overwrite an animation's source by project + name. Use this for repeat uploads of an existing component.",
-    fn: internal.mcp.handlers.animations.replaceByName,
-    args: {
-      caller: mcpCallerValidator,
-      projectId: v.id("projects"),
-      name: v.string(),
-      source: v.string(),
+      dryRun: v.optional(v.boolean()),
     },
     identityArg: "caller",
     metadata: WRITE_NO_AUDIT,
@@ -296,113 +331,6 @@ export const tools: McpToolRegistration[] = [
     args: { caller: mcpCallerValidator, animationId: v.id("animations") },
     identityArg: "caller",
     metadata: WRITE,
-  }),
-
-  defineMcpQuery({
-    name: "wryte_research_list",
-    description: "List research notes attached to a document.",
-    fn: internal.mcp.handlers.content.researchList,
-    args: { caller: mcpCallerValidator, documentId: v.id("documents") },
-    identityArg: "caller",
-    metadata: READ,
-  }),
-
-  defineMcpMutation({
-    name: "wryte_research_create",
-    description:
-      "File a research finding against a document (quote, link, statistic, note). Use this for research rather than writing findings into the body.",
-    fn: internal.mcp.handlers.content.researchCreate,
-    args: {
-      caller: mcpCallerValidator,
-      documentId: v.id("documents"),
-      type: RESEARCH_TYPE,
-      title: v.string(),
-      content: v.string(),
-      url: v.optional(v.string()),
-      sourceName: v.optional(v.string()),
-      selectedForAi: v.optional(v.boolean()),
-    },
-    identityArg: "caller",
-    metadata: WRITE_BODY,
-  }),
-
-  defineMcpMutation({
-    name: "wryte_research_update",
-    description: "Update a research note.",
-    fn: internal.mcp.handlers.content.researchUpdate,
-    args: {
-      caller: mcpCallerValidator,
-      researchId: v.id("document_research"),
-      type: v.optional(RESEARCH_TYPE),
-      title: v.optional(v.string()),
-      content: v.optional(v.string()),
-      url: v.optional(v.string()),
-      sourceName: v.optional(v.string()),
-      selectedForAi: v.optional(v.boolean()),
-    },
-    identityArg: "caller",
-    metadata: WRITE_BODY,
-  }),
-
-  defineMcpMutation({
-    name: "wryte_research_remove",
-    description: "Delete a research note.",
-    fn: internal.mcp.handlers.content.researchRemove,
-    args: {
-      caller: mcpCallerValidator,
-      researchId: v.id("document_research"),
-    },
-    identityArg: "caller",
-    metadata: WRITE,
-  }),
-
-  defineMcpQuery({
-    name: "wryte_calendar_get",
-    description:
-      "Editorial calendar for one project: scheduled and published dates per document.",
-    fn: internal.mcp.handlers.documents.calendar,
-    args: { caller: mcpCallerValidator, projectId: v.id("projects") },
-    identityArg: "caller",
-    metadata: READ,
-  }),
-
-  defineMcpMutation({
-    name: "wryte_schedule_set",
-    description:
-      "Schedule a document to publish at a UTC epoch-millisecond timestamp.",
-    fn: internal.mcp.handlers.publishing.scheduleSet,
-    args: {
-      caller: mcpCallerValidator,
-      documentId: v.id("documents"),
-      scheduledAt: v.number(),
-      socialPostText: v.optional(v.string()),
-    },
-    identityArg: "caller",
-    metadata: PUBLISH,
-  }),
-
-  defineMcpMutation({
-    name: "wryte_schedule_cancel",
-    description: "Cancel a document's scheduled publish.",
-    fn: internal.mcp.handlers.publishing.scheduleCancel,
-    args: { caller: mcpCallerValidator, documentId: v.id("documents") },
-    identityArg: "caller",
-    metadata: PUBLISH,
-  }),
-
-  defineMcpAction({
-    name: "wryte_publish_document",
-    description:
-      "Commit a document to its project's GitHub repo and mark it published.",
-    fn: internal.mcp.handlers.nodeActions.publish,
-    args: {
-      caller: mcpCallerValidator,
-      documentId: v.id("documents"),
-      commitMessage: v.optional(v.string()),
-      socialPostText: v.optional(v.string()),
-    },
-    identityArg: "caller",
-    metadata: PUBLISH,
   }),
 
   defineMcpAction({
@@ -419,24 +347,49 @@ export const tools: McpToolRegistration[] = [
     metadata: MEDIA,
   }),
 
+  defineMcpMutation({
+    name: "wryte_media_upload_url",
+    description:
+      "Upload a file from disk: returns a single-use URL (10 minutes). POST the raw bytes with curl --data-binary and the right Content-Type; the file goes straight to the project's media provider (GitHub, UploadThing, Cloudinary or R2) and the response has url and ready-to-paste markdown. Pass documentId to tag the post.",
+    fn: internal.mcp.handlers.media.uploadUrl,
+    args: {
+      caller: mcpCallerValidator,
+      projectId: v.id("projects"),
+      documentId: v.optional(v.id("documents")),
+      filename: v.optional(v.string()),
+      alt: v.optional(v.string()),
+    },
+    identityArg: "caller",
+    metadata: MEDIA,
+  }),
+
   defineMcpAction({
     name: "wryte_media_upload",
     description:
-      "Upload base64 media. Destination follows the project's media storage mode (GitHub, UploadThing or Cloudinary).",
+      "Upload an image or video to the project's media provider (GitHub, UploadThing, Cloudinary or R2) from an https sourceUrl, or from base64 for small files (filename and mime required). For a file on disk use wryte_media_upload_url instead. Pass documentId to tag the post. Returns url and ready-to-paste markdown.",
     fn: internal.mcp.handlers.nodeActions.mediaUpload,
     args: {
       caller: mcpCallerValidator,
       projectId: v.id("projects"),
-      base64: v.string(),
-      mime: v.string(),
-      filename: v.string(),
+      sourceUrl: v.optional(v.string()),
+      base64: v.optional(v.string()),
+      filename: v.optional(v.string()),
+      mime: v.optional(v.string()),
+      alt: v.optional(v.string()),
       documentId: v.optional(v.id("documents")),
     },
     identityArg: "caller",
-    metadata: {
-      scopes: [SCOPES.media],
-      auditArgs: false,
-    } satisfies WryteToolMetadata,
+    metadata: MEDIA_NO_AUDIT,
+  }),
+
+  defineMcpQuery({
+    name: "wryte_calendar_get",
+    description:
+      "Editorial calendar for one project: scheduled and published dates per post.",
+    fn: internal.mcp.handlers.documents.calendar,
+    args: { caller: mcpCallerValidator, projectId: v.id("projects") },
+    identityArg: "caller",
+    metadata: READ,
   }),
 
   defineMcpQuery({
@@ -447,14 +400,5 @@ export const tools: McpToolRegistration[] = [
     args: { caller: mcpCallerValidator },
     identityArg: "caller",
     metadata: READ,
-  }),
-
-  defineMcpMutation({
-    name: "wryte_trash_restore",
-    description: "Restore a trashed document.",
-    fn: internal.mcp.handlers.publishing.trashRestore,
-    args: { caller: mcpCallerValidator, documentId: v.id("documents") },
-    identityArg: "caller",
-    metadata: WRITE,
   }),
 ];

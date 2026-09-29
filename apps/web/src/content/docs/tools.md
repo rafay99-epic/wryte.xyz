@@ -1,269 +1,226 @@
 # Tool reference
 
-All 34 tools the Wryte MCP server exposes. Generated from `convex/mcp/tools.ts`.
+All 30 tools the Wryte MCP server exposes, from `convex/mcp/tools.ts`.
 
-An agent only ever *sees* the tools its granted capabilities allow — the catalog is
-filtered per request, so a read-only connection lists neither publish nor media tools.
+An agent only ever *sees* the tools its granted capabilities allow. The catalog is
+filtered per request, so a read-only connection lists no write or media tools.
 
 Arguments below are what you pass. Each tool also takes an injected `caller` argument
 that is filled in server-side from your verified token and stripped from anything a
 client sends, so it never appears in the schema you see.
 
+The Main version of a post belongs to you. No tool reads or writes the Main body,
+promotes a draft, schedules or publishes.
+
 ## Projects
 
 ### `wryte_projects_list`
 
-List the caller's writing projects with repo, branch, content paths and media storage mode.
+List the caller's writing projects with repo, branch, content path and format, and media storage mode.
 
-- **Kind** — query
-- **Requires** — `wryte:read`
-- **Arguments** — none
+- **Kind**: query
+- **Requires**: `wryte:read`
+- **Arguments**: none
 
-## Documents
+### `wryte_project_context`
+
+Everything an agent must follow for one project: frontmatter schema, statuses an agent may set, md or mdx, animation language, check level and rules, media provider and limits.
+
+- **Kind**: query
+- **Requires**: `wryte:read`
+- **Arguments**: `projectId`: id:projects
+
+## Posts
 
 ### `wryte_documents_list`
 
-Paginated list of a project's documents (id, title, slug). Page with the returned cursor.
+Paginated list of a project's posts (id, title, slug). Page with the returned cursor.
 
-- **Kind** — query
-- **Requires** — `wryte:read`
-- **Arguments** — `projectId`: id:projects, `paginationOpts`: paginationOpts
+- **Kind**: query
+- **Requires**: `wryte:read`
+- **Arguments**: `projectId`: id:projects, `paginationOpts`: paginationOpts
 
 ### `wryte_documents_search`
 
-Search document titles across one project or all of them. Start here when looking for an existing post.
+Search post titles across one project or all of them.
 
-- **Kind** — query
-- **Requires** — `wryte:read`
-- **Arguments** — `term`: string, `projectId`?: id:projects, `limit`?: number
+- **Kind**: query
+- **Requires**: `wryte:read`
+- **Arguments**: `term`: string, `projectId`?: id:projects, `limit`?: number
 
 ### `wryte_documents_get`
 
-Get one document by id: frontmatter, body, tags, status, publish state.
+One post's title, slug, status, tags, frontmatter and Main word count. Never the Main body.
 
-- **Kind** — query
-- **Requires** — `wryte:read`
-- **Arguments** — `documentId`: id:documents 
+- **Kind**: query
+- **Requires**: `wryte:read`
+- **Arguments**: `documentId`: id:documents
+
+### `wryte_documents_workspace`
+
+Everything around a post in one call: metadata, draft tabs, research, animations referenced by drafts with their check state, and uploaded images.
+
+- **Kind**: query
+- **Requires**: `wryte:read`
+- **Arguments**: `documentId`: id:documents
 
 ### `wryte_documents_backlinks`
 
-List documents that link to this one.
+List posts that link to this one.
 
-- **Kind** — query
-- **Requires** — `wryte:read`
-- **Arguments** — `documentId`: id:documents 
+- **Kind**: query
+- **Requires**: `wryte:read`
+- **Arguments**: `documentId`: id:documents
 
 ### `wryte_documents_history`
 
-Publish history for a document, newest first.
+Publish history for a post, newest first.
 
-- **Kind** — query
-- **Requires** — `wryte:read`
-- **Arguments** — `documentId`: id:documents 
+- **Kind**: query
+- **Requires**: `wryte:read`
+- **Arguments**: `documentId`: id:documents
 
 ### `wryte_documents_create`
 
-Create a document. Read the project's frontmatter-schema resource first and pass a complete frontmatter including all required fields.
+Create a post shell. The Main body stays empty; writing goes in a draft. The slug must be lowercase kebab-case and unused in the project, and frontmatter must be a JSON object with every required field from `wryte_project_context`.
 
-- **Kind** — mutation
-- **Requires** — `wryte:write`
-- **Arguments** — `projectId`: id:projects, `title`: string, `slug`: string, `status`?: string, `tags`?: v.array(string), `frontmatter`?: string, `content`?: string
+- **Kind**: mutation
+- **Requires**: `wryte:write`
+- **Arguments**: `projectId`: id:projects, `title`: string, `slug`: string, `status`?: string, `tags`?: string[], `frontmatter`?: string
 
 ### `wryte_documents_update`
 
-Update a document's title, slug, body, frontmatter, status or tags. Send only the fields that change.
+Move a post on the board or retag it. Only statuses from `wryte_project_context` are allowed.
 
-- **Kind** — mutation
-- **Requires** — `wryte:write`
-- **Arguments** — `documentId`: id:documents, `title`?: string, `slug`?: string, `content`?: string, `frontmatter`?: string, `status`?: string, `tags`?: v.array(string)
+- **Kind**: mutation
+- **Requires**: `wryte:write`
+- **Arguments**: `documentId`: id:documents, `status`?: string, `tags`?: string[]
 
 ### `wryte_documents_trash`
 
-Move a document to the project trash. Recoverable with wryte_trash_restore.
+Move a post to the project trash. Refused once its Main version has content.
 
-- **Kind** — mutation
-- **Requires** — `wryte:trash`
-- **Arguments** — `documentId`: id:documents 
+- **Kind**: mutation
+- **Requires**: `wryte:trash`
+- **Arguments**: `documentId`: id:documents
+
+### `wryte_trash_restore`
+
+Restore a trashed post.
+
+- **Kind**: mutation
+- **Requires**: `wryte:write`
+- **Arguments**: `documentId`: id:documents
 
 ## Drafts
 
 ### `wryte_drafts_list`
 
-List a document's draft versions (metadata only, newest last).
+List a post's draft tabs (metadata only, oldest first).
 
-- **Kind** — query
-- **Requires** — `wryte:read`
-- **Arguments** — `documentId`: id:documents 
+- **Kind**: query
+- **Requires**: `wryte:read`
+- **Arguments**: `documentId`: id:documents
 
 ### `wryte_drafts_get`
 
-Get one draft with its title and body.
+Get one draft with its title, body and frontmatter.
 
-- **Kind** — query
-- **Requires** — `wryte:read`
-- **Arguments** — `draftId`: id:document_drafts 
-
-### `wryte_drafts_create`
-
-Create an empty draft tab for a document, optionally copying the main body (copyFromMain).
-
-- **Kind** — mutation
-- **Requires** — `wryte:write`
-- **Arguments** — `documentId`: id:documents, `label`?: string, `copyFromMain`?: boolean
+- **Kind**: query
+- **Requires**: `wryte:read`
+- **Arguments**: `draftId`: id:document_drafts
 
 ### `wryte_drafts_snapshot`
 
-Write a full draft version (label, title, body, optional frontmatter snapshot and summary) in one call. Use this to save a complete alternate version of a document.
+Add a full draft tab, labelled `<model> · <harness>` (required). Returns `unknownComponents` and `mdxError` for mdx projects.
 
-- **Kind** — mutation
-- **Requires** — `wryte:write`
-- **Arguments** — `documentId`: id:documents, `label`: string, `title`: string, `content`: string, `frontmatter`?: string, `summary`?: string
+- **Kind**: mutation
+- **Requires**: `wryte:write`
+- **Arguments**: `documentId`: id:documents, `label`: string, `title`: string, `content`: string, `frontmatter`?: string, `summary`?: string
 
-### `wryte_drafts_update_content`
+### `wryte_drafts_update`
 
-Update a draft's title and/or body.
+Change any part of a draft. Send only what changes.
 
-- **Kind** — mutation
-- **Requires** — `wryte:write`
-- **Arguments** — `draftId`: id:document_drafts, `title`?: string, `content`?: string
-
-### `wryte_drafts_promote`
-
-Promote a draft to be the document's main title, body and frontmatter.
-
-- **Kind** — mutation
-- **Requires** — `wryte:write`
-- **Arguments** — `draftId`: id:document_drafts 
+- **Kind**: mutation
+- **Requires**: `wryte:write`
+- **Arguments**: `draftId`: id:document_drafts, `label`?: string, `summary`?: string, `frontmatter`?: string, `title`?: string, `content`?: string
 
 ### `wryte_drafts_remove`
 
-Delete a draft version. The main document is untouched.
+Delete a draft tab. The Main version is untouched.
 
-- **Kind** — mutation
-- **Requires** — `wryte:write`
-- **Arguments** — `draftId`: id:document_drafts 
-
-## Animations
-
-### `wryte_animations_list`
-
-List a project's animation components with their source.
-
-- **Kind** — query
-- **Requires** — `wryte:read`
-- **Arguments** — `projectId`: id:projects 
-
-### `wryte_animations_get_source`
-
-Get one animation's React source by id.
-
-- **Kind** — query
-- **Requires** — `wryte:read`
-- **Arguments** — `animationId`: id:animations 
-
-### `wryte_animations_create`
-
-Create an animation component (PascalCase name + React TSX source) a post can embed as `<Name />`. Fails if the name exists — use wryte_animations_replace_by_name to overwrite.
-
-- **Kind** — mutation
-- **Requires** — `wryte:write`
-- **Arguments** — `projectId`: id:projects, `name`: string, `source`: string
-
-### `wryte_animations_update`
-
-Replace an animation's source by id. Names are immutable.
-
-- **Kind** — mutation
-- **Requires** — `wryte:write`
-- **Arguments** — `animationId`: id:animations, `source`: string
-
-### `wryte_animations_replace_by_name`
-
-Overwrite an animation's source by project + name. Use this for repeat uploads of an existing component.
-
-- **Kind** — mutation
-- **Requires** — `wryte:write`
-- **Arguments** — `projectId`: id:projects, `name`: string, `source`: string
-
-### `wryte_animations_remove`
-
-Delete an animation component.
-
-- **Kind** — mutation
-- **Requires** — `wryte:write`
-- **Arguments** — `animationId`: id:animations 
+- **Kind**: mutation
+- **Requires**: `wryte:write`
+- **Arguments**: `draftId`: id:document_drafts
 
 ## Research
 
 ### `wryte_research_list`
 
-List research notes attached to a document.
+List research attached to a post.
 
-- **Kind** — query
-- **Requires** — `wryte:read`
-- **Arguments** — `documentId`: id:documents 
+- **Kind**: query
+- **Requires**: `wryte:read`
+- **Arguments**: `documentId`: id:documents
 
 ### `wryte_research_create`
 
-File a research finding against a document (quote, link, statistic, note). Use this for research rather than writing findings into the body.
+File 1 to 15 research items per call. Every draft of the post shares this pool. Links must be http or https.
 
-- **Kind** — mutation
-- **Requires** — `wryte:write`
-- **Arguments** — `documentId`: id:documents, `type`: note|source|quote|outline|idea|ai_summary, `title`: string, `content`: string, `url`?: string, `sourceName`?: string, `selectedForAi`?: boolean
+- **Kind**: mutation
+- **Requires**: `wryte:write`
+- **Arguments**: `documentId`: id:documents, `items`: { `type`: note|source|quote|outline|idea|ai_summary, `title`: string, `content`: string, `url`?: string, `sourceName`?: string, `selectedForAi`?: boolean }[]
 
 ### `wryte_research_update`
 
-Update a research note.
+Update a research item.
 
-- **Kind** — mutation
-- **Requires** — `wryte:write`
-- **Arguments** — `researchId`: id:document_research, `title`?: string, `content`?: string, `url`?: string, `sourceName`?: string, `selectedForAi`?: boolean
+- **Kind**: mutation
+- **Requires**: `wryte:write`
+- **Arguments**: `researchId`: id:document_research, `type`?: string, `title`?: string, `content`?: string, `url`?: string, `sourceName`?: string, `selectedForAi`?: boolean
 
 ### `wryte_research_remove`
 
-Delete a research note.
+Delete a research item.
 
-- **Kind** — mutation
-- **Requires** — `wryte:write`
-- **Arguments** — `researchId`: id:document_research
+- **Kind**: mutation
+- **Requires**: `wryte:write`
+- **Arguments**: `researchId`: id:document_research
 
-## Calendar
+## Animations
 
-### `wryte_calendar_get`
+### `wryte_animations_list`
 
-Editorial calendar for one project: scheduled and published dates per document.
+List a project's animation components (id, name, updatedAt).
 
-- **Kind** — query
-- **Requires** — `wryte:read`
-- **Arguments** — `projectId`: id:projects 
+- **Kind**: query
+- **Requires**: `wryte:read`
+- **Arguments**: `projectId`: id:projects
 
-## Schedule
+### `wryte_animations_get_source`
 
-### `wryte_schedule_set`
+Get one animation's React source by id.
 
-Schedule a document to publish at a UTC epoch-millisecond timestamp.
+- **Kind**: query
+- **Requires**: `wryte:read`
+- **Arguments**: `animationId`: id:animations
 
-- **Kind** — mutation
-- **Requires** — `wryte:publish`
-- **Arguments** — `documentId`: id:documents, `scheduledAt`: number, `socialPostText`?: string
+### `wryte_animations_upsert`
 
-### `wryte_schedule_cancel`
+Create or replace an animation by PascalCase name. Runs the same contract and type checks as the gallery, per the project's settings, records the result and returns diagnostics. `dryRun` checks without saving.
 
-Cancel a document's scheduled publish.
+- **Kind**: action
+- **Requires**: `wryte:write`
+- **Arguments**: `projectId`: id:projects, `name`: string, `source`: string, `dryRun`?: boolean
 
-- **Kind** — mutation
-- **Requires** — `wryte:publish`
-- **Arguments** — `documentId`: id:documents 
+### `wryte_animations_remove`
 
-## Publish
+Delete an animation component.
 
-### `wryte_publish_document`
-
-Commit a document to its project's GitHub repo and mark it published.
-
-- **Kind** — action
-- **Requires** — `wryte:publish`
-- **Arguments** — `documentId`: id:documents, `commitMessage`?: string, `socialPostText`?: string
+- **Kind**: mutation
+- **Requires**: `wryte:write`
+- **Arguments**: `animationId`: id:animations
 
 ## Media
 
@@ -271,34 +228,40 @@ Commit a document to its project's GitHub repo and mark it published.
 
 List a project's uploaded media, paginated.
 
-- **Kind** — action
-- **Requires** — `wryte:media`
-- **Arguments** — `projectId`: id:projects, `cursor`?: string, `limit`?: number
+- **Kind**: action
+- **Requires**: `wryte:media`
+- **Arguments**: `projectId`: id:projects, `cursor`?: string, `limit`?: number
+
+### `wryte_media_upload_url`
+
+Upload a file from disk. Returns a single-use URL, valid 10 minutes. POST the raw bytes with `curl --data-binary` and the right `Content-Type`; Wryte sends the file straight to the project's media provider and responds with `url` and ready-to-paste `markdown`. Nothing is kept in Wryte's own storage.
+
+- **Kind**: mutation
+- **Requires**: `wryte:media`
+- **Arguments**: `projectId`: id:projects, `documentId`?: id:documents, `filename`?: string, `alt`?: string
 
 ### `wryte_media_upload`
 
-Upload base64 media. Destination follows the project's media storage mode (GitHub, UploadThing or Cloudinary).
+Upload an image or video to the project's provider (GitHub, UploadThing, Cloudinary or R2) from an https `sourceUrl`, or from `base64` for small files (then `filename` and `mime` are required). Returns `url` and ready-to-paste `markdown`.
 
-- **Kind** — action
-- **Requires** — `wryte:media`
-- **Arguments** — `projectId`: id:projects, `base64`: string, `mime`: string, `filename`: string, `documentId`?: id:documents
+- **Kind**: action
+- **Requires**: `wryte:media`
+- **Arguments**: `projectId`: id:projects, `sourceUrl`?: string, `base64`?: string, `filename`?: string, `mime`?: string, `alt`?: string, `documentId`?: id:documents
 
-## Stats
+## Calendar and stats
+
+### `wryte_calendar_get`
+
+Editorial calendar for one project: scheduled and published dates per post.
+
+- **Kind**: query
+- **Requires**: `wryte:read`
+- **Arguments**: `projectId`: id:projects
 
 ### `wryte_stats_get`
 
 Writing stats across all projects: streak, word counts, goals, status breakdown.
 
-- **Kind** — query
-- **Requires** — `wryte:read`
-- **Arguments** — none
-
-## Trash
-
-### `wryte_trash_restore`
-
-Restore a trashed document.
-
-- **Kind** — mutation
-- **Requires** — `wryte:write`
-- **Arguments** — `documentId`: id:documents 
+- **Kind**: query
+- **Requires**: `wryte:read`
+- **Arguments**: none

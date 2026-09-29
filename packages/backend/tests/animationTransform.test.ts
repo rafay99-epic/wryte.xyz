@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import {
+  mdxComponentNames,
   relativeImportDir,
   transformMdxWithAnimations,
   WRYTE_MANAGED_MARKER,
@@ -132,3 +133,11 @@ assert.equal(relativeImportDir("", "src/anim"), "./src/anim");
 }
 
 process.stdout.write("animationTransform: all checks passed\n");
+
+assert.deepEqual(
+  mdxComponentNames(
+    '# Hi\n\n<Chart />\n\nText <Badge tone="x" /> and <em>no</em>.\n',
+  ),
+  { names: ["Badge", "Chart"] },
+);
+assert.ok("error" in mdxComponentNames("<Broken\n\ntext {"));

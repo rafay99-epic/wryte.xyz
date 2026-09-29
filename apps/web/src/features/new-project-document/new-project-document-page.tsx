@@ -2,13 +2,14 @@
 
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
+import { useAuthedQuery } from "@wryte/logic/hooks/use-authed-query";
 import { buildInitialFrontmatter } from "@wryte/logic/lib/build-initial-frontmatter";
 import { getFileExtension } from "@wryte/logic/lib/content-format";
 import { generateSlug } from "@wryte/logic/lib/markdown";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
 import { Button } from "@wryte/ui/button";
 import { Input } from "@wryte/ui/input";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation } from "convex/react";
 import { motion } from "framer-motion";
 import {
   ArrowRight,
@@ -31,7 +32,7 @@ export function NewProjectDocumentPage({
   const projectId = rawProjectId as Id<"projects">;
   const router = useRouter();
 
-  const project = useQuery(api.cms.projects.get, { projectId });
+  const project = useAuthedQuery(api.cms.projects.get, { projectId });
   const createDocument = useMutation(api.cms.documents.create);
 
   const [title, setTitle] = useState("");

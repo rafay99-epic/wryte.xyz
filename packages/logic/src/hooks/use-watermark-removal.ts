@@ -2,11 +2,11 @@
 
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
+import { useAuthedQuery } from "@wryte/logic/hooks/use-authed-query";
 import {
   removeWatermark,
   type WatermarkResult,
 } from "@wryte/logic/lib/watermark-removal/index";
-import { useQuery } from "convex/react";
 import { useCallback, useState } from "react";
 
 type UseWatermarkRemovalResult = {
@@ -18,7 +18,7 @@ type UseWatermarkRemovalResult = {
 export function useWatermarkRemoval(
   projectId: Id<"projects">,
 ): UseWatermarkRemovalResult {
-  const project = useQuery(api.cms.projects.get, { projectId });
+  const project = useAuthedQuery(api.cms.projects.get, { projectId });
   const [isRemoving, setIsRemoving] = useState(false);
 
   const enabled = project?.autoWatermarkRemoval ?? true;

@@ -2,6 +2,7 @@
 
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
+import { useAuthedQuery } from "@wryte/logic/hooks/use-authed-query";
 import {
   type MediaLibraryItem,
   useProjectMediaLibrary,
@@ -20,7 +21,6 @@ import {
   SheetTitle,
 } from "@wryte/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@wryte/ui/tabs";
-import { useQuery } from "convex/react";
 import { Check, ImageIcon, Loader2, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { BatchImageUpload } from "@/components/media/batch-image-upload";
@@ -57,7 +57,7 @@ export function ImageInsertDialog({
   const [activeTab, setActiveTab] = useState<ImageTab>("library");
   const [isBatchRunning, setIsBatchRunning] = useState(false);
 
-  const project = useQuery(api.cms.projects.get, {
+  const project = useAuthedQuery(api.cms.projects.get, {
     projectId: projectId as Id<"projects">,
   });
   const {

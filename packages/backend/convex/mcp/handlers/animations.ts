@@ -1,17 +1,18 @@
 import { v } from "convex/values";
 import { mcpCallerValidator } from "convex-mcp-gateway";
-import { internalMutation, internalQuery } from "../../_generated/server";
+import { resolveAnimationLanguage } from "../../_lib/animationChecks";
 import { requireCaller } from "../../_lib/auth";
 import {
   animationSourceForUser,
   animationsListForUser,
-  createAnimationForUser,
+  checkSummaryValidator,
   removeAnimationForUser,
-  replaceAnimationByNameForUser,
-  updateAnimationForUser,
+  upsertAnimationForUser,
 } from "../../cms/animations";
+import { agentMutation, agentQuery } from "../agentFunctions";
+import { animationsEnabled } from "../projectContext";
 
-export const list = internalQuery({
+export const list = agentQuery({
   args: { caller: mcpCallerValidator, projectId: v.id("projects") },
   handler: async (ctx, args) => {
     const user = await requireCaller(ctx, args.caller);
@@ -24,7 +25,7 @@ export const list = internalQuery({
   },
 });
 
-export const getSource = internalQuery({
+export const getSource = agentQuery({
   args: { caller: mcpCallerValidator, animationId: v.id("animations") },
   handler: async (ctx, args) => {
     const user = await requireCaller(ctx, args.caller);
@@ -32,48 +33,42 @@ export const getSource = internalQuery({
   },
 });
 
-export const create = internalMutation({
+export const policy = agentQuery({
+  args: { caller: mcpCallerValidator, projectId: v.id("projects") },
+  handler: async (ctx, args) => {
+    const user = await requireCaller(ctx, args.caller);
+    const project = await ctx.db.get(args.projectId);
+    if (!project || project.userId !== user._id) {
+      throw new Error("Project not found");
+    }
+    if (!animationsEnabled(project)) {
+      throw new Error(
+        "Code animations are off for this project. The user can turn them on in project settings.",
+      );
+    }
+    return {
+      level: project.animationChecks?.level ?? "off",
+      language: resolveAnimationLanguage(project.animationLanguage),
+    };
+  },
+});
+
+export const write = agentMutation({
   args: {
     caller: mcpCallerValidator,
     projectId: v.id("projects"),
     name: v.string(),
     source: v.string(),
+    check: v.optional(checkSummaryValidator),
   },
   handler: async (ctx, args) => {
     const user = await requireCaller(ctx, args.caller);
     const { caller: _caller, ...rest } = args;
-    return await createAnimationForUser(ctx, user, rest);
+    return await upsertAnimationForUser(ctx, user, rest);
   },
 });
 
-export const update = internalMutation({
-  args: {
-    caller: mcpCallerValidator,
-    animationId: v.id("animations"),
-    source: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const user = await requireCaller(ctx, args.caller);
-    const { caller: _caller, ...rest } = args;
-    return await updateAnimationForUser(ctx, user, rest);
-  },
-});
-
-export const replaceByName = internalMutation({
-  args: {
-    caller: mcpCallerValidator,
-    projectId: v.id("projects"),
-    name: v.string(),
-    source: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const user = await requireCaller(ctx, args.caller);
-    const { caller: _caller, ...rest } = args;
-    return await replaceAnimationByNameForUser(ctx, user, rest);
-  },
-});
-
-export const remove = internalMutation({
+export const remove = agentMutation({
   args: { caller: mcpCallerValidator, animationId: v.id("animations") },
   handler: async (ctx, args) => {
     const user = await requireCaller(ctx, args.caller);

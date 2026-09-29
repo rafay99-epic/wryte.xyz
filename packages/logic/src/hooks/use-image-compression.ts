@@ -2,6 +2,7 @@
 
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
+import { useAuthedQuery } from "@wryte/logic/hooks/use-authed-query";
 import {
   type CompressionResult,
   type CompressionSettings,
@@ -24,7 +25,7 @@ export function useImageCompression(
   projectId: Id<"projects">,
 ): UseImageCompressionResult {
   const user = useQuery(api.account.users.get);
-  const project = useQuery(api.cms.projects.get, { projectId });
+  const project = useAuthedQuery(api.cms.projects.get, { projectId });
   const [isCompressing, setIsCompressing] = useState(false);
 
   const userKey = JSON.stringify(user?.defaultCompressionSettings ?? null);

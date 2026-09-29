@@ -2,6 +2,7 @@
 
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
+import { useAuthedQuery } from "@wryte/logic/hooks/use-authed-query";
 import { useCalendarStore } from "@wryte/logic/stores/calendar-store";
 import {
   type BoardColumnDef,
@@ -17,7 +18,7 @@ type CalendarSurfaceProps = {
 };
 
 export function CalendarSurface({ projectId }: CalendarSurfaceProps) {
-  const project = useQuery(api.cms.projects.get, {
+  const project = useAuthedQuery(api.cms.projects.get, {
     projectId: projectId as Id<"projects">,
   });
   const documents = useQuery(api.cms.documents.listForCalendar, {
