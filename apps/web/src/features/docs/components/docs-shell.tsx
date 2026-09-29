@@ -1,6 +1,7 @@
 import { cn } from "@wryte/logic/lib/utils";
 import { Separator } from "@wryte/ui/separator";
 import Link from "next/link";
+import { Suspense } from "react";
 import { MarketingFooter } from "@/components/layout/marketing-footer";
 import { MarketingNavbar } from "@/components/layout/marketing-navbar";
 import { DOC_PAGES, type DocPage } from "../registry";
@@ -63,11 +64,54 @@ function SidebarNav({ activeSlug }: { activeSlug: string | undefined }) {
   );
 }
 
+function MobileNav({ activeSlug }: { activeSlug: string | undefined }) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {DOC_PAGES.map((page) => (
+        <Link
+          key={page.slug}
+          href={`/docs/${page.slug}`}
+          className={cn(
+            "rounded-full px-3 py-1 text-[12px] font-medium transition-colors",
+            page.slug === activeSlug
+              ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
+              : "text-foreground/55 hover:bg-foreground/[0.05] hover:text-foreground",
+          )}
+        >
+          {page.title}
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+async function ResolvedSlug({
+  slug,
+  render,
+}: {
+  slug: Promise<string>;
+  render: (active: string) => React.ReactNode;
+}) {
+  return render(await slug);
+}
+
+function withActiveSlug(
+  slug: Promise<string> | undefined,
+  render: (active: string | undefined) => React.ReactNode,
+): React.ReactNode {
+  if (!slug) return render(undefined);
+  return (
+    <Suspense fallback={render(undefined)}>
+      <ResolvedSlug slug={slug} render={render} />
+    </Suspense>
+  );
+}
+
 export function DocsShell({
   activeSlug,
   children,
 }: {
-  activeSlug?: string;
+  activeSlug?: Promise<string>;
   children: React.ReactNode;
 }) {
   return (
@@ -98,28 +142,17 @@ export function DocsShell({
                   MCP Server
                 </span>
               </Link>
-              <SidebarNav activeSlug={activeSlug} />
+              {withActiveSlug(activeSlug, (active) => (
+                <SidebarNav activeSlug={active} />
+              ))}
             </div>
           </aside>
 
           <main className="min-w-0 flex-1">
             <div className="mb-8 lg:hidden">
-              <div className="flex flex-wrap gap-1.5">
-                {DOC_PAGES.map((page) => (
-                  <Link
-                    key={page.slug}
-                    href={`/docs/${page.slug}`}
-                    className={cn(
-                      "rounded-full px-3 py-1 text-[12px] font-medium transition-colors",
-                      page.slug === activeSlug
-                        ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
-                        : "text-foreground/55 hover:bg-foreground/[0.05] hover:text-foreground",
-                    )}
-                  >
-                    {page.title}
-                  </Link>
-                ))}
-              </div>
+              {withActiveSlug(activeSlug, (active) => (
+                <MobileNav activeSlug={active} />
+              ))}
               <Separator className="mt-6 bg-foreground/10" />
             </div>
 

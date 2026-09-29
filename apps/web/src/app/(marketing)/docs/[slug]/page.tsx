@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
 import { ChangelogMarkdown } from "@/components/changelog/changelog-markdown";
 import { DocsIcon } from "@/features/docs/components/docs-icon";
 import { DocsShell } from "@/features/docs/components/docs-shell";
@@ -25,27 +26,37 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params;
   const page = getDocPage(slug);
-  if (!page) return { title: "Not found" };
+  if (!page) return { title: "Not found", robots: { index: false } };
   return {
     title: `${page.title} — MCP Server`,
     description: page.description,
   };
 }
 
-export default async function DocPage({
+export default function DocPage({
   params,
 }: {
   params: Promise<{ slug: string }>;
 }) {
-  const { slug } = await params;
-  const page = getDocPage(slug);
+  const slug = params.then((resolved) => resolved.slug);
+  return (
+    <DocsShell activeSlug={slug}>
+      <Suspense fallback={<div className="min-h-[60vh]" />}>
+        <DocContent slug={slug} />
+      </Suspense>
+    </DocsShell>
+  );
+}
+
+async function DocContent({ slug }: { slug: Promise<string> }) {
+  const page = getDocPage(await slug);
   if (!page) notFound();
 
   const body = readDocBody(page.slug);
   const { previous, next } = getDocNeighbours(page.slug);
 
   return (
-    <DocsShell activeSlug={page.slug}>
+    <>
       <div className="mb-8">
         <div className="mb-4 flex items-center gap-2 font-mono text-[10px] font-semibold uppercase tracking-[0.16em]">
           <Link
@@ -119,6 +130,6 @@ export default async function DocPage({
           <span className="hidden sm:block" />
         )}
       </nav>
-    </DocsShell>
+    </>
   );
 }
