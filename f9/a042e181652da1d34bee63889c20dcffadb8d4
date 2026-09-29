@@ -1,0 +1,24 @@
+packages/backend/convex/mcp/grants.ts
+  s_a849b5fcccee2f::t_3ca12186d4ee7c 16,25
+  s_a849b5fcccee2f::t_6860b6c1ba9fa7 5
+packages/backend/convex/mcp/scopes.ts
+  s_a849b5fcccee2f::t_6860b6c1ba9fa7 14-18
+packages/backend/tests/mcp-scopes.test.ts
+  s_a849b5fcccee2f::t_6860b6c1ba9fa7 1-11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f9a042e181652da1d34bee63889c20dcffadb8d4",
+  "prompts": {},
+  "sessions": {
+    "s_a849b5fcccee2f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e79a3165-3f4e-46ce-91e2-4e27810e790d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
