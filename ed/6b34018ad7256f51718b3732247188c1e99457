@@ -1,0 +1,23 @@
+apps/web/src/features/docs/components/docs-shell.tsx
+  s_a849b5fcccee2f::t_ca866ca014e275 4,67-68,85-109,114,145-147,153-155
+  s_a849b5fcccee2f::t_01073de16cdfa0 69-84
+apps/web/src/app/(marketing)/docs/[slug]/page.tsx
+  s_a849b5fcccee2f::t_01073de16cdfa0 7,36,41-52,59,133
+  s_a849b5fcccee2f::t_49a0fd3823cf30 29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ed6b34018ad7256f51718b3732247188c1e99457",
+  "prompts": {},
+  "sessions": {
+    "s_a849b5fcccee2f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e79a3165-3f4e-46ce-91e2-4e27810e790d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
