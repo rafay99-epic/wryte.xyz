@@ -1,5 +1,6 @@
 "use client";
 
+import { cursorInstallUrl } from "@wryte/logic/lib/mcp-install";
 import { Button, buttonVariants } from "@wryte/ui/button";
 import { InfoHint } from "@wryte/ui/info-hint";
 import {
@@ -16,6 +17,7 @@ import {
   CursorMark,
   GenericMcpMark,
 } from "../branding/tool-logos";
+import { McpInstallButtons } from "./mcp-install-buttons";
 
 type McpClientSetupProps = {
   endpoint: string | null;
@@ -89,11 +91,6 @@ function OpenLinkButton({ href, label }: { href: string; label: string }) {
       <TooltipContent>{label}</TooltipContent>
     </Tooltip>
   );
-}
-
-function cursorInstallUrl(endpoint: string): string {
-  const config = btoa(JSON.stringify({ url: endpoint }));
-  return `cursor://anysphere.cursor-deeplink/mcp/install?name=wryte&config=${encodeURIComponent(config)}`;
 }
 
 function ClientRow({
@@ -191,6 +188,8 @@ export function McpClientSetup({
             </p>
           </div>
         </div>
+
+        <McpInstallButtons endpoint={endpoint} />
 
         <ClientGroup title="Desktop apps">
           <ClientRow
