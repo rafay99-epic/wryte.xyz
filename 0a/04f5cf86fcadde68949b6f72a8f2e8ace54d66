@@ -1,0 +1,211 @@
+apps/web/src/features/notes/components/ref-kind-icon.tsx
+  s_09e8f9b29e4a73::t_804018cdfb445f 1-27
+packages/ui/src/kanban.tsx
+  s_09e8f9b29e4a73::t_5072de214bb5bc 522-523,835
+  s_09e8f9b29e4a73::t_07f2123500502c 259-273
+  s_09e8f9b29e4a73::t_6069f6a3780d73 13-14,428,713
+  s_09e8f9b29e4a73::t_53d5515a4a5d94 398-402
+  s_09e8f9b29e4a73::t_af9d12bab0019b 508,546,596-601,604,656,719-724,727,786
+  s_09e8f9b29e4a73::t_2c2911bb384a61 1-12,15-258,274-397,403-427,429-507,509-521,524-545,547-595,602-603,605-655,657-712,714-718,725-726,728-785,787-834,836-854
+packages/backend/convex/cms/notes/notes.ts
+  s_09e8f9b29e4a73::t_e33e733a927563 18,68-70,135
+packages/backend/e2e/mcp.ts
+  s_09e8f9b29e4a73::t_6024f5210e5db0 930-933
+  s_09e8f9b29e4a73::t_fc420e33c6d1ea 765-772,823-873,876-878,923-929,934-936,963-966,968,971-972
+  s_09e8f9b29e4a73::t_4aadc8310f1193 874-875
+packages/logic/src/lib/notes/views.ts
+  s_09e8f9b29e4a73::t_fa6988345e0fd6 3,33,39
+  s_09e8f9b29e4a73::t_dc1f2d77c61c67 63-70
+  s_09e8f9b29e4a73::t_bed94eca959080 25-29,34,38
+apps/web/src/features/notes/components/note-header.tsx
+  s_09e8f9b29e4a73::t_6cc18ab5cbe72b 34,42,45,47,57,61,107,118,264,268,271,280,286
+  s_09e8f9b29e4a73::t_7c65b7ae72f292 52,68-69,71,77-105,161
+packages/backend/convex/cms/notes/_lib/refs.ts
+  s_09e8f9b29e4a73::t_f4a0f1dab646d0 6-7
+  s_09e8f9b29e4a73::t_387d092a2768a7 64,67
+  s_09e8f9b29e4a73::t_6024f5210e5db0 83-85,100-102
+  s_09e8f9b29e4a73::t_344fd5ccbfc6e4 1-5,8-63,65-66,68-82,86-99,103-120
+packages/backend/convex/cms/notes/links.ts
+  s_09e8f9b29e4a73::t_41a4e870f59981 14
+packages/logic/tests/notes-board.test.ts
+  s_09e8f9b29e4a73::t_804018cdfb445f 23
+  s_09e8f9b29e4a73::t_adddbf0144bc70 54-57,72-75,110-113,126-129
+  s_09e8f9b29e4a73::t_059b8172a60e9d 1-22,24-53,58-71,76-109,114-125,130-133
+packages/backend/convex/schema.ts
+  s_09e8f9b29e4a73::t_7a8036d50b2e3f 823,866-878,891-897,900-901,905-918
+  s_09e8f9b29e4a73::t_6024f5210e5db0 824-831
+  s_09e8f9b29e4a73::t_094a1941204502 919
+packages/backend/tests/notes-model.test.ts
+  s_09e8f9b29e4a73::t_4aadc8310f1193 155
+  s_09e8f9b29e4a73::t_0fd9dfc7b559ab 7-8,12-15,20,119-154,156-199
+packages/backend/convex/cms/notes/_lib/write.ts
+  s_09e8f9b29e4a73::t_4aadc8310f1193 150
+  s_09e8f9b29e4a73::t_5adf3d666fd1ab 15,25,31,120,161,175-180,199,209-217,230,232,329-335,354,371,388
+apps/web/src/features/notes/components/note-card.tsx
+  s_09e8f9b29e4a73::t_d2c269df406161 28-29,102
+  s_09e8f9b29e4a73::t_7c65b7ae72f292 10
+  s_09e8f9b29e4a73::t_008fff92acfac0 3-5,9,11,30-31,49-53,56-64,67-70,72,76-77,79,83,87,91,93-101,103-105,113-144
+  s_09e8f9b29e4a73::t_adddbf0144bc70 65-66
+  s_09e8f9b29e4a73::t_879005edb6095f 1-2,6-8,12-27,32-48,54-55,71,73-75,78,80-82,84-86,88-90,92,106-112
+apps/web/src/features/editor/hooks/use-autosave.ts
+  s_09e8f9b29e4a73::t_d7089cee496600 12,16,85,100,123-124,128-131,269-270,301-304
+  s_09e8f9b29e4a73::t_96c71aa58adb5e 275-279
+apps/web/src/features/notes/components/note-search.tsx
+  s_09e8f9b29e4a73::t_219b08d83bc742 1-4,6,11,13-14,16-18,20,23,39,61,77-78,87,136,139-140,142-144,152-153
+  s_09e8f9b29e4a73::t_19fb69d2aeb747 5,7-10,12,15,19,21-22,24-38,40-60,62-76,79-86,88-135,137-138,141,145-151
+packages/logic/tests/notes-views.test.ts
+  s_09e8f9b29e4a73::t_059b8172a60e9d 13,54-57,59,64-65
+  s_09e8f9b29e4a73::t_dc1f2d77c61c67 14,68-75
+  s_09e8f9b29e4a73::t_fa6988345e0fd6 60,63,66
+  s_09e8f9b29e4a73::t_7c65b7ae72f292 38-41,44-47
+  s_09e8f9b29e4a73::t_6024f5210e5db0 4-9,42-43
+packages/logic/src/lib/word-count.ts
+  s_09e8f9b29e4a73::t_d09b758d8e1dc1 1-29
+apps/web/src/features/notes/hooks/use-notes-board.ts
+  s_09e8f9b29e4a73::t_7b372f355639a6 1-127,131-137
+  s_09e8f9b29e4a73::t_fd0eacf150cdf2 128-130
+packages/backend/convex/cms/notes/_lib/read.ts
+  s_09e8f9b29e4a73::t_aa52b7a70ed890 53-54
+  s_09e8f9b29e4a73::t_fb071a0704b707 7,42,61-65,73-86
+  s_09e8f9b29e4a73::t_4aadc8310f1193 66-72
+  s_09e8f9b29e4a73::t_dd3121733677aa 10,14,18,21,169,176,182,197,238,242,244-245,252,275-277,282-284,287-288,296
+  s_09e8f9b29e4a73::t_63723cc79c76bc 87-88
+packages/backend/convex/cms/notes/refs.ts
+  s_09e8f9b29e4a73::t_387d092a2768a7 1-29
+packages/logic/src/lib/notes/board.ts
+  s_09e8f9b29e4a73::t_fe2eb1d969cee2 1-148
+apps/web/src/features/command-palette/command-palette.tsx
+  s_09e8f9b29e4a73::t_fa6988345e0fd6 206,217
+packages/backend/convex/cms/notes/_lib/links.ts
+  s_09e8f9b29e4a73::t_41a4e870f59981 15,22-38,50-61
+packages/backend/convex/cms/notes/_lib/model.ts
+  s_09e8f9b29e4a73::t_e63a723957c185 9-17,28-33,69-82,108-114,116-147,251-253,257-263,265,268-270,272-283,288-372,440-460,464-485
+  s_09e8f9b29e4a73::t_6024f5210e5db0 83-97,102-107
+  s_09e8f9b29e4a73::t_d2c269df406161 98-101,115,461-463
+  s_09e8f9b29e4a73::t_5debf4d1f25cd4 486
+apps/web/src/features/notes/hooks/use-panel-escape.ts
+  s_09e8f9b29e4a73::t_59b8e7e6173bc1 1-2,5,7-14,16
+  s_09e8f9b29e4a73::t_296a1f3cfa7509 6,15
+  s_09e8f9b29e4a73::t_adddbf0144bc70 3-4
+packages/backend/convex/cms/notes/_lib/purge.ts
+  s_09e8f9b29e4a73::t_0015492e71f82b 6-7,25-26,79-83
+  s_09e8f9b29e4a73::t_4aadc8310f1193 5
+  s_09e8f9b29e4a73::t_cbec830692f9f7 84
+apps/web/src/features/notes/components/board-header.tsx
+  s_09e8f9b29e4a73::t_0607772d4ff06d 1-5,7-15,17-19,21-25,74,82-84
+  s_09e8f9b29e4a73::t_a9a96cc41f0bc3 6,16,20,26-73,75-81
+packages/logic/src/lib/notes/refs.ts
+  s_09e8f9b29e4a73::t_0b9b78e9e1d581 1-30,33-44
+  s_09e8f9b29e4a73::t_adddbf0144bc70 31-32
+packages/backend/convex/cms/_lib/documentContent.ts
+  s_09e8f9b29e4a73::t_1bb39c326d7e0a 1,37,43,46,48,52-61
+packages/logic/src/lib/notes/dates.ts
+  s_09e8f9b29e4a73::t_6024f5210e5db0 40-47
+apps/web/src/features/notes/components/convert-to-article-dialog.tsx
+  s_09e8f9b29e4a73::t_cb5ea842048a7e 78-80
+apps/web/src/features/notes/components/group-filter.tsx
+  s_09e8f9b29e4a73::t_92d8e675f41eb4 1-40,43,45-48,50-162
+  s_09e8f9b29e4a73::t_2190532fd1d639 41-42,44,49
+apps/web/src/features/editor/components/editor-toolbar.tsx
+  s_09e8f9b29e4a73::t_70f7fb5017eb1c 125
+  s_09e8f9b29e4a73::t_96c71aa58adb5e 58,71-72,293,374-440,442
+  s_09e8f9b29e4a73::t_b329310ecf444f 441,443
+packages/backend/e2e/perf.ts
+  s_09e8f9b29e4a73::t_1eb631f23b4795 355-465,515-516,518-524,603
+  s_09e8f9b29e4a73::t_8732c56bd28d61 27,29-30,128-183,186,204,217,232-238,244,247-254,260-261,263-269,271-285,297
+apps/web/src/features/notes/components/note-pane-skeleton.tsx
+  s_09e8f9b29e4a73::t_72dd6529d2b3c9 1,3-4
+apps/web/src/features/notes/hooks/use-open-note.ts
+  s_09e8f9b29e4a73::t_59b8e7e6173bc1 1-20
+apps/web/src/features/notes/components/note-panel.tsx
+  s_09e8f9b29e4a73::t_77d60af1df8f92 4-19,21-50,55,58-65,67
+  s_09e8f9b29e4a73::t_7c65b7ae72f292 51
+  s_09e8f9b29e4a73::t_296a1f3cfa7509 20
+apps/web/src/features/notes/components/due-date-input.tsx
+  s_09e8f9b29e4a73::t_7c65b7ae72f292 21
+packages/backend/convex/cms/notes/_lib/search.ts
+  s_09e8f9b29e4a73::t_3a9e91020c9f29 1-60
+apps/web/src/features/notes/notes-shell.tsx
+  s_09e8f9b29e4a73::t_ef9f0004c1ff57 37-42,55
+  s_09e8f9b29e4a73::t_dc1f2d77c61c67 4,7-12,14,18-23,28,30,32-33,36,43-50,52-54,56-60
+packages/backend/convex/mcp/tools.ts
+  s_09e8f9b29e4a73::t_37618878c400b2 16-20,432,437,458,481,491,500,512
+  s_09e8f9b29e4a73::t_b4592d8c53cf13 43
+apps/web/src/features/notes/components/status-icon.tsx
+  s_09e8f9b29e4a73::t_6024f5210e5db0 1-2,4-10,12-13,23,28-31
+apps/web/src/features/notes/components/trash-list.tsx
+  s_09e8f9b29e4a73::t_bd9ccdb44404ef 44,80-106
+  s_09e8f9b29e4a73::t_d402cd88231885 107-109
+apps/web/src/features/notes/hooks/use-note-editor.ts
+  s_09e8f9b29e4a73::t_8556d6f9797f91 125,128
+apps/web/src/features/notes/components/note-refs.tsx
+  s_09e8f9b29e4a73::t_804018cdfb445f 23,26,61-62,192
+  s_09e8f9b29e4a73::t_adddbf0144bc70 73,106-108,116,222
+  s_09e8f9b29e4a73::t_c06dbdbeb24350 1-22,24-25,27-60,63-72,74-105,109-115,117-191,193-221,223-241
+packages/backend/convex/cms/notes/_lib/board.ts
+  s_09e8f9b29e4a73::t_9cd0228c3ab419 20
+  s_09e8f9b29e4a73::t_914a65c7b3fb7a 1-19,21-141,144,161,163-166,168-210
+  s_09e8f9b29e4a73::t_cd0809bcb48ee7 142-143,145-160,162,167
+packages/ui/package.json
+  s_09e8f9b29e4a73::t_354b26614a5810 14-16,21
+apps/web/src/features/notes/components/notes-board.tsx
+  s_09e8f9b29e4a73::t_2cb4ef8408a8b5 1-12,15-21,26-28,30-55,57,59-62,66,68-77,79-88,92-98,113-119,205-206,210,212-214,218-219,221,225,228,235,262-266,271-273,275,282-286
+  s_09e8f9b29e4a73::t_d1abd708818cb8 238-240
+  s_09e8f9b29e4a73::t_ae58e4ec20d8fc 24,89-91
+  s_09e8f9b29e4a73::t_7c65b7ae72f292 267-270
+  s_09e8f9b29e4a73::t_bd5905b30ad668 13-14,22-23,25,29,56,58,63-65,67,78,99-112,120-204,207-208,211,215-217,220,222-224,226-227,229-234,236-237,241-261,274,276-281
+  s_09e8f9b29e4a73::t_fdf6929ba2c9f0 209
+apps/web/src/app/(app)/notes/[noteId]/page.tsx
+  s_09e8f9b29e4a73::t_dc1f2d77c61c67 1-2
+apps/web/src/features/notes/hooks/use-create-note.ts
+  s_09e8f9b29e4a73::t_fa6988345e0fd6 3-4,14,16,20-22
+  s_09e8f9b29e4a73::t_59b8e7e6173bc1 2,8,11,26
+packages/backend/convex/cms/documents.ts
+  s_09e8f9b29e4a73::t_819781a718fe58 31
+  s_09e8f9b29e4a73::t_4aadc8310f1193 893
+  s_09e8f9b29e4a73::t_1bb39c326d7e0a 851,860-862,871-877,892,894-903,913,921
+packages/logic/tests/notes-refs.test.ts
+  s_09e8f9b29e4a73::t_0b9b78e9e1d581 1-20
+packages/logic/tests/notes-word-count.test.ts
+  s_09e8f9b29e4a73::t_059b8172a60e9d 1-20
+packages/backend/convex/_lib/rateLimits.ts
+  s_09e8f9b29e4a73::t_387d092a2768a7 269-274
+packages/backend/convex/cms/notes/board.ts
+  s_09e8f9b29e4a73::t_ff4833089b1a62 1-76,81-101
+  s_09e8f9b29e4a73::t_4aadc8310f1193 77-80
+packages/logic/src/stores/notes-view-store.ts
+  s_09e8f9b29e4a73::t_bed94eca959080 1,5-8,12-15
+apps/web/src/features/notes/hooks/use-board-announcements.ts
+  s_09e8f9b29e4a73::t_94e2d857f40f5e 1-55
+packages/backend/convex/mcp/handlers/notes.ts
+  s_09e8f9b29e4a73::t_a9aa1bcc9f099b 300
+  s_09e8f9b29e4a73::t_b0c24c2a41b439 14-18,90,97-100,161,181,207,229-235,250,259,262-265,267,299
+  s_09e8f9b29e4a73::t_4aadc8310f1193 24
+  s_09e8f9b29e4a73::t_df22b4c1f6e269 13
+apps/web/src/app/(app)/notes/page.tsx
+  s_09e8f9b29e4a73::t_dc1f2d77c61c67 2
+packages/logic/src/lib/notes/colors.ts
+  s_09e8f9b29e4a73::t_7bfc112b1ff572 1-38
+apps/web/src/features/editor/editor-page.tsx
+  s_09e8f9b29e4a73::t_fdf6929ba2c9f0 194,198
+bun.lock
+  s_09e8f9b29e4a73::t_831957017163f9 146-148,153
+packages/backend/convex/_generated/api.d.ts
+  s_09e8f9b29e4a73::t_7375d54ad43572 60,67-68,70,75,212,219-220,222,227
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "0a04f5cf86fcadde68949b6f72a8f2e8ace54d66",
+  "prompts": {},
+  "sessions": {
+    "s_09e8f9b29e4a73": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cf5221cf-697f-4520-b4b4-113d0e3dc88e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
