@@ -1,6 +1,9 @@
 import { createClerkClient } from "@clerk/backend";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "../convex/_generated/api";
+import type { Id } from "../convex/_generated/dataModel";
+import { SCOPES } from "../convex/mcp/scopes";
+import { convexRun, drainBucket, tokenIdentifier } from "./localConvex";
 import { McpClient, type ToolOutcome } from "./mcpClient";
 
 const siteUrl = (process.env["NEXT_PUBLIC_CONVEX_SITE_URL"] ?? "").replace(
@@ -52,6 +55,28 @@ const REQUIRED_TOOLS = [
   "wryte_animations_remove",
 ];
 
+const NOTE_TOOLS = [
+  "wryte_notes_list",
+  "wryte_notes_search",
+  "wryte_notes_get",
+  "wryte_note_groups_list",
+  "wryte_notes_create",
+  "wryte_notes_update",
+  "wryte_notes_append",
+  "wryte_notes_trash",
+  "wryte_notes_share",
+  "wryte_notes_shares_list",
+  "wryte_notes_share_revoke",
+];
+
+const E2E_SCOPES = [SCOPES.trash, SCOPES.notes];
+const NOTE_PAGE = 25;
+const MAX_LIST_BYTES = 15 * 1024;
+const RATE_RETRIES = 45;
+const DAY_MS = 86_400_000;
+const SHARE_URL = /^https?:\/\/[^/]+\/shared#([A-Za-z0-9_-]{43})$/;
+const SHARE_LIMIT = { rate: 60, period: 60_000, capacity: 20 };
+
 const PIXEL_PNG = Uint8Array.from(
   atob(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
@@ -92,6 +117,10 @@ function field(value: unknown, ...path: string[]): unknown {
   return current;
 }
 
+function isNoteId(value: unknown): value is Id<"notes"> {
+  return typeof value === "string";
+}
+
 function list(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
 }
@@ -103,6 +132,53 @@ function refusedWith(outcome: ToolOutcome, text: string): boolean {
 function data(outcome: ToolOutcome): unknown {
   if (!outcome.ok) throw new Error(outcome.error);
   return outcome.data;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRateLimited(message: string): boolean {
+  return message.includes("Rate limited") || message.includes("RateLimited");
+}
+
+async function patiently<T>(run: () => Promise<T>): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await run();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!isRateLimited(message) || attempt >= RATE_RETRIES) throw error;
+      await sleep(2000);
+    }
+  }
+}
+
+async function callPatiently(
+  client: McpClient,
+  name: string,
+  args: Record<string, unknown>,
+): Promise<ToolOutcome> {
+  for (let attempt = 0; ; attempt++) {
+    const outcome = await client.call(name, args);
+    if (outcome.ok || !isRateLimited(outcome.error)) return outcome;
+    if (attempt >= RATE_RETRIES) return outcome;
+    await sleep(2000);
+  }
+}
+
+async function timed(
+  label: string,
+  run: () => Promise<ToolOutcome>,
+): Promise<ToolOutcome> {
+  const started = performance.now();
+  const outcome = await run();
+  const ms = Math.round(performance.now() - started);
+  const bytes = outcome.ok ? JSON.stringify(outcome.data).length : 0;
+  console.info(
+    `    ${label}: ${String(ms)} ms, ${(bytes / 1024).toFixed(1)} KB`,
+  );
+  return outcome;
 }
 
 const clerk = createClerkClient({ secretKey });
@@ -148,6 +224,231 @@ async function pickProject(
   return projects[0];
 }
 
+const anonymous = new ConvexHttpClient(convexUrl);
+
+function isShareId(value: unknown): value is Id<"note_shares"> {
+  return typeof value === "string";
+}
+
+function shareIdOf(value: unknown): Id<"note_shares"> {
+  const shareId = field(value, "shareId");
+  if (!isShareId(shareId)) throw new Error("No share id");
+  return shareId;
+}
+
+async function shareSuite(run: {
+  client: McpClient;
+  authed: () => Promise<ConvexHttpClient>;
+  key: string;
+  groupName: string;
+  noteIds: Id<"notes">[];
+  marker: string;
+}): Promise<void> {
+  const { client, authed, groupName, noteIds } = run;
+  console.info("note shares");
+  const [first, second, third] = noteIds;
+  if (!first || !second || !third) throw new Error("Need three notes");
+
+  const before = Date.now();
+  const groupShare = data(
+    await timed("share group", () =>
+      callPatiently(client, "wryte_notes_share", {
+        group: groupName,
+        title: "E2E group share",
+        expiresInDays: 7,
+      }),
+    ),
+  );
+  const groupUrl = String(field(groupShare, "url"));
+  const groupToken = SHARE_URL.exec(groupUrl)?.[1] ?? "";
+  const groupExpiry = Number(field(groupShare, "expiresAt"));
+  check(
+    "shares a group and returns an absolute /shared#token url",
+    groupToken.length === 43 && field(groupShare, "token") === groupToken,
+    groupShare,
+  );
+  check(
+    "a 7 day link expires 7 days out",
+    groupExpiry >= before + 7 * DAY_MS &&
+      groupExpiry <= Date.now() + 7 * DAY_MS,
+    groupExpiry,
+  );
+
+  const index = await anonymous.query(api.cms.notes.shares.view, {
+    token: groupToken,
+  });
+  const indexJson = JSON.stringify(index);
+  check(
+    `a signed-out reader sees the group index (${String(index?.notes.length)} notes, ${(indexJson.length / 1024).toFixed(1)} KB)`,
+    index !== null &&
+      index.kind === "group" &&
+      index.title === "E2E group share" &&
+      index.group === groupName &&
+      index.total === noteIds.length &&
+      index.notes.length === noteIds.length &&
+      index.notes.some((note) => note.noteId === first),
+    index && { ...index, notes: index.notes.length },
+  );
+  check(
+    "the index carries no bodies, user ids or group ids",
+    !indexJson.includes("content") &&
+      !indexJson.includes("userId") &&
+      !indexJson.includes("groupId") &&
+      !indexJson.includes("excerpt"),
+  );
+
+  const batch = noteIds.slice(0, 10);
+  const bodies = await anonymous.query(api.cms.notes.shares.bodies, {
+    token: groupToken,
+    noteIds: batch,
+  });
+  check(
+    "bodies load in a batch of 10 for a signed-out reader",
+    bodies !== null &&
+      bodies.notes.length + bodies.deferred.length === batch.length &&
+      bodies.notes.length > 0 &&
+      bodies.notes.some(
+        (note) => note.noteId === first && note.content.includes(run.marker),
+      ),
+    bodies && { notes: bodies.notes.length, deferred: bodies.deferred },
+  );
+  const withRefs = bodies?.notes.find((note) => note.noteId === first);
+  check(
+    "bodies include the note's refs without internal ids",
+    (withRefs?.refs.length ?? 0) >= 2 &&
+      !JSON.stringify(withRefs?.refs).includes("_id"),
+    withRefs?.refs,
+  );
+  let tooMany = "";
+  try {
+    await anonymous.query(api.cms.notes.shares.bodies, {
+      token: groupToken,
+      noteIds: noteIds.slice(0, 11),
+    });
+  } catch (error) {
+    tooMany = String(error);
+  }
+  check("refuses more than 10 bodies per call", tooMany.includes("at most 10"));
+
+  const pair = data(
+    await callPatiently(client, "wryte_notes_share", {
+      noteIds: [first, second],
+    }),
+  );
+  const pairToken = String(field(pair, "token"));
+  const pairView = await anonymous.query(api.cms.notes.shares.view, {
+    token: pairToken,
+  });
+  check(
+    "shares two notes with their group names and a never-expiring link",
+    field(pair, "expiresAt") === undefined &&
+      pairView !== null &&
+      pairView.kind === "notes" &&
+      pairView.title === "2 notes" &&
+      pairView.notes.length === 2 &&
+      pairView.notes.every((note) => note.group === groupName),
+    pairView,
+  );
+  const pairBodies = await anonymous.query(api.cms.notes.shares.bodies, {
+    token: pairToken,
+    noteIds: [first, third],
+  });
+  check(
+    "bodies refuse notes outside the share",
+    pairBodies !== null &&
+      pairBodies.notes.length === 1 &&
+      pairBodies.notes[0]?.noteId === first &&
+      pairBodies.deferred.length === 0,
+    pairBodies?.notes.map((note) => note.noteId),
+  );
+
+  const invalid = await anonymous.query(api.cms.notes.shares.view, {
+    token: "not-a-token",
+  });
+  const unknown = await anonymous.query(api.cms.notes.shares.view, {
+    token: "A".repeat(43),
+  });
+  check("unknown and malformed tokens view as null", !invalid && !unknown);
+
+  const listed = list(data(await client.call("wryte_notes_shares_list", {})));
+  const appList = await (await authed()).query(api.cms.notes.shares.list, {});
+  check(
+    "both share lists show the new links with labels",
+    listed.some(
+      (row) =>
+        field(row, "shareId") === field(groupShare, "shareId") &&
+        field(row, "url") === groupUrl &&
+        field(row, "label") === groupName,
+    ) &&
+      appList.some(
+        (row) =>
+          row.shareId === field(pair, "shareId") &&
+          row.label === "2 notes" &&
+          row.token === pairToken,
+      ),
+    { listed: listed.length, app: appList.length },
+  );
+
+  drainBucket("notes:share", run.key, SHARE_LIMIT);
+  const limited = await client.call("wryte_notes_share", {
+    noteIds: [third],
+  });
+  console.info(
+    `    rate limit error: ${limited.ok ? "none" : (limited.error.split("\n")[0] ?? "")}`,
+  );
+  check(
+    "a tripped limit tells the agent how long to wait",
+    !limited.ok &&
+      /^(Uncaught ConvexError: )?Rate limited: retry in \d+ s(\n|$)/.test(
+        limited.error,
+      ),
+    limited,
+  );
+  convexRun(
+    "lib:resetRateLimit",
+    { name: "notes:share", key: run.key },
+    "rateLimiter",
+  );
+
+  const revoked = await client.call("wryte_notes_share_revoke", {
+    shareId: field(pair, "shareId"),
+  });
+  await (await authed()).mutation(api.cms.notes.shares.revoke, {
+    shareId: shareIdOf(groupShare),
+  });
+  check(
+    "revoked links view as null at once",
+    revoked.ok &&
+      (await anonymous.query(api.cms.notes.shares.view, {
+        token: pairToken,
+      })) === null &&
+      (await anonymous.query(api.cms.notes.shares.view, {
+        token: groupToken,
+      })) === null,
+    revoked,
+  );
+
+  const daily = await (await authed()).mutation(api.cms.notes.shares.create, {
+    kind: "note",
+    noteIds: [second],
+    expiresInDays: 1,
+  });
+  const live = await anonymous.query(api.cms.notes.shares.view, {
+    token: daily.token,
+  });
+  convexRun("cms/notes/shares:_expire", { shareId: daily.shareId });
+  const expired = await anonymous.query(api.cms.notes.shares.view, {
+    token: daily.token,
+  });
+  check(
+    "a 1 day link works until its scheduled expiry, then views as null",
+    live?.kind === "note" &&
+      (daily.expiresAt ?? 0) - Date.now() > DAY_MS - 60_000 &&
+      expired === null,
+    { live: live?.title, expiresAt: daily.expiresAt },
+  );
+}
+
 async function main(): Promise<void> {
   const unauthenticated = await fetch(`${siteUrl}/mcp`, {
     method: "POST",
@@ -187,11 +488,16 @@ async function main(): Promise<void> {
   const convex = new ConvexHttpClient(convexUrl);
   convex.setAuth(await token());
   const grant = await convex.query(api.mcp.grants.myGrant, {});
-  if (!grant.includes("wryte:trash")) {
+  const addedScopes = E2E_SCOPES.filter((scope) => !grant.includes(scope));
+  if (addedScopes.length > 0) {
     await convex.mutation(api.mcp.grants.setGrant, {
-      scopes: [...grant, "wryte:trash"],
+      scopes: [...grant, ...addedScopes],
     });
   }
+  const authed = async () => {
+    convex.setAuth(await token());
+    return convex;
+  };
 
   const client = new McpClient(`${siteUrl}/mcp`, token);
   const cleanup: (() => Promise<unknown>)[] = [];
@@ -642,12 +948,390 @@ async function main(): Promise<void> {
         `  note: ${mediaUrl} stays in the provider; delete it there if you want`,
       );
     }
+
+    console.info("notes");
+    const missingNoteTools = NOTE_TOOLS.filter((name) => !tools.includes(name));
+    check(
+      "lists every notes tool once granted",
+      missingNoteTools.length === 0,
+      missingNoteTools,
+    );
+    const groupName = `MCP e2e ${stamp}`;
+    const marker = `zebra${stamp}`;
+    const noteIds: Id<"notes">[] = [];
+    cleanup.push(async () => {
+      let purged = 0;
+      for (const noteId of noteIds) {
+        await patiently(async () =>
+          (await authed()).mutation(api.cms.notes.notes.trash, { noteId }),
+        );
+        await patiently(async () =>
+          (await authed()).mutation(api.cms.notes.notes.purge, { noteId }),
+        );
+        purged++;
+      }
+      const rail = await (await authed()).query(api.cms.notes.groups.rail, {});
+      const group = rail.groups.find((row) => row.name === groupName);
+      if (group) {
+        await patiently(async () =>
+          (await authed()).mutation(api.cms.notes.groups.remove, {
+            groupId: group._id,
+          }),
+        );
+      }
+      check(
+        `purges its ${String(purged)} notes and removes its group`,
+        purged === noteIds.length &&
+          !(
+            await (await authed()).query(api.cms.notes.groups.rail, {})
+          ).groups.some((row) => row.name === groupName),
+      );
+    });
+
+    const createdNote = await timed("create", () =>
+      callPatiently(client, "wryte_notes_create", {
+        title: `MCP e2e note ${stamp}`,
+        content: "First line from the e2e run.",
+        group: groupName,
+        documentIds: [documentId],
+        refs: [
+          { kind: "pr", url: "https://github.com/acme/app/pull/12" },
+          {
+            kind: "comment",
+            text: "Cover the empty state too.",
+            author: "lead",
+          },
+        ],
+      }),
+    );
+    const noteId = field(data(createdNote), "noteId");
+    if (!isNoteId(noteId)) throw new Error("No note id");
+    noteIds.push(noteId);
+    check(
+      "creates a note in a new group and returns its url",
+      field(createdNote.ok ? createdNote.data : null, "rev") === 1 &&
+        String(field(createdNote.ok ? createdNote.data : null, "url")).endsWith(
+          `/notes/${noteId}`,
+        ),
+      createdNote,
+    );
+
+    const appended = await timed("append", () =>
+      client.call("wryte_notes_append", {
+        noteId,
+        text: `Appended ${marker} ✨`,
+      }),
+    );
+    check(
+      "appends and bumps rev",
+      field(data(appended), "rev") === 2,
+      appended,
+    );
+    const emptyAppend = await client.call("wryte_notes_append", {
+      noteId,
+      text: "  ",
+    });
+    check(
+      "refuses an empty append",
+      refusedWith(emptyAppend, "Nothing to append"),
+      emptyAppend,
+    );
+
+    const fetched = data(
+      await timed("get", () => client.call("wryte_notes_get", { noteId })),
+    );
+    check(
+      "get shows the appended text, group and linked post",
+      String(field(fetched, "body")).includes("First line") &&
+        String(field(fetched, "body")).includes(marker) &&
+        field(fetched, "group") === groupName &&
+        field(fetched, "rev") === 2 &&
+        field(fetched, "truncated") === false &&
+        field(fetched, "lastWriter") === "mcp" &&
+        list(field(fetched, "links")).some(
+          (link) => field(link, "documentId") === documentId,
+        ),
+      fetched,
+    );
+    const refs = list(field(fetched, "refs"));
+    check(
+      "create attaches refs and get returns them",
+      refs.length === 2 &&
+        refs.some(
+          (ref) =>
+            field(ref, "kind") === "pr" &&
+            field(ref, "url") === "https://github.com/acme/app/pull/12",
+        ) &&
+        refs.some(
+          (ref) =>
+            field(ref, "kind") === "comment" &&
+            field(ref, "author") === "lead" &&
+            typeof field(ref, "refId") === "string",
+        ),
+      refs,
+    );
+    const badRef = await client.call("wryte_notes_update", {
+      noteId,
+      refs: [{ kind: "pr", url: "javascript:alert(1)" }],
+    });
+    check(
+      "refuses a ref with a non-http url",
+      refusedWith(badRef, "http"),
+      badRef,
+    );
+    const moreRefs = data(
+      await client.call("wryte_notes_update", {
+        noteId,
+        refs: [
+          { kind: "pr", url: "https://github.com/acme/app/pull/12" },
+          { kind: "issue", url: "https://github.com/acme/app/issues/34" },
+        ],
+      }),
+    );
+    const withIssue = data(await client.call("wryte_notes_get", { noteId }));
+    check(
+      "update adds new refs and skips duplicates",
+      list(field(moreRefs, "refIds")).length === 1 &&
+        list(field(withIssue, "refs")).length === 3,
+      { moreRefs, refs: field(withIssue, "refs") },
+    );
+    const plain = data(
+      await client.call("wryte_notes_list", {
+        status: "notes",
+        group: groupName,
+      }),
+    );
+    check(
+      'list status "notes" returns notes without a status',
+      list(field(plain, "notes")).some(
+        (row) =>
+          field(row, "noteId") === noteId && field(row, "status") === undefined,
+      ),
+      plain,
+    );
+
+    const stale = await client.call("wryte_notes_update", {
+      noteId,
+      expectedRev: 1,
+      content: "overwrite",
+    });
+    check(
+      "refuses a content update with a stale expectedRev",
+      refusedWith(stale, "changed since rev 1"),
+      stale,
+    );
+    const blind = await client.call("wryte_notes_update", {
+      noteId,
+      content: "overwrite",
+    });
+    check(
+      "refuses a content update without expectedRev",
+      refusedWith(blind, "expectedRev is required"),
+      blind,
+    );
+    const badDate = await client.call("wryte_notes_update", {
+      noteId,
+      dueDate: "2026-13-40",
+    });
+    check(
+      "refuses an invalid due date",
+      refusedWith(badDate, "YYYY-MM-DD"),
+      badDate,
+    );
+    const todo = await timed("update", () =>
+      client.call("wryte_notes_update", {
+        noteId,
+        status: "todo",
+        dueDate: "2030-01-15",
+      }),
+    );
+    const asTodo = data(await client.call("wryte_notes_get", { noteId }));
+    check(
+      "turns the note into a todo with a due date",
+      todo.ok &&
+        field(asTodo, "status") === "todo" &&
+        field(asTodo, "dueDate") === "2030-01-15",
+      asTodo,
+    );
+    const todoBoard = await (await authed()).query(
+      api.cms.notes.board.board,
+      {},
+    );
+    check(
+      "a status change puts the card on top of its board column",
+      todoBoard.columns.todo[0]?._id === noteId &&
+        Object.values(todoBoard.columns.todo[0]?.refCounts ?? {}).reduce(
+          (sum, count) => sum + count,
+          0,
+        ) === 3 &&
+        !todoBoard.columns.notes.some((card) => card._id === noteId),
+      todoBoard.columns.todo.slice(0, 2),
+    );
+    const dueSoon = data(
+      await client.call("wryte_notes_list", {
+        status: "todo",
+        dueBefore: "2030-01-16",
+        group: groupName,
+      }),
+    );
+    check(
+      "lists it among todos due before a date",
+      list(field(dueSoon, "notes")).some(
+        (row) => field(row, "noteId") === noteId,
+      ),
+      dueSoon,
+    );
+    const noStatus = await client.call("wryte_notes_list", {
+      dueBefore: "2030-01-16",
+    });
+    check(
+      "refuses dueBefore without a status",
+      refusedWith(noStatus, "pass status"),
+      noStatus,
+    );
+    const done = data(
+      await client.call("wryte_notes_update", { noteId, status: "done" }),
+    );
+    const asDone = data(await client.call("wryte_notes_get", { noteId }));
+    const doneBoard = await (await authed()).query(
+      api.cms.notes.board.board,
+      {},
+    );
+    check(
+      "marks it done at the top of the Done column",
+      typeof field(done, "rev") === "number" &&
+        field(asDone, "status") === "done" &&
+        typeof field(asDone, "completedAt") === "number" &&
+        doneBoard.columns.done[0]?._id === noteId,
+      asDone,
+    );
+    const rev = field(asDone, "rev");
+    const replaced = await client.call("wryte_notes_update", {
+      noteId,
+      expectedRev: rev,
+      content: `Replaced body ${marker}\n${"long line of text ".repeat(200)}`,
+    });
+    check("replaces the body with the current rev", replaced.ok, replaced);
+
+    const clipped = data(
+      await client.call("wryte_notes_get", { noteId, maxChars: 100 }),
+    );
+    check(
+      "get respects maxChars and flags truncation",
+      String(field(clipped, "body")).length <= 100 &&
+        field(clipped, "truncated") === true &&
+        Number(field(clipped, "totalChars")) > 100,
+      { truncated: field(clipped, "truncated") },
+    );
+
+    const fillerBody = `Filler note for the list payload check. ${"word ".repeat(400)}`;
+    for (let i = noteIds.length; i < NOTE_PAGE; i++) {
+      const filler = await callPatiently(client, "wryte_notes_create", {
+        title: `MCP e2e filler ${String(i)} ${"x".repeat(170)}`,
+        content: fillerBody,
+        group: groupName,
+        status: "todo",
+        dueDate: "2030-02-01",
+      });
+      const fillerId = field(data(filler), "noteId");
+      if (isNoteId(fillerId)) noteIds.push(fillerId);
+    }
+    const page = await timed(`list ${String(NOTE_PAGE)} rows`, () =>
+      client.call("wryte_notes_list", { group: groupName }),
+    );
+    const rows = list(field(data(page), "notes"));
+    const pageBytes = JSON.stringify(data(page)).length;
+    check(
+      `lists ${String(NOTE_PAGE)} rows without bodies`,
+      rows.length === NOTE_PAGE &&
+        rows.every(
+          (row) => isRecord(row) && !("body" in row) && !("content" in row),
+        ),
+      { rows: rows.length },
+    );
+    check(
+      `list payload under 15 KB (${(pageBytes / 1024).toFixed(1)} KB)`,
+      pageBytes < MAX_LIST_BYTES,
+    );
+
+    const groups = data(
+      await timed("groups", () => client.call("wryte_note_groups_list", {})),
+    );
+    check(
+      "groups list counts the run's notes",
+      list(groups).some(
+        (group) =>
+          field(group, "name") === groupName &&
+          field(group, "noteCount") === NOTE_PAGE,
+      ),
+      list(groups).find((group) => field(group, "name") === groupName),
+    );
+
+    const hits = data(
+      await timed("search", () =>
+        client.call("wryte_notes_search", { query: marker }),
+      ),
+    );
+    check(
+      "search finds the note by body text",
+      list(hits).some((hit) => field(hit, "noteId") === noteId),
+      hits,
+    );
+
+    const linked = data(
+      await client.call("wryte_notes_list", { linkedDocumentId: documentId }),
+    );
+    check(
+      "lists notes linked to the post",
+      list(field(linked, "notes")).some(
+        (row) => field(row, "noteId") === noteId,
+      ),
+    );
+
+    await shareSuite({
+      client,
+      authed,
+      key: tokenIdentifier(await token()),
+      groupName,
+      noteIds,
+      marker,
+    });
+
+    const single = data(
+      await callPatiently(client, "wryte_notes_share", { noteIds: [noteId] }),
+    );
+    const singleToken = String(field(single, "token"));
+    cleanup.push(async () => {
+      await patiently(async () =>
+        (await authed()).mutation(api.cms.notes.shares.revoke, {
+          shareId: shareIdOf(single),
+        }),
+      );
+    });
+
+    const trashedNote = await timed("trash", () =>
+      client.call("wryte_notes_trash", { noteId }),
+    );
+    const gone = await client.call("wryte_notes_get", { noteId });
+    check(
+      "trashes the note",
+      field(trashedNote.ok ? trashedNote.data : null, "ok") === true &&
+        refusedWith(gone, "Note not found"),
+      [trashedNote, gone],
+    );
+    check(
+      "a trashed note disappears from its public link",
+      (await anonymous.query(api.cms.notes.shares.view, {
+        token: singleToken,
+      })) === null,
+    );
   } finally {
     console.info("cleanup");
     for (const step of cleanup.reverse()) await step();
-    if (!grant.includes("wryte:trash")) {
-      convex.setAuth(await token());
-      await convex.mutation(api.mcp.grants.setGrant, { scopes: grant });
+    if (addedScopes.length > 0) {
+      await (await authed()).mutation(api.mcp.grants.setGrant, {
+        scopes: grant,
+      });
     }
     await clerk.sessions.revokeSession(session.id);
   }

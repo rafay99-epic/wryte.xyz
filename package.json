@@ -23,13 +23,14 @@
     "test": "turbo run test",
     "test:e2e": "bun run --filter @wryte/web test:e2e",
     "test:mcp": "bun run --filter @wryte/backend test:mcp",
+    "test:perf": "bun run --filter @wryte/backend test:perf",
     "changelog:new": "bun run --filter @wryte/web changelog:new",
     "desktop:pack": "bun run --filter @wryte/desktop pack",
     "desktop:dist": "bun run --filter @wryte/desktop dist"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.12",
-    "turbo": "^2.11.5",
+    "@biomejs/biome": "2.5.15",
+    "turbo": "^2.11.6",
     "typescript": "^7.0.2"
   },
   "ignoreScripts": [

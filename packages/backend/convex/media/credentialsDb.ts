@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { internalMutation, internalQuery, query } from "../_generated/server";
 import { getAuthedUserOrNull } from "../_lib/auth";
 import type { DocPatch } from "../_lib/docPatch";
+import { findCredential, loadNoteSettings } from "./_lib/noteSource";
 import {
   CREDENTIAL_PROVIDER_IDS,
   credentialProviderValidator,
@@ -81,18 +82,25 @@ export const listEnabledProviders = query({
   },
 });
 
-export const _findByProjectAndProvider = internalQuery({
+export const _findByScope = internalQuery({
   args: {
-    projectId: v.id("projects"),
+    userId: v.id("users"),
+    projectId: v.optional(v.id("projects")),
     provider: PROVIDER_VALIDATOR,
   },
-  handler: async (ctx, args) => {
-    return await ctx.db
-      .query("mediaCredentials")
-      .withIndex("by_projectId_and_provider", (q) =>
-        q.eq("projectId", args.projectId).eq("provider", args.provider),
-      )
-      .unique();
+  handler: async (ctx, args) =>
+    await findCredential(
+      ctx,
+      { userId: args.userId, projectId: args.projectId },
+      args.provider,
+    ),
+});
+
+export const _usedByNotes = internalQuery({
+  args: { userId: v.id("users"), provider: PROVIDER_VALIDATOR },
+  handler: async (ctx, args): Promise<boolean> => {
+    const media = (await loadNoteSettings(ctx, args.userId))?.media;
+    return media?.kind === "own" && media.provider === args.provider;
   },
 });
 
@@ -103,7 +111,7 @@ export const _findById = internalQuery({
 
 export const _insert = internalMutation({
   args: {
-    projectId: v.id("projects"),
+    projectId: v.optional(v.id("projects")),
     userId: v.id("users"),
     provider: PROVIDER_VALIDATOR,
     vaultSecretId: v.string(),
@@ -113,7 +121,7 @@ export const _insert = internalMutation({
   handler: async (ctx, args) => {
     const now = Date.now();
     return await ctx.db.insert("mediaCredentials", {
-      projectId: args.projectId,
+      ...(args.projectId !== undefined ? { projectId: args.projectId } : {}),
       userId: args.userId,
       provider: args.provider,
       vaultSecretId: args.vaultSecretId,

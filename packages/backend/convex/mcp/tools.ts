@@ -13,6 +13,13 @@ import {
   researchItemValidator,
   researchTypeValidator,
 } from "../cms/documentResearch";
+import {
+  boardColumnValidator,
+  noteStatusValidator,
+  refInputValidator,
+} from "../cms/notes/_lib/model";
+import { shareExpiryValidator } from "../cms/notes/_lib/shareModel";
+import { DEFAULT_NOTE_CHARS } from "./agentInput";
 import { SCOPES, type WryteToolMetadata } from "./scopes";
 
 const READ = { scopes: [SCOPES.read] } satisfies WryteToolMetadata;
@@ -22,6 +29,26 @@ const MEDIA = { scopes: [SCOPES.media] } satisfies WryteToolMetadata;
 const WRITE_BODY = {
   scopes: [SCOPES.write],
   auditArgs: { redact: ["content", "frontmatter", "items"] },
+} satisfies WryteToolMetadata;
+
+const NOTES_READ = {
+  scopes: [SCOPES.read, SCOPES.notes],
+} satisfies WryteToolMetadata;
+
+const NOTES_TRASH = {
+  scopes: [SCOPES.trash, SCOPES.notes],
+} satisfies WryteToolMetadata;
+
+const NOTES_BODY = {
+  scopes: [SCOPES.notes],
+  auditArgs: { redact: ["content", "refs"] },
+} satisfies WryteToolMetadata;
+
+const NOTES_WRITE = { scopes: [SCOPES.notes] } satisfies WryteToolMetadata;
+
+const NOTES_APPEND = {
+  scopes: [SCOPES.notes],
+  auditArgs: { redact: ["text"] },
 } satisfies WryteToolMetadata;
 
 const WRITE_NO_AUDIT = {
@@ -400,5 +427,154 @@ export const tools: McpToolRegistration[] = [
     args: { caller: mcpCallerValidator },
     identityArg: "caller",
     metadata: READ,
+  }),
+
+  defineMcpQuery({
+    name: "wryte_notes_list",
+    description:
+      'List the user\'s private notes, 25 per page: title, excerpt, status, due date, group. No bodies; read one with wryte_notes_get. Filter by group name, status ("todo", "doing", "done", or "notes" for plain notes without a status, in board order), dueBefore (YYYY-MM-DD, needs a task status) or a linked post. Page with continueCursor.',
+    fn: internal.mcp.handlers.notes.list,
+    args: {
+      caller: mcpCallerValidator,
+      group: v.optional(v.string()),
+      status: v.optional(boardColumnValidator),
+      dueBefore: v.optional(v.string()),
+      linkedDocumentId: v.optional(v.id("documents")),
+      cursor: v.optional(v.string()),
+    },
+    identityArg: "caller",
+    metadata: NOTES_READ,
+  }),
+
+  defineMcpQuery({
+    name: "wryte_notes_search",
+    description:
+      "Search note titles and bodies. Returns up to 16 hits with short snippets. Start here before creating a note that may already exist.",
+    fn: internal.mcp.handlers.notes.search,
+    args: { caller: mcpCallerValidator, query: v.string() },
+    identityArg: "caller",
+    metadata: NOTES_READ,
+  }),
+
+  defineMcpQuery({
+    name: "wryte_notes_get",
+    description: `One note: metadata, rev, group, linked posts, refs (PRs, issues, comments, links) and body. The body is cut at maxChars (default ${String(DEFAULT_NOTE_CHARS)}); truncated says so and totalChars gives the full length. Keep rev for wryte_notes_update.`,
+    fn: internal.mcp.handlers.notes.get,
+    args: {
+      caller: mcpCallerValidator,
+      noteId: v.id("notes"),
+      maxChars: v.optional(v.number()),
+    },
+    identityArg: "caller",
+    metadata: NOTES_READ,
+  }),
+
+  defineMcpQuery({
+    name: "wryte_note_groups_list",
+    description: "List the user's note groups with their note counts.",
+    fn: internal.mcp.handlers.notes.groups,
+    args: { caller: mcpCallerValidator },
+    identityArg: "caller",
+    metadata: NOTES_READ,
+  }),
+
+  defineMcpMutation({
+    name: "wryte_notes_create",
+    description:
+      'Create a private note. Notes are never published; they live on the user\'s board (columns Notes, To do, Doing, Done) and new ones go to the top of their column. group is a name, found or created; use "Work log" for session logs. status (todo, doing, done) and dueDate (YYYY-MM-DD) make it a task. refs attaches up to 20 references: {kind: "pr"|"issue"|"link", url} or {kind: "comment", text, author?, url?}. File follow-ups as tasks: wryte_notes_create { title, group, status: "todo", content, refs: [{kind: "pr", url}, {kind: "comment", text, author}] }. documentIds links up to 20 posts. Returns noteId, rev and url (a link to the note in Wryte). To show it to someone without a Wryte account use wryte_notes_share.',
+    fn: internal.mcp.handlers.notes.create,
+    args: {
+      caller: mcpCallerValidator,
+      title: v.string(),
+      content: v.optional(v.string()),
+      group: v.optional(v.string()),
+      status: v.optional(noteStatusValidator),
+      dueDate: v.optional(v.string()),
+      documentIds: v.optional(v.array(v.id("documents"))),
+      refs: v.optional(v.array(refInputValidator)),
+    },
+    identityArg: "caller",
+    metadata: NOTES_BODY,
+  }),
+
+  defineMcpMutation({
+    name: "wryte_notes_update",
+    description:
+      "Change a note's title, status, dueDate, group, linked posts or refs; null clears status, dueDate or group. Changing status moves the card to the top of that board column (status null moves it back to Notes). Replacing content needs expectedRev from wryte_notes_get and is refused if the user edited since. Prefer wryte_notes_append for adding text. documentIds replaces the whole link set; refs adds references (duplicates are skipped, at most 20 per note).",
+    fn: internal.mcp.handlers.notes.update,
+    args: {
+      caller: mcpCallerValidator,
+      noteId: v.id("notes"),
+      expectedRev: v.optional(v.number()),
+      title: v.optional(v.string()),
+      content: v.optional(v.string()),
+      status: v.optional(v.union(noteStatusValidator, v.null())),
+      dueDate: v.optional(v.union(v.string(), v.null())),
+      group: v.optional(v.union(v.string(), v.null())),
+      documentIds: v.optional(v.array(v.id("documents"))),
+      refs: v.optional(v.array(refInputValidator)),
+    },
+    identityArg: "caller",
+    metadata: NOTES_BODY,
+  }),
+
+  defineMcpMutation({
+    name: "wryte_notes_append",
+    description:
+      "Append markdown to the end of a note on a new line. The safe way to add to a note: it never overwrites what the user wrote. Use it for running logs.",
+    fn: internal.mcp.handlers.notes.append,
+    args: {
+      caller: mcpCallerValidator,
+      noteId: v.id("notes"),
+      text: v.string(),
+    },
+    identityArg: "caller",
+    metadata: NOTES_APPEND,
+  }),
+
+  defineMcpMutation({
+    name: "wryte_notes_trash",
+    description:
+      "Move a note to the trash. The user can restore it in Wryte for 30 days.",
+    fn: internal.mcp.handlers.notes.trash,
+    args: { caller: mcpCallerValidator, noteId: v.id("notes") },
+    identityArg: "caller",
+    metadata: NOTES_TRASH,
+  }),
+
+  defineMcpMutation({
+    name: "wryte_notes_share",
+    description:
+      "Create a public read-only link anyone can open without a Wryte account. Pass noteIds (1 to 50 notes) or group (a group name; the link shows its newest 200 notes and follows the group as it changes), not both. Readers see titles, status, due dates, refs and full bodies, always the latest version; trashed notes are hidden. Optional title (up to 120 characters) and expiresInDays (1, 7 or 30; omit for a link that never expires). Returns shareId, url and token. Only share when the user asks; anyone with the url can read it. Revoke with wryte_notes_share_revoke.",
+    fn: internal.mcp.handlers.noteShares.share,
+    args: {
+      caller: mcpCallerValidator,
+      noteIds: v.optional(v.array(v.id("notes"))),
+      group: v.optional(v.string()),
+      title: v.optional(v.string()),
+      expiresInDays: v.optional(shareExpiryValidator),
+    },
+    identityArg: "caller",
+    metadata: NOTES_WRITE,
+  }),
+
+  defineMcpQuery({
+    name: "wryte_notes_shares_list",
+    description:
+      "List the user's active public note links, newest first (up to 100): shareId, what it shares, url, note count, created and expiry times.",
+    fn: internal.mcp.handlers.noteShares.list,
+    args: { caller: mcpCallerValidator },
+    identityArg: "caller",
+    metadata: NOTES_READ,
+  }),
+
+  defineMcpMutation({
+    name: "wryte_notes_share_revoke",
+    description:
+      "Revoke a public note link by shareId. The url stops working at once; the notes are untouched.",
+    fn: internal.mcp.handlers.noteShares.revoke,
+    args: { caller: mcpCallerValidator, shareId: v.id("note_shares") },
+    identityArg: "caller",
+    metadata: NOTES_WRITE,
   }),
 ];

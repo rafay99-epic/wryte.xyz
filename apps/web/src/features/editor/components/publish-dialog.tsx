@@ -8,6 +8,7 @@ import {
 } from "@wryte/backend/_lib/commitAttribution";
 import { useAuthedQuery } from "@wryte/logic/hooks/use-authed-query";
 import { getFileExtension } from "@wryte/logic/lib/content-format";
+import { EDITOR_SESSION_ID } from "@wryte/logic/lib/editor/session";
 import {
   bufferServiceLabel,
   buildPublishedUrl,
@@ -48,7 +49,7 @@ import {
 import { SyndicationStatus } from "@/components/forms/syndication-status";
 import { PublishChecklist } from "./publish-checklist";
 
-const documentsUpdate = api.cms.documents.update;
+const documentsAutosaveBody = api.cms.documents.autosaveBody;
 const documentsGetMeta = api.cms.documents.getMeta;
 const projectsGet = api.cms.projects.get;
 const publishAction = api.integrations.github.publish;
@@ -96,7 +97,7 @@ export function PublishDialog({
   );
 
   const publishToGithub = useAction(publishAction);
-  const updateDocument = useMutation(documentsUpdate);
+  const saveBody = useMutation(documentsAutosaveBody);
   const schedulePublish = useMutation(api.integrations.scheduling.schedule);
   const cancelSchedule = useMutation(api.integrations.scheduling.cancel);
 
@@ -256,10 +257,12 @@ export function PublishDialog({
     try {
       const editor = useEditorStore.getState();
       if (editor.isDirty) {
-        await updateDocument({
+        await saveBody({
           documentId: documentId as Id<"documents">,
           content: editor.content,
           title: editor.title,
+          writer: EDITOR_SESSION_ID,
+          flush: true,
         });
         useEditorStore.getState().markSaved();
       }

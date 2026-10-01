@@ -4,14 +4,21 @@ import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { ActionCtx } from "../_generated/server";
-import { action } from "../_generated/server";
-import { isAllowedMime, projectUploadLimit, QUOTAS } from "../_lib/quotas";
+import { action, internalAction } from "../_generated/server";
+import { isAllowedMime, QUOTAS } from "../_lib/quotas";
 import { rateLimiter } from "../_lib/rateLimits";
 import {
   DEFAULT_MESSAGES,
   type MediaErrorCode,
   redactError,
 } from "../providers/errors";
+import {
+  type MediaOwner,
+  ownerProjectId,
+  ownerProvider,
+  ownerUploadLimit,
+  ownerUserId,
+} from "./_lib/owner";
 import {
   type MediaProvider,
   mediaProviderValidator,
@@ -22,11 +29,7 @@ import {
   parseRemoteMediaUrl,
   readCapped,
 } from "./_lib/remote";
-import {
-  resolveProvider,
-  resolveProviderName,
-  tryResolveProvider,
-} from "./providerResolution";
+import { resolveProvider, tryResolveProvider } from "./providerResolution";
 
 async function requireUserFromAuth(ctx: ActionCtx): Promise<Doc<"users">> {
   const identity = await ctx.auth.getUserIdentity();
@@ -42,13 +45,13 @@ async function requireOwnedProject(
   ctx: ActionCtx,
   user: Doc<"users">,
   projectId: Id<"projects">,
-): Promise<{ project: Doc<"projects">; userId: Id<"users"> }> {
+): Promise<MediaOwner> {
   const owned = await ctx.runQuery(internal.media.uploadsDb._findOwnedProject, {
     tokenIdentifier: user.tokenIdentifier,
     projectId,
   });
   if (!owned) throw new Error("Unauthorized");
-  return owned;
+  return { kind: "project", project: owned.project };
 }
 
 function sanitizeFilename(input: string): string {
@@ -74,6 +77,21 @@ function sanitizeFilename(input: string): string {
   return lastSegment;
 }
 
+type UploadFile = {
+  bytes: ArrayBuffer;
+  mime: string;
+  filename: string;
+};
+
+const uploadResultValidator = v.object({
+  mediaId: v.id("media"),
+  url: v.string(),
+  provider: mediaProviderValidator,
+  externalId: v.string(),
+});
+
+export type UploadResult = typeof uploadResultValidator.type;
+
 export const upload = action({
   args: {
     projectId: v.id("projects"),
@@ -83,43 +101,90 @@ export const upload = action({
     documentId: v.optional(v.id("documents")),
     provider: v.optional(mediaProviderValidator),
   },
+  returns: uploadResultValidator,
   handler: async (ctx, args) =>
     await uploadForUser(ctx, await requireUserFromAuth(ctx), args),
+});
+
+export const uploadToNote = action({
+  args: {
+    noteId: v.id("notes"),
+    bytes: v.bytes(),
+    mime: v.string(),
+    filename: v.string(),
+  },
+  returns: uploadResultValidator,
+  handler: async (ctx, args) =>
+    await uploadNoteForUser(ctx, await requireUserFromAuth(ctx), args),
 });
 
 export async function uploadForUser(
   ctx: ActionCtx,
   user: Doc<"users">,
-  args: {
+  args: UploadFile & {
     projectId: Id<"projects">;
-    bytes: ArrayBuffer;
-    mime: string;
-    filename: string;
     documentId?: Id<"documents">;
     provider?: MediaProvider;
   },
-): Promise<{
-  mediaId: Id<"media">;
-  url: string;
-  provider: MediaProvider;
-  externalId: string;
-}> {
+): Promise<UploadResult> {
+  const filename = await admitUpload(ctx, user, args);
+  return await storeForOwner(
+    ctx,
+    await requireOwnedProject(ctx, user, args.projectId),
+    { ...args, filename },
+    {
+      rateKey: user.tokenIdentifier,
+      requested: args.provider,
+      documentId: args.documentId,
+    },
+  );
+}
+
+export async function uploadNoteForUser(
+  ctx: ActionCtx,
+  user: Doc<"users">,
+  args: UploadFile & { noteId: Id<"notes"> },
+): Promise<UploadResult> {
+  const filename = await admitUpload(ctx, user, args);
+  const resolved = await ctx.runQuery(
+    internal.media.uploadsDb._noteMediaOwner,
+    { userId: user._id, noteId: args.noteId, requireNote: true },
+  );
+  if (!resolved.ok) {
+    throw new ConvexError({
+      code: "AUTH_INVALID" as MediaErrorCode,
+      message: resolved.reason,
+    });
+  }
+  return await storeForOwner(
+    ctx,
+    resolved.owner,
+    { ...args, filename },
+    { rateKey: user.tokenIdentifier },
+  );
+}
+
+async function admitUpload(
+  ctx: ActionCtx,
+  user: Doc<"users">,
+  file: UploadFile,
+): Promise<string> {
   const key = user.tokenIdentifier;
 
-  if (args.bytes.byteLength > QUOTAS.MAX_UPLOAD_BYTES) {
+  if (file.bytes.byteLength > QUOTAS.MAX_UPLOAD_BYTES) {
     throw new ConvexError({
       code: "FILE_TOO_LARGE" as MediaErrorCode,
       message: DEFAULT_MESSAGES.FILE_TOO_LARGE,
     });
   }
-  if (!isAllowedMime(args.mime)) {
+  if (!isAllowedMime(file.mime)) {
     throw new ConvexError({
       code: "UNSUPPORTED_MIME" as MediaErrorCode,
       message: DEFAULT_MESSAGES.UNSUPPORTED_MIME,
     });
   }
 
-  const safeFilename = sanitizeFilename(args.filename);
+  const safeFilename = sanitizeFilename(file.filename);
 
   await rateLimiter.limit(ctx, "media:upload", { key, throws: true });
   await rateLimiter.limit(ctx, "media:uploadConcurrency", {
@@ -130,29 +195,42 @@ export async function uploadForUser(
     key: "global",
     throws: true,
   });
+  return safeFilename;
+}
 
-  const owned = await requireOwnedProject(ctx, user, args.projectId);
-
-  if (args.bytes.byteLength > projectUploadLimit(owned.project)) {
+async function storeForOwner(
+  ctx: ActionCtx,
+  owner: MediaOwner,
+  file: UploadFile,
+  opts: {
+    rateKey: string;
+    requested?: MediaProvider | undefined;
+    documentId?: Id<"documents"> | undefined;
+  },
+): Promise<UploadResult> {
+  if (file.bytes.byteLength > ownerUploadLimit(owner)) {
     throw new ConvexError({
       code: "FILE_TOO_LARGE" as MediaErrorCode,
       message: DEFAULT_MESSAGES.FILE_TOO_LARGE,
     });
   }
 
+  const userId = ownerUserId(owner);
+  const projectId = ownerProjectId(owner);
+  const provider = ownerProvider(owner, opts.requested);
+
   const quota = await ctx.runQuery(internal.media.uploadsDb._quotaCheck, {
-    projectId: args.projectId,
-    incomingBytes: args.bytes.byteLength,
+    userId,
+    incomingBytes: file.bytes.byteLength,
+    ...(projectId !== undefined ? { projectId } : {}),
   });
   if (!quota.ok) {
     await logError(
       ctx,
-      owned.userId,
-      args.projectId,
-      "convex",
+      { owner, provider },
       "upload",
       "PROJECT_QUOTA",
-      `Project hit ${quota.reason} quota`,
+      `Hit ${quota.reason} quota`,
     );
     throw new ConvexError({
       code: "PROJECT_QUOTA" as MediaErrorCode,
@@ -160,53 +238,129 @@ export async function uploadForUser(
     });
   }
 
-  const provider = resolveProviderName(owned.project, args.provider);
-
   try {
     const { adapter, cx } = await resolveProvider(ctx, {
-      project: owned.project,
-      userId: owned.userId,
-      requested: args.provider,
-      rateKey: key,
+      owner,
+      requested: opts.requested,
+      rateKey: opts.rateKey,
       requireValid: true,
     });
 
     const res = await adapter.upload(cx, {
-      buffer: Buffer.from(new Uint8Array(args.bytes)),
-      mime: args.mime,
-      filename: safeFilename,
+      buffer: Buffer.from(new Uint8Array(file.bytes)),
+      mime: file.mime,
+      filename: file.filename,
     });
 
-    const mediaId: Id<"media"> = await ctx.runMutation(
+    const recorded: Id<"media"> | null = await ctx.runMutation(
       internal.media.uploadsDb._recordUpload,
       {
-        projectId: args.projectId,
-        userId: owned.userId,
+        userId,
         provider,
         externalId: res.externalId,
         url: res.url,
-        filename: safeFilename,
-        mime: args.mime,
+        filename: file.filename,
+        mime: file.mime,
         bytes: res.bytes,
+        ...(projectId !== undefined ? { projectId } : {}),
+        ...(owner.kind === "user" ? { noteId: owner.noteId } : {}),
+        ...(owner.kind === "user" && owner.source.projectId !== undefined
+          ? { sourceProjectId: owner.source.projectId }
+          : {}),
         ...(res.width !== undefined ? { width: res.width } : {}),
         ...(res.height !== undefined ? { height: res.height } : {}),
-        ...(args.documentId !== undefined
-          ? { documentId: args.documentId }
+        ...(opts.documentId !== undefined
+          ? { documentId: opts.documentId }
           : {}),
       },
     );
 
-    return { mediaId, url: res.url, provider, externalId: res.externalId };
+    if (recorded === null) {
+      throw new ConvexError({
+        code: "UNKNOWN" satisfies MediaErrorCode,
+        message: "The note was deleted during the upload.",
+      });
+    }
+    return {
+      mediaId: recorded,
+      url: res.url,
+      provider,
+      externalId: res.externalId,
+    };
   } catch (err) {
     throw await normalizeFailure(
       ctx,
       err,
-      { userId: owned.userId, projectId: args.projectId, provider },
+      { owner, provider },
       "upload",
       "Upload failed",
     );
   }
 }
+
+export const _deleteNoteObjects = internalAction({
+  args: {
+    userId: v.id("users"),
+    noteId: v.id("notes"),
+    refs: v.array(
+      v.object({
+        provider: mediaProviderValidator,
+        externalId: v.string(),
+        sourceProjectId: v.optional(v.id("projects")),
+      }),
+    ),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const bySource = new Map<string, typeof args.refs>();
+    for (const ref of args.refs) {
+      const key = `${ref.sourceProjectId ?? "own"}:${ref.provider}`;
+      bySource.set(key, [...(bySource.get(key) ?? []), ref]);
+    }
+
+    for (const refs of bySource.values()) {
+      const first = refs[0];
+      if (!first || first.provider === "github") continue;
+      const resolved = await ctx.runQuery(
+        internal.media.uploadsDb._noteMediaOwner,
+        {
+          userId: args.userId,
+          noteId: args.noteId,
+          requireNote: false,
+          source:
+            first.sourceProjectId === undefined
+              ? { kind: "own", provider: first.provider }
+              : { kind: "project", projectId: first.sourceProjectId },
+        },
+      );
+      if (!resolved.ok) continue;
+      const { owner } = resolved;
+      if (owner.source.provider !== first.provider) continue;
+      const target = await tryResolveProvider(ctx, {
+        owner,
+        rateKey: `notes:${args.userId}`,
+      });
+      if (!target) continue;
+
+      for (const ref of refs) {
+        try {
+          await target.adapter.remove(target.cx, {
+            externalId: ref.externalId,
+          });
+        } catch (err) {
+          await normalizeFailure(
+            ctx,
+            err,
+            { owner, provider: target.provider },
+            "delete",
+            "Delete failed",
+          );
+        }
+      }
+    }
+    return null;
+  },
+});
 
 const BASE64_RE = /^[A-Za-z0-9+/_-]+={0,2}$/;
 
@@ -309,13 +463,12 @@ export async function listMediaForUser(
   const key = user.tokenIdentifier;
   await rateLimiter.limit(ctx, "media:list", { key, throws: true });
 
-  const owned = await requireOwnedProject(ctx, user, args.projectId);
-  const provider = resolveProviderName(owned.project, args.provider);
+  const owner = await requireOwnedProject(ctx, user, args.projectId);
+  const provider = ownerProvider(owner, args.provider);
 
   try {
     const resolved = await tryResolveProvider(ctx, {
-      project: owned.project,
-      userId: owned.userId,
+      owner,
       requested: args.provider,
       rateKey: key,
     });
@@ -330,7 +483,7 @@ export async function listMediaForUser(
     throw await normalizeFailure(
       ctx,
       err,
-      { userId: owned.userId, projectId: args.projectId, provider },
+      { owner, provider },
       "list",
       "List failed",
     );
@@ -349,12 +502,11 @@ export const deleteByRef = action({
     const key = user.tokenIdentifier;
     await rateLimiter.limit(ctx, "media:delete", { key, throws: true });
 
-    const owned = await requireOwnedProject(ctx, user, args.projectId);
+    const owner = await requireOwnedProject(ctx, user, args.projectId);
 
     try {
       const { adapter, cx } = await resolveProvider(ctx, {
-        project: owned.project,
-        userId: owned.userId,
+        owner,
         requested: args.provider,
         rateKey: key,
       });
@@ -366,11 +518,7 @@ export const deleteByRef = action({
       throw await normalizeFailure(
         ctx,
         err,
-        {
-          userId: owned.userId,
-          projectId: args.projectId,
-          provider: args.provider,
-        },
+        { owner, provider: args.provider },
         "delete",
         "Delete failed",
       );
@@ -392,14 +540,12 @@ export const deleteByRef = action({
   },
 });
 
+type FailureSite = { owner: MediaOwner; provider: MediaProvider };
+
 async function normalizeFailure(
   ctx: ActionCtx,
   err: unknown,
-  where: {
-    userId: Id<"users">;
-    projectId: Id<"projects">;
-    provider: MediaProvider;
-  },
+  where: FailureSite,
   operation: "upload" | "list" | "delete",
   fallbackMessage: string,
 ): Promise<unknown> {
@@ -407,9 +553,7 @@ async function normalizeFailure(
     const data = err.data as { code?: string; message?: string };
     await logError(
       ctx,
-      where.userId,
-      where.projectId,
-      where.provider,
+      where,
       operation,
       data?.code ?? "UNKNOWN",
       data?.message ?? fallbackMessage,
@@ -419,9 +563,7 @@ async function normalizeFailure(
   }
   await logError(
     ctx,
-    where.userId,
-    where.projectId,
-    where.provider,
+    where,
     operation,
     "UNKNOWN",
     (err as { message?: string })?.message ?? fallbackMessage,
@@ -435,22 +577,21 @@ async function normalizeFailure(
 
 async function logError(
   ctx: ActionCtx,
-  userId: Id<"users">,
-  projectId: Id<"projects">,
-  provider: string,
+  where: FailureSite,
   operation: string,
   errorCode: string,
   errorMessage: string,
   providerError?: string,
 ): Promise<void> {
+  const projectId = ownerProjectId(where.owner);
   try {
     await ctx.runMutation(internal.media.uploadsDb._logError, {
-      projectId,
-      userId,
-      provider,
+      userId: ownerUserId(where.owner),
+      provider: where.provider,
       operation,
       errorCode,
       errorMessage,
+      ...(projectId !== undefined ? { projectId } : {}),
       ...(providerError !== undefined ? { providerError } : {}),
     });
   } catch {}

@@ -3,45 +3,87 @@
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
 import { useAuthedQuery } from "@wryte/logic/hooks/use-authed-query";
+import type { BodySnapshot } from "@wryte/logic/lib/editor/body-sync";
+import type { DocumentEditorTarget } from "@wryte/logic/lib/editor/features";
+import { EDITOR_SESSION_ID } from "@wryte/logic/lib/editor/session";
 import { fadeSlideUp, smoothTransition } from "@wryte/logic/lib/motion";
 import { cn } from "@wryte/logic/lib/utils";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
 import { Button, buttonVariants } from "@wryte/ui/button";
 import { Skeleton } from "@wryte/ui/skeleton";
-import { useMutation, useQuery } from "convex/react";
+import { useConvex, useConvexAuth, useMutation, useQuery } from "convex/react";
 import { motion } from "framer-motion";
 import { ArrowLeft, FileQuestion, LayoutDashboard } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useShallow } from "zustand/react/shallow";
 import { ConflictLockView } from "@/components/editor/conflict-lock-view";
 import { EditorLayout } from "@/features/editor/components/editor-layout";
+import { ExternalChangeBar } from "@/features/editor/components/external-change-bar";
 import { HistoryPanel } from "@/features/editor/components/history-panel";
-import { useAutosave } from "@/features/editor/hooks/use-autosave";
+import {
+  type SaveOptions,
+  useAutosave,
+} from "@/features/editor/hooks/use-autosave";
+import { useBodySync } from "@/features/editor/hooks/use-body-sync";
 import { useSaveShortcut } from "@/features/editor/hooks/use-save-shortcut";
 import { useVersionSnapshots } from "@/features/editor/hooks/use-version-snapshots";
 import { AiSynthesisDialog } from "./components/ai-synthesis-dialog";
 
 export function EditorPage({ documentId }: { documentId: string }) {
-  const document = useAuthedQuery(api.cms.documents.get, {
-    documentId: documentId as Id<"documents">,
-  });
+  return (
+    <ArticleEditor
+      key={documentId}
+      documentId={documentId as Id<"documents">}
+    />
+  );
+}
+
+function ArticleEditor({ documentId }: { documentId: Id<"documents"> }) {
+  const convex = useConvex();
+  const { isAuthenticated } = useConvexAuth();
+  const document = useAuthedQuery(api.cms.documents.getMeta, { documentId });
   const project = useAuthedQuery(
     api.cms.projects.get,
     document ? { projectId: document.projectId } : "skip",
   );
   const openConflict = useQuery(api.cms.conflicts.getOpenByDocument, {
-    documentId: documentId as Id<"documents">,
+    documentId,
   });
 
-  const updateDocument = useMutation(api.cms.documents.update);
   const autosaveBody = useMutation(api.cms.documents.autosaveBody);
   const autosaveDraftContent = useMutation(
     api.cms.documentDrafts.autosaveContent,
   );
   const updateDraftContent = useMutation(api.cms.documentDrafts.updateContent);
+
+  const fetchBody = useCallback(async (): Promise<BodySnapshot | null> => {
+    const body = await convex.query(api.cms.documents.getBody, { documentId });
+    return body && { content: body.content, rev: body.contentRev };
+  }, [convex, documentId]);
+
+  const sync = useBodySync({
+    targetId: documentId,
+    meta:
+      document === undefined
+        ? undefined
+        : document && {
+            rev: document.contentRev ?? 0,
+            ...(document.contentWriter !== undefined
+              ? { writer: document.contentWriter }
+              : {}),
+          },
+    fetchBody,
+    enabled: isAuthenticated,
+  });
+
+  const projectId = document?.projectId;
+  const target = useMemo<DocumentEditorTarget | null>(
+    () => (projectId ? { kind: "document", documentId, projectId } : null),
+    [documentId, projectId],
+  );
 
   const {
     content,
@@ -49,6 +91,7 @@ export function EditorPage({ documentId }: { documentId: string }) {
     isDirty,
     activeDraftId,
     initDocument,
+    syncTitle,
     reset,
     setActiveDraftId,
   } = useEditorStore(
@@ -58,113 +101,130 @@ export function EditorPage({ documentId }: { documentId: string }) {
       isDirty: state.isDirty,
       activeDraftId: state.activeDraftId,
       initDocument: state.initDocument,
+      syncTitle: state.syncTitle,
       reset: state.reset,
       setActiveDraftId: state.setActiveDraftId,
     })),
   );
 
-  const hasInitialized = useRef(false);
-  const initializedDocId = useRef<string | null>(null);
+  const bodyApplied = useEditorStore(
+    (state) =>
+      state.target?.kind === "document" &&
+      state.target.documentId === documentId,
+  );
+  const titleRef = useRef(document?.title ?? "");
+  useEffect(() => {
+    if (document) titleRef.current = document.title;
+  }, [document]);
 
   useEffect(() => {
-    if (
-      document &&
-      (!hasInitialized.current || initializedDocId.current !== documentId)
-    ) {
-      hasInitialized.current = true;
-      initializedDocId.current = documentId;
-      initDocument(
-        document.title,
-        document.content,
-        document.projectId as string,
-      );
-      setActiveDraftId(null);
-    }
-  }, [document, documentId, initDocument, setActiveDraftId]);
+    if (bodyApplied || !target || !document || !sync.body) return;
+    initDocument(document.title, sync.body.content, target);
+    setActiveDraftId(null);
+  }, [
+    bodyApplied,
+    target,
+    document,
+    sync.body,
+    initDocument,
+    setActiveDraftId,
+  ]);
 
   useEffect(() => {
     return () => {
       reset();
-      hasInitialized.current = false;
-      initializedDocId.current = null;
     };
   }, [reset]);
 
-  useEffect(() => {
-    if (
-      document &&
-      hasInitialized.current &&
-      !isDirty &&
-      activeDraftId === null
-    ) {
-      if (document.content !== content || document.title !== title) {
-        initDocument(
-          document.title,
-          document.content,
-          document.projectId as string,
-        );
+  const applyMain = useCallback(
+    (body: BodySnapshot, force: boolean): boolean => {
+      if (!target) return false;
+      const state = useEditorStore.getState();
+      if (state.activeDraftId !== null) return false;
+      if (!force && state.isDirty) return false;
+      const nextTitle = titleRef.current;
+      if (
+        state.isDirty ||
+        state.content !== body.content ||
+        state.title !== nextTitle
+      ) {
+        initDocument(nextTitle, body.content, target);
       }
+      return true;
+    },
+    [initDocument, target],
+  );
+
+  const { externalChange, reload } = sync;
+  useEffect(() => {
+    if (!bodyApplied || !externalChange || isDirty || activeDraftId !== null) {
+      return;
     }
-  }, [document, isDirty, content, title, initDocument, activeDraftId]);
+    reload((body) => applyMain(body, false)).catch((error: unknown) => {
+      console.error("[Editor] Failed to reload changed body:", error);
+    });
+  }, [bodyApplied, externalChange, isDirty, activeDraftId, reload, applyMain]);
 
-  const saveDocumentBody = useCallback(
-    async (c: string, t: string) => {
-      await autosaveBody({
-        documentId: documentId as Id<"documents">,
-        content: c,
-        title: t,
-      });
-    },
-    [documentId, autosaveBody],
-  );
+  useEffect(() => {
+    if (!bodyApplied || !document || isDirty || activeDraftId !== null) return;
+    if (document.title !== title) syncTitle(document.title);
+  }, [bodyApplied, document, isDirty, activeDraftId, title, syncTitle]);
 
-  const saveDocumentFull = useCallback(
-    async (c: string, t: string) => {
-      await updateDocument({
-        documentId: documentId as Id<"documents">,
-        content: c,
-        title: t,
-      });
-    },
-    [documentId, updateDocument],
-  );
+  const loadMain = useCallback(async () => {
+    const body = await reload(() => true);
+    return body && { title: titleRef.current, content: body.content };
+  }, [reload]);
 
-  const saveDraftBody = useCallback(
-    async (c: string, t: string) => {
-      if (!activeDraftId) return;
-      await autosaveDraftContent({
+  const [dismissedRev, setDismissedRev] = useState<number | null>(null);
+  const metaRev = document?.contentRev ?? 0;
+  const showExternalChange =
+    bodyApplied &&
+    externalChange &&
+    isDirty &&
+    activeDraftId === null &&
+    dismissedRev !== metaRev;
+
+  const handleExternalReload = useCallback(() => {
+    reload((body) => applyMain(body, true)).catch(() => {
+      toast.error("Couldn't reload the article. Try again.");
+    });
+  }, [reload, applyMain]);
+
+  const onSave = useCallback(
+    async (c: string, t: string, { flush, contentChanged }: SaveOptions) => {
+      if (activeDraftId === null) {
+        await autosaveBody({
+          documentId,
+          ...(flush && !contentChanged ? {} : { content: c }),
+          title: t,
+          writer: EDITOR_SESSION_ID,
+          ...(flush ? { flush: true } : {}),
+        });
+        return;
+      }
+      const args = {
         draftId: activeDraftId as Id<"document_drafts">,
         content: c,
         title: t,
-      });
+      };
+      await (flush ? updateDraftContent(args) : autosaveDraftContent(args));
     },
-    [activeDraftId, autosaveDraftContent],
+    [
+      activeDraftId,
+      autosaveBody,
+      autosaveDraftContent,
+      documentId,
+      updateDraftContent,
+    ],
   );
-
-  const saveDraftFull = useCallback(
-    async (c: string, t: string) => {
-      if (!activeDraftId) return;
-      await updateDraftContent({
-        draftId: activeDraftId as Id<"document_drafts">,
-        content: c,
-        title: t,
-      });
-    },
-    [activeDraftId, updateDraftContent],
-  );
-
-  const targetId = activeDraftId ?? documentId;
-  const onSave = activeDraftId ? saveDraftBody : saveDocumentBody;
-  const onFlush = activeDraftId ? saveDraftFull : saveDocumentFull;
 
   const autoSaveEnabled =
-    (project?.autoSaveEnabled ?? true) && openConflict == null;
+    bodyApplied && (project?.autoSaveEnabled ?? true) && openConflict == null;
   const { saveNow } = useAutosave({
-    targetId,
+    targetId: activeDraftId ?? documentId,
     content,
     title,
     onSave,
-    onFlush,
     enabled: autoSaveEnabled,
   });
 
@@ -176,7 +236,7 @@ export function EditorPage({ documentId }: { documentId: string }) {
 
   const { snapshotNow } = useVersionSnapshots({
     documentId,
-    enabled: document != null && openConflict == null,
+    enabled: bodyApplied && openConflict == null,
   });
 
   const handleManualSave = useCallback(() => {
@@ -209,24 +269,12 @@ export function EditorPage({ documentId }: { documentId: string }) {
   const toggleHistoryPanel = useEditorStore((s) => s.toggleHistoryPanel);
   const [synthesisOpen, setSynthesisOpen] = useState(false);
 
-  if (document === undefined || project === undefined) {
-    return (
-      <div className="flex h-full flex-col gap-4 p-6">
-        <div className="flex items-center gap-2">
-          <Skeleton className="h-8 w-64" />
-          <div className="ml-auto flex gap-2">
-            <Skeleton className="h-8 w-20" />
-            <Skeleton className="h-8 w-20" />
-          </div>
-        </div>
-        <Skeleton className="h-10 w-full" />
-        <Skeleton className="flex-1 w-full" />
-      </div>
-    );
+  if (document === null || project === null || sync.body === null) {
+    return <DocumentNotFound />;
   }
 
-  if (document === null || project === null) {
-    return <DocumentNotFound />;
+  if (document === undefined || project === undefined || !target) {
+    return <EditorSkeleton />;
   }
 
   if (openConflict) {
@@ -240,15 +288,26 @@ export function EditorPage({ documentId }: { documentId: string }) {
     );
   }
 
+  if (!bodyApplied) {
+    return <EditorSkeleton />;
+  }
+
   return (
-    <div className="relative h-full overflow-hidden">
-      <EditorLayout
-        documentId={documentId}
-        projectId={document.projectId as string}
-        mainDocument={{ title: document.title, content: document.content }}
-        onRequestSave={handleRequestSave}
-        onSynthesisOpen={() => setSynthesisOpen(true)}
-      />
+    <div className="relative flex h-full flex-col overflow-hidden">
+      {showExternalChange && (
+        <ExternalChangeBar
+          onReload={handleExternalReload}
+          onDismiss={() => setDismissedRev(metaRev)}
+        />
+      )}
+      <div className="min-h-0 flex-1">
+        <EditorLayout
+          target={target}
+          loadMain={loadMain}
+          onRequestSave={handleRequestSave}
+          onSynthesisOpen={() => setSynthesisOpen(true)}
+        />
+      </div>
       <HistoryPanel
         documentId={documentId}
         open={historyPanelOpen}
@@ -257,10 +316,25 @@ export function EditorPage({ documentId }: { documentId: string }) {
       <AiSynthesisDialog
         open={synthesisOpen}
         onOpenChange={setSynthesisOpen}
-        documentId={documentId}
-        projectId={document.projectId as string}
+        target={target}
         onRequestSave={handleRequestSave}
       />
+    </div>
+  );
+}
+
+function EditorSkeleton() {
+  return (
+    <div className="flex h-full flex-col gap-4 p-6">
+      <div className="flex items-center gap-2">
+        <Skeleton className="h-8 w-64" />
+        <div className="ml-auto flex gap-2">
+          <Skeleton className="h-8 w-20" />
+          <Skeleton className="h-8 w-20" />
+        </div>
+      </div>
+      <Skeleton className="h-10 w-full" />
+      <Skeleton className="flex-1 w-full" />
     </div>
   );
 }

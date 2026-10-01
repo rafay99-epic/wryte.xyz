@@ -2,6 +2,7 @@
 
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
+import type { DocumentEditorTarget } from "@wryte/logic/lib/editor/features";
 import { cn } from "@wryte/logic/lib/utils";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
 import {
@@ -29,24 +30,26 @@ import { useShallow } from "zustand/react/shallow";
 import {
   MAIN_TAB,
   useDraftSwitching,
+  type VersionContent,
 } from "@/features/editor/hooks/use-draft-switching";
 import { DraftCompareSheet } from "./draft-compare-sheet";
 
+export type MainVersionLoader = () => Promise<VersionContent | null>;
+
 type DraftTabBarProps = {
-  documentId: string;
-  projectId: string;
-  mainDocument: { title: string; content: string } | null | undefined;
+  target: DocumentEditorTarget;
+  loadMain: MainVersionLoader;
   onRequestSave: () => Promise<void>;
   onSynthesisOpen: () => void;
 };
 
 export function DraftTabBar({
-  documentId,
-  projectId,
-  mainDocument,
+  target,
+  loadMain,
   onRequestSave,
   onSynthesisOpen,
 }: DraftTabBarProps) {
+  const { documentId } = target;
   const { activeDraftId, switchTarget } = useEditorStore(
     useShallow((s) => ({
       activeDraftId: s.activeDraftId,
@@ -54,9 +57,7 @@ export function DraftTabBar({
     })),
   );
 
-  const drafts = useQuery(api.cms.documentDrafts.list, {
-    documentId: documentId as Id<"documents">,
-  });
+  const drafts = useQuery(api.cms.documentDrafts.list, { documentId });
   const createDraft = useMutation(api.cms.documentDrafts.create);
   const removeDraft = useMutation(api.cms.documentDrafts.remove);
   const promoteDraft = useMutation(api.cms.documentDrafts.promoteToMain);
@@ -72,8 +73,8 @@ export function DraftTabBar({
 
   const { switchToDraft, evictDraft, seedDraft, applyPromotedMain } =
     useDraftSwitching({
-      projectId,
-      document: mainDocument,
+      target,
+      loadMain,
       drafts,
       onRequestSave,
     });
@@ -101,10 +102,7 @@ export function DraftTabBar({
 
   const handleNewDraft = useCallback(async () => {
     try {
-      const id = await createDraft({
-        documentId: documentId as Id<"documents">,
-        copyFromMain: false,
-      });
+      const id = await createDraft({ documentId, copyFromMain: false });
       seedDraft(id, { title: "", content: "" }, true);
       await switchToDraft(id);
       toast.success("New draft created");
@@ -117,16 +115,10 @@ export function DraftTabBar({
 
   const handleNewDraftFromMain = useCallback(async () => {
     try {
-      const id = await createDraft({
-        documentId: documentId as Id<"documents">,
-        copyFromMain: true,
-      });
-      if (mainDocument) {
-        seedDraft(
-          id,
-          { title: mainDocument.title, content: mainDocument.content },
-          false,
-        );
+      const main = useEditorStore.getState();
+      const id = await createDraft({ documentId, copyFromMain: true });
+      if (main.activeDraftId === null && !main.isDirty) {
+        seedDraft(id, { title: main.title, content: main.content }, false);
       }
       await switchToDraft(id);
       toast.success("Draft created from current content");
@@ -135,7 +127,7 @@ export function DraftTabBar({
         error instanceof Error ? error.message : "Failed to create draft",
       );
     }
-  }, [createDraft, documentId, switchToDraft, seedDraft, mainDocument]);
+  }, [createDraft, documentId, switchToDraft, seedDraft]);
 
   const handleDelete = useCallback(
     async (draftId: string) => {
@@ -373,7 +365,7 @@ export function DraftTabBar({
         onOpenChange={(open) => {
           if (!open) setCompareDraftId(null);
         }}
-        documentId={documentId as Id<"documents">}
+        documentId={documentId}
         drafts={drafts ?? []}
         initialDraftId={compareDraftId}
         onPromote={handlePromote}

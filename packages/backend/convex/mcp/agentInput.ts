@@ -1,11 +1,18 @@
 import type { Doc, Id } from "../_generated/dataModel";
 import type { QueryCtx } from "../_generated/server";
+import {
+  assertDueDate,
+  MAX_NOTE_BYTES,
+  MAX_NOTE_LINKS,
+} from "../cms/notes/_lib/model";
 import { frontmatterContract } from "./frontmatterSchema";
 
 const MAX_TITLE = 200;
 const MAX_SLUG = 120;
 const MAX_TAGS = 20;
 const MAX_TAG = 60;
+const MAX_QUERY = 200;
+export const DEFAULT_NOTE_CHARS = 20_000;
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 export function agentTitle(raw: string): string {
@@ -95,4 +102,39 @@ export function agentFrontmatter(
     );
   }
   return JSON.stringify(parsed);
+}
+
+export function agentQueryText(raw: string): string {
+  const query = raw.trim();
+  if (!query) throw new Error("Query is required.");
+  if (query.length > MAX_QUERY) {
+    throw new Error(`Query must be ${String(MAX_QUERY)} characters or fewer.`);
+  }
+  return query;
+}
+
+export function agentDate(raw: string): string {
+  const date = raw.trim();
+  assertDueDate(date);
+  return date;
+}
+
+export function agentDocumentIds<T extends string>(raw: T[]): T[] {
+  const ids = [...new Set(raw)];
+  if (ids.length > MAX_NOTE_LINKS) {
+    throw new Error(
+      `A note can link to at most ${String(MAX_NOTE_LINKS)} posts.`,
+    );
+  }
+  return ids;
+}
+
+export function agentMaxChars(raw: number | undefined): number {
+  if (raw === undefined) return DEFAULT_NOTE_CHARS;
+  if (!Number.isInteger(raw) || raw < 1 || raw > MAX_NOTE_BYTES) {
+    throw new Error(
+      `maxChars must be a whole number from 1 to ${String(MAX_NOTE_BYTES)}.`,
+    );
+  }
+  return raw;
 }

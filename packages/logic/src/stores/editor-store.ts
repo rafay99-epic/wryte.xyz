@@ -1,3 +1,8 @@
+import { targetProjectId } from "@wryte/logic/lib/editor/features";
+import {
+  type EditorTarget,
+  editorTargetId,
+} from "@wryte/logic/lib/editor/target";
 import { countWords } from "@wryte/logic/lib/word-count";
 import { create } from "zustand";
 
@@ -17,6 +22,7 @@ type EditorState = {
   viewMode: ViewMode;
   sidebarOpen: boolean;
   activeProjectId: string | null;
+  target: EditorTarget | null;
   focusMode: boolean;
   historyPanelOpen: boolean;
   _preFocusSidebarOpen: boolean | null;
@@ -44,7 +50,8 @@ type EditorState = {
 
   setContent: (content: string) => void;
   setTitle: (title: string) => void;
-  initDocument: (title: string, content: string, projectId: string) => void;
+  initDocument: (title: string, content: string, target: EditorTarget) => void;
+  syncTitle: (title: string) => void;
   markSaved: () => void;
   setSaving: (isSaving: boolean) => void;
   setViewMode: (viewMode: ViewMode) => void;
@@ -81,6 +88,19 @@ const sprintIdleState = {
   sprintEndReason: null as SprintEndReason | null,
 };
 
+const targetScopedState = {
+  historyPanelOpen: false,
+  activeDraftId: null as string | null,
+  switchTarget: null as string | null,
+  researchPanelOpen: false,
+  readabilityPanelOpen: false,
+  findReplaceOpen: false,
+  imageDialogOpen: false,
+  videoDialogOpen: false,
+  embedDialogOpen: false,
+  animationDialogOpen: false,
+};
+
 const initialState = {
   content: "",
   title: "",
@@ -91,22 +111,14 @@ const initialState = {
   viewMode: "edit" as const,
   sidebarOpen: true,
   activeProjectId: null as string | null,
+  target: null as EditorTarget | null,
   focusMode: false,
-  historyPanelOpen: false,
   _preFocusSidebarOpen: null as boolean | null,
-  activeDraftId: null as string | null,
-  switchTarget: null as string | null,
   pendingCaret: null as number | null,
-  researchPanelOpen: false,
-  readabilityPanelOpen: false,
   outlinePanelOpen: false,
-  findReplaceOpen: false,
-  imageDialogOpen: false,
-  videoDialogOpen: false,
-  embedDialogOpen: false,
-  animationDialogOpen: false,
   sessionStartWords: 0,
   sessionStartedAt: 0,
+  ...targetScopedState,
   ...sprintIdleState,
 };
 
@@ -117,12 +129,17 @@ export const useEditorStore = create<EditorState>()((set) => ({
 
   setTitle: (title) => set({ title, isDirty: true }),
 
-  initDocument: (title, content, projectId) =>
+  initDocument: (title, content, target) =>
     set((state) => ({
+      ...(state.target !== null &&
+      editorTargetId(state.target) !== editorTargetId(target)
+        ? targetScopedState
+        : {}),
       title,
       content,
       contentEpoch: state.contentEpoch + 1,
-      activeProjectId: projectId,
+      activeProjectId: targetProjectId(target),
+      target,
       isDirty: false,
       isSaving: false,
       lastSavedAt: null,
@@ -131,6 +148,8 @@ export const useEditorStore = create<EditorState>()((set) => ({
       pendingCaret: null,
       ...sprintIdleState,
     })),
+
+  syncTitle: (title) => set({ title }),
 
   markSaved: () =>
     set({

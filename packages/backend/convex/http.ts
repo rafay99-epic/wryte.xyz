@@ -32,7 +32,8 @@ const INSTRUCTIONS = [
   "4. Animations: wryte_animations_upsert. Fix every error it returns, then embed as <Name /> on its own line.",
   "5. Images go to the project's own media provider. File on disk: wryte_media_upload_url, then curl the file to it. Web image: wryte_media_upload with sourceUrl. Paste the returned markdown into the draft.",
   '6. Draft: wryte_drafts_snapshot, labelled "<model> · <harness>". Revise it with wryte_drafts_update.',
-  "7. On a rate limit, wait for retryAfter and retry.",
+  '7. Notes are the user\'s private notebook, never published. Unlike posts, wryte_notes_* tools write directly: prefer wryte_notes_append over replacing content, and log sessions to the "Work log" group. Only make a public link with wryte_notes_share when the user asks for one.',
+  '8. On "Rate limited: retry in N s", wait N seconds and retry the same call.',
 ].join("\n");
 
 const MCP_PATH = "/mcp";

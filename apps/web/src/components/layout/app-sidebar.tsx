@@ -21,6 +21,7 @@ import {
   Layers,
   LayoutDashboard,
   Lightbulb,
+  NotebookPen,
   Plus,
   Settings,
   Star,
@@ -115,6 +116,7 @@ export function AppSidebar() {
                   icon={CalendarDays}
                   label="Calendar"
                 />
+                <NavLink href="/notes" icon={NotebookPen} label="Notes" />
                 <NavLink href="/settings" icon={Settings} label="Settings" />
               </div>
 

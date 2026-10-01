@@ -148,6 +148,18 @@ export async function purgeDocumentArtifacts(
   }
 
   if (budget > 0) {
+    const rows = await ctx.db
+      .query("note_links")
+      .withIndex("by_documentId", (q) => q.eq("documentId", documentId))
+      .take(budget);
+    for (const row of rows) {
+      await ctx.db.delete(row._id);
+      budget--;
+      deleted++;
+    }
+  }
+
+  if (budget > 0) {
     const { deleted: linksDeleted } = await drainDocumentLinksForDoc(
       ctx,
       documentId,
@@ -208,6 +220,10 @@ async function hasRemainingArtifacts(
       .take(1),
     ctx.db
       .query("scheduled_publishes")
+      .withIndex("by_documentId", (q) => q.eq("documentId", documentId))
+      .take(1),
+    ctx.db
+      .query("note_links")
       .withIndex("by_documentId", (q) => q.eq("documentId", documentId))
       .take(1),
   ]);

@@ -38,7 +38,7 @@ export async function scheduleWordActivity(
   ctx: { scheduler: MutationCtx["scheduler"] },
   args: {
     userId: Id<"users">;
-    projectId: Id<"projects">;
+    projectId?: Id<"projects">;
     wordCountDelta: number;
   },
 ): Promise<void> {

@@ -752,6 +752,15 @@ export async function wipeProjectRows(
         await ctx.db.delete(row._id);
         budget--;
       }
+      if (budget <= 0) break;
+      const links = await ctx.db
+        .query("note_links")
+        .withIndex("by_documentId", (q) => q.eq("documentId", doc._id))
+        .take(budget);
+      for (const link of links) {
+        await ctx.db.delete(link._id);
+        budget--;
+      }
     }
   }
 

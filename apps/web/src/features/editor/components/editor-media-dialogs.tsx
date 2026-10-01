@@ -1,5 +1,6 @@
 "use client";
 
+import type { EditorTarget } from "@wryte/logic/lib/editor/target";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
 import { AnimationInsertDialog } from "./animation-insert-dialog";
 import { useEditorContext } from "./editor-context";
@@ -7,13 +8,7 @@ import { EmbedInsertDialog } from "./embed-insert-dialog";
 import { ImageInsertDialog } from "./image-insert-dialog";
 import { VideoInsertDialog } from "./video-insert-dialog";
 
-export function EditorMediaDialogs({
-  documentId,
-  projectId,
-}: {
-  documentId: string;
-  projectId: string;
-}) {
+export function EditorMediaDialogs({ target }: { target: EditorTarget }) {
   const { insertAtCursor } = useEditorContext();
   const imageDialogOpen = useEditorStore((s) => s.imageDialogOpen);
   const setImageDialogOpen = useEditorStore((s) => s.setImageDialogOpen);
@@ -32,26 +27,29 @@ export function EditorMediaDialogs({
         open={imageDialogOpen}
         onOpenChange={setImageDialogOpen}
         onInsert={insertAtCursor}
-        documentId={documentId}
-        projectId={projectId}
+        target={target}
       />
-      <VideoInsertDialog
-        open={videoDialogOpen}
-        onOpenChange={setVideoDialogOpen}
-        onInsert={insertAtCursor}
-        documentId={documentId}
-        projectId={projectId}
-      />
+      {target.kind === "document" && (
+        <>
+          <VideoInsertDialog
+            open={videoDialogOpen}
+            onOpenChange={setVideoDialogOpen}
+            onInsert={insertAtCursor}
+            documentId={target.documentId}
+            projectId={target.projectId}
+          />
+          <AnimationInsertDialog
+            open={animationDialogOpen}
+            onOpenChange={setAnimationDialogOpen}
+            onInsert={insertAtCursor}
+            projectId={target.projectId}
+          />
+        </>
+      )}
       <EmbedInsertDialog
         open={embedDialogOpen}
         onOpenChange={setEmbedDialogOpen}
         onInsert={insertAtCursor}
-      />
-      <AnimationInsertDialog
-        open={animationDialogOpen}
-        onOpenChange={setAnimationDialogOpen}
-        onInsert={insertAtCursor}
-        projectId={projectId}
       />
     </>
   );

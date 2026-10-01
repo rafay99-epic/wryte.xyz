@@ -1,7 +1,11 @@
 "use client";
 
 import { api } from "@wryte/backend/_generated/api";
-import type { Id } from "@wryte/backend/_generated/dataModel";
+import {
+  type EditorFeatures,
+  targetProjectId,
+} from "@wryte/logic/lib/editor/features";
+import type { EditorTarget } from "@wryte/logic/lib/editor/target";
 import { cn } from "@wryte/logic/lib/utils";
 import { countWords } from "@wryte/logic/lib/word-count";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
@@ -51,19 +55,20 @@ import {
   Undo2,
   Video,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { AiEnhanceButton } from "./ai-enhance-button";
 import { useEditorContext } from "./editor-context";
 import { SprintControl } from "./sprint-control";
 
 type EditorToolbarProps = {
-  projectId: string;
-  readabilityEnabled?: boolean;
-  animationsEnabled?: boolean;
+  target: EditorTarget;
+  features: EditorFeatures;
 };
 
 type ViewMode = "edit" | "split" | "preview";
+
+const WORD_COUNT_THROTTLE_MS = 250;
 
 const VIEW_MODES: { value: ViewMode; label: string }[] = [
   { value: "edit", label: "Write" },
@@ -71,15 +76,12 @@ const VIEW_MODES: { value: ViewMode; label: string }[] = [
   { value: "preview", label: "Read" },
 ];
 
-export function EditorToolbar({
-  projectId,
-  readabilityEnabled = false,
-  animationsEnabled = false,
-}: EditorToolbarProps) {
+export function EditorToolbar({ target, features }: EditorToolbarProps) {
+  const projectId = targetProjectId(target);
+  const isDocument = target.kind === "document";
   const {
     viewMode,
     setViewMode,
-    content,
     researchPanelOpen,
     toggleResearchPanel,
     readabilityPanelOpen,
@@ -95,7 +97,6 @@ export function EditorToolbar({
     useShallow((state) => ({
       viewMode: state.viewMode,
       setViewMode: state.setViewMode,
-      content: state.content,
       researchPanelOpen: state.researchPanelOpen,
       toggleResearchPanel: state.toggleResearchPanel,
       readabilityPanelOpen: state.readabilityPanelOpen,
@@ -113,27 +114,15 @@ export function EditorToolbar({
 
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
 
-  const aiReadiness = useQuery(api.ai.enhance.isAiReady, {
-    projectId: projectId as Id<"projects">,
-  });
+  const aiReadiness = useQuery(
+    api.ai.enhance.isAiReady,
+    projectId ? { projectId } : "skip",
+  );
   const aiReady = aiReadiness?.ready ?? false;
-
-  const writingStats = useQuery(api.analytics.writingStats.getEditorStats, {});
-  const sessionStartWords = useEditorStore((s) => s.sessionStartWords);
-
-  const stats = useMemo(() => {
-    const words = countWords(content);
-    if (words === 0) return { words: 0, readTime: 0 };
-    return {
-      words,
-      readTime: Math.max(1, Math.ceil(words / 238)),
-    };
-  }, [content]);
-  const sessionWords = Math.max(0, stats.words - sessionStartWords);
 
   return (
     <TooltipProvider>
-      <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border/40 bg-background px-3 py-1.5">
+      <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-y-1 border-b border-border/40 bg-background px-3 py-1.5">
         <div className="flex items-center gap-0.5">
           <ToolbarButton
             icon={Undo2}
@@ -243,15 +232,17 @@ export function EditorToolbar({
                 <ImagePlus className="size-4 mr-2" />
                 <span>Image…</span>
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setVideoDialogOpen(true)}>
-                <Video className="size-4 mr-2" />
-                <span>Video…</span>
-              </DropdownMenuItem>
+              {isDocument && (
+                <DropdownMenuItem onClick={() => setVideoDialogOpen(true)}>
+                  <Video className="size-4 mr-2" />
+                  <span>Video…</span>
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem onClick={() => setEmbedDialogOpen(true)}>
                 <MessageCircle className="size-4 mr-2" />
                 <span>Post embed…</span>
               </DropdownMenuItem>
-              {animationsEnabled && (
+              {features.animations && (
                 <DropdownMenuItem onClick={() => setAnimationDialogOpen(true)}>
                   <Clapperboard className="size-4 mr-2" />
                   <span>Animation…</span>
@@ -299,44 +290,7 @@ export function EditorToolbar({
         </div>
 
         <div className="flex items-center gap-2">
-          <AnimatePresence mode="wait">
-            {stats.words > 0 && (
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <motion.span
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      className="hidden cursor-default text-[11px] tabular-nums text-muted-foreground/60 lg:inline"
-                    />
-                  }
-                >
-                  {stats.words.toLocaleString()} words
-                  {sessionWords > 0 && (
-                    <span className="ml-1 font-medium text-emerald-600/80">
-                      +{sessionWords.toLocaleString()}
-                    </span>
-                  )}
-                </TooltipTrigger>
-                <TooltipContent side="bottom" className="text-xs">
-                  <span className="tabular-nums">
-                    {sessionWords.toLocaleString()} words this session
-                    {writingStats && (
-                      <>
-                        {" · "}
-                        {writingStats.wordsToday.toLocaleString()} today
-                        {writingStats.dailyWordGoal !== null &&
-                          ` / ${writingStats.dailyWordGoal.toLocaleString()} goal`}
-                        {writingStats.currentStreak > 0 &&
-                          ` · ${writingStats.currentStreak}-day streak`}
-                      </>
-                    )}
-                  </span>
-                </TooltipContent>
-              </Tooltip>
-            )}
-          </AnimatePresence>
+          <WordStats />
 
           <SprintControl />
 
@@ -374,7 +328,7 @@ export function EditorToolbar({
               active={outlinePanelOpen}
               onClick={toggleOutlinePanel}
             />
-            {readabilityEnabled && (
+            {features.readability && (
               <PanelToggle
                 icon={Gauge}
                 tooltip="Readability"
@@ -382,12 +336,14 @@ export function EditorToolbar({
                 onClick={toggleReadabilityPanel}
               />
             )}
-            <PanelToggle
-              icon={ScrollText}
-              tooltip="Research"
-              active={researchPanelOpen}
-              onClick={toggleResearchPanel}
-            />
+            {isDocument && (
+              <PanelToggle
+                icon={ScrollText}
+                tooltip="Research"
+                active={researchPanelOpen}
+                onClick={toggleResearchPanel}
+              />
+            )}
           </div>
 
           {aiReady && (
@@ -404,7 +360,7 @@ export function EditorToolbar({
         </div>
       </div>
 
-      {aiReady && (
+      {aiReady && projectId && (
         <AiEnhanceButton
           open={aiDialogOpen}
           onOpenChange={setAiDialogOpen}
@@ -412,6 +368,76 @@ export function EditorToolbar({
         />
       )}
     </TooltipProvider>
+  );
+}
+
+function useThrottledWordCount(): number {
+  const [words, setWords] = useState(0);
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const update = () => {
+      timer = null;
+      setWords(countWords(useEditorStore.getState().content));
+    };
+    timer = setTimeout(update, 0);
+    const unsubscribe = useEditorStore.subscribe((state, prev) => {
+      if (state.content !== prev.content && timer === null) {
+        timer = setTimeout(update, WORD_COUNT_THROTTLE_MS);
+      }
+    });
+    return () => {
+      unsubscribe();
+      if (timer !== null) clearTimeout(timer);
+    };
+  }, []);
+  return words;
+}
+
+function WordStats() {
+  const words = useThrottledWordCount();
+  const writingStats = useQuery(api.analytics.writingStats.getEditorStats, {});
+  const sessionStartWords = useEditorStore((s) => s.sessionStartWords);
+  const sessionWords = Math.max(0, words - sessionStartWords);
+
+  return (
+    <AnimatePresence mode="wait">
+      {words > 0 && (
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <motion.span
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="hidden cursor-default text-[11px] tabular-nums text-muted-foreground/60 lg:inline"
+              />
+            }
+          >
+            {words.toLocaleString()} words
+            {sessionWords > 0 && (
+              <span className="ml-1 font-medium text-emerald-600/80">
+                +{sessionWords.toLocaleString()}
+              </span>
+            )}
+          </TooltipTrigger>
+          <TooltipContent side="bottom" className="text-xs">
+            <span className="tabular-nums">
+              {sessionWords.toLocaleString()} words this session
+              {writingStats && (
+                <>
+                  {" · "}
+                  {writingStats.wordsToday.toLocaleString()} today
+                  {writingStats.dailyWordGoal !== null &&
+                    ` / ${writingStats.dailyWordGoal.toLocaleString()} goal`}
+                  {writingStats.currentStreak > 0 &&
+                    ` · ${writingStats.currentStreak}-day streak`}
+                </>
+              )}
+            </span>
+          </TooltipContent>
+        </Tooltip>
+      )}
+    </AnimatePresence>
   );
 }
 

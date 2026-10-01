@@ -11,6 +11,10 @@ import {
 } from "../_generated/server";
 import { getAuthedUserOrNull } from "../_lib/auth";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
+import { NOTE_PURGE_BATCH, wipeNoteRows } from "../cms/notes/_lib/purge";
+
+const NOTE_WIPE_BATCH = NOTE_PURGE_BATCH;
+
 import { listProjectVaultIds, wipeProjectRows } from "../cms/projects";
 import { publishWorkflowManager } from "../integrations/scheduling";
 
@@ -262,6 +266,16 @@ export const _listVaultIds = internalQuery({
       for (const c of rows) {
         if (c.vaultSecretId) ids.add(c.vaultSecretId);
       }
+    }
+
+    const userLevelMediaCreds = await ctx.db
+      .query("mediaCredentials")
+      .withIndex("by_userId_and_projectId_and_provider", (q) =>
+        q.eq("userId", args.userId).eq("projectId", undefined),
+      )
+      .take(50);
+    for (const c of userLevelMediaCreds) {
+      if (c.vaultSecretId) ids.add(c.vaultSecretId);
     }
 
     const projects = await ctx.db
@@ -561,6 +575,67 @@ export const _wipeChunk = internalMutation({
 
     if (budget > 0) {
       const rows = await ctx.db
+        .query("note_shares")
+        .withIndex("by_userId_and_createdAt", (q) =>
+          q.eq("userId", args.userId),
+        )
+        .take(budget);
+      for (const row of rows) {
+        await ctx.db.delete(row._id);
+        budget--;
+      }
+    }
+
+    if (budget > 0) {
+      const notes = await ctx.db
+        .query("notes")
+        .withIndex("by_userId_and_trashedAt_and_updatedAt", (q) =>
+          q.eq("userId", args.userId),
+        )
+        .take(Math.min(budget, NOTE_WIPE_BATCH));
+      for (const note of notes) {
+        if (budget <= 0) break;
+        budget = await wipeNoteRows(ctx, note._id, budget);
+      }
+    }
+
+    if (budget > 0) {
+      const rows = await ctx.db
+        .query("note_groups")
+        .withIndex("by_userId_and_sortOrder", (q) =>
+          q.eq("userId", args.userId),
+        )
+        .take(budget);
+      for (const row of rows) {
+        await ctx.db.delete(row._id);
+        budget--;
+      }
+    }
+
+    if (budget > 0) {
+      const rows = await ctx.db
+        .query("note_stats")
+        .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+        .take(budget);
+      for (const row of rows) {
+        await ctx.db.delete(row._id);
+        budget--;
+      }
+    }
+
+    if (budget > 0) {
+      const rows = await ctx.db
+        .query("note_settings")
+        .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+        .take(budget);
+      for (const row of rows) {
+        await ctx.db.delete(row._id);
+        budget--;
+      }
+    }
+
+    if (budget > 0) {
+      const rows = await ctx.db
         .query("documents")
         .withIndex("by_userId", (q) => q.eq("userId", args.userId))
         .take(budget);
@@ -674,6 +749,28 @@ async function countRemaining(
       .take(1),
     ctx.db
       .query("writing_stats")
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
+      .take(1),
+    ctx.db
+      .query("notes")
+      .withIndex("by_userId_and_trashedAt_and_updatedAt", (q) =>
+        q.eq("userId", userId),
+      )
+      .take(1),
+    ctx.db
+      .query("note_groups")
+      .withIndex("by_userId_and_sortOrder", (q) => q.eq("userId", userId))
+      .take(1),
+    ctx.db
+      .query("note_shares")
+      .withIndex("by_userId_and_createdAt", (q) => q.eq("userId", userId))
+      .take(1),
+    ctx.db
+      .query("note_stats")
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
+      .take(1),
+    ctx.db
+      .query("note_settings")
       .withIndex("by_userId", (q) => q.eq("userId", userId))
       .take(1),
   ]);

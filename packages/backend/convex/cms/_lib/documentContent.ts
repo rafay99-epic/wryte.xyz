@@ -1,4 +1,4 @@
-import type { Id } from "../../_generated/dataModel";
+import type { Doc, Id } from "../../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../../_generated/server";
 
 const EXCERPT_LENGTH = 200;
@@ -34,6 +34,23 @@ export function extractSnippet(content: string, term: string): string {
   return `${start > 0 ? "…" : ""}${body}${end < content.length ? "…" : ""}`;
 }
 
+export async function loadContentRow(
+  ctx: { db: QueryCtx["db"] },
+  doc: {
+    _id: Id<"documents">;
+    contentId?: Id<"document_content">;
+  },
+): Promise<Doc<"document_content"> | null> {
+  if (doc.contentId) {
+    const row = await ctx.db.get(doc.contentId);
+    if (row) return row;
+  }
+  return await ctx.db
+    .query("document_content")
+    .withIndex("by_documentId", (q) => q.eq("documentId", doc._id))
+    .unique();
+}
+
 export async function readContent(
   ctx: { db: QueryCtx["db"] },
   doc: {
@@ -41,16 +58,7 @@ export async function readContent(
     contentId?: Id<"document_content">;
   },
 ): Promise<string> {
-  if (doc.contentId) {
-    const row = await ctx.db.get(doc.contentId);
-    if (row) return row.content;
-  }
-  const row = await ctx.db
-    .query("document_content")
-    .withIndex("by_documentId", (q) => q.eq("documentId", doc._id))
-    .unique();
-  if (row) return row.content;
-  return "";
+  return (await loadContentRow(ctx, doc))?.content ?? "";
 }
 
 export async function readContentById(
@@ -65,15 +73,32 @@ export async function readContentById(
   return "";
 }
 
+type ContentWrite = {
+  documentId: Id<"documents">;
+  projectId: Id<"projects">;
+  userId: Id<"users">;
+  content: string;
+  contentId?: Id<"document_content">;
+};
+
 export async function writeContent(
   ctx: MutationCtx,
-  params: {
-    documentId: Id<"documents">;
-    projectId: Id<"projects">;
-    userId: Id<"users">;
-    content: string;
-    contentId?: Id<"document_content">;
-  },
+  params: ContentWrite,
+): Promise<Id<"document_content">> {
+  const contentId = await writeEditorContent(ctx, params);
+  const document = await ctx.db.get(params.documentId);
+  if (document) {
+    await ctx.db.patch(params.documentId, {
+      contentRev: (document.contentRev ?? 0) + 1,
+      contentWriter: undefined,
+    });
+  }
+  return contentId;
+}
+
+export async function writeEditorContent(
+  ctx: MutationCtx,
+  params: ContentWrite,
 ): Promise<Id<"document_content">> {
   const now = Date.now();
   if (params.contentId) {

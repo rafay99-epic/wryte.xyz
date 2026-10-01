@@ -1,6 +1,7 @@
 "use client";
 
 import { api } from "@wryte/backend/_generated/api";
+import { SCOPES } from "@wryte/backend/mcp/scopes";
 import { useMutation, useQuery } from "convex/react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -25,11 +26,10 @@ export function useMcpTab() {
     });
   };
 
-  const save = async () => {
-    if (!draft) return;
+  const persist = async (scopes: string[]) => {
     setIsSaving(true);
     try {
-      await setGrant({ scopes: draft });
+      await setGrant({ scopes });
       setDraft(null);
       toast.success("MCP capabilities updated", {
         description: "Takes effect on the agent's next tool call.",
@@ -43,8 +43,20 @@ export function useMcpTab() {
     }
   };
 
+  const save = async () => {
+    if (draft) await persist(draft);
+  };
+
+  const enableNotes = async () => {
+    const base = draft ?? granted;
+    if (!base) return;
+    await persist([...base.filter((s) => s !== SCOPES.notes), SCOPES.notes]);
+  };
+
   return {
     draft: current,
+    notesMissing: granted !== undefined && !granted.includes(SCOPES.notes),
+    enableNotes,
     isLoading: granted === undefined,
     isDirty,
     isSaving,

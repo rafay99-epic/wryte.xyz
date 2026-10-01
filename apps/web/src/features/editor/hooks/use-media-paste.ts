@@ -1,20 +1,18 @@
 "use client";
 
-import { api } from "@wryte/backend/_generated/api";
-import type { Id } from "@wryte/backend/_generated/dataModel";
-import { useImageCompression } from "@wryte/logic/hooks/use-image-compression";
-import { useUploadLimit } from "@wryte/logic/hooks/use-upload-limit";
-import { useWatermarkRemoval } from "@wryte/logic/hooks/use-watermark-removal";
+import { useMediaUpload } from "@wryte/logic/hooks/use-media-upload";
 import {
   BATCH_UPLOAD_CONCURRENCY,
   MAX_BATCH_IMAGES,
   runUploadPool,
 } from "@wryte/logic/lib/batch-image-upload";
+import {
+  type EditorTarget,
+  editorTargetId,
+} from "@wryte/logic/lib/editor/target";
 import { videoEmbedMarkup } from "@wryte/logic/lib/editor/video";
-import { describeSavings } from "@wryte/logic/lib/image-compression/index";
 import { formatMb } from "@wryte/logic/lib/upload-limits";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
-import { useAction } from "convex/react";
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { useEditorContext } from "../components/editor-context";
@@ -29,41 +27,13 @@ function hasFiles(transfer: DataTransfer | null): boolean {
   return Boolean(transfer && Array.from(transfer.types).includes("Files"));
 }
 
-export function useMediaPaste({
-  documentId,
-  projectId,
-}: {
-  documentId: string;
-  projectId: string;
-}) {
+export function useMediaPaste({ target }: { target: EditorTarget }) {
   const { textareaRef, replaceRange } = useEditorContext();
-  const uploadMedia = useAction(api.media.uploads.upload);
-  const { compress } = useImageCompression(projectId as Id<"projects">);
-  const { removeWatermark } = useWatermarkRemoval(projectId as Id<"projects">);
-  const { maxBytes: maxUploadBytes, formatted: maxUploadLabel } =
-    useUploadLimit(projectId as Id<"projects">);
+  const { upload, maxUploadLabel } = useMediaUpload(target);
 
-  const ctxRef = useRef({
-    compress,
-    removeWatermark,
-    maxUploadBytes,
-    maxUploadLabel,
-    uploadMedia,
-    replaceRange,
-    documentId,
-    projectId,
-  });
+  const ctxRef = useRef({ upload, maxUploadLabel, replaceRange, target });
   useEffect(() => {
-    ctxRef.current = {
-      compress,
-      removeWatermark,
-      maxUploadBytes,
-      maxUploadLabel,
-      uploadMedia,
-      replaceRange,
-      documentId,
-      projectId,
-    };
+    ctxRef.current = { upload, maxUploadLabel, replaceRange, target };
   });
 
   useEffect(() => {
@@ -80,7 +50,8 @@ export function useMediaPaste({
 
     function currentTarget() {
       return (
-        useEditorStore.getState().activeDraftId ?? ctxRef.current.documentId
+        useEditorStore.getState().activeDraftId ??
+        editorTargetId(ctxRef.current.target)
       );
     }
 
@@ -112,46 +83,25 @@ export function useMediaPaste({
       insertAtCaret(placeholder);
 
       try {
-        let toUpload = file;
-        let savings = "";
-        if (isImage) {
-          const compressed = await ctx.compress(file);
-          toUpload = compressed.file;
-          savings = describeSavings(compressed);
-
-          const cleaned = await ctx.removeWatermark(toUpload);
-          if (cleaned.wasApplied) {
-            savings = savings
-              ? `${savings} · Gemini watermark removed`
-              : "Gemini watermark removed";
-            toUpload = cleaned.file;
-          }
-        }
-
-        if (toUpload.size > ctx.maxUploadBytes) {
+        const outcome = await ctx.upload(file);
+        if (outcome.kind === "too-large") {
           settlePlaceholder(placeholder, null, target);
-          toast.error(`File is ${formatMb(toUpload.size)}`, {
-            description: `Exceeds the ${ctx.maxUploadLabel} limit. Host it externally and embed it by URL, or raise the limit in project settings.`,
+          toast.error(`File is ${formatMb(outcome.size)}`, {
+            description:
+              ctx.target.kind === "document"
+                ? `Exceeds the ${ctx.maxUploadLabel} limit. Host it externally and embed it by URL, or raise the limit in project settings.`
+                : `Exceeds the ${ctx.maxUploadLabel} limit. Host it externally and embed it by URL.`,
           });
           return;
         }
 
-        const bytes = await toUpload.arrayBuffer();
-        const result = await ctx.uploadMedia({
-          projectId: ctx.projectId as Id<"projects">,
-          bytes,
-          mime: toUpload.type,
-          filename: toUpload.name,
-          documentId: ctx.documentId as Id<"documents">,
-        });
-
         const alt = file.name.replace(/\.[^.]+$/, "");
         const markup = isImage
-          ? `![${alt}](${result.url})`
-          : videoEmbedMarkup(result.url, alt);
+          ? `![${alt}](${outcome.url})`
+          : videoEmbedMarkup(outcome.url, alt);
         settlePlaceholder(placeholder, markup, target);
         toast.success(`Uploaded ${file.name}`, {
-          description: savings || undefined,
+          description: outcome.savings || undefined,
         });
       } catch (err) {
         settlePlaceholder(placeholder, null, target);

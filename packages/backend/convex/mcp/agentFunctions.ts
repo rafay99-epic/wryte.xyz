@@ -11,6 +11,7 @@ import {
   type MutationCtx,
   type QueryCtx,
 } from "../_generated/server";
+import { retryMessage } from "./retry";
 
 const UNCAUGHT_PREFIX = /^(Uncaught \w*Error: )+/;
 
@@ -26,11 +27,7 @@ function rateLimitMessage(data: unknown): string | null {
   if (typeof data !== "object" || data === null) return null;
   if (Reflect.get(data, "kind") !== "RateLimited") return null;
   const retryAfter: unknown = Reflect.get(data, "retryAfter");
-  const seconds =
-    typeof retryAfter === "number"
-      ? Math.max(1, Math.ceil(retryAfter / 1000))
-      : 1;
-  return `Rate limited. Retry in ${String(seconds)}s.`;
+  return retryMessage(typeof retryAfter === "number" ? retryAfter : undefined);
 }
 
 export function toAgentError(error: unknown): Error {

@@ -22,15 +22,18 @@ import {
   scheduleWordActivity,
 } from "../_lib/projectStats";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
+import { shouldTouch } from "../_lib/touch";
 import { countWords } from "../_lib/wordCount";
 import {
   buildExcerpt,
   CONTENT_SEARCH_LIMIT,
   extractSnippet,
+  loadContentRow,
   MIN_CONTENT_TERM,
   readContent,
   readContentById,
   writeContent,
+  writeEditorContent,
 } from "./_lib/documentContent";
 import { syncDocumentLinks } from "./_lib/documentLinks";
 
@@ -55,6 +58,8 @@ const documentFields = {
   githubSha: v.optional(v.string()),
   githubSyncedAt: v.optional(v.number()),
   trashedAt: v.optional(v.number()),
+  contentRev: v.optional(v.number()),
+  contentWriter: v.optional(v.string()),
   createdAt: v.number(),
   updatedAt: v.number(),
 };
@@ -540,6 +545,28 @@ export const getMeta = query({
   },
 });
 
+export const getBody = query({
+  args: { documentId: v.id("documents") },
+  returns: v.union(
+    v.null(),
+    v.object({ content: v.string(), contentRev: v.number() }),
+  ),
+  handler: async (ctx, args) => {
+    const user = await getAuthedUserOrNull(ctx);
+    if (!user) {
+      throw new Error("Not authenticated");
+    }
+    const document = await ctx.db.get(args.documentId);
+    if (!document || document.trashedAt !== undefined) return null;
+    const project = await ctx.db.get(document.projectId);
+    if (!project || project.userId !== user._id) return null;
+    return {
+      content: await readContent(ctx, document),
+      contentRev: document.contentRev ?? 0,
+    };
+  },
+});
+
 export const getBacklinks = query({
   args: { documentId: v.id("documents") },
   returns: v.array(
@@ -767,10 +794,6 @@ export async function updateDocumentForUser(
 
   let wordCountDelta = 0;
   if (content !== undefined) {
-    const newWordCount = countWords(content);
-    fieldsToUpdate["wordCount"] = newWordCount;
-    fieldsToUpdate["excerpt"] = buildExcerpt(content);
-    wordCountDelta = newWordCount - (document.wordCount ?? 0);
     const contentId = await writeContent(ctx, {
       documentId,
       projectId: document.projectId,
@@ -778,9 +801,9 @@ export async function updateDocumentForUser(
       content,
       ...(document.contentId ? { contentId: document.contentId } : {}),
     });
-    if (document.contentId !== contentId) {
-      fieldsToUpdate["contentId"] = contentId;
-    }
+    const body = bodyMetadata(document, content, contentId);
+    Object.assign(fieldsToUpdate, body.fields);
+    wordCountDelta = body.wordCountDelta;
   }
 
   await ctx.db.patch(documentId, fieldsToUpdate);
@@ -806,16 +829,37 @@ export async function updateDocumentForUser(
   return null;
 }
 
+function bodyMetadata(
+  document: Doc<"documents">,
+  content: string,
+  contentId: Id<"document_content">,
+) {
+  const wordCount = countWords(content);
+  return {
+    fields: {
+      wordCount,
+      excerpt: buildExcerpt(content),
+      ...(document.contentId !== contentId ? { contentId } : {}),
+    },
+    wordCountDelta: wordCount - (document.wordCount ?? 0),
+  };
+}
+
 export const autosaveBody = mutation({
   args: {
     documentId: v.id("documents"),
-    content: v.string(),
+    content: v.optional(v.string()),
     title: v.optional(v.string()),
+    flush: v.optional(v.boolean()),
+    writer: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
     const key = await getRateLimitKey(ctx);
     await rateLimiter.limit(ctx, "documents:update", { key, throws: true });
+    if (args.content === undefined && args.flush !== true) {
+      throw new Error("content is required unless flush is true");
+    }
 
     const user = await getCurrentUser(ctx);
     const document = await verifyDocumentOwnership(
@@ -824,11 +868,13 @@ export const autosaveBody = mutation({
       user._id,
     );
 
-    const byteLength = new TextEncoder().encode(args.content).byteLength;
-    if (byteLength > MAX_CONTENT_BYTES) {
-      throw new Error(
-        `Document content is too large (max ${String(Math.round(MAX_CONTENT_BYTES / 1024))} KB).`,
-      );
+    if (args.content !== undefined) {
+      const byteLength = new TextEncoder().encode(args.content).byteLength;
+      if (byteLength > MAX_CONTENT_BYTES) {
+        throw new Error(
+          `Document content is too large (max ${String(Math.round(MAX_CONTENT_BYTES / 1024))} KB).`,
+        );
+      }
     }
 
     const openConflict = await ctx.db
@@ -843,13 +889,43 @@ export const autosaveBody = mutation({
       );
     }
 
-    await writeContent(ctx, {
-      documentId: args.documentId,
-      projectId: document.projectId,
-      userId: user._id,
-      content: args.content,
-      ...(document.contentId ? { contentId: document.contentId } : {}),
+    const stored =
+      args.content === undefined ? await loadContentRow(ctx, document) : null;
+    const content = args.content ?? stored?.content ?? "";
+    const contentId =
+      stored?._id ??
+      (await writeEditorContent(ctx, {
+        documentId: args.documentId,
+        projectId: document.projectId,
+        userId: user._id,
+        content,
+        ...(document.contentId ? { contentId: document.contentId } : {}),
+      }));
+
+    const now = Date.now();
+    const touch = shouldTouch({
+      now,
+      updatedAt: document.updatedAt,
+      flush: args.flush === true,
+      titleChanged: false,
     });
+    if (touch && (args.flush === true || args.writer !== undefined)) {
+      const body = bodyMetadata(document, content, contentId);
+      await ctx.db.patch(args.documentId, {
+        ...body.fields,
+        ...(args.title !== undefined ? { title: args.title } : {}),
+        contentRev: (document.contentRev ?? 0) + 1,
+        contentWriter: args.writer,
+        updatedAt: now,
+      });
+      await syncDocumentLinks(ctx, document, content);
+      await scheduleWordActivity(ctx, {
+        userId: user._id,
+        projectId: document.projectId,
+        wordCountDelta: body.wordCountDelta,
+      });
+      return null;
+    }
 
     if (args.title !== undefined && args.title !== document.title) {
       await ctx.db.patch(args.documentId, {

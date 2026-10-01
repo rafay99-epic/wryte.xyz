@@ -9,23 +9,32 @@ import { toast } from "sonner";
 import { useShallow } from "zustand/react/shallow";
 
 const DEBOUNCE_MS = 3000;
-const RECOVERY_WRITE_MS = 2000;
+const RECOVERY_WRITE_MS = 10_000;
 const MAX_WAIT_MS = 30_000;
 const FAILURE_THRESHOLD = 3;
+
+export type SaveOptions = { flush: boolean; contentChanged: boolean };
+
+type SaveFn = (
+  content: string,
+  title: string,
+  options: SaveOptions,
+) => Promise<void>;
 
 type AutosaveOptions = {
   targetId: string;
   content: string;
   title: string;
-  onSave: (content: string, title: string) => Promise<void>;
-  onFlush?: (content: string, title: string) => Promise<void>;
+  onSave: SaveFn;
   enabled?: boolean;
+  flushWhenHidden?: boolean;
 };
 
 type AutosaveReturn = {
   isSaving: boolean;
   lastSavedAt: number | null;
   saveNow: () => Promise<void>;
+  flushNow: () => Promise<void>;
 };
 
 type SavedSnapshot = { targetId: string; content: string; title: string };
@@ -42,8 +51,8 @@ export function useAutosave({
   content,
   title,
   onSave,
-  onFlush,
   enabled = true,
+  flushWhenHidden = false,
 }: AutosaveOptions): AutosaveReturn {
   const { isSaving, lastSavedAt, isDirty, setSaving, markSaved } =
     useEditorStore(
@@ -61,12 +70,10 @@ export function useAutosave({
   const isMountedRef = useRef(true);
   const failureCountRef = useRef(0);
   const onSaveRef = useRef(onSave);
-  const onFlushRef = useRef(onFlush);
   const flushPendingRef = useRef(false);
   const saveSeqRef = useRef(0);
   const lastSavedRef = useRef<SavedSnapshot>({ content, title, targetId });
   const firstDirtyAtRef = useRef<number | null>(null);
-  const prevTargetIdRef = useRef(targetId);
   const isDirtyRef = useRef(isDirty);
 
   useEffect(() => {
@@ -75,16 +82,12 @@ export function useAutosave({
 
   useEffect(() => {
     latestRef.current = { content, title, targetId };
-    if (prevTargetIdRef.current !== targetId) {
-      prevTargetIdRef.current = targetId;
-      if (!isDirty) lastSavedRef.current = { content, title, targetId };
-    }
+    if (!isDirty) lastSavedRef.current = { content, title, targetId };
   }, [content, title, targetId, isDirty]);
 
   useEffect(() => {
     onSaveRef.current = onSave;
-    onFlushRef.current = onFlush;
-  }, [onSave, onFlush]);
+  }, [onSave]);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -94,9 +97,7 @@ export function useAutosave({
   }, []);
 
   const performSave = useCallback(
-    async (
-      saveFn: (content: string, title: string) => Promise<void>,
-    ): Promise<SaveResult> => {
+    async ({ flush }: { flush: boolean }): Promise<SaveResult> => {
       if (!isMountedRef.current) return NOOP_RESULT;
       if (latestRef.current.targetId !== targetId) return NOOP_RESULT;
       if (!useEditorStore.getState().isDirty) return NOOP_RESULT;
@@ -119,10 +120,15 @@ export function useAutosave({
         return { committed: true, wrote: false };
       }
 
+      const contentChanged =
+        saved.targetId !== targetId || saved.content !== snapshotContent;
       const seq = ++saveSeqRef.current;
       setSaving(true);
       try {
-        await saveFn(snapshotContent, snapshotTitle);
+        await onSaveRef.current(snapshotContent, snapshotTitle, {
+          flush,
+          contentChanged,
+        });
 
         if (seq !== saveSeqRef.current) return { committed: true, wrote: true };
 
@@ -165,7 +171,7 @@ export function useAutosave({
   );
 
   const save = useCallback(async () => {
-    const result = await performSave(onSaveRef.current);
+    const result = await performSave({ flush: false });
     if (result.wrote) flushPendingRef.current = true;
   }, [performSave]);
 
@@ -212,7 +218,7 @@ export function useAutosave({
   }, [enabled, targetId]);
 
   const flush = useCallback(async () => {
-    const result = await performSave(onFlushRef.current ?? onSaveRef.current);
+    const result = await performSave({ flush: true });
     if (result.wrote) flushPendingRef.current = false;
   }, [performSave]);
 
@@ -253,21 +259,24 @@ export function useAutosave({
     return () => {
       if (!enabled) return;
       const { content: c, title: t, targetId: id } = latestRef.current;
-      const flushFn = onFlushRef.current ?? onSaveRef.current;
+      const flushFn = onSaveRef.current;
       const saved = lastSavedRef.current;
       const hasUnsavedEdits =
         isDirtyRef.current &&
         !(saved.targetId === id && saved.content === c && saved.title === t);
       if (hasUnsavedEdits) {
         flushPendingRef.current = false;
-        void flushFn(c, t).catch((err) => {
+        const contentChanged = saved.targetId !== id || saved.content !== c;
+        void flushFn(c, t, { flush: true, contentChanged }).catch((err) => {
           console.error("[Autosave] Flush-on-unmount failed:", err);
         });
       } else if (flushPendingRef.current) {
         flushPendingRef.current = false;
-        void flushFn(c, t).catch((err) => {
-          console.error("[Autosave] Metadata flush-on-unmount failed:", err);
-        });
+        void flushFn(c, t, { flush: true, contentChanged: false }).catch(
+          (err) => {
+            console.error("[Autosave] Metadata flush-on-unmount failed:", err);
+          },
+        );
       }
     };
   }, [enabled]);
@@ -280,5 +289,34 @@ export function useAutosave({
     await flush();
   }, [flush]);
 
-  return { isSaving, lastSavedAt, saveNow };
+  const flushNow = useCallback(async () => {
+    if (useEditorStore.getState().isDirty) {
+      await saveNow();
+      return;
+    }
+    const saved = lastSavedRef.current;
+    if (!flushPendingRef.current || saved.targetId !== targetId) return;
+    flushPendingRef.current = false;
+    try {
+      await onSaveRef.current(saved.content, saved.title, {
+        flush: true,
+        contentChanged: false,
+      });
+    } catch (err) {
+      flushPendingRef.current = true;
+      console.error("[Autosave] Flush failed:", err);
+    }
+  }, [saveNow, targetId]);
+
+  useEffect(() => {
+    if (!enabled || !flushWhenHidden) return;
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") void flushNow();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () =>
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+  }, [enabled, flushWhenHidden, flushNow]);
+
+  return { isSaving, lastSavedAt, saveNow, flushNow };
 }

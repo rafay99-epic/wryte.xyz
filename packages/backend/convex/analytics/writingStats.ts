@@ -312,11 +312,12 @@ export const setWeeklyWordGoal = mutation({
 export const _recordActivity = internalMutation({
   args: {
     userId: v.id("users"),
-    projectId: v.id("projects"),
+    projectId: v.optional(v.id("projects")),
     wordCountDelta: v.number(),
   },
   handler: async (ctx, args) => {
     const now = Date.now();
+    const projectId = args.projectId;
 
     const stats = await ctx.db
       .query("writing_stats")
@@ -325,7 +326,7 @@ export const _recordActivity = internalMutation({
 
     let tz = stats?.timezone;
     if (!tz) {
-      const project = await ctx.db.get(args.projectId);
+      const project = projectId ? await ctx.db.get(projectId) : null;
       tz = project?.timezone ?? "UTC";
     }
 
@@ -379,9 +380,11 @@ export const _recordActivity = internalMutation({
       });
     }
 
+    if (!projectId) return;
+
     const projectStats = await ctx.db
       .query("project_stats")
-      .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
+      .withIndex("by_projectId", (q) => q.eq("projectId", projectId))
       .unique();
 
     if (projectStats) {
@@ -391,7 +394,7 @@ export const _recordActivity = internalMutation({
       });
     } else {
       await ctx.db.insert("project_stats", {
-        projectId: args.projectId,
+        projectId,
         userId: args.userId,
         totalWords: Math.max(0, args.wordCountDelta),
         draftCount: 0,

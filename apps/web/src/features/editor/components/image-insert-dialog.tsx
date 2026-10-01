@@ -1,12 +1,20 @@
 "use client";
 
 import { api } from "@wryte/backend/_generated/api";
-import type { Id } from "@wryte/backend/_generated/dataModel";
 import { useAuthedQuery } from "@wryte/logic/hooks/use-authed-query";
+import { useMediaUpload } from "@wryte/logic/hooks/use-media-upload";
 import {
   type MediaLibraryItem,
   useProjectMediaLibrary,
 } from "@wryte/logic/hooks/use-project-media-library";
+import {
+  BATCH_UPLOAD_CONCURRENCY,
+  getUploadErrorMessage,
+  MAX_BATCH_IMAGES,
+  runUploadPool,
+} from "@wryte/logic/lib/batch-image-upload";
+import type { EditorTarget } from "@wryte/logic/lib/editor/target";
+import { formatMb } from "@wryte/logic/lib/upload-limits";
 import { Button } from "@wryte/ui/button";
 import { Input } from "@wryte/ui/input";
 import { Label } from "@wryte/ui/label";
@@ -21,20 +29,27 @@ import {
   SheetTitle,
 } from "@wryte/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@wryte/ui/tabs";
-import { Check, ImageIcon, Loader2, Search } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Check, ImageIcon, Loader2, Search, Upload } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import { BatchImageUpload } from "@/components/media/batch-image-upload";
 import { MediaImage } from "@/features/media-library/components/media-image";
 
-type ImageInsertDialogProps = {
+type SheetProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onInsert: (markdown: string) => void;
-  documentId: string;
-  projectId: string;
 };
 
+type ImageInsertDialogProps = SheetProps & { target: EditorTarget };
+
+type DocumentTarget = Extract<EditorTarget, { kind: "document" }>;
+
+type NoteTarget = Extract<EditorTarget, { kind: "note" }>;
+
 type ImageTab = "library" | "url" | "upload";
+
+const IMAGE_ACCEPT = "image/png,image/jpeg,image/webp,image/gif,image/avif";
 
 function isImageTab(value: string): value is ImageTab {
   return value === "library" || value === "url" || value === "upload";
@@ -45,21 +60,30 @@ function escapeMarkdownAlt(value: string): string {
 }
 
 export function ImageInsertDialog({
+  target,
+  ...props
+}: ImageInsertDialogProps) {
+  return target.kind === "document" ? (
+    <DocumentImageInsert {...props} target={target} />
+  ) : (
+    <NoteImageInsert {...props} target={target} />
+  );
+}
+
+function DocumentImageInsert({
   open,
   onOpenChange,
   onInsert,
-  documentId,
-  projectId,
-}: ImageInsertDialogProps) {
+  target,
+}: SheetProps & { target: DocumentTarget }) {
+  const { projectId, documentId } = target;
   const [imageUrl, setImageUrl] = useState("");
   const [altText, setAltText] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState<ImageTab>("library");
   const [isBatchRunning, setIsBatchRunning] = useState(false);
 
-  const project = useAuthedQuery(api.cms.projects.get, {
-    projectId: projectId as Id<"projects">,
-  });
+  const project = useAuthedQuery(api.cms.projects.get, { projectId });
   const {
     filter,
     setFilter,
@@ -72,11 +96,7 @@ export function ImageInsertDialog({
     loadMore,
     refresh: refreshLibrary,
     getSelectionValue,
-  } = useProjectMediaLibrary({
-    projectId: projectId as Id<"projects">,
-    project,
-    enabled: open,
-  });
+  } = useProjectMediaLibrary({ projectId, project, enabled: open });
 
   const filteredLibraryItems = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -233,46 +253,18 @@ export function ImageInsertDialog({
             </TabsContent>
 
             <TabsContent value="url">
-              <div className="space-y-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="img-url">Image URL</Label>
-                  <Input
-                    id="img-url"
-                    value={imageUrl}
-                    onChange={(e) => setImageUrl(e.target.value)}
-                    placeholder="https://example.com/image.png"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label htmlFor="img-alt">Alt text</Label>
-                  <Input
-                    id="img-alt"
-                    value={altText}
-                    onChange={(e) => setAltText(e.target.value)}
-                    placeholder="Description of the image"
-                  />
-                </div>
-
-                {imageUrl && (
-                  <div className="overflow-hidden rounded-lg border bg-muted/50">
-                    <img
-                      src={imageUrl}
-                      alt={altText || "preview"}
-                      className="max-h-48 w-full object-contain"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = "none";
-                      }}
-                    />
-                  </div>
-                )}
-              </div>
+              <UrlFields
+                imageUrl={imageUrl}
+                altText={altText}
+                onImageUrlChange={setImageUrl}
+                onAltTextChange={setAltText}
+              />
             </TabsContent>
 
             <TabsContent value="upload">
               <BatchImageUpload
-                projectId={projectId as Id<"projects">}
-                documentId={documentId as Id<"documents">}
+                projectId={projectId}
+                documentId={documentId}
                 providers={configuredTabs.map((tab) => tab.provider)}
                 editAltText
                 onCancel={closeDialog}
@@ -310,6 +302,252 @@ export function ImageInsertDialog({
         )}
       </SheetContent>
     </Sheet>
+  );
+}
+
+function NoteImageInsert({
+  open,
+  onOpenChange,
+  onInsert,
+  target,
+}: SheetProps & { target: NoteTarget }) {
+  const [imageUrl, setImageUrl] = useState("");
+  const [altText, setAltText] = useState("");
+  const [activeTab, setActiveTab] = useState<ImageTab>("upload");
+  const [isUploading, setIsUploading] = useState(false);
+
+  const resetForm = useCallback(() => {
+    setImageUrl("");
+    setAltText("");
+    setActiveTab("upload");
+  }, []);
+
+  useEffect(() => {
+    if (!open) resetForm();
+  }, [open, resetForm]);
+
+  function closeDialog() {
+    if (isUploading) return;
+    resetForm();
+    onOpenChange(false);
+  }
+
+  function handleUrlInsert() {
+    const trimmed = imageUrl.trim();
+    if (!trimmed) return;
+    onInsert(`![${escapeMarkdownAlt(altText || "image")}](${trimmed})`);
+    closeDialog();
+  }
+
+  return (
+    <Sheet
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (nextOpen || !isUploading) onOpenChange(nextOpen);
+      }}
+    >
+      <SheetContent showCloseButton={!isUploading}>
+        <SheetHeader>
+          <SheetTitle>Insert Image</SheetTitle>
+          <SheetDescription>
+            Upload up to {MAX_BATCH_IMAGES} images or paste a URL.
+          </SheetDescription>
+        </SheetHeader>
+
+        <SheetBody>
+          <Tabs
+            value={activeTab}
+            onValueChange={(value) => {
+              if (isImageTab(value)) setActiveTab(value);
+            }}
+          >
+            <TabsList className="w-full">
+              <TabsTrigger value="upload">Upload</TabsTrigger>
+              <TabsTrigger value="url">URL</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="upload">
+              <NoteUploadField
+                target={target}
+                onRunningChange={setIsUploading}
+                onUploaded={(markdown) => {
+                  onInsert(markdown);
+                  resetForm();
+                  onOpenChange(false);
+                }}
+              />
+            </TabsContent>
+
+            <TabsContent value="url">
+              <UrlFields
+                imageUrl={imageUrl}
+                altText={altText}
+                onImageUrlChange={setImageUrl}
+                onAltTextChange={setAltText}
+              />
+            </TabsContent>
+          </Tabs>
+        </SheetBody>
+
+        <SheetFooter>
+          <Button
+            variant="outline"
+            onClick={closeDialog}
+            disabled={isUploading}
+          >
+            Cancel
+          </Button>
+          {activeTab === "url" && (
+            <Button onClick={handleUrlInsert} disabled={!imageUrl.trim()}>
+              Insert URL
+            </Button>
+          )}
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function NoteUploadField({
+  target,
+  onRunningChange,
+  onUploaded,
+}: {
+  target: NoteTarget;
+  onRunningChange: (running: boolean) => void;
+  onUploaded: (markdown: string) => void;
+}) {
+  const { upload, maxUploadLabel } = useMediaUpload(target);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
+  async function uploadFiles(files: File[]) {
+    const images = files.filter((file) => file.type.startsWith("image/"));
+    if (images.length === 0) {
+      toast.error("Choose an image file");
+      return;
+    }
+    if (images.length > MAX_BATCH_IMAGES) {
+      toast.error(`Only ${MAX_BATCH_IMAGES} images can upload at once`);
+    }
+    setIsUploading(true);
+    onRunningChange(true);
+    try {
+      const results = await runUploadPool({
+        items: images.slice(0, MAX_BATCH_IMAGES),
+        concurrency: BATCH_UPLOAD_CONCURRENCY,
+        worker: async (file) => {
+          try {
+            const outcome = await upload(file);
+            if (outcome.kind === "too-large") {
+              toast.error(`${file.name} is ${formatMb(outcome.size)}`, {
+                description: `Exceeds the ${maxUploadLabel} limit.`,
+              });
+              return null;
+            }
+            const alt = escapeMarkdownAlt(file.name.replace(/\.[^.]+$/, ""));
+            return `![${alt}](${outcome.url})`;
+          } catch (error) {
+            toast.error(`${file.name} failed`, {
+              description: getUploadErrorMessage(error),
+            });
+            return null;
+          }
+        },
+      });
+      const markdown = results.filter((line) => line !== null);
+      if (markdown.length > 0) onUploaded(markdown.join("\n\n"));
+    } finally {
+      setIsUploading(false);
+      onRunningChange(false);
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept={IMAGE_ACCEPT}
+        multiple
+        className="hidden"
+        onChange={(event) => {
+          const files = Array.from(event.target.files ?? []);
+          event.target.value = "";
+          if (files.length > 0) void uploadFiles(files);
+        }}
+      />
+      <Button
+        variant="outline"
+        className="w-full"
+        disabled={isUploading}
+        onClick={() => fileInputRef.current?.click()}
+      >
+        {isUploading ? (
+          <>
+            <Loader2 className="size-3.5 animate-spin" />
+            Uploading...
+          </>
+        ) : (
+          <>
+            <Upload className="size-3.5" />
+            Choose images
+          </>
+        )}
+      </Button>
+      <p className="text-xs text-muted-foreground">
+        Images are compressed before upload. Max {maxUploadLabel} each.
+      </p>
+    </div>
+  );
+}
+
+function UrlFields({
+  imageUrl,
+  altText,
+  onImageUrlChange,
+  onAltTextChange,
+}: {
+  imageUrl: string;
+  altText: string;
+  onImageUrlChange: (value: string) => void;
+  onAltTextChange: (value: string) => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <div className="space-y-1.5">
+        <Label htmlFor="img-url">Image URL</Label>
+        <Input
+          id="img-url"
+          value={imageUrl}
+          onChange={(e) => onImageUrlChange(e.target.value)}
+          placeholder="https://example.com/image.png"
+        />
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor="img-alt">Alt text</Label>
+        <Input
+          id="img-alt"
+          value={altText}
+          onChange={(e) => onAltTextChange(e.target.value)}
+          placeholder="Description of the image"
+        />
+      </div>
+
+      {imageUrl && (
+        <div className="overflow-hidden rounded-lg border bg-muted/50">
+          <img
+            src={imageUrl}
+            alt={altText || "preview"}
+            className="max-h-48 w-full object-contain"
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = "none";
+            }}
+          />
+        </div>
+      )}
+    </div>
   );
 }
 
