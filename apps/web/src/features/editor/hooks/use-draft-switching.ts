@@ -2,6 +2,7 @@
 
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
+import type { DocumentEditorTarget } from "@wryte/logic/lib/editor/features";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
 import { useConvex } from "convex/react";
 import { useCallback, useEffect, useRef } from "react";
@@ -11,15 +12,15 @@ export const MAIN_TAB = "main";
 
 const REVALIDATE_TTL_MS = 30_000;
 
-type VersionContent = { title: string; content: string };
+export type VersionContent = { title: string; content: string };
 
 type CacheEntry = VersionContent & { validatedAt: number };
 
 type DraftMeta = { _id: string; wordCount: number };
 
 type UseDraftSwitchingOptions = {
-  projectId: string;
-  document: { title: string; content: string } | null | undefined;
+  target: DocumentEditorTarget;
+  loadMain: () => Promise<VersionContent | null>;
   drafts: DraftMeta[] | undefined;
   onRequestSave: () => Promise<void>;
 };
@@ -36,8 +37,8 @@ type UseDraftSwitchingReturn = {
 };
 
 export function useDraftSwitching({
-  projectId,
-  document,
+  target,
+  loadMain,
   drafts,
   onRequestSave,
 }: UseDraftSwitchingOptions): UseDraftSwitchingReturn {
@@ -72,11 +73,11 @@ export function useDraftSwitching({
           if (state.content === fresh.content && state.title === fresh.title) {
             return;
           }
-          initDocument(fresh.title, fresh.content, projectId);
+          initDocument(fresh.title, fresh.content, target);
         })
         .catch(() => {});
     },
-    [convex, initDocument, projectId],
+    [convex, initDocument, target],
   );
 
   const switchToDraft = useCallback(
@@ -114,13 +115,15 @@ export function useDraftSwitching({
         if (seq !== seqRef.current) return false;
 
         if (draftId === null) {
-          if (!document) {
-            toast.error("The main article hasn't loaded yet — try again");
+          const main = await loadMain();
+          if (seq !== seqRef.current) return false;
+          if (!main) {
+            toast.error("Couldn't load the main article. Try again.");
             return false;
           }
-          initDocument(document.title, document.content, projectId);
+          initDocument(main.title, main.content, target);
         } else if (cached !== undefined) {
-          initDocument(cached.title, cached.content, projectId);
+          initDocument(cached.title, cached.content, target);
           cacheRef.current.set(draftId, cached);
           if (Date.now() - cached.validatedAt > REVALIDATE_TTL_MS) {
             revalidate(draftId, seq);
@@ -130,7 +133,7 @@ export function useDraftSwitching({
             toast.error("Couldn't load that draft — please try again");
             return false;
           }
-          initDocument(fetched.title, fetched.content, projectId);
+          initDocument(fetched.title, fetched.content, target);
           cacheRef.current.set(draftId, {
             title: fetched.title,
             content: fetched.content,
@@ -154,13 +157,13 @@ export function useDraftSwitching({
     },
     [
       convex,
-      document,
       initDocument,
+      loadMain,
       onRequestSave,
-      projectId,
       revalidate,
       setActiveDraftId,
       setSwitchTarget,
+      target,
     ],
   );
 
@@ -182,10 +185,10 @@ export function useDraftSwitching({
     (main: VersionContent) => {
       ++seqRef.current;
       setSwitchTarget(null);
-      initDocument(main.title, main.content, projectId);
+      initDocument(main.title, main.content, target);
       setActiveDraftId(null);
     },
-    [initDocument, projectId, setActiveDraftId, setSwitchTarget],
+    [initDocument, setActiveDraftId, setSwitchTarget, target],
   );
 
   return { switchToDraft, evictDraft, seedDraft, applyPromotedMain };

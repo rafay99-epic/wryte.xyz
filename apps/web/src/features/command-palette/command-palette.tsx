@@ -13,6 +13,11 @@ import {
   recordDocOpen,
 } from "@wryte/logic/lib/frecency";
 import { scoreItem } from "@wryte/logic/lib/fuzzy";
+import {
+  MIN_NOTE_SEARCH_TERM,
+  NOTES_PATH,
+  notePath,
+} from "@wryte/logic/lib/notes/views";
 import { splitShortcutKeys } from "@wryte/logic/lib/shortcuts";
 import { cn } from "@wryte/logic/lib/utils";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
@@ -27,13 +32,16 @@ import {
   FolderOpen,
   Home,
   Layout,
+  ListTodo,
   Moon,
+  NotebookPen,
   Palette,
   PanelLeft,
   Plus,
   Search,
   Settings,
   Star,
+  StickyNote,
   Sun,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -46,6 +54,8 @@ import {
   useRef,
   useState,
 } from "react";
+import { useCreateNote } from "@/features/notes/hooks/use-create-note";
+import { useNoteSearch } from "./hooks/use-note-search";
 import {
   accountSettingsEntries,
   projectSettingsEntries,
@@ -59,7 +69,13 @@ type CommandItem = {
   icon: React.ElementType;
   iconFilled?: boolean | undefined;
   shortcutId?: string | undefined;
-  category: "action" | "project" | "article" | "navigation" | "setting";
+  category:
+    | "action"
+    | "project"
+    | "article"
+    | "note"
+    | "navigation"
+    | "setting";
   recency?: number | undefined;
   openRank?: number | undefined;
   onSelect: () => void;
@@ -88,6 +104,7 @@ const CATEGORY_LABELS: Record<Category, string> = {
   navigation: "Navigation",
   project: "Projects",
   article: "Recent Articles",
+  note: "Notes",
   setting: "Settings",
 };
 
@@ -136,6 +153,14 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   );
   const contentPending = Boolean(contentTerm) && contentHits === undefined;
 
+  const noteTerm =
+    activated && debouncedQuery.length >= MIN_NOTE_SEARCH_TERM
+      ? debouncedQuery
+      : "";
+  const noteHits = useNoteSearch(noteTerm);
+  const notesPending = noteHits === undefined;
+  const createNote = useCreateNote();
+
   const projectNames = useMemo(() => {
     const map = new Map<string, string>();
     for (const p of projects ?? []) map.set(p._id, p.name);
@@ -168,6 +193,39 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         if (activeProjectId) {
           router.push(`/projects/${activeProjectId}/documents/new`);
         }
+      },
+    });
+
+    items.push({
+      id: "action-new-note",
+      label: "New Note",
+      keywords: "create write jot capture notes",
+      icon: NotebookPen,
+      category: "action",
+      onSelect: () => {
+        void createNote({ kind: "all" }, "note");
+      },
+    });
+
+    items.push({
+      id: "action-new-task",
+      label: "New Task",
+      keywords: "create todo to-do checklist notes",
+      icon: ListTodo,
+      category: "action",
+      onSelect: () => {
+        void createNote({ kind: "all" }, "task");
+      },
+    });
+
+    items.push({
+      id: "action-notes",
+      label: "Go to Notes",
+      keywords: "notes tasks todo groups",
+      icon: StickyNote,
+      category: "navigation",
+      onSelect: () => {
+        router.push(NOTES_PATH);
       },
     });
 
@@ -317,7 +375,15 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     }
 
     return items;
-  }, [projects, documents, projectNames, openRanks, activeProjectId, router]);
+  }, [
+    projects,
+    documents,
+    projectNames,
+    openRanks,
+    activeProjectId,
+    router,
+    createNote,
+  ]);
 
   const { sections, flatItems } = useMemo(() => {
     const trimmed = query.trim();
@@ -376,10 +442,25 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       if (contentItems.length) {
         sections.push({ label: "In content", items: contentItems });
       }
+
+      const noteItems: RenderItem[] = (noteHits ?? []).map((hit) => ({
+        id: `note-${hit.noteId}`,
+        label: hit.title || "Untitled",
+        description: hit.snippet,
+        icon: StickyNote,
+        category: "note" as const,
+        onSelect: () => {
+          router.push(notePath(hit.noteId));
+        },
+      }));
+
+      if (noteItems.length) {
+        sections.push({ label: CATEGORY_LABELS.note, items: noteItems });
+      }
     }
 
     return { sections, flatItems: sections.flatMap((s) => s.items) };
-  }, [commandItems, query, contentHits, router]);
+  }, [commandItems, query, contentHits, noteHits, router]);
 
   const selectItem = useCallback(
     (item: CommandItem) => {
@@ -536,7 +617,8 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                   type="text"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search articles, projects, commands..."
+                  placeholder="Search articles, notes, projects, commands..."
+                  aria-label="Search articles, notes, projects and commands"
                   className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/50"
                   autoComplete="off"
                   spellCheck={false}
@@ -556,7 +638,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                   isKeyboardNav.current = false;
                 }}
               >
-                {flatItems.length === 0 && !contentPending ? (
+                {flatItems.length === 0 && !contentPending && !notesPending ? (
                   <div className="px-4 py-10 text-center text-sm text-muted-foreground/70">
                     No results found for &ldquo;{query}&rdquo;
                   </div>

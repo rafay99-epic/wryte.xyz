@@ -22,10 +22,13 @@ type UseImageCompressionResult = {
 };
 
 export function useImageCompression(
-  projectId: Id<"projects">,
+  projectId: Id<"projects"> | undefined,
 ): UseImageCompressionResult {
   const user = useQuery(api.account.users.get);
-  const project = useAuthedQuery(api.cms.projects.get, { projectId });
+  const project = useAuthedQuery(
+    api.cms.projects.get,
+    projectId ? { projectId } : "skip",
+  );
   const [isCompressing, setIsCompressing] = useState(false);
 
   const userKey = JSON.stringify(user?.defaultCompressionSettings ?? null);

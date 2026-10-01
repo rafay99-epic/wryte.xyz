@@ -11,7 +11,8 @@ import { motion } from "framer-motion";
 import { ImageIcon, Loader2, RotateCcw } from "lucide-react";
 import { CompressionSettingsForm } from "@/components/forms/compression-settings-form";
 import { useMediaTab } from "../hooks/use-media-tab";
-import { SectionHeader } from "./shared";
+import { NotesImagesSection } from "./notes-images-section";
+import { Divider, SectionHeader } from "./shared";
 
 type MediaTabProps = {
   current: CompressionSettings | null;
@@ -60,6 +61,12 @@ export function MediaTab({ current }: MediaTabProps) {
           {isSaving && <Loader2 className="size-3.5 animate-spin" />}
           Save defaults
         </Button>
+      </motion.div>
+
+      <Divider />
+
+      <motion.div variants={staggerItem} transition={smoothTransition}>
+        <NotesImagesSection />
       </motion.div>
     </motion.div>
   );

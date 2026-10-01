@@ -65,15 +65,32 @@ export async function readContentById(
   return "";
 }
 
+type ContentWrite = {
+  documentId: Id<"documents">;
+  projectId: Id<"projects">;
+  userId: Id<"users">;
+  content: string;
+  contentId?: Id<"document_content">;
+};
+
 export async function writeContent(
   ctx: MutationCtx,
-  params: {
-    documentId: Id<"documents">;
-    projectId: Id<"projects">;
-    userId: Id<"users">;
-    content: string;
-    contentId?: Id<"document_content">;
-  },
+  params: ContentWrite,
+): Promise<Id<"document_content">> {
+  const contentId = await writeEditorContent(ctx, params);
+  const document = await ctx.db.get(params.documentId);
+  if (document) {
+    await ctx.db.patch(params.documentId, {
+      contentRev: (document.contentRev ?? 0) + 1,
+      contentWriter: undefined,
+    });
+  }
+  return contentId;
+}
+
+export async function writeEditorContent(
+  ctx: MutationCtx,
+  params: ContentWrite,
 ): Promise<Id<"document_content">> {
   const now = Date.now();
   if (params.contentId) {

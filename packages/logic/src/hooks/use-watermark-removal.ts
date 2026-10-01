@@ -16,9 +16,12 @@ type UseWatermarkRemovalResult = {
 };
 
 export function useWatermarkRemoval(
-  projectId: Id<"projects">,
+  projectId: Id<"projects"> | undefined,
 ): UseWatermarkRemovalResult {
-  const project = useAuthedQuery(api.cms.projects.get, { projectId });
+  const project = useAuthedQuery(
+    api.cms.projects.get,
+    projectId ? { projectId } : "skip",
+  );
   const [isRemoving, setIsRemoving] = useState(false);
 
   const enabled = project?.autoWatermarkRemoval ?? true;

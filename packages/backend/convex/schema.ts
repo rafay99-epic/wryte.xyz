@@ -123,6 +123,8 @@ export default defineSchema({
     githubSha: v.optional(v.string()),
     githubSyncedAt: v.optional(v.number()),
     trashedAt: v.optional(v.number()),
+    contentRev: v.optional(v.number()),
+    contentWriter: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -301,7 +303,9 @@ export default defineSchema({
     .index("by_documentId_and_selectedForAi", ["documentId", "selectedForAi"]),
 
   media: defineTable({
-    projectId: v.id("projects"),
+    projectId: v.optional(v.id("projects")),
+    noteId: v.optional(v.id("notes")),
+    sourceProjectId: v.optional(v.id("projects")),
     userId: v.optional(v.id("users")),
     provider: v.optional(mediaProviderValidator),
     externalId: v.optional(v.string()),
@@ -318,6 +322,7 @@ export default defineSchema({
     .index("by_userId", ["userId"])
     .index("by_projectId_and_createdAt", ["projectId", "createdAt"])
     .index("by_documentId", ["documentId"])
+    .index("by_noteId", ["noteId"])
     .index("by_provider_and_externalId", ["provider", "externalId"]),
 
   mcp_upload_tickets: defineTable({
@@ -333,7 +338,7 @@ export default defineSchema({
     .index("by_userId_and_expiresAt", ["userId", "expiresAt"]),
 
   mediaCredentials: defineTable({
-    projectId: v.id("projects"),
+    projectId: v.optional(v.id("projects")),
     userId: v.id("users"),
     provider: credentialProviderValidator,
     vaultSecretId: v.string(),
@@ -353,7 +358,12 @@ export default defineSchema({
   })
     .index("by_projectId", ["projectId"])
     .index("by_projectId_and_provider", ["projectId", "provider"])
-    .index("by_userId_and_provider", ["userId", "provider"]),
+    .index("by_userId_and_provider", ["userId", "provider"])
+    .index("by_userId_and_projectId_and_provider", [
+      "userId",
+      "projectId",
+      "provider",
+    ]),
 
   aiCredentials: defineTable({
     projectId: v.id("projects"),
@@ -484,7 +494,7 @@ export default defineSchema({
   }).index("by_projectId", ["projectId"]),
 
   mediaUsage: defineTable({
-    projectId: v.id("projects"),
+    projectId: v.optional(v.id("projects")),
     userId: v.id("users"),
     fileCount: v.number(),
     totalBytes: v.number(),
@@ -493,10 +503,11 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("by_projectId", ["projectId"])
-    .index("by_userId", ["userId"]),
+    .index("by_userId", ["userId"])
+    .index("by_userId_and_projectId", ["userId", "projectId"]),
 
   mediaErrorLog: defineTable({
-    projectId: v.id("projects"),
+    projectId: v.optional(v.id("projects")),
     userId: v.id("users"),
     provider: v.string(),
     operation: v.string(),
@@ -763,4 +774,110 @@ export default defineSchema({
   })
     .index("by_documentId", ["documentId"])
     .index("by_projectId", ["projectId"]),
+
+  note_groups: defineTable({
+    userId: v.id("users"),
+    name: v.string(),
+    color: v.optional(v.string()),
+    sortOrder: v.number(),
+    noteCount: v.number(),
+    createdAt: v.number(),
+  }).index("by_userId_and_sortOrder", ["userId", "sortOrder"]),
+
+  note_stats: defineTable({
+    userId: v.id("users"),
+    todo: v.number(),
+    doing: v.number(),
+  }).index("by_userId", ["userId"]),
+
+  note_settings: defineTable({
+    userId: v.id("users"),
+    media: v.optional(
+      v.union(
+        v.object({
+          kind: v.literal("own"),
+          provider: credentialProviderValidator,
+        }),
+        v.object({
+          kind: v.literal("project"),
+          projectId: v.id("projects"),
+        }),
+      ),
+    ),
+    mediaPath: v.string(),
+  }).index("by_userId", ["userId"]),
+
+  notes: defineTable({
+    userId: v.id("users"),
+    groupId: v.optional(v.id("note_groups")),
+    title: v.string(),
+    excerpt: v.string(),
+    wordCount: v.number(),
+    status: v.optional(
+      v.union(v.literal("todo"), v.literal("doing"), v.literal("done")),
+    ),
+    dueDate: v.optional(v.string()),
+    taskOpenedAt: v.optional(v.number()),
+    completedAt: v.optional(v.number()),
+    pinned: v.optional(v.boolean()),
+    rev: v.number(),
+    writer: v.string(),
+    source: v.union(v.literal("app"), v.literal("mcp")),
+    trashedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_userId_and_trashedAt_and_updatedAt", [
+      "userId",
+      "trashedAt",
+      "updatedAt",
+    ])
+    .index("by_userId_and_trashedAt_and_groupId_and_updatedAt", [
+      "userId",
+      "trashedAt",
+      "groupId",
+      "updatedAt",
+    ])
+    .index("by_userId_and_trashedAt_and_status_and_dueDate", [
+      "userId",
+      "trashedAt",
+      "status",
+      "dueDate",
+    ])
+    .index("by_userId_and_trashedAt_and_taskOpenedAt", [
+      "userId",
+      "trashedAt",
+      "taskOpenedAt",
+    ])
+    .index("by_userId_and_trashedAt_and_completedAt", [
+      "userId",
+      "trashedAt",
+      "completedAt",
+    ])
+    .index("by_trashedAt", ["trashedAt"])
+    .searchIndex("search_title", {
+      searchField: "title",
+      filterFields: ["userId", "trashedAt"],
+    }),
+
+  note_content: defineTable({
+    noteId: v.id("notes"),
+    userId: v.id("users"),
+    content: v.string(),
+    trashed: v.boolean(),
+    rev: v.optional(v.number()),
+  })
+    .index("by_noteId", ["noteId"])
+    .searchIndex("search_content", {
+      searchField: "content",
+      filterFields: ["userId", "trashed"],
+    }),
+
+  note_links: defineTable({
+    noteId: v.id("notes"),
+    documentId: v.id("documents"),
+    userId: v.id("users"),
+  })
+    .index("by_noteId", ["noteId"])
+    .index("by_documentId", ["documentId"]),
 });

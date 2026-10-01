@@ -13,6 +13,8 @@ import {
   researchItemValidator,
   researchTypeValidator,
 } from "../cms/documentResearch";
+import { noteStatusValidator } from "../cms/notes/_lib/model";
+import { DEFAULT_NOTE_CHARS } from "./agentInput";
 import { SCOPES, type WryteToolMetadata } from "./scopes";
 
 const READ = { scopes: [SCOPES.read] } satisfies WryteToolMetadata;
@@ -22,6 +24,24 @@ const MEDIA = { scopes: [SCOPES.media] } satisfies WryteToolMetadata;
 const WRITE_BODY = {
   scopes: [SCOPES.write],
   auditArgs: { redact: ["content", "frontmatter", "items"] },
+} satisfies WryteToolMetadata;
+
+const NOTES_READ = {
+  scopes: [SCOPES.read, SCOPES.notes],
+} satisfies WryteToolMetadata;
+
+const NOTES_TRASH = {
+  scopes: [SCOPES.trash, SCOPES.notes],
+} satisfies WryteToolMetadata;
+
+const NOTES_BODY = {
+  scopes: [SCOPES.notes],
+  auditArgs: { redact: ["content"] },
+} satisfies WryteToolMetadata;
+
+const NOTES_APPEND = {
+  scopes: [SCOPES.notes],
+  auditArgs: { redact: ["text"] },
 } satisfies WryteToolMetadata;
 
 const WRITE_NO_AUDIT = {
@@ -400,5 +420,116 @@ export const tools: McpToolRegistration[] = [
     args: { caller: mcpCallerValidator },
     identityArg: "caller",
     metadata: READ,
+  }),
+
+  defineMcpQuery({
+    name: "wryte_notes_list",
+    description:
+      "List the user's private notes, newest first, 25 per page: title, excerpt, status, due date, group. No bodies; read one with wryte_notes_get. Filter by group name, status, dueBefore (YYYY-MM-DD, needs status) or a linked post. Page with continueCursor.",
+    fn: internal.mcp.handlers.notes.list,
+    args: {
+      caller: mcpCallerValidator,
+      group: v.optional(v.string()),
+      status: v.optional(noteStatusValidator),
+      dueBefore: v.optional(v.string()),
+      linkedDocumentId: v.optional(v.id("documents")),
+      cursor: v.optional(v.string()),
+    },
+    identityArg: "caller",
+    metadata: NOTES_READ,
+  }),
+
+  defineMcpQuery({
+    name: "wryte_notes_search",
+    description:
+      "Search note titles and bodies. Returns up to 16 hits with short snippets. Start here before creating a note that may already exist.",
+    fn: internal.mcp.handlers.notes.search,
+    args: { caller: mcpCallerValidator, query: v.string() },
+    identityArg: "caller",
+    metadata: NOTES_READ,
+  }),
+
+  defineMcpQuery({
+    name: "wryte_notes_get",
+    description: `One note: metadata, rev, group, linked posts and body. The body is cut at maxChars (default ${String(DEFAULT_NOTE_CHARS)}); truncated says so and totalChars gives the full length. Keep rev for wryte_notes_update.`,
+    fn: internal.mcp.handlers.notes.get,
+    args: {
+      caller: mcpCallerValidator,
+      noteId: v.id("notes"),
+      maxChars: v.optional(v.number()),
+    },
+    identityArg: "caller",
+    metadata: NOTES_READ,
+  }),
+
+  defineMcpQuery({
+    name: "wryte_note_groups_list",
+    description: "List the user's note groups with their note counts.",
+    fn: internal.mcp.handlers.notes.groups,
+    args: { caller: mcpCallerValidator },
+    identityArg: "caller",
+    metadata: NOTES_READ,
+  }),
+
+  defineMcpMutation({
+    name: "wryte_notes_create",
+    description:
+      'Create a private note. Notes are never published. group is a name, found or created; use "Work log" for session logs. status (todo, doing, done) and dueDate (YYYY-MM-DD) make it a task. documentIds links up to 20 posts. Returns noteId, rev and the note\'s web path.',
+    fn: internal.mcp.handlers.notes.create,
+    args: {
+      caller: mcpCallerValidator,
+      title: v.string(),
+      content: v.optional(v.string()),
+      group: v.optional(v.string()),
+      status: v.optional(noteStatusValidator),
+      dueDate: v.optional(v.string()),
+      documentIds: v.optional(v.array(v.id("documents"))),
+    },
+    identityArg: "caller",
+    metadata: NOTES_BODY,
+  }),
+
+  defineMcpMutation({
+    name: "wryte_notes_update",
+    description:
+      "Change a note's title, status, dueDate, group or linked posts; null clears status, dueDate or group. Replacing content needs expectedRev from wryte_notes_get and is refused if the user edited since. Prefer wryte_notes_append for adding text. documentIds replaces the whole link set.",
+    fn: internal.mcp.handlers.notes.update,
+    args: {
+      caller: mcpCallerValidator,
+      noteId: v.id("notes"),
+      expectedRev: v.optional(v.number()),
+      title: v.optional(v.string()),
+      content: v.optional(v.string()),
+      status: v.optional(v.union(noteStatusValidator, v.null())),
+      dueDate: v.optional(v.union(v.string(), v.null())),
+      group: v.optional(v.union(v.string(), v.null())),
+      documentIds: v.optional(v.array(v.id("documents"))),
+    },
+    identityArg: "caller",
+    metadata: NOTES_BODY,
+  }),
+
+  defineMcpMutation({
+    name: "wryte_notes_append",
+    description:
+      "Append markdown to the end of a note on a new line. The safe way to add to a note: it never overwrites what the user wrote. Use it for running logs.",
+    fn: internal.mcp.handlers.notes.append,
+    args: {
+      caller: mcpCallerValidator,
+      noteId: v.id("notes"),
+      text: v.string(),
+    },
+    identityArg: "caller",
+    metadata: NOTES_APPEND,
+  }),
+
+  defineMcpMutation({
+    name: "wryte_notes_trash",
+    description:
+      "Move a note to the trash. The user can restore it in Wryte for 30 days.",
+    fn: internal.mcp.handlers.notes.trash,
+    args: { caller: mcpCallerValidator, noteId: v.id("notes") },
+    identityArg: "caller",
+    metadata: NOTES_TRASH,
   }),
 ];

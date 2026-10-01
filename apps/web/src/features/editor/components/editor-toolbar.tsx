@@ -1,7 +1,11 @@
 "use client";
 
 import { api } from "@wryte/backend/_generated/api";
-import type { Id } from "@wryte/backend/_generated/dataModel";
+import {
+  type EditorFeatures,
+  targetProjectId,
+} from "@wryte/logic/lib/editor/features";
+import type { EditorTarget } from "@wryte/logic/lib/editor/target";
 import { cn } from "@wryte/logic/lib/utils";
 import { countWords } from "@wryte/logic/lib/word-count";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
@@ -58,9 +62,8 @@ import { useEditorContext } from "./editor-context";
 import { SprintControl } from "./sprint-control";
 
 type EditorToolbarProps = {
-  projectId: string;
-  readabilityEnabled?: boolean;
-  animationsEnabled?: boolean;
+  target: EditorTarget;
+  features: EditorFeatures;
 };
 
 type ViewMode = "edit" | "split" | "preview";
@@ -71,11 +74,9 @@ const VIEW_MODES: { value: ViewMode; label: string }[] = [
   { value: "preview", label: "Read" },
 ];
 
-export function EditorToolbar({
-  projectId,
-  readabilityEnabled = false,
-  animationsEnabled = false,
-}: EditorToolbarProps) {
+export function EditorToolbar({ target, features }: EditorToolbarProps) {
+  const projectId = targetProjectId(target);
+  const isDocument = target.kind === "document";
   const {
     viewMode,
     setViewMode,
@@ -113,9 +114,10 @@ export function EditorToolbar({
 
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
 
-  const aiReadiness = useQuery(api.ai.enhance.isAiReady, {
-    projectId: projectId as Id<"projects">,
-  });
+  const aiReadiness = useQuery(
+    api.ai.enhance.isAiReady,
+    projectId ? { projectId } : "skip",
+  );
   const aiReady = aiReadiness?.ready ?? false;
 
   const writingStats = useQuery(api.analytics.writingStats.getEditorStats, {});
@@ -243,15 +245,17 @@ export function EditorToolbar({
                 <ImagePlus className="size-4 mr-2" />
                 <span>Image…</span>
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setVideoDialogOpen(true)}>
-                <Video className="size-4 mr-2" />
-                <span>Video…</span>
-              </DropdownMenuItem>
+              {isDocument && (
+                <DropdownMenuItem onClick={() => setVideoDialogOpen(true)}>
+                  <Video className="size-4 mr-2" />
+                  <span>Video…</span>
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem onClick={() => setEmbedDialogOpen(true)}>
                 <MessageCircle className="size-4 mr-2" />
                 <span>Post embed…</span>
               </DropdownMenuItem>
-              {animationsEnabled && (
+              {features.animations && (
                 <DropdownMenuItem onClick={() => setAnimationDialogOpen(true)}>
                   <Clapperboard className="size-4 mr-2" />
                   <span>Animation…</span>
@@ -374,7 +378,7 @@ export function EditorToolbar({
               active={outlinePanelOpen}
               onClick={toggleOutlinePanel}
             />
-            {readabilityEnabled && (
+            {features.readability && (
               <PanelToggle
                 icon={Gauge}
                 tooltip="Readability"
@@ -382,12 +386,14 @@ export function EditorToolbar({
                 onClick={toggleReadabilityPanel}
               />
             )}
-            <PanelToggle
-              icon={ScrollText}
-              tooltip="Research"
-              active={researchPanelOpen}
-              onClick={toggleResearchPanel}
-            />
+            {isDocument && (
+              <PanelToggle
+                icon={ScrollText}
+                tooltip="Research"
+                active={researchPanelOpen}
+                onClick={toggleResearchPanel}
+              />
+            )}
           </div>
 
           {aiReady && (
@@ -404,7 +410,7 @@ export function EditorToolbar({
         </div>
       </div>
 
-      {aiReady && (
+      {aiReady && projectId && (
         <AiEnhanceButton
           open={aiDialogOpen}
           onOpenChange={setAiDialogOpen}

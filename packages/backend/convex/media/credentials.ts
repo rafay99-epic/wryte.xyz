@@ -2,11 +2,12 @@
 
 import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
-import type { Id } from "../_generated/dataModel";
+import type { Doc, Id } from "../_generated/dataModel";
 import type { ActionCtx } from "../_generated/server";
 import { action } from "../_generated/server";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
 import { getAdapter } from "../providers/registry";
+import type { CredentialScope } from "./_lib/owner";
 import {
   type CredentialProvider,
   credentialProviderValidator,
@@ -58,7 +59,7 @@ async function mergeWithStoredSecret(
 
 export const getEditableConfig = action({
   args: {
-    projectId: v.id("projects"),
+    projectId: v.optional(v.id("projects")),
     provider: PROVIDER_VALIDATOR,
   },
   handler: async (ctx, args): Promise<Record<string, string> | null> => {
@@ -101,7 +102,7 @@ export const getEditableConfig = action({
 
 export const setCredentials = action({
   args: {
-    projectId: v.id("projects"),
+    projectId: v.optional(v.id("projects")),
     provider: PROVIDER_VALIDATOR,
     secret: v.string(),
   },
@@ -118,23 +119,8 @@ export const setCredentials = action({
     await rateLimiter.limit(ctx, "mediaCredentials:set", { key, throws: true });
     await rateLimiter.limit(ctx, "vault:write", { key, throws: true });
 
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
-    const user = await ctx.runQuery(internal.account.users.internalGetByToken, {
-      tokenIdentifier: identity.tokenIdentifier,
-    });
-    if (!user) throw new Error("User not found");
-    const project = await ctx.runQuery(internal.cms.projects.internalGet, {
-      projectId: args.projectId,
-    });
-    if (!project || project.userId !== user._id) {
-      throw new Error("Unauthorized");
-    }
-
-    const existing = await ctx.runQuery(
-      internal.media.credentialsDb._findByProjectAndProvider,
-      { projectId: args.projectId, provider: args.provider },
-    );
+    const { scope } = await requireScope(ctx, args.projectId);
+    const existing = await findScopedCredential(ctx, scope, args.provider);
 
     const secret = existing
       ? await mergeWithStoredSecret(
@@ -166,10 +152,10 @@ export const setCredentials = action({
       {
         value: secret,
         meta: {
-          userId: user._id,
-          projectId: args.projectId,
+          userId: scope.userId,
           provider: args.provider,
           label: `${args.provider}-creds`,
+          ...scopeProject(scope),
         },
       },
     );
@@ -205,24 +191,17 @@ export const setCredentials = action({
         );
       }
     } else {
-      const insertArgs: {
-        projectId: Id<"projects">;
-        userId: Id<"users">;
-        provider: ProviderName;
-        vaultSecretId: string;
-        vaultVersionId?: string;
-      } = {
-        projectId: args.projectId,
-        userId: user._id,
-        provider: args.provider,
-        vaultSecretId: created.id,
-      };
-      if (created.versionId !== undefined) {
-        insertArgs.vaultVersionId = created.versionId;
-      }
       credentialId = await ctx.runMutation(
         internal.media.credentialsDb._insert,
-        insertArgs,
+        {
+          userId: scope.userId,
+          provider: args.provider,
+          vaultSecretId: created.id,
+          ...scopeProject(scope),
+          ...(created.versionId !== undefined
+            ? { vaultVersionId: created.versionId }
+            : {}),
+        },
       );
     }
 
@@ -258,7 +237,7 @@ export const setCredentials = action({
 
 export const testCredentials = action({
   args: {
-    projectId: v.id("projects"),
+    projectId: v.optional(v.id("projects")),
     provider: PROVIDER_VALIDATOR,
   },
   handler: async (
@@ -299,7 +278,7 @@ export const testCredentials = action({
 
 export const rotate = action({
   args: {
-    projectId: v.id("projects"),
+    projectId: v.optional(v.id("projects")),
     provider: PROVIDER_VALIDATOR,
     secret: v.string(),
   },
@@ -334,9 +313,11 @@ export const rotate = action({
         value: secret,
         meta: {
           userId: cred.userId,
-          projectId: args.projectId,
           provider: args.provider,
           label: `${args.provider}-creds-rotated`,
+          ...(args.projectId !== undefined
+            ? { projectId: args.projectId }
+            : {}),
         },
       },
     );
@@ -384,7 +365,7 @@ export const rotate = action({
 
 export const deleteCredentials = action({
   args: {
-    projectId: v.id("projects"),
+    projectId: v.optional(v.id("projects")),
     provider: PROVIDER_VALIDATOR,
   },
   handler: async (ctx, args): Promise<void> => {
@@ -394,15 +375,20 @@ export const deleteCredentials = action({
       throws: true,
     });
 
-    const cred = await loadOwnedCredential(ctx, args.projectId, args.provider);
-    const project = await ctx.runQuery(internal.cms.projects.internalGet, {
-      projectId: args.projectId,
-    });
-    if (project?.mediaStorageMode === args.provider) {
+    const { scope, project } = await requireScope(ctx, args.projectId);
+    const cred = await requireScopedCredential(ctx, scope, args.provider);
+    const inUse = project
+      ? project.mediaStorageMode === args.provider
+      : await ctx.runQuery(internal.media.credentialsDb._usedByNotes, {
+          userId: scope.userId,
+          provider: args.provider,
+        });
+    if (inUse) {
       throw new ConvexError({
         code: "UNKNOWN" as const,
-        message:
-          "Switch media storage to a different provider before removing these credentials.",
+        message: project
+          ? "Switch media storage to a different provider before removing these credentials."
+          : "Pick a different image source for notes before removing these credentials.",
       });
     }
 
@@ -422,44 +408,66 @@ export const deleteCredentials = action({
   },
 });
 
-async function loadOwnedCredential(
+async function requireScope(
   ctx: ActionCtx,
-  projectId: Id<"projects">,
-  provider: ProviderName,
-): Promise<{
-  _id: Id<"mediaCredentials">;
-  userId: Id<"users">;
-  vaultSecretId: string;
-  status: "active" | "invalid" | "verifying" | "rotating";
-}> {
+  projectId: Id<"projects"> | undefined,
+): Promise<{ scope: CredentialScope; project: Doc<"projects"> | null }> {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) throw new Error("Not authenticated");
   const user = await ctx.runQuery(internal.account.users.internalGetByToken, {
     tokenIdentifier: identity.tokenIdentifier,
   });
   if (!user) throw new Error("User not found");
+  if (projectId === undefined) {
+    return { scope: { userId: user._id, projectId: undefined }, project: null };
+  }
   const project = await ctx.runQuery(internal.cms.projects.internalGet, {
     projectId,
   });
   if (!project || project.userId !== user._id) {
     throw new Error("Unauthorized");
   }
-  const cred = await ctx.runQuery(
-    internal.media.credentialsDb._findByProjectAndProvider,
-    { projectId, provider },
-  );
+  return { scope: { userId: user._id, projectId }, project };
+}
+
+function scopeProject(scope: CredentialScope): { projectId?: Id<"projects"> } {
+  return scope.projectId !== undefined ? { projectId: scope.projectId } : {};
+}
+
+async function findScopedCredential(
+  ctx: ActionCtx,
+  scope: CredentialScope,
+  provider: ProviderName,
+): Promise<Doc<"mediaCredentials"> | null> {
+  return await ctx.runQuery(internal.media.credentialsDb._findByScope, {
+    userId: scope.userId,
+    provider,
+    ...scopeProject(scope),
+  });
+}
+
+async function requireScopedCredential(
+  ctx: ActionCtx,
+  scope: CredentialScope,
+  provider: ProviderName,
+): Promise<Doc<"mediaCredentials">> {
+  const cred = await findScopedCredential(ctx, scope, provider);
   if (!cred) {
     throw new ConvexError({
       code: "AUTH_INVALID" as const,
       message: "No credentials configured for this provider.",
     });
   }
-  return {
-    _id: cred._id,
-    userId: cred.userId,
-    vaultSecretId: cred.vaultSecretId,
-    status: cred.status,
-  };
+  return cred;
+}
+
+async function loadOwnedCredential(
+  ctx: ActionCtx,
+  projectId: Id<"projects"> | undefined,
+  provider: ProviderName,
+): Promise<Doc<"mediaCredentials">> {
+  const { scope } = await requireScope(ctx, projectId);
+  return await requireScopedCredential(ctx, scope, provider);
 }
 
 function assertValidSecretShape(provider: ProviderName, secret: string): void {

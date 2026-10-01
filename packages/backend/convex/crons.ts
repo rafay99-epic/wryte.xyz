@@ -11,6 +11,13 @@ crons.cron(
 );
 
 crons.cron(
+  "notes:purge-expired-trash",
+  "15 3 * * *",
+  internal.cms.notes.notes._purgeExpiredTrash,
+  {},
+);
+
+crons.cron(
   "writingStats:prune-activity",
   "5 0 * * *",
   internal.analytics.writingStats._dailyMaintenance,

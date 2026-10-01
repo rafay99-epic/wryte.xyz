@@ -1,8 +1,12 @@
 "use client";
 
 import { api } from "@wryte/backend/_generated/api";
-import type { Id } from "@wryte/backend/_generated/dataModel";
 import { useIsMacPlatform } from "@wryte/logic/hooks/use-is-mac-platform";
+import {
+  type EditorFeatures,
+  targetProjectId,
+} from "@wryte/logic/lib/editor/features";
+import type { EditorTarget } from "@wryte/logic/lib/editor/target";
 import { splitShortcutKeys } from "@wryte/logic/lib/shortcuts";
 import { useEditorPreferencesStore } from "@wryte/logic/stores/editor-preferences-store";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
@@ -22,22 +26,15 @@ import { SlashMenu } from "./slash-menu";
 import { WikiLinkMenu } from "./wiki-link-menu";
 
 export function MarkdownEditor({
-  documentId,
-  projectId,
-  slashEnabled = false,
-  snippetsEnabled = false,
-  hasSnippets = false,
-  animationsEnabled = false,
-  selectionToolbarEnabled = true,
+  target,
+  features,
+  onBlur,
 }: {
-  documentId: string;
-  projectId: string;
-  slashEnabled?: boolean;
-  snippetsEnabled?: boolean;
-  hasSnippets?: boolean;
-  animationsEnabled?: boolean;
-  selectionToolbarEnabled?: boolean;
+  target: EditorTarget;
+  features: EditorFeatures;
+  onBlur?: () => void;
 }) {
+  const projectId = targetProjectId(target);
   const { content, contentEpoch, setContent, isVersionSwitching } =
     useEditorStore(
       useShallow((state) => ({
@@ -73,10 +70,9 @@ export function MarkdownEditor({
     "+",
   );
 
-  const activeProjectId = useEditorStore((s) => s.activeProjectId);
   const aiReadiness = useQuery(
     api.ai.enhance.isAiReady,
-    activeProjectId ? { projectId: activeProjectId as Id<"projects"> } : "skip",
+    projectId ? { projectId } : "skip",
   );
   const aiReady = aiReadiness?.ready ?? false;
 
@@ -144,9 +140,9 @@ export function MarkdownEditor({
     [aiReady, notifyAiNotReady],
   );
 
-  useKeyboardShortcuts(textareaRef, { onInlineAI });
+  useKeyboardShortcuts(textareaRef, projectId ? { onInlineAI } : {});
 
-  useMediaPaste({ documentId, projectId });
+  useMediaPaste({ target });
 
   const focusMode = useEditorStore((s) => s.focusMode);
   const typewriterScrolling = useEditorPreferencesStore(
@@ -212,29 +208,33 @@ export function MarkdownEditor({
 
   return (
     <div className="relative mx-auto w-full max-w-[860px]">
-      <InlineAiPopover
-        open={inlineAiOpen}
-        onOpenChange={handleInlineAiOpenChange}
-        selection={inlineAiSelection}
-        onAccept={handleAcceptInline}
-        presetInstruction={presetInstruction}
-      />
+      {target.kind === "document" && (
+        <InlineAiPopover
+          open={inlineAiOpen}
+          onOpenChange={handleInlineAiOpenChange}
+          selection={inlineAiSelection}
+          onAccept={handleAcceptInline}
+          presetInstruction={presetInstruction}
+        />
+      )}
 
-      {selectionToolbarEnabled && (
+      {features.selectionToolbar && (
         <SelectionToolbar aiReady={aiReady} onAiAction={handleQuickAiAction} />
       )}
 
-      <WikiLinkMenu
-        projectId={activeProjectId ? (activeProjectId as Id<"projects">) : null}
-        documentId={documentId}
-      />
+      {target.kind === "document" && (
+        <WikiLinkMenu
+          projectId={target.projectId}
+          documentId={target.documentId}
+        />
+      )}
 
       <SlashMenu
-        blockCommandsEnabled={slashEnabled}
-        snippetsEnabled={snippetsEnabled}
-        hasSnippets={hasSnippets}
-        animationsEnabled={animationsEnabled}
-        projectId={activeProjectId ? (activeProjectId as Id<"projects">) : null}
+        blockCommandsEnabled={features.slash}
+        snippetsEnabled={features.snippets}
+        hasSnippets={features.hasSnippets}
+        animationsEnabled={features.animations}
+        projectId={projectId}
         aiReady={aiReady}
         onAiAction={handleSlashAi}
       />
@@ -245,8 +245,13 @@ export function MarkdownEditor({
         ref={textareaRef}
         defaultValue={content}
         readOnly={isVersionSwitching}
+        onBlur={onBlur}
         className="editor-textarea h-full min-h-[calc(100vh-120px)] w-full resize-none border-0 bg-transparent px-10 py-8 text-[15px] leading-[1.85] text-foreground outline-none placeholder:text-muted-foreground/40 focus:ring-0"
-        placeholder="Start writing your article..."
+        placeholder={
+          target.kind === "document"
+            ? "Start writing your article..."
+            : "Start writing..."
+        }
         spellCheck={false}
         autoComplete="off"
         autoCorrect="off"

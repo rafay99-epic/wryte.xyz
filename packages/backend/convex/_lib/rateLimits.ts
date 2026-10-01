@@ -227,6 +227,57 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     period: HOUR,
   },
 
+  "notes:create": {
+    kind: "fixed window",
+    rate: 30,
+    period: MINUTE,
+  },
+  "notes:save": {
+    kind: "token bucket",
+    rate: 240,
+    period: MINUTE,
+    capacity: 60,
+  },
+  "notes:update": {
+    kind: "token bucket",
+    rate: 120,
+    period: MINUTE,
+    capacity: 30,
+  },
+  "notes:append": {
+    kind: "fixed window",
+    rate: 60,
+    period: MINUTE,
+  },
+  "notes:trash": {
+    kind: "token bucket",
+    rate: 60,
+    period: MINUTE,
+    capacity: 15,
+  },
+  "notes:emptyTrash": {
+    kind: "fixed window",
+    rate: 10,
+    period: HOUR,
+  },
+  "notes:links": {
+    kind: "token bucket",
+    rate: 60,
+    period: MINUTE,
+    capacity: 15,
+  },
+  "notes:convert": {
+    kind: "fixed window",
+    rate: 10,
+    period: MINUTE,
+  },
+  "noteGroups:write": {
+    kind: "token bucket",
+    rate: 60,
+    period: MINUTE,
+    capacity: 15,
+  },
+
   "boardColumns:updateColumns": {
     kind: "fixed window",
     rate: 20,

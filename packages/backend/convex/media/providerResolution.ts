@@ -2,21 +2,25 @@
 
 import { ConvexError } from "convex/values";
 import { internal } from "../_generated/api";
-import type { Doc, Id } from "../_generated/dataModel";
 import type { ActionCtx } from "../_generated/server";
 import { rateLimiter } from "../_lib/rateLimits";
 import { DEFAULT_MESSAGES, type MediaErrorCode } from "../providers/errors";
 import {
   getAdapter,
-  type ProjectMediaConfig,
   type ProviderAdapter,
   type ProviderContext,
 } from "../providers/registry";
 import {
+  credentialScope,
+  type MediaOwner,
+  ownerLocation,
+  ownerProvider,
+  ownerUserId,
+} from "./_lib/owner";
+import {
   getMediaProvider,
   isCredentialProvider,
   type MediaProvider,
-  resolveDefaultProvider,
 } from "./_lib/providers";
 
 export type ResolvedProvider = {
@@ -26,30 +30,11 @@ export type ResolvedProvider = {
 };
 
 export type ResolveArgs = {
-  project: Doc<"projects">;
-  userId: Id<"users">;
+  owner: MediaOwner;
   requested?: MediaProvider | undefined;
   rateKey: string;
   requireValid?: boolean;
 };
-
-export function projectMediaConfig(
-  project: Doc<"projects">,
-): ProjectMediaConfig {
-  return {
-    slug: project.slug,
-    mediaPath: project.mediaPath,
-    githubRepo: project.githubRepo,
-    githubBranch: project.githubBranch,
-  };
-}
-
-export function resolveProviderName(
-  project: Doc<"projects">,
-  requested?: MediaProvider | undefined,
-): MediaProvider {
-  return requested ?? resolveDefaultProvider(project.mediaStorageMode);
-}
 
 function authError(message: string) {
   return new ConvexError({
@@ -64,16 +49,20 @@ async function loadSecret(
   args: ResolveArgs,
 ): Promise<{ secret: string } | { reason: string }> {
   const entry = getMediaProvider(provider);
+  const { owner } = args;
 
   if (entry.credentialSource === "github-oauth") {
-    if (!args.project.githubRepo) {
+    if (owner.kind !== "project") {
+      return { reason: "GitHub can't store note images." };
+    }
+    if (!owner.project.githubRepo) {
       return {
         reason:
           "This project has no GitHub repo configured. Add one in settings first.",
       };
     }
     const { getGithubToken } = await import("../_lib/auth");
-    const token = await getGithubToken(ctx, args.userId);
+    const token = await getGithubToken(ctx, owner.project.userId);
     if (!token) {
       return {
         reason: "GitHub isn't connected. Reconnect in settings and try again.",
@@ -86,12 +75,19 @@ async function loadSecret(
     return { reason: `${entry.label} has no stored credential to load.` };
   }
 
+  const scope = credentialScope(owner);
   const cred = await ctx.runQuery(internal.media.uploadsDb._getCredential, {
-    projectId: args.project._id,
+    userId: ownerUserId(owner),
     provider,
+    ...(scope.projectId !== undefined ? { projectId: scope.projectId } : {}),
   });
   if (!cred) {
-    return { reason: `${entry.label} isn't connected for this project.` };
+    return {
+      reason:
+        owner.kind === "project"
+          ? `${entry.label} isn't connected for this project.`
+          : `${entry.label} isn't connected for your notes.`,
+    };
   }
   if (args.requireValid && cred.status === "invalid") {
     return { reason: DEFAULT_MESSAGES.AUTH_INVALID };
@@ -108,30 +104,33 @@ async function loadSecret(
   return { secret };
 }
 
+async function load(
+  ctx: ActionCtx,
+  args: ResolveArgs,
+): Promise<ResolvedProvider | { reason: string }> {
+  const provider = ownerProvider(args.owner, args.requested);
+  const loaded = await loadSecret(ctx, provider, args);
+  if ("reason" in loaded) return loaded;
+  return {
+    provider,
+    adapter: getAdapter(provider),
+    cx: { project: ownerLocation(args.owner), secret: loaded.secret },
+  };
+}
+
 export async function resolveProvider(
   ctx: ActionCtx,
   args: ResolveArgs,
 ): Promise<ResolvedProvider> {
-  const provider = resolveProviderName(args.project, args.requested);
-  const loaded = await loadSecret(ctx, provider, args);
-  if ("reason" in loaded) throw authError(loaded.reason);
-  return {
-    provider,
-    adapter: getAdapter(provider),
-    cx: { project: projectMediaConfig(args.project), secret: loaded.secret },
-  };
+  const resolved = await load(ctx, args);
+  if ("reason" in resolved) throw authError(resolved.reason);
+  return resolved;
 }
 
 export async function tryResolveProvider(
   ctx: ActionCtx,
   args: ResolveArgs,
 ): Promise<ResolvedProvider | null> {
-  const provider = resolveProviderName(args.project, args.requested);
-  const loaded = await loadSecret(ctx, provider, args);
-  if ("reason" in loaded) return null;
-  return {
-    provider,
-    adapter: getAdapter(provider),
-    cx: { project: projectMediaConfig(args.project), secret: loaded.secret },
-  };
+  const resolved = await load(ctx, args);
+  return "reason" in resolved ? null : resolved;
 }

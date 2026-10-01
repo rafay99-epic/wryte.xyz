@@ -17,6 +17,7 @@ import {
   Image,
   Loader2,
   LockKeyhole,
+  NotebookPen,
   PenLine,
   Plug,
   Terminal,
@@ -50,6 +51,13 @@ const CAPABILITIES: Capability[] = [
     description:
       "Create posts, write drafts, research and animations. Never the Main version.",
     icon: PenLine,
+  },
+  {
+    scope: SCOPES.notes,
+    label: "Notes",
+    description:
+      "Create notes, append to them and update tasks. Notes stay private and are never published.",
+    icon: NotebookPen,
   },
   {
     scope: SCOPES.media,
@@ -91,6 +99,32 @@ function EndpointPanel({ url }: { url: string }) {
       <code className="mt-3 block truncate rounded-lg border bg-background/70 px-3 py-2 font-mono text-xs text-muted-foreground">
         {url}
       </code>
+    </div>
+  );
+}
+
+function NotesPrompt({
+  isSaving,
+  onEnable,
+}: {
+  isSaving: boolean;
+  onEnable: () => void;
+}) {
+  return (
+    <div className="mb-3 flex flex-col gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3.5 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-start gap-2.5">
+        <NotebookPen className="mt-0.5 size-4 shrink-0 text-amber-500" />
+        <div>
+          <p className="text-sm font-medium text-foreground">Notes are off</p>
+          <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
+            Your agents cannot see your notes. Enable Notes to let them read and
+            search notes, append session logs and update tasks.
+          </p>
+        </div>
+      </div>
+      <Button size="sm" onClick={onEnable} disabled={isSaving}>
+        Enable notes
+      </Button>
     </div>
   );
 }
@@ -138,7 +172,16 @@ function CapabilityRow({
 }
 
 export function McpTab() {
-  const { draft, isLoading, isDirty, isSaving, toggle, save } = useMcpTab();
+  const {
+    draft,
+    notesMissing,
+    enableNotes,
+    isLoading,
+    isDirty,
+    isSaving,
+    toggle,
+    save,
+  } = useMcpTab();
   const endpoint = resolveMcpEndpoint();
 
   return (
@@ -183,10 +226,17 @@ export function McpTab() {
           <h3 className="text-sm font-semibold tracking-tight">Permissions</h3>
           <InfoHint>
             These permissions apply to every tool connected to your Wryte
-            account. Read and write are the usual starting point; media and
-            trash are optional. Publishing and the Main version stay yours.
+            account. Read, write and notes are the usual starting point; media
+            and trash are optional. Publishing and the Main version stay yours.
           </InfoHint>
         </div>
+
+        {notesMissing && (
+          <NotesPrompt
+            isSaving={isSaving}
+            onEnable={() => void enableNotes()}
+          />
+        )}
 
         {isLoading ? (
           <div className="space-y-1.5">

@@ -3,6 +3,7 @@
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
 import { useAuthedQuery } from "@wryte/logic/hooks/use-authed-query";
+import type { DocumentEditorTarget } from "@wryte/logic/lib/editor/features";
 import { getStreamErrorMessage } from "@wryte/logic/lib/stream-error";
 import { cn } from "@wryte/logic/lib/utils";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
@@ -24,18 +25,17 @@ import { useShallow } from "zustand/react/shallow";
 type AiSynthesisDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  documentId: string;
-  projectId: string;
+  target: DocumentEditorTarget;
   onRequestSave: () => Promise<void>;
 };
 
 export function AiSynthesisDialog({
   open,
   onOpenChange,
-  documentId,
-  projectId,
+  target,
   onRequestSave,
 }: AiSynthesisDialogProps) {
+  const { documentId, projectId } = target;
   const { initDocument, setActiveDraftId, setContent } = useEditorStore(
     useShallow((s) => ({
       initDocument: s.initDocument,
@@ -45,8 +45,7 @@ export function AiSynthesisDialog({
   );
 
   const [isClosing, setIsClosing] = useState(false);
-  const docArgs =
-    open || isClosing ? { documentId: documentId as Id<"documents"> } : "skip";
+  const docArgs = open || isClosing ? { documentId } : "skip";
   const document = useAuthedQuery(api.cms.documents.get, docArgs);
   const drafts = useQuery(api.cms.documentDrafts.list, docArgs);
   const research = useQuery(api.cms.documentResearch.list, docArgs);
@@ -59,7 +58,7 @@ export function AiSynthesisDialog({
   );
   const templates = useQuery(
     api.ai.promptTemplates.getTemplates,
-    open || isClosing ? { projectId: projectId as Id<"projects"> } : "skip",
+    open || isClosing ? { projectId } : "skip",
   );
 
   const [selectedDraftIds, setSelectedDraftIds] = useState<Set<string>>(
@@ -116,8 +115,8 @@ export function AiSynthesisDialog({
     const { title, content } = useEditorStore.getState();
     try {
       const result = await createFinalDraftStream({
-        projectId: projectId as Id<"projects">,
-        documentId: documentId as Id<"documents">,
+        projectId,
+        documentId,
         title: document?.title ?? title,
         content: document?.content ?? content,
         draftIds: Array.from(selectedDraftIds).map(
@@ -155,11 +154,7 @@ export function AiSynthesisDialog({
       return;
     }
     if (useEditorStore.getState().activeDraftId !== null) {
-      initDocument(
-        document.title,
-        document.content,
-        document.projectId as string,
-      );
+      initDocument(document.title, document.content, target);
       setActiveDraftId(null);
     }
     setContent(finalText);
@@ -168,6 +163,7 @@ export function AiSynthesisDialog({
   }, [
     finalText,
     document,
+    target,
     onRequestSave,
     initDocument,
     setActiveDraftId,
@@ -179,7 +175,7 @@ export function AiSynthesisDialog({
     if (!finalText.trim()) return;
     try {
       await createDraftSnapshot({
-        documentId: documentId as Id<"documents">,
+        documentId,
         label: "AI Synthesis",
         title: document?.title ?? useEditorStore.getState().title,
         content: finalText,

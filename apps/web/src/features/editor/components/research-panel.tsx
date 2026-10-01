@@ -2,7 +2,12 @@
 
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
+import { useAuthedQuery } from "@wryte/logic/hooks/use-authed-query";
 import type { LinkSuggestion } from "@wryte/logic/lib/editor/link-suggestions";
+import { EDITOR_SESSION_ID } from "@wryte/logic/lib/editor/session";
+import { dueLabel, todayKey } from "@wryte/logic/lib/notes/dates";
+import { NOTE_STATUS_LABELS } from "@wryte/logic/lib/notes/status";
+import { notePath } from "@wryte/logic/lib/notes/views";
 import { cn } from "@wryte/logic/lib/utils";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
 import { Badge } from "@wryte/ui/badge";
@@ -22,12 +27,14 @@ import {
   Link2,
   Loader2,
   MessageSquareQuote,
+  NotebookPen,
   Pencil,
   Plus,
   StickyNote,
   Trash2,
   X,
 } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
@@ -60,6 +67,83 @@ const STATUS_LABELS: Record<string, string> = {
   scheduled: "Scheduled",
   published: "Published",
 };
+
+function LinkedNotesSection({ documentId }: { documentId: Id<"documents"> }) {
+  const router = useRouter();
+  const notes = useAuthedQuery(api.cms.notes.links.forDocument, {
+    documentId,
+  });
+  const createNote = useMutation(api.cms.notes.notes.create);
+  const setLinks = useMutation(api.cms.notes.links.set);
+  const [creating, setCreating] = useState(false);
+
+  const handleCreate = useCallback(async () => {
+    setCreating(true);
+    try {
+      const title = useEditorStore.getState().title.trim();
+      const noteId = await createNote({
+        writer: EDITOR_SESSION_ID,
+        ...(title ? { title } : {}),
+      });
+      await setLinks({ noteId, documentIds: [documentId] });
+      router.push(notePath(noteId));
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to create note",
+      );
+      setCreating(false);
+    }
+  }, [createNote, documentId, router, setLinks]);
+
+  return (
+    <div className="border-t border-border/40 p-3">
+      <div className="mb-2 flex items-center gap-1.5">
+        <NotebookPen className="size-3 text-muted-foreground" />
+        <span className="text-[11px] font-medium text-foreground">
+          Linked notes
+        </span>
+        <button
+          type="button"
+          onClick={() => void handleCreate()}
+          disabled={creating}
+          className="ml-auto inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-50"
+        >
+          <Plus className="size-3" />
+          {creating ? "Creating" : "New linked note"}
+        </button>
+      </div>
+      {notes === undefined ? (
+        <p className="py-1 text-[11px] text-muted-foreground">Loading...</p>
+      ) : notes.length === 0 ? (
+        <p className="py-1 text-[11px] text-muted-foreground">
+          No notes linked to this article.
+        </p>
+      ) : (
+        <div className="-mx-1">
+          {notes.map((note) => (
+            <Link
+              key={note._id}
+              href={notePath(note._id)}
+              className="flex w-full items-center justify-between gap-2 border-b border-border/30 px-1 py-1.5 last:border-b-0 hover:bg-muted/40 focus-visible:bg-muted/40 focus-visible:outline-none"
+            >
+              <span className="truncate text-[11px] text-foreground">
+                {note.title || "Untitled"}
+              </span>
+              <span className="shrink-0 text-[9px] uppercase tracking-wide text-muted-foreground/70">
+                {[
+                  note.status ? NOTE_STATUS_LABELS[note.status] : null,
+                  note.dueDate ? dueLabel(note.dueDate, todayKey()) : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </span>
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function ResearchPanel({
   documentId,
@@ -615,6 +699,8 @@ export function ResearchPanel({
                   </div>
                 )}
               </div>
+
+              <LinkedNotesSection documentId={documentId as Id<"documents">} />
             </div>
           </div>
         </motion.div>

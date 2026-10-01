@@ -1,12 +1,21 @@
 import { v } from "convex/values";
+import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { internalMutation, internalQuery, query } from "../_generated/server";
 import { getAuthedUserOrNull } from "../_lib/auth";
 import { currentMonthBucket, QUOTAS } from "../_lib/quotas";
 import {
+  findCredential,
+  loadNoteSettings,
+  noteMediaSettingValidator,
+  resolveNoteSource,
+} from "./_lib/noteSource";
+import { isUsableCredential, type MediaOwner } from "./_lib/owner";
+import {
   credentialProviderValidator,
   mediaProviderValidator,
 } from "./_lib/providers";
+import { adjustUsage, findUsage } from "./_lib/usage";
 
 const PROVIDER_VALIDATOR = mediaProviderValidator;
 
@@ -81,22 +90,68 @@ export const _findByProviderAndExternalId = internalQuery({
 
 export const _getCredential = internalQuery({
   args: {
-    projectId: v.id("projects"),
+    userId: v.id("users"),
+    projectId: v.optional(v.id("projects")),
     provider: credentialProviderValidator,
   },
-  handler: async (ctx, args) => {
-    return await ctx.db
-      .query("mediaCredentials")
-      .withIndex("by_projectId_and_provider", (q) =>
-        q.eq("projectId", args.projectId).eq("provider", args.provider),
-      )
-      .unique();
+  handler: async (ctx, args) =>
+    await findCredential(
+      ctx,
+      { userId: args.userId, projectId: args.projectId },
+      args.provider,
+    ),
+});
+
+export const _noteMediaOwner = internalQuery({
+  args: {
+    userId: v.id("users"),
+    noteId: v.id("notes"),
+    requireNote: v.boolean(),
+    source: v.optional(noteMediaSettingValidator),
+  },
+  handler: async (
+    ctx,
+    args,
+  ): Promise<
+    | { ok: true; owner: Extract<MediaOwner, { kind: "user" }> }
+    | { ok: false; reason: string }
+  > => {
+    if (args.requireNote) {
+      const note = await ctx.db.get(args.noteId);
+      if (
+        !note ||
+        note.userId !== args.userId ||
+        note.trashedAt !== undefined
+      ) {
+        throw new Error("Note not found");
+      }
+    }
+    const settings = await loadNoteSettings(ctx, args.userId);
+    const decision = await resolveNoteSource(
+      ctx,
+      args.userId,
+      args.source ?? settings?.media,
+      isUsableCredential,
+    );
+    if (!decision.ok) return decision;
+    return {
+      ok: true,
+      owner: {
+        kind: "user",
+        userId: args.userId,
+        noteId: args.noteId,
+        mediaPath: settings?.mediaPath ?? "",
+        source: decision.source,
+      },
+    };
   },
 });
 
 export const _recordUpload = internalMutation({
   args: {
-    projectId: v.id("projects"),
+    projectId: v.optional(v.id("projects")),
+    noteId: v.optional(v.id("notes")),
+    sourceProjectId: v.optional(v.id("projects")),
     userId: v.id("users"),
     provider: PROVIDER_VALIDATOR,
     externalId: v.string(),
@@ -108,53 +163,39 @@ export const _recordUpload = internalMutation({
     height: v.optional(v.number()),
     documentId: v.optional(v.id("documents")),
   },
-  handler: async (ctx, args): Promise<Id<"media">> => {
-    const now = Date.now();
-    const insert: Record<string, unknown> = {
-      projectId: args.projectId,
-      userId: args.userId,
-      provider: args.provider,
-      externalId: args.externalId,
-      url: args.url,
-      filename: args.filename,
-      mime: args.mime,
-      bytes: args.bytes,
-      createdAt: now,
-    };
-    if (args.width !== undefined) insert["width"] = args.width;
-    if (args.height !== undefined) insert["height"] = args.height;
-    if (args.documentId !== undefined) insert["documentId"] = args.documentId;
-    const mediaId = (await ctx.db.insert(
-      "media",
-      insert as never,
-    )) as Id<"media">;
-
-    const month = currentMonthBucket(now);
-    const existing = await ctx.db
-      .query("mediaUsage")
-      .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
-      .unique();
-    if (existing) {
-      const sameMonth = existing.monthBucket === month;
-      await ctx.db.patch(existing._id, {
-        fileCount: existing.fileCount + 1,
-        totalBytes: existing.totalBytes + args.bytes,
-        uploadsThisMonth: sameMonth ? existing.uploadsThisMonth + 1 : 1,
-        monthBucket: month,
-        updatedAt: now,
-      });
-    } else {
-      await ctx.db.insert("mediaUsage", {
-        projectId: args.projectId,
-        userId: args.userId,
-        fileCount: 1,
-        totalBytes: args.bytes,
-        uploadsThisMonth: 1,
-        monthBucket: month,
-        updatedAt: now,
-      });
+  handler: async (ctx, args): Promise<Id<"media"> | null> => {
+    if (args.noteId !== undefined) {
+      const note = await ctx.db.get(args.noteId);
+      if (!note || note.userId !== args.userId) {
+        await ctx.scheduler.runAfter(
+          0,
+          internal.media.uploads._deleteNoteObjects,
+          {
+            userId: args.userId,
+            noteId: args.noteId,
+            refs: [
+              {
+                provider: args.provider,
+                externalId: args.externalId,
+                ...(args.sourceProjectId !== undefined
+                  ? { sourceProjectId: args.sourceProjectId }
+                  : {}),
+              },
+            ],
+          },
+        );
+        return null;
+      }
     }
-
+    const mediaId = await ctx.db.insert("media", {
+      ...args,
+      createdAt: Date.now(),
+    });
+    await adjustUsage(
+      ctx,
+      { userId: args.userId, projectId: args.projectId },
+      { files: 1, bytes: args.bytes, uploads: 1 },
+    );
     return mediaId;
   },
 });
@@ -165,25 +206,17 @@ export const _deleteRow = internalMutation({
     const row = await ctx.db.get(args.mediaId);
     if (!row) return;
     await ctx.db.delete(args.mediaId);
-
-    const usage = await ctx.db
-      .query("mediaUsage")
-      .withIndex("by_projectId", (q) => q.eq("projectId", row.projectId))
-      .unique();
-    if (usage) {
-      const bytes = row.bytes ?? 0;
-      await ctx.db.patch(usage._id, {
-        fileCount: Math.max(0, usage.fileCount - 1),
-        totalBytes: Math.max(0, usage.totalBytes - bytes),
-        updatedAt: Date.now(),
-      });
-    }
+    await adjustUsage(
+      ctx,
+      { userId: row.userId, projectId: row.projectId },
+      { files: -1, bytes: -(row.bytes ?? 0), uploads: 0 },
+    );
   },
 });
 
 export const _logError = internalMutation({
   args: {
-    projectId: v.id("projects"),
+    projectId: v.optional(v.id("projects")),
     userId: v.id("users"),
     provider: v.string(),
     operation: v.string(),
@@ -192,32 +225,21 @@ export const _logError = internalMutation({
     providerError: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const insert: Record<string, unknown> = {
-      projectId: args.projectId,
-      userId: args.userId,
-      provider: args.provider,
-      operation: args.operation,
-      errorCode: args.errorCode,
-      errorMessage: args.errorMessage,
-      createdAt: Date.now(),
-    };
-    if (args.providerError !== undefined) {
-      insert["providerError"] = args.providerError;
-    }
-    await ctx.db.insert("mediaErrorLog", insert as never);
+    await ctx.db.insert("mediaErrorLog", { ...args, createdAt: Date.now() });
   },
 });
 
 export const _quotaCheck = internalQuery({
   args: {
-    projectId: v.id("projects"),
+    userId: v.id("users"),
+    projectId: v.optional(v.id("projects")),
     incomingBytes: v.number(),
   },
   handler: async (ctx, args) => {
-    const usage = await ctx.db
-      .query("mediaUsage")
-      .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
-      .unique();
+    const usage = await findUsage(ctx, {
+      userId: args.userId,
+      projectId: args.projectId,
+    });
     const fileCount = usage?.fileCount ?? 0;
     const totalBytes = usage?.totalBytes ?? 0;
     const uploadsThisMonth = usage?.uploadsThisMonth ?? 0;

@@ -21,7 +21,8 @@
     "deploy": "convex deploy --cmd-url-env-var-name NEXT_PUBLIC_CONVEX_URL --cmd 'cd ../../apps/web && bun run build'",
     "type": "tsc --noEmit -p convex/tsconfig.json && tsc --noEmit -p tests/tsconfig.json && tsc --noEmit -p e2e/tsconfig.json",
     "test": "bun test tests",
-    "test:mcp": "bun e2e/mcp.ts"
+    "test:mcp": "bun e2e/mcp.ts",
+    "test:perf": "bun e2e/perf.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.110.0",
