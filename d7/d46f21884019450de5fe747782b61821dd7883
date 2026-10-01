@@ -1,0 +1,165 @@
+packages/backend/convex/mcp/retry.ts
+  s_09e8f9b29e4a73::t_5201df7ed918a4 1-9
+packages/logic/src/lib/notes/shares.ts
+  s_09e8f9b29e4a73::t_a0642005f62754 9,17,19,26,34-35,76-78,80-91,95-107,112-114
+  s_09e8f9b29e4a73::t_dc4edbe5a0ecc4 92-94
+  s_09e8f9b29e4a73::t_0af0fc7b564d57 108-111
+  s_09e8f9b29e4a73::t_5a03009568240e 1-8,10-16,18,20-25,27-33,36-75,79
+packages/backend/convex/cms/notes/_lib/groups.ts
+  s_09e8f9b29e4a73::t_d3b42b6a289ff0 80-82
+  s_09e8f9b29e4a73::t_cc55c91eabf821 74-75,77-78
+  s_09e8f9b29e4a73::t_931f3d6db4a854 66-73,76,79,83-86,92
+packages/backend/convex/http.ts
+  s_09e8f9b29e4a73::t_6e79a95918ef22 35-36
+apps/web/src/features/shared-notes/hooks/use-share-token.ts
+  s_09e8f9b29e4a73::t_90fcd5ac0caede 1-16
+apps/web/src/features/notes/components/share-link-row.tsx
+  s_09e8f9b29e4a73::t_356d55b0813631 19
+  s_09e8f9b29e4a73::t_9fae032be6b092 1-12,14-18,20-45,48-53,55-67,72-73,75-76,78-124
+  s_09e8f9b29e4a73::t_4284d9714c09b6 46-47
+  s_09e8f9b29e4a73::t_f7d6851fc3b977 54
+  s_09e8f9b29e4a73::t_3b75cd7dd42b4c 68-71,74,77
+  s_09e8f9b29e4a73::t_e932c23413d251 13
+apps/web/src/features/shared-notes/shared-notes-page.tsx
+  s_09e8f9b29e4a73::t_62879d4cdadac5 1-3,8-21,23-28,30-37,43-48,57-62,64-76,78-94,102-119,121-129
+  s_09e8f9b29e4a73::t_40b8bdd6d87567 22,77
+  s_09e8f9b29e4a73::t_356d55b0813631 29,38-42,49-56,63
+  s_09e8f9b29e4a73::t_d1d36e95e1bc74 95-101,120
+  s_09e8f9b29e4a73::t_da5edaadc37c91 4-7
+apps/web/src/features/notes/hooks/use-share-links.ts
+  s_09e8f9b29e4a73::t_cb09570bf0d787 1-55,57-64,66-70
+  s_09e8f9b29e4a73::t_2c0ac5dc896543 56,65
+apps/web/src/features/notes/components/group-filter.tsx
+  s_09e8f9b29e4a73::t_da5edaadc37c91 6,17,31-32,40-45,47-57,59-103
+apps/web/src/content/docs/troubleshooting.md
+  s_09e8f9b29e4a73::t_eea5bdead5b2f5 67-68
+  s_09e8f9b29e4a73::t_271cdef0b486ed 65
+packages/backend/convex/cms/notes/_lib/shares.ts
+  s_09e8f9b29e4a73::t_d3b42b6a289ff0 19,26,285
+  s_09e8f9b29e4a73::t_430bbfe4b5fe1a 291-293,309
+  s_09e8f9b29e4a73::t_d1a1ed227feac3 1-18,20-25,27-284,286-290,294-308,310-385
+packages/backend/convex/mcp/tools.ts
+  s_09e8f9b29e4a73::t_02a7244253ba3d 21,47-48,484,544-579
+packages/backend/e2e/perf.ts
+  s_09e8f9b29e4a73::t_00cd2d1af0af0c 649
+  s_09e8f9b29e4a73::t_b64b2f4b0be003 7
+  s_09e8f9b29e4a73::t_ec1b36d65046cf 2,29-31,42,429-509
+apps/web/src/features/shared-notes/hooks/use-shared-notes.ts
+  s_09e8f9b29e4a73::t_4825545bca47f2 1-23,25-46,58-80,82-91,117-128,130
+  s_09e8f9b29e4a73::t_752fb82a333dac 47-57
+  s_09e8f9b29e4a73::t_356d55b0813631 81,129
+  s_09e8f9b29e4a73::t_030263293483a1 92-116
+  s_09e8f9b29e4a73::t_40b8bdd6d87567 24
+packages/logic/tests/notes-shares.test.ts
+  s_09e8f9b29e4a73::t_13789fd56d0b20 31-32,35
+  s_09e8f9b29e4a73::t_8f550b94e5b99f 2-3,6,8,10,15,55-73,80-116
+  s_09e8f9b29e4a73::t_da5edaadc37c91 36-43,74-79
+  s_09e8f9b29e4a73::t_14cf61290ccb8e 1,4-5,7,9,11-14,16-30,33-34,44-54,117-118
+apps/web/src/features/shared-notes/components/shared-refs.tsx
+  s_09e8f9b29e4a73::t_2cd49ac019b238 1-60
+apps/web/src/features/shared-notes/hooks/use-near-viewport.ts
+  s_09e8f9b29e4a73::t_ab480fdbed5e9c 1-38
+packages/backend/convex/schema.ts
+  s_09e8f9b29e4a73::t_f070eae36f6d53 927-940
+apps/web/src/app/(marketing)/shared/page.tsx
+  s_09e8f9b29e4a73::t_90fcd5ac0caede 1-11
+apps/web/src/features/notes/components/notes-board.tsx
+  s_09e8f9b29e4a73::t_261a91220648da 14,16,24,28,34,64-66,96-103,136-160,206-207,209,299-319,323-339
+  s_09e8f9b29e4a73::t_da5edaadc37c91 320-322
+  s_09e8f9b29e4a73::t_d64ba0de61ddf4 340-341
+apps/web/src/features/notes/components/shared-links-dialog.tsx
+  s_09e8f9b29e4a73::t_9688253de0b5f9 1-77
+packages/backend/convex/mcp/gate.ts
+  s_09e8f9b29e4a73::t_35f4c893f5e361 31
+  s_09e8f9b29e4a73::t_5201df7ed918a4 4,37
+apps/web/src/features/shared-notes/components/shared-states.tsx
+  s_09e8f9b29e4a73::t_5b9c2ecf245e64 1-110
+apps/web/src/features/notes/hooks/use-note-selection.ts
+  s_09e8f9b29e4a73::t_719644470047dc 1-10,16,18,23-30,39
+  s_09e8f9b29e4a73::t_bdfec82762f5a6 11-15,17,19-22,31-38
+packages/backend/e2e/localConvex.ts
+  s_09e8f9b29e4a73::t_5d7ad9dca55984 1-66
+packages/backend/convex/cms/notes/shares.ts
+  s_09e8f9b29e4a73::t_243096663deb67 1,3-58,61-71
+  s_09e8f9b29e4a73::t_d3b42b6a289ff0 2,59-60
+apps/web/src/features/notes/components/note-card.tsx
+  s_09e8f9b29e4a73::t_2b741a6545b649 9,19-20,22,29-30,32,41-45,60,62,68-88,95
+apps/web/src/features/notes/components/share-dialog.tsx
+  s_09e8f9b29e4a73::t_22769326515f94 1-12,14-97,99-210,212-221
+  s_09e8f9b29e4a73::t_2c0ac5dc896543 13,98,211
+packages/backend/convex/mcp/handlers/notes.ts
+  s_09e8f9b29e4a73::t_cc55c91eabf821 11,110-113
+  s_09e8f9b29e4a73::t_35f4c893f5e361 5,45
+packages/backend/convex/account/selfDestruct.ts
+  s_09e8f9b29e4a73::t_60eab4f481b9d6 577-588,764-766
+  s_09e8f9b29e4a73::t_8d7e6cbae9f92f 576,767
+packages/backend/convex/mcp/agentFunctions.ts
+  s_09e8f9b29e4a73::t_5201df7ed918a4 14
+  s_09e8f9b29e4a73::t_35f4c893f5e361 30
+apps/web/src/proxy.ts
+  s_09e8f9b29e4a73::t_c1b4ec5099d401 33
+packages/backend/e2e/mcp.ts
+  s_09e8f9b29e4a73::t_492caf11edfefa 6,67-69,76-78,227-228,233-234,237-271,274-361,363-372,374-401,404-405,411-421,425-451,1011,1013,1015,1291-1311,1322-1326
+  s_09e8f9b29e4a73::t_d3b42b6a289ff0 272-273,373,406-410,422-424
+  s_09e8f9b29e4a73::t_e890b5f535b871 229-232,235-236
+  s_09e8f9b29e4a73::t_1454e873e9617f 362,402-403,1327
+packages/backend/tests/notes-shares.test.ts
+  s_09e8f9b29e4a73::t_ed56c06780e790 76
+  s_09e8f9b29e4a73::t_ef929013dfb8d8 1-9,11-75,77-89
+  s_09e8f9b29e4a73::t_d3b42b6a289ff0 10
+packages/backend/convex/cms/notes/_lib/shareModel.ts
+  s_09e8f9b29e4a73::t_ed56c06780e790 143-145
+  s_09e8f9b29e4a73::t_9738c05acf0417 1-142,153
+  s_09e8f9b29e4a73::t_a6d5dd86a79a5f 146-152
+packages/backend/convex/_lib/appUrl.ts
+  s_09e8f9b29e4a73::t_430bbfe4b5fe1a 1-4
+apps/web/src/features/notes/components/note-header.tsx
+  s_09e8f9b29e4a73::t_346a232137c8be 33,49,68,82-90,137-140
+  s_09e8f9b29e4a73::t_58aee9b631539d 141
+apps/web/src/features/notes/components/board-header.tsx
+  s_09e8f9b29e4a73::t_da5edaadc37c91 7
+  s_09e8f9b29e4a73::t_d64babff07d9e1 8,12,19-20,25-26,30,70-75,77-94,96,100-132
+packages/backend/convex/mcp/handlers/noteShares.ts
+  s_09e8f9b29e4a73::t_5f061c2b88dea8 1-79
+apps/web/src/features/shared-notes/components/shared-toc.tsx
+  s_09e8f9b29e4a73::t_6b3e0067ac52ab 1-40
+apps/web/src/features/shared-notes/components/shared-note-section.tsx
+  s_09e8f9b29e4a73::t_a51b812782f54e 133-137
+  s_09e8f9b29e4a73::t_d1d36e95e1bc74 26,34,57
+  s_09e8f9b29e4a73::t_0875ea1c25d215 1-25,27-33,35-56,58-126,131-132,138-154
+  s_09e8f9b29e4a73::t_da5edaadc37c91 127-130
+packages/logic/src/lib/notes/share-client.ts
+  s_09e8f9b29e4a73::t_9529fa5ee24249 1-11
+packages/backend/convex/cms/notes/groups.ts
+  s_09e8f9b29e4a73::t_60eab4f481b9d6 18,126
+apps/web/src/features/notes/components/group-item.tsx
+  s_09e8f9b29e4a73::t_97db3525c2d24f 25,40,48,112-115
+packages/backend/convex/_generated/api.d.ts
+  s_7c3da21b11f9e2::t_43d2c082981c9b 18,70-71,79,112,121,176,228-229,237,270,279
+packages/backend/convex/_lib/rateLimits.ts
+  s_09e8f9b29e4a73::t_8171f7ed5d3a87 231-232,234,238,240,244,246,249-250,252,256,258,267,269,272-277,284-285,287,291,293
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d7d46f21884019450de5fe747782b61821dd7883",
+  "prompts": {},
+  "sessions": {
+    "s_09e8f9b29e4a73": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cf5221cf-697f-4520-b4b4-113d0e3dc88e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    },
+    "s_7c3da21b11f9e2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b74590f0-d38e-4dbb-bddb-f48f0e0cf727",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Abdul Rafay <99marafay@gmail.com>"
+    }
+  }
+}
