@@ -62,10 +62,10 @@ refused. Enable the capability and they appear.
 
 ## During a call
 
-**`Rate limited. Slow down and retry.` (429)**
+**`Rate limited: retry in N s` (429)**
 
-Back off for the `Retry-After` interval. See [Rate limits](/docs/rate-limits) for
-the budgets and how to reduce round trips.
+Wait N seconds, then retry. See [Rate limits](/docs/rate-limits) for the
+budgets and how to reduce round trips.
 
 **`Tool execution failed`**
 

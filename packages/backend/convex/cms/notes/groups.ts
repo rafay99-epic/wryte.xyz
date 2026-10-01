@@ -15,6 +15,7 @@ import {
 } from "./_lib/groups";
 import { groupRowValidator, toGroupRow } from "./_lib/model";
 import { NOTE_PURGE_BATCH } from "./_lib/purge";
+import { deleteSharesForGroup } from "./_lib/shares";
 
 export const rail = query({
   args: {},
@@ -122,6 +123,7 @@ export const remove = mutation({
     await limitGroupWrite(ctx, user);
     const group = await requireOwnedGroup(ctx, user, args.groupId);
     await ctx.db.delete(group._id);
+    await deleteSharesForGroup(ctx, group._id);
     await ungroupBatch(ctx, user._id, group._id);
     return null;
   },

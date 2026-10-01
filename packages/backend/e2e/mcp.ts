@@ -3,6 +3,7 @@ import { ConvexHttpClient } from "convex/browser";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
 import { SCOPES } from "../convex/mcp/scopes";
+import { convexRun, drainBucket, tokenIdentifier } from "./localConvex";
 import { McpClient, type ToolOutcome } from "./mcpClient";
 
 const siteUrl = (process.env["NEXT_PUBLIC_CONVEX_SITE_URL"] ?? "").replace(
@@ -63,12 +64,18 @@ const NOTE_TOOLS = [
   "wryte_notes_update",
   "wryte_notes_append",
   "wryte_notes_trash",
+  "wryte_notes_share",
+  "wryte_notes_shares_list",
+  "wryte_notes_share_revoke",
 ];
 
 const E2E_SCOPES = [SCOPES.trash, SCOPES.notes];
 const NOTE_PAGE = 25;
 const MAX_LIST_BYTES = 15 * 1024;
 const RATE_RETRIES = 45;
+const DAY_MS = 86_400_000;
+const SHARE_URL = /^https?:\/\/[^/]+\/shared#([A-Za-z0-9_-]{43})$/;
+const SHARE_LIMIT = { rate: 60, period: 60_000, capacity: 20 };
 
 const PIXEL_PNG = Uint8Array.from(
   atob(
@@ -215,6 +222,231 @@ async function pickProject(
     }
   }
   return projects[0];
+}
+
+const anonymous = new ConvexHttpClient(convexUrl);
+
+function isShareId(value: unknown): value is Id<"note_shares"> {
+  return typeof value === "string";
+}
+
+function shareIdOf(value: unknown): Id<"note_shares"> {
+  const shareId = field(value, "shareId");
+  if (!isShareId(shareId)) throw new Error("No share id");
+  return shareId;
+}
+
+async function shareSuite(run: {
+  client: McpClient;
+  authed: () => Promise<ConvexHttpClient>;
+  key: string;
+  groupName: string;
+  noteIds: Id<"notes">[];
+  marker: string;
+}): Promise<void> {
+  const { client, authed, groupName, noteIds } = run;
+  console.info("note shares");
+  const [first, second, third] = noteIds;
+  if (!first || !second || !third) throw new Error("Need three notes");
+
+  const before = Date.now();
+  const groupShare = data(
+    await timed("share group", () =>
+      callPatiently(client, "wryte_notes_share", {
+        group: groupName,
+        title: "E2E group share",
+        expiresInDays: 7,
+      }),
+    ),
+  );
+  const groupUrl = String(field(groupShare, "url"));
+  const groupToken = SHARE_URL.exec(groupUrl)?.[1] ?? "";
+  const groupExpiry = Number(field(groupShare, "expiresAt"));
+  check(
+    "shares a group and returns an absolute /shared#token url",
+    groupToken.length === 43 && field(groupShare, "token") === groupToken,
+    groupShare,
+  );
+  check(
+    "a 7 day link expires 7 days out",
+    groupExpiry >= before + 7 * DAY_MS &&
+      groupExpiry <= Date.now() + 7 * DAY_MS,
+    groupExpiry,
+  );
+
+  const index = await anonymous.query(api.cms.notes.shares.view, {
+    token: groupToken,
+  });
+  const indexJson = JSON.stringify(index);
+  check(
+    `a signed-out reader sees the group index (${String(index?.notes.length)} notes, ${(indexJson.length / 1024).toFixed(1)} KB)`,
+    index !== null &&
+      index.kind === "group" &&
+      index.title === "E2E group share" &&
+      index.group === groupName &&
+      index.total === noteIds.length &&
+      index.notes.length === noteIds.length &&
+      index.notes.some((note) => note.noteId === first),
+    index && { ...index, notes: index.notes.length },
+  );
+  check(
+    "the index carries no bodies, user ids or group ids",
+    !indexJson.includes("content") &&
+      !indexJson.includes("userId") &&
+      !indexJson.includes("groupId") &&
+      !indexJson.includes("excerpt"),
+  );
+
+  const batch = noteIds.slice(0, 10);
+  const bodies = await anonymous.query(api.cms.notes.shares.bodies, {
+    token: groupToken,
+    noteIds: batch,
+  });
+  check(
+    "bodies load in a batch of 10 for a signed-out reader",
+    bodies !== null &&
+      bodies.notes.length + bodies.deferred.length === batch.length &&
+      bodies.notes.length > 0 &&
+      bodies.notes.some(
+        (note) => note.noteId === first && note.content.includes(run.marker),
+      ),
+    bodies && { notes: bodies.notes.length, deferred: bodies.deferred },
+  );
+  const withRefs = bodies?.notes.find((note) => note.noteId === first);
+  check(
+    "bodies include the note's refs without internal ids",
+    (withRefs?.refs.length ?? 0) >= 2 &&
+      !JSON.stringify(withRefs?.refs).includes("_id"),
+    withRefs?.refs,
+  );
+  let tooMany = "";
+  try {
+    await anonymous.query(api.cms.notes.shares.bodies, {
+      token: groupToken,
+      noteIds: noteIds.slice(0, 11),
+    });
+  } catch (error) {
+    tooMany = String(error);
+  }
+  check("refuses more than 10 bodies per call", tooMany.includes("at most 10"));
+
+  const pair = data(
+    await callPatiently(client, "wryte_notes_share", {
+      noteIds: [first, second],
+    }),
+  );
+  const pairToken = String(field(pair, "token"));
+  const pairView = await anonymous.query(api.cms.notes.shares.view, {
+    token: pairToken,
+  });
+  check(
+    "shares two notes with their group names and a never-expiring link",
+    field(pair, "expiresAt") === undefined &&
+      pairView !== null &&
+      pairView.kind === "notes" &&
+      pairView.title === "2 notes" &&
+      pairView.notes.length === 2 &&
+      pairView.notes.every((note) => note.group === groupName),
+    pairView,
+  );
+  const pairBodies = await anonymous.query(api.cms.notes.shares.bodies, {
+    token: pairToken,
+    noteIds: [first, third],
+  });
+  check(
+    "bodies refuse notes outside the share",
+    pairBodies !== null &&
+      pairBodies.notes.length === 1 &&
+      pairBodies.notes[0]?.noteId === first &&
+      pairBodies.deferred.length === 0,
+    pairBodies?.notes.map((note) => note.noteId),
+  );
+
+  const invalid = await anonymous.query(api.cms.notes.shares.view, {
+    token: "not-a-token",
+  });
+  const unknown = await anonymous.query(api.cms.notes.shares.view, {
+    token: "A".repeat(43),
+  });
+  check("unknown and malformed tokens view as null", !invalid && !unknown);
+
+  const listed = list(data(await client.call("wryte_notes_shares_list", {})));
+  const appList = await (await authed()).query(api.cms.notes.shares.list, {});
+  check(
+    "both share lists show the new links with labels",
+    listed.some(
+      (row) =>
+        field(row, "shareId") === field(groupShare, "shareId") &&
+        field(row, "url") === groupUrl &&
+        field(row, "label") === groupName,
+    ) &&
+      appList.some(
+        (row) =>
+          row.shareId === field(pair, "shareId") &&
+          row.label === "2 notes" &&
+          row.token === pairToken,
+      ),
+    { listed: listed.length, app: appList.length },
+  );
+
+  drainBucket("notes:share", run.key, SHARE_LIMIT);
+  const limited = await client.call("wryte_notes_share", {
+    noteIds: [third],
+  });
+  console.info(
+    `    rate limit error: ${limited.ok ? "none" : (limited.error.split("\n")[0] ?? "")}`,
+  );
+  check(
+    "a tripped limit tells the agent how long to wait",
+    !limited.ok &&
+      /^(Uncaught ConvexError: )?Rate limited: retry in \d+ s(\n|$)/.test(
+        limited.error,
+      ),
+    limited,
+  );
+  convexRun(
+    "lib:resetRateLimit",
+    { name: "notes:share", key: run.key },
+    "rateLimiter",
+  );
+
+  const revoked = await client.call("wryte_notes_share_revoke", {
+    shareId: field(pair, "shareId"),
+  });
+  await (await authed()).mutation(api.cms.notes.shares.revoke, {
+    shareId: shareIdOf(groupShare),
+  });
+  check(
+    "revoked links view as null at once",
+    revoked.ok &&
+      (await anonymous.query(api.cms.notes.shares.view, {
+        token: pairToken,
+      })) === null &&
+      (await anonymous.query(api.cms.notes.shares.view, {
+        token: groupToken,
+      })) === null,
+    revoked,
+  );
+
+  const daily = await (await authed()).mutation(api.cms.notes.shares.create, {
+    kind: "note",
+    noteIds: [second],
+    expiresInDays: 1,
+  });
+  const live = await anonymous.query(api.cms.notes.shares.view, {
+    token: daily.token,
+  });
+  convexRun("cms/notes/shares:_expire", { shareId: daily.shareId });
+  const expired = await anonymous.query(api.cms.notes.shares.view, {
+    token: daily.token,
+  });
+  check(
+    "a 1 day link works until its scheduled expiry, then views as null",
+    live?.kind === "note" &&
+      (daily.expiresAt ?? 0) - Date.now() > DAY_MS - 60_000 &&
+      expired === null,
+    { live: live?.title, expiresAt: daily.expiresAt },
+  );
 }
 
 async function main(): Promise<void> {
@@ -776,10 +1008,11 @@ async function main(): Promise<void> {
     if (!isNoteId(noteId)) throw new Error("No note id");
     noteIds.push(noteId);
     check(
-      "creates a note in a new group and returns its web path",
+      "creates a note in a new group and returns its url",
       field(createdNote.ok ? createdNote.data : null, "rev") === 1 &&
-        field(createdNote.ok ? createdNote.data : null, "url") ===
+        String(field(createdNote.ok ? createdNote.data : null, "url")).endsWith(
           `/notes/${noteId}`,
+        ),
       createdNote,
     );
 
@@ -1055,6 +1288,27 @@ async function main(): Promise<void> {
       ),
     );
 
+    await shareSuite({
+      client,
+      authed,
+      key: tokenIdentifier(await token()),
+      groupName,
+      noteIds,
+      marker,
+    });
+
+    const single = data(
+      await callPatiently(client, "wryte_notes_share", { noteIds: [noteId] }),
+    );
+    const singleToken = String(field(single, "token"));
+    cleanup.push(async () => {
+      await patiently(async () =>
+        (await authed()).mutation(api.cms.notes.shares.revoke, {
+          shareId: shareIdOf(single),
+        }),
+      );
+    });
+
     const trashedNote = await timed("trash", () =>
       client.call("wryte_notes_trash", { noteId }),
     );
@@ -1064,6 +1318,12 @@ async function main(): Promise<void> {
       field(trashedNote.ok ? trashedNote.data : null, "ok") === true &&
         refusedWith(gone, "Note not found"),
       [trashedNote, gone],
+    );
+    check(
+      "a trashed note disappears from its public link",
+      (await anonymous.query(api.cms.notes.shares.view, {
+        token: singleToken,
+      })) === null,
     );
   } finally {
     console.info("cleanup");

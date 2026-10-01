@@ -2,12 +2,13 @@ import { v } from "convex/values";
 import { mcpCallerValidator } from "convex-mcp-gateway";
 import type { Doc, Id } from "../../_generated/dataModel";
 import type { MutationCtx } from "../../_generated/server";
+import { appUrl } from "../../_lib/appUrl";
 import { requireCaller } from "../../_lib/auth";
 import { rateLimiter } from "../../_lib/rateLimits";
 import {
   findOrCreateGroupByName,
   groupsForUser,
-  normalizeGroupName,
+  requireGroupNamed,
 } from "../../cms/notes/_lib/groups";
 import { setNoteLinks } from "../../cms/notes/_lib/links";
 import {
@@ -41,7 +42,7 @@ const PAGE_SIZE = 25;
 const MCP = "mcp";
 
 function noteUrl(noteId: Id<"notes">): string {
-  return `/notes/${noteId}`;
+  return appUrl(`/notes/${noteId}`);
 }
 
 function clip(content: string, maxChars: number) {
@@ -106,17 +107,10 @@ export const list = agentQuery({
     const groupNames = new Map<string, string>(
       groups.map((group) => [group._id, group.name]),
     );
-    let groupId: Id<"note_groups"> | undefined;
-    if (args.group !== undefined) {
-      const wanted = normalizeGroupName(args.group).toLowerCase();
-      const match = groups.find((group) => group.name.toLowerCase() === wanted);
-      if (!match) {
-        throw new Error(
-          `No note group named "${args.group}". See wryte_note_groups_list.`,
-        );
-      }
-      groupId = match._id;
-    }
+    const groupId =
+      args.group === undefined
+        ? undefined
+        : requireGroupNamed(groups, args.group)._id;
 
     const result = await listNotesForUser(ctx, user, {
       paginationOpts: { numItems: PAGE_SIZE, cursor: args.cursor ?? null },

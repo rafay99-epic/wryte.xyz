@@ -228,32 +228,34 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
   },
 
   "notes:create": {
-    kind: "fixed window",
-    rate: 30,
-    period: MINUTE,
-  },
-  "notes:save": {
     kind: "token bucket",
     rate: 240,
     period: MINUTE,
     capacity: 60,
   },
+  "notes:save": {
+    kind: "token bucket",
+    rate: 600,
+    period: MINUTE,
+    capacity: 120,
+  },
   "notes:update": {
     kind: "token bucket",
-    rate: 120,
+    rate: 600,
     period: MINUTE,
-    capacity: 30,
+    capacity: 120,
   },
   "notes:append": {
-    kind: "fixed window",
-    rate: 60,
+    kind: "token bucket",
+    rate: 600,
     period: MINUTE,
+    capacity: 120,
   },
   "notes:trash": {
     kind: "token bucket",
-    rate: 60,
+    rate: 240,
     period: MINUTE,
-    capacity: 15,
+    capacity: 60,
   },
   "notes:emptyTrash": {
     kind: "fixed window",
@@ -262,26 +264,33 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
   },
   "notes:links": {
     kind: "token bucket",
-    rate: 60,
+    rate: 240,
     period: MINUTE,
-    capacity: 15,
+    capacity: 60,
   },
   "notes:refs": {
+    kind: "token bucket",
+    rate: 300,
+    period: MINUTE,
+    capacity: 60,
+  },
+  "notes:share": {
     kind: "token bucket",
     rate: 60,
     period: MINUTE,
     capacity: 20,
   },
   "notes:convert": {
-    kind: "fixed window",
-    rate: 10,
+    kind: "token bucket",
+    rate: 30,
     period: MINUTE,
+    capacity: 10,
   },
   "noteGroups:write": {
     kind: "token bucket",
-    rate: 60,
+    rate: 120,
     period: MINUTE,
-    capacity: 15,
+    capacity: 30,
   },
 
   "boardColumns:updateColumns": {

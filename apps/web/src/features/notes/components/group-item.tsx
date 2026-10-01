@@ -22,6 +22,7 @@ import {
   MoreHorizontal,
   Palette,
   Pencil,
+  Share2,
   Trash2,
 } from "lucide-react";
 import { useRef, useState } from "react";
@@ -36,6 +37,7 @@ export function GroupItem({
   first,
   last,
   onSelect,
+  onShare,
   actions,
 }: {
   group: GroupRow;
@@ -43,6 +45,7 @@ export function GroupItem({
   first: boolean;
   last: boolean;
   onSelect: () => void;
+  onShare: () => void;
   actions: ReturnType<typeof useGroupActions>;
 }) {
   const [renaming, setRenaming] = useState(false);
@@ -105,6 +108,10 @@ export function GroupItem({
           <DropdownMenuItem onClick={() => setRenaming(true)}>
             <Pencil />
             Rename
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={onShare}>
+            <Share2 />
+            Share group
           </DropdownMenuItem>
           <DropdownMenuSub>
             <DropdownMenuSubTrigger>

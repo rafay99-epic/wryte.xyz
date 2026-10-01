@@ -30,6 +30,7 @@ import {
   ImageIcon,
   MoreHorizontal,
   Pin,
+  Share2,
   Trash2,
   X,
 } from "lucide-react";
@@ -45,6 +46,7 @@ import { DueDateInput } from "./due-date-input";
 import { GroupDot } from "./group-filter";
 import { LinkedArticles } from "./linked-articles";
 import { AddRefButton, NoteRefList } from "./note-refs";
+import { ShareDialog } from "./share-dialog";
 import { StatusIcon } from "./status-icon";
 
 const NONE = "none";
@@ -63,6 +65,7 @@ export function NoteHeader({
   const noteId = meta._id;
   const update = useNoteUpdate();
   const [convertOpen, setConvertOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
 
   return (
     <header className="shrink-0 px-6 pt-5 pb-3">
@@ -76,6 +79,15 @@ export function NoteHeader({
         />
         <div className="ml-auto flex items-center gap-0.5">
           <SaveState />
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Share note"
+            title="Share"
+            onClick={() => setShareOpen(true)}
+          >
+            <Share2 />
+          </Button>
           <Button
             variant="ghost"
             size="icon-sm"
@@ -121,6 +133,11 @@ export function NoteHeader({
         onOpenChange={setConvertOpen}
         meta={meta}
         flushNow={flushNow}
+      />
+      <ShareDialog
+        open={shareOpen}
+        onOpenChange={setShareOpen}
+        target={{ kind: "note", noteId, label: meta.title || "Untitled" }}
       />
     </header>
   );

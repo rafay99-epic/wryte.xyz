@@ -574,6 +574,19 @@ export const _wipeChunk = internalMutation({
     }
 
     if (budget > 0) {
+      const rows = await ctx.db
+        .query("note_shares")
+        .withIndex("by_userId_and_createdAt", (q) =>
+          q.eq("userId", args.userId),
+        )
+        .take(budget);
+      for (const row of rows) {
+        await ctx.db.delete(row._id);
+        budget--;
+      }
+    }
+
+    if (budget > 0) {
       const notes = await ctx.db
         .query("notes")
         .withIndex("by_userId_and_trashedAt_and_updatedAt", (q) =>
@@ -747,6 +760,10 @@ async function countRemaining(
     ctx.db
       .query("note_groups")
       .withIndex("by_userId_and_sortOrder", (q) => q.eq("userId", userId))
+      .take(1),
+    ctx.db
+      .query("note_shares")
+      .withIndex("by_userId_and_createdAt", (q) => q.eq("userId", userId))
       .take(1),
     ctx.db
       .query("note_stats")

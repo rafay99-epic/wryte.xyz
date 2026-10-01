@@ -6,7 +6,7 @@ import { REF_KIND_LABELS, REF_KINDS } from "@wryte/logic/lib/notes/refs";
 import { notePath } from "@wryte/logic/lib/notes/views";
 import { cn } from "@wryte/logic/lib/utils";
 import { KanbanItem } from "@wryte/ui/kanban";
-import { CalendarClock, CircleAlert } from "lucide-react";
+import { CalendarClock, Check, CircleAlert } from "lucide-react";
 import { type MouseEvent, memo } from "react";
 import { RefKindIcon } from "./ref-kind-icon";
 
@@ -16,14 +16,20 @@ export const NoteCard = memo(function NoteCard({
   selected,
   today,
   overlay = false,
+  selecting = false,
+  checked = false,
   onOpen,
+  onToggle,
 }: {
   card: BoardCard;
   group: GroupRow | undefined;
   selected: boolean;
   today: string;
   overlay?: boolean;
+  selecting?: boolean;
+  checked?: boolean;
   onOpen?: (noteId: string) => void;
+  onToggle?: (noteId: BoardCard["_id"]) => void;
 }) {
   const counts = card.refCounts;
   const refs = counts ? REF_KINDS.filter((kind) => counts[kind] > 0) : [];
@@ -32,6 +38,11 @@ export const NoteCard = memo(function NoteCard({
 
   function handleClick(event: MouseEvent<HTMLDivElement>) {
     if (!onOpen || event.button !== 0) return;
+    if (onToggle && (selecting || event.shiftKey)) {
+      event.preventDefault();
+      onToggle(card._id);
+      return;
+    }
     if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
       return;
     }
@@ -46,19 +57,42 @@ export const NoteCard = memo(function NoteCard({
       onClick={handleClick}
       aria-current={selected ? "true" : undefined}
       className={cn(
-        "cursor-pointer touch-manipulation select-none rounded-lg border border-white/[0.07] bg-[#0f0f11] p-3.5 outline-none transition-[background-color,border-color] duration-150 hover:border-white/15 hover:bg-[#131316] focus-visible:border-white/25",
+        "relative cursor-pointer touch-manipulation select-none rounded-lg border border-white/[0.07] bg-[#0f0f11] p-3.5 outline-none transition-[background-color,border-color] duration-150 hover:border-white/15 hover:bg-[#131316] focus-visible:border-white/25",
         selected && "ring-1 ring-amber-500/60",
+        checked && "border-white/30 bg-[#16161a]",
         overlay
           ? "scale-[1.02] cursor-grabbing border-white/15 bg-[#131316] shadow-2xl shadow-black/70 ring-1 ring-white/15"
           : "data-dragging:border-dashed data-dragging:border-white/15 data-dragging:bg-transparent data-dragging:opacity-100 data-dragging:ring-0 data-dragging:*:invisible",
       )}
     >
+      {selecting && !overlay && (
+        <button
+          type="button"
+          role="checkbox"
+          aria-checked={checked}
+          aria-label={`Select ${card.title || "Untitled"}`}
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(event) => {
+            event.stopPropagation();
+            onToggle?.(card._id);
+          }}
+          className={cn(
+            "absolute top-3 right-3 flex size-4 items-center justify-center rounded border outline-none focus-visible:ring-2 focus-visible:ring-white/40",
+            checked
+              ? "border-white bg-white text-black"
+              : "border-white/30 bg-transparent",
+          )}
+        >
+          {checked && <Check aria-hidden className="size-3" strokeWidth={3} />}
+        </button>
+      )}
       <a
         href={notePath(card._id)}
         draggable={false}
         tabIndex={overlay ? -1 : undefined}
         className={cn(
           "line-clamp-2 text-sm leading-5 font-medium outline-none focus-visible:underline",
+          selecting && "pr-6",
           !card.title
             ? "text-muted-foreground italic"
             : card.status === "done"

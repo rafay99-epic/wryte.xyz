@@ -1,9 +1,10 @@
 import { createClerkClient } from "@clerk/backend";
-import { ConvexClient } from "convex/browser";
+import { ConvexClient, ConvexHttpClient } from "convex/browser";
 import type { FunctionReference, FunctionReturnType } from "convex/server";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
 import { SCOPES, type Scope } from "../convex/mcp/scopes";
+import { resetLimit, tokenIdentifier } from "./localConvex";
 import { McpClient, type ToolOutcome } from "./mcpClient";
 
 const siteUrl = (process.env["NEXT_PUBLIC_CONVEX_SITE_URL"] ?? "").replace(
@@ -25,6 +26,9 @@ const WRITER = "perf-tab";
 const TYPING_SAVES = 25;
 const ARTICLE_SAVES = 20;
 const BOARD_NOTES = 200;
+const SHARE_NOTES = 50;
+const SHARE_BIG_NOTES = 10;
+const SHARE_BODY_CAP = 512 * 1024;
 const BUDGET = {
   boardBytes: 20_000,
   flushArgBytes: 1_024,
@@ -35,6 +39,7 @@ const BUDGET = {
   queryP95Ms: 250,
   mcpP95Ms: 400,
   mcpListBytes: 15_000,
+  shareIndexBytes: 15_000,
 };
 
 let passed = 0;
@@ -123,48 +128,6 @@ function noteIdOf(value: unknown): string {
     return value.noteId;
   }
   throw new Error("MCP create returned no noteId");
-}
-
-function deploymentGuard(): void {
-  if (!(process.env["CONVEX_DEPLOYMENT"] ?? "").startsWith("local:")) {
-    throw new Error("Refusing to run: CONVEX_DEPLOYMENT must be local.");
-  }
-}
-
-function tokenIdentifier(jwt: string): string {
-  const payload: unknown = JSON.parse(
-    Buffer.from(jwt.split(".")[1] ?? "", "base64url").toString("utf8"),
-  );
-  if (
-    typeof payload === "object" &&
-    payload !== null &&
-    "iss" in payload &&
-    "sub" in payload &&
-    typeof payload.iss === "string" &&
-    typeof payload.sub === "string"
-  ) {
-    return `${payload.iss}|${payload.sub}`;
-  }
-  throw new Error("Session token has no iss/sub");
-}
-
-function resetLimit(name: string, key: string): void {
-  deploymentGuard();
-  const run = Bun.spawnSync(
-    [
-      "bunx",
-      "convex",
-      "run",
-      "--component",
-      "rateLimiter",
-      "lib:resetRateLimit",
-      JSON.stringify({ name, key }),
-    ],
-    { cwd: `${import.meta.dir}/..`, stdout: "ignore", stderr: "pipe" },
-  );
-  if (run.exitCode !== 0) {
-    throw new Error(`Could not reset ${name}: ${run.stderr.toString()}`);
-  }
 }
 
 async function throttled<T>(
@@ -463,6 +426,87 @@ async function boardSuite(client: ConvexClient, key: string): Promise<void> {
   }
 }
 
+async function shareSuite(client: ConvexClient, key: string): Promise<void> {
+  console.info(
+    `shares: ${String(SHARE_NOTES)}-note group, index small, bodies capped`,
+  );
+  const groupId = await client.mutation(api.cms.notes.groups.create, {
+    name: "Perf share",
+  });
+  const ids: Id<"notes">[] = [];
+  const bigBody = "Perf share body text that fills a large note. ".repeat(2600);
+  try {
+    const seeds = Array.from({ length: SHARE_NOTES }, (_, i) => i);
+    await throttled(
+      seeds,
+      [{ name: "notes:create", every: 50 }],
+      key,
+      async (i) => {
+        const big = i >= SHARE_NOTES - SHARE_BIG_NOTES;
+        ids.push(
+          await client.mutation(api.cms.notes.notes.create, {
+            title: `Perf share ${String(i)}: a realistic note title of some length`,
+            content: big ? bigBody : `Short body ${String(i)}.`,
+            groupId,
+            writer: WRITER,
+            ...(i % 3 === 0 ? { status: "todo", dueDate: "2030-03-01" } : {}),
+          }),
+        );
+      },
+    );
+    const share = await client.mutation(api.cms.notes.shares.create, {
+      kind: "group",
+      groupId,
+    });
+    const reader = new ConvexHttpClient(convexUrl);
+    const viewTimes: number[] = [];
+    let index = await reader.query(api.cms.notes.shares.view, {
+      token: share.token,
+    });
+    for (let i = 0; i < 10; i++) {
+      index = await timed(
+        () => reader.query(api.cms.notes.shares.view, { token: share.token }),
+        viewTimes,
+      );
+    }
+    check(
+      `share index ${String(bytes(index))} B for ${String(index?.notes.length)} notes, ${stats(viewTimes)}`,
+      index?.notes.length === SHARE_NOTES &&
+        bytes(index) < BUDGET.shareIndexBytes &&
+        percentile(viewTimes, 95) < BUDGET.queryP95Ms,
+    );
+
+    const bigIds = ids.slice(-SHARE_BIG_NOTES);
+    let pending: Id<"notes">[] = bigIds;
+    let calls = 0;
+    let largest = 0;
+    const loaded = new Set<Id<"notes">>();
+    while (pending.length > 0 && calls < SHARE_BIG_NOTES) {
+      const batch = await reader.query(api.cms.notes.shares.bodies, {
+        token: share.token,
+        noteIds: pending,
+      });
+      calls++;
+      if (!batch) break;
+      largest = Math.max(largest, bytes(batch));
+      for (const note of batch.notes) loaded.add(note.noteId);
+      pending = batch.deferred;
+    }
+    check(
+      `10 large bodies (${String(Math.round(bytes(bigBody) / 1024))} KB each) load in ${String(calls)} capped calls, largest ${String(Math.round(largest / 1024))} KB`,
+      loaded.size === SHARE_BIG_NOTES &&
+        calls > 1 &&
+        largest <= SHARE_BODY_CAP + 4096,
+    );
+    await client.mutation(api.cms.notes.shares.revoke, {
+      shareId: share.shareId,
+    });
+  } finally {
+    await purgeNotes(client, key, ids);
+    await client.mutation(api.cms.notes.groups.remove, { groupId });
+  }
+}
+
 async function articleSuite(client: ConvexClient): Promise<void> {
   console.info("articles: autosave no longer echoes the body");
   const projects = await client.query(api.cms.projects.list, {});
@@ -602,6 +646,7 @@ async function main(): Promise<void> {
     await notesSuite(client);
     await boardSuite(client, tokenIdentifier(await token()));
     await articleSuite(client);
+    await shareSuite(client, tokenIdentifier(await token()));
     await mcpSuite(token);
     const purge = await client.query(api.cms.notes.notes.trashList, {
       paginationOpts: { numItems: 50, cursor: null },

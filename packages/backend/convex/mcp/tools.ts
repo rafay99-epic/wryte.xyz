@@ -18,6 +18,7 @@ import {
   noteStatusValidator,
   refInputValidator,
 } from "../cms/notes/_lib/model";
+import { shareExpiryValidator } from "../cms/notes/_lib/shareModel";
 import { DEFAULT_NOTE_CHARS } from "./agentInput";
 import { SCOPES, type WryteToolMetadata } from "./scopes";
 
@@ -42,6 +43,8 @@ const NOTES_BODY = {
   scopes: [SCOPES.notes],
   auditArgs: { redact: ["content", "refs"] },
 } satisfies WryteToolMetadata;
+
+const NOTES_WRITE = { scopes: [SCOPES.notes] } satisfies WryteToolMetadata;
 
 const NOTES_APPEND = {
   scopes: [SCOPES.notes],
@@ -478,7 +481,7 @@ export const tools: McpToolRegistration[] = [
   defineMcpMutation({
     name: "wryte_notes_create",
     description:
-      'Create a private note. Notes are never published; they live on the user\'s board (columns Notes, To do, Doing, Done) and new ones go to the top of their column. group is a name, found or created; use "Work log" for session logs. status (todo, doing, done) and dueDate (YYYY-MM-DD) make it a task. refs attaches up to 20 references: {kind: "pr"|"issue"|"link", url} or {kind: "comment", text, author?, url?}. File follow-ups as tasks: wryte_notes_create { title, group, status: "todo", content, refs: [{kind: "pr", url}, {kind: "comment", text, author}] }. documentIds links up to 20 posts. Returns noteId, rev and the note\'s web path.',
+      'Create a private note. Notes are never published; they live on the user\'s board (columns Notes, To do, Doing, Done) and new ones go to the top of their column. group is a name, found or created; use "Work log" for session logs. status (todo, doing, done) and dueDate (YYYY-MM-DD) make it a task. refs attaches up to 20 references: {kind: "pr"|"issue"|"link", url} or {kind: "comment", text, author?, url?}. File follow-ups as tasks: wryte_notes_create { title, group, status: "todo", content, refs: [{kind: "pr", url}, {kind: "comment", text, author}] }. documentIds links up to 20 posts. Returns noteId, rev and url (a link to the note in Wryte). To show it to someone without a Wryte account use wryte_notes_share.',
     fn: internal.mcp.handlers.notes.create,
     args: {
       caller: mcpCallerValidator,
@@ -537,5 +540,41 @@ export const tools: McpToolRegistration[] = [
     args: { caller: mcpCallerValidator, noteId: v.id("notes") },
     identityArg: "caller",
     metadata: NOTES_TRASH,
+  }),
+
+  defineMcpMutation({
+    name: "wryte_notes_share",
+    description:
+      "Create a public read-only link anyone can open without a Wryte account. Pass noteIds (1 to 50 notes) or group (a group name; the link shows its newest 200 notes and follows the group as it changes), not both. Readers see titles, status, due dates, refs and full bodies, always the latest version; trashed notes are hidden. Optional title (up to 120 characters) and expiresInDays (1, 7 or 30; omit for a link that never expires). Returns shareId, url and token. Only share when the user asks; anyone with the url can read it. Revoke with wryte_notes_share_revoke.",
+    fn: internal.mcp.handlers.noteShares.share,
+    args: {
+      caller: mcpCallerValidator,
+      noteIds: v.optional(v.array(v.id("notes"))),
+      group: v.optional(v.string()),
+      title: v.optional(v.string()),
+      expiresInDays: v.optional(shareExpiryValidator),
+    },
+    identityArg: "caller",
+    metadata: NOTES_WRITE,
+  }),
+
+  defineMcpQuery({
+    name: "wryte_notes_shares_list",
+    description:
+      "List the user's active public note links, newest first (up to 100): shareId, what it shares, url, note count, created and expiry times.",
+    fn: internal.mcp.handlers.noteShares.list,
+    args: { caller: mcpCallerValidator },
+    identityArg: "caller",
+    metadata: NOTES_READ,
+  }),
+
+  defineMcpMutation({
+    name: "wryte_notes_share_revoke",
+    description:
+      "Revoke a public note link by shareId. The url stops working at once; the notes are untouched.",
+    fn: internal.mcp.handlers.noteShares.revoke,
+    args: { caller: mcpCallerValidator, shareId: v.id("note_shares") },
+    identityArg: "caller",
+    metadata: NOTES_WRITE,
   }),
 ];

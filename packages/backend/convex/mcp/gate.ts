@@ -1,6 +1,7 @@
 import type { GenericActionCtx } from "convex/server";
 import type { DataModel } from "../_generated/dataModel";
 import { rateLimiter } from "../_lib/rateLimits";
+import { retryMessage, retrySeconds } from "./retry";
 
 type HttpCtx = GenericActionCtx<DataModel>;
 
@@ -27,13 +28,13 @@ function tooManyRequests(retryAfterMs: number): Response {
     JSON.stringify({
       jsonrpc: "2.0",
       id: null,
-      error: { code: -32000, message: "Rate limited. Slow down and retry." },
+      error: { code: -32000, message: retryMessage(retryAfterMs) },
     }),
     {
       status: 429,
       headers: {
         "content-type": "application/json",
-        "retry-after": String(Math.max(1, Math.ceil(retryAfterMs / 1000))),
+        "retry-after": String(retrySeconds(retryAfterMs)),
       },
     },
   );

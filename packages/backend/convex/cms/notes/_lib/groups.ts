@@ -63,14 +63,33 @@ export async function createGroupForUser(
   });
 }
 
+export function groupNamed(
+  groups: readonly Doc<"note_groups">[],
+  name: string,
+): Doc<"note_groups"> | undefined {
+  const wanted = normalizeGroupName(name).toLowerCase();
+  return groups.find((group) => group.name.toLowerCase() === wanted);
+}
+
+export function requireGroupNamed(
+  groups: readonly Doc<"note_groups">[],
+  name: string,
+): Doc<"note_groups"> {
+  const match = groupNamed(groups, name);
+  if (!match) {
+    throw new Error(
+      `No note group named "${name}". See wryte_note_groups_list.`,
+    );
+  }
+  return match;
+}
+
 export async function findOrCreateGroupByName(
   ctx: MutationCtx,
   user: Doc<"users">,
   name: string,
 ): Promise<Id<"note_groups">> {
-  const wanted = normalizeGroupName(name).toLowerCase();
-  const groups = await groupsForUser(ctx, user._id);
-  const match = groups.find((group) => group.name.toLowerCase() === wanted);
+  const match = groupNamed(await groupsForUser(ctx, user._id), name);
   if (match) return match._id;
   return await createGroupForUser(ctx, user, { name });
 }

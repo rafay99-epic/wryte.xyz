@@ -11,7 +11,9 @@ import {
   type BoardColumns,
 } from "@wryte/logic/lib/notes/board";
 import { COLUMN_TONES } from "@wryte/logic/lib/notes/colors";
+import { noteCountLabel } from "@wryte/logic/lib/notes/shares";
 import { cn } from "@wryte/logic/lib/utils";
+import { Button } from "@wryte/ui/button";
 import {
   Kanban,
   KanbanBoard,
@@ -19,15 +21,17 @@ import {
   KanbanColumnContent,
   KanbanOverlay,
 } from "@wryte/ui/kanban";
-import { Plus } from "lucide-react";
+import { Plus, Share2 } from "lucide-react";
 import { type ReactNode, useCallback, useMemo, useRef, useState } from "react";
 import { useBoardAnnouncements } from "../hooks/use-board-announcements";
 import { useCreateNote } from "../hooks/use-create-note";
+import { useNoteSelection } from "../hooks/use-note-selection";
 import { useNotesBoard } from "../hooks/use-notes-board";
 import { useNotesRailData } from "../hooks/use-notes-rail";
 import { useOpenNote } from "../hooks/use-open-note";
 import { BoardHeader } from "./board-header";
 import { NoteCard } from "./note-card";
+import { ShareDialog } from "./share-dialog";
 import { StatusIcon } from "./status-icon";
 
 type Columns = Record<string, BoardCard[]>;
@@ -57,6 +61,9 @@ export function NotesBoard({
   const [preview, setPreview] = useState<Preview | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const lastDragEndRef = useRef(0);
+  const selection = useNoteSelection();
+  const { toggle } = selection;
+  const [shareOpen, setShareOpen] = useState(false);
 
   const value = useMemo<Columns | undefined>(() => {
     if (!columns) return undefined;
@@ -84,6 +91,14 @@ export function NotesBoard({
       open(noteId);
     },
     [open],
+  );
+
+  const onToggle = useCallback(
+    (noteId: Id<"notes">) => {
+      if (performance.now() - lastDragEndRef.current < CLICK_GUARD_MS) return;
+      toggle(noteId);
+    },
+    [toggle],
   );
 
   const announcements = useBoardAnnouncements(value);
@@ -118,7 +133,31 @@ export function NotesBoard({
 
   return (
     <>
-      <BoardHeader groupId={groupId} trash={false} count={count} />
+      <BoardHeader
+        groupId={groupId}
+        trash={false}
+        count={count}
+        selecting={selection.selecting}
+        onSelectingChange={selection.setMode}
+      />
+      {selection.selecting && (
+        <SelectionBar
+          count={selection.selected.size}
+          full={selection.full}
+          onShare={() => setShareOpen(true)}
+          onClear={selection.clear}
+          onDone={() => selection.setMode(false)}
+        />
+      )}
+      <ShareDialog
+        open={shareOpen}
+        onOpenChange={setShareOpen}
+        target={{
+          kind: "notes",
+          noteIds: [...selection.selected],
+          label: noteCountLabel(selection.selected.size),
+        }}
+      />
       {value ? (
         <Kanban
           value={value}
@@ -164,7 +203,10 @@ export function NotesBoard({
                           group={groupOf(card)}
                           selected={card._id === selectedId}
                           today={today}
+                          selecting={selection.selecting}
+                          checked={selection.selected.has(card._id)}
                           onOpen={onOpen}
+                          onToggle={onToggle}
                         />
                       ))
                     )}
@@ -251,6 +293,49 @@ function BoardColumnShell({
         {children}
       </div>
     </KanbanColumn>
+  );
+}
+
+function SelectionBar({
+  count,
+  full,
+  onShare,
+  onClear,
+  onDone,
+}: {
+  count: number;
+  full: boolean;
+  onShare: () => void;
+  onClear: () => void;
+  onDone: () => void;
+}) {
+  return (
+    <div
+      role="toolbar"
+      aria-label="Selected notes"
+      className="mx-6 mb-3 flex shrink-0 flex-wrap items-center gap-2 rounded-lg border border-white/[0.08] px-3 py-1.5"
+    >
+      <span role="status" className="text-sm text-foreground tabular-nums">
+        {count === 0 ? "Select notes to share" : `${String(count)} selected`}
+        {full && (
+          <span className="ml-2 text-xs text-amber-400">Limit reached</span>
+        )}
+      </span>
+      <div className="ml-auto flex items-center gap-1">
+        {count > 0 && (
+          <Button variant="ghost" size="sm" onClick={onClear}>
+            Clear
+          </Button>
+        )}
+        <Button variant="ghost" size="sm" onClick={onDone}>
+          Done
+        </Button>
+        <Button size="sm" disabled={count === 0} onClick={onShare}>
+          <Share2 />
+          Share {count > 0 ? noteCountLabel(count) : "notes"}
+        </Button>
+      </div>
+    </div>
   );
 }
 

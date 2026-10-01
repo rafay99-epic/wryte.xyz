@@ -924,4 +924,18 @@ export default defineSchema({
   })
     .index("by_noteId", ["noteId"])
     .index("by_documentId", ["documentId"]),
+
+  note_shares: defineTable({
+    userId: v.id("users"),
+    token: v.string(),
+    kind: v.union(v.literal("note"), v.literal("notes"), v.literal("group")),
+    noteIds: v.optional(v.array(v.id("notes"))),
+    groupId: v.optional(v.id("note_groups")),
+    title: v.optional(v.string()),
+    createdAt: v.number(),
+    expiresAt: v.optional(v.number()),
+  })
+    .index("by_token", ["token"])
+    .index("by_userId_and_createdAt", ["userId", "createdAt"])
+    .index("by_groupId", ["groupId"]),
 });
