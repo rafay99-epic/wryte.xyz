@@ -1,6 +1,6 @@
 # Tool reference
 
-All 30 tools the Wryte MCP server exposes, from `convex/mcp/tools.ts`.
+All 41 tools the Wryte MCP server exposes, from `convex/mcp/tools.ts`.
 
 An agent only ever *sees* the tools its granted capabilities allow. The catalog is
 filtered per request, so a read-only connection lists no write or media tools.
@@ -247,6 +247,100 @@ Upload an image or video to the project's provider (GitHub, UploadThing, Cloudin
 - **Kind**: action
 - **Requires**: `wryte:media`
 - **Arguments**: `projectId`: id:projects, `sourceUrl`?: string, `base64`?: string, `filename`?: string, `mime`?: string, `alt`?: string, `documentId`?: id:documents
+
+## Notes
+
+Private notes and tasks on the user's Notes board (columns Notes, To do, Doing, Done). Notes are never published. Unlike posts, agents write notes directly; prefer `wryte_notes_append` for adding text.
+
+### `wryte_notes_list`
+
+The user's notes, 25 per page: title, excerpt, status, due date, group. No bodies. Filter by group name, status (`todo`, `doing`, `done`, or `notes` for plain notes, in board order), `dueBefore` (YYYY-MM-DD, needs a task status) or a linked post. Page with `continueCursor`.
+
+- **Kind**: query
+- **Requires**: `wryte:read`, `wryte:notes`
+- **Arguments**: `group`?: string, `status`?: notes|todo|doing|done, `dueBefore`?: string, `linkedDocumentId`?: id:documents, `cursor`?: string
+
+### `wryte_notes_search`
+
+Search note titles and bodies. Up to 16 hits with short snippets. Start here before creating a note that may already exist.
+
+- **Kind**: query
+- **Requires**: `wryte:read`, `wryte:notes`
+- **Arguments**: `query`: string
+
+### `wryte_notes_get`
+
+One note: metadata, rev, group, linked posts, refs and body. The body is cut at `maxChars` (default 20,000); `truncated` says so and `totalChars` gives the full length. Keep `rev` for `wryte_notes_update`.
+
+- **Kind**: query
+- **Requires**: `wryte:read`, `wryte:notes`
+- **Arguments**: `noteId`: id:notes, `maxChars`?: number
+
+### `wryte_note_groups_list`
+
+The user's note groups with their note counts.
+
+- **Kind**: query
+- **Requires**: `wryte:read`, `wryte:notes`
+- **Arguments**: none
+
+### `wryte_notes_create`
+
+Create a note at the top of its board column. `group` is a name, found or created. `status` and `dueDate` make it a task. `refs` attaches up to 20 references: `{kind: "pr"|"issue"|"link", url}` or `{kind: "comment", text, author?, url?}`. `documentIds` links up to 20 posts. Returns `noteId`, `rev` and `url`.
+
+- **Kind**: mutation
+- **Requires**: `wryte:notes`
+- **Arguments**: `title`: string, `content`?: string, `group`?: string, `status`?: todo|doing|done, `dueDate`?: string, `documentIds`?: id:documents[], `refs`?: { `kind`: pr|issue|comment|link, `url`?: string, `text`?: string, `author`?: string }[]
+
+### `wryte_notes_update`
+
+Change a note's title, status, due date, group, linked posts or refs; `null` clears status, due date or group. Changing status moves the card to the top of that column. Replacing `content` needs `expectedRev` from `wryte_notes_get` and is refused if the user edited since. `refs` adds to the existing ones.
+
+- **Kind**: mutation
+- **Requires**: `wryte:notes`
+- **Arguments**: `noteId`: id:notes, `expectedRev`?: number, `title`?: string, `content`?: string, `status`?: todo|doing|done|null, `dueDate`?: string|null, `group`?: string|null, `documentIds`?: id:documents[], `refs`?: ref[]
+
+### `wryte_notes_append`
+
+Append markdown to the end of a note on a new line. Never overwrites what the user wrote. Use it for running logs.
+
+- **Kind**: mutation
+- **Requires**: `wryte:notes`
+- **Arguments**: `noteId`: id:notes, `text`: string
+
+### `wryte_notes_trash`
+
+Move a note to the trash. The user can restore it for 30 days.
+
+- **Kind**: mutation
+- **Requires**: `wryte:trash`, `wryte:notes`
+- **Arguments**: `noteId`: id:notes
+
+## Note sharing
+
+### `wryte_notes_share`
+
+Create a public read-only link anyone can open without a Wryte account. Pass `noteIds` (1 to 50) or `group` (shows its newest 200 notes and follows the group as it changes), not both. Readers always see the latest version; trashed notes are hidden. Optional `title` and `expiresInDays` (1, 7 or 30; omit for no expiry). Only share when the user asks.
+
+- **Kind**: mutation
+- **Requires**: `wryte:notes`
+- **Arguments**: `noteIds`?: id:notes[], `group`?: string, `title`?: string, `expiresInDays`?: 1|7|30
+
+### `wryte_notes_shares_list`
+
+The user's active public note links, newest first (up to 100).
+
+- **Kind**: query
+- **Requires**: `wryte:read`, `wryte:notes`
+- **Arguments**: none
+
+### `wryte_notes_share_revoke`
+
+Revoke a public note link. The URL stops working at once; the notes are untouched.
+
+- **Kind**: mutation
+- **Requires**: `wryte:notes`
+- **Arguments**: `shareId`: id:note_shares
 
 ## Calendar and stats
 

@@ -141,7 +141,7 @@ deletion is deletion. Publishing is never available to an agent.
 
 ## Design notes worth knowing
 
-- **30 tools, deliberately.** An earlier cut had 48. Every tool description sits
+- **41 tools, deliberately.** An earlier cut had 48 for posts alone. Every tool description sits
   in the model's context on every turn, and near-duplicate tools make models pick
   wrong and retry. Fewer, better-shaped tools cost less and work better.
 - **Nothing irreversible is reachable.** No permanent delete, no project delete,
@@ -157,7 +157,7 @@ deletion is deletion. Publishing is never available to an agent.
 
 - [Authentication](/docs/authentication): how the OAuth flow works and why there's no API token
 - [Capabilities](/docs/capabilities): the four permissions and how to change them
-- [Tool reference](/docs/tools): all 30 tools with arguments
+- [Tool reference](/docs/tools): all 41 tools with arguments
 - [Resources](/docs/resources): context an agent should read before acting
 - [Rate limits](/docs/rate-limits): what's enforced, and what happens when you hit it
 - [Troubleshooting](/docs/troubleshooting): every error message and what it means

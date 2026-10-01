@@ -1,14 +1,17 @@
 # Capabilities
 
-Four capabilities gate what a connected agent can do. Manage them in
+Five capabilities gate what a connected agent can do. Manage them in
 **Settings → MCP Server**.
 
 | Capability | Grants | Default |
 |---|---|---|
 | **Read** | List and search projects, posts, drafts, research, calendar, stats, publish history | **on** |
 | **Write** | Create post shells, write drafts, research and animations | **on** |
+| **Notes** | Read, search, create and update notes and tasks, attach refs, and create share links | **on** for new connections |
 | **Media** | Upload and list media via the project's storage provider | off |
-| **Trash** | Move posts with an empty Main version to the project trash | off |
+| **Trash** | Move posts with an empty Main version, and notes, to the trash | off |
+
+Notes are private, so reading them needs **Notes** as well as **Read**. Connections set up before Notes existed keep their saved capabilities; Settings → MCP Server shows an **Enable notes** prompt.
 
 ## Why read and write are both on
 
