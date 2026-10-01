@@ -55,7 +55,7 @@ import {
   Undo2,
   Video,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { AiEnhanceButton } from "./ai-enhance-button";
 import { useEditorContext } from "./editor-context";
@@ -67,6 +67,8 @@ type EditorToolbarProps = {
 };
 
 type ViewMode = "edit" | "split" | "preview";
+
+const WORD_COUNT_THROTTLE_MS = 250;
 
 const VIEW_MODES: { value: ViewMode; label: string }[] = [
   { value: "edit", label: "Write" },
@@ -80,7 +82,6 @@ export function EditorToolbar({ target, features }: EditorToolbarProps) {
   const {
     viewMode,
     setViewMode,
-    content,
     researchPanelOpen,
     toggleResearchPanel,
     readabilityPanelOpen,
@@ -96,7 +97,6 @@ export function EditorToolbar({ target, features }: EditorToolbarProps) {
     useShallow((state) => ({
       viewMode: state.viewMode,
       setViewMode: state.setViewMode,
-      content: state.content,
       researchPanelOpen: state.researchPanelOpen,
       toggleResearchPanel: state.toggleResearchPanel,
       readabilityPanelOpen: state.readabilityPanelOpen,
@@ -120,22 +120,9 @@ export function EditorToolbar({ target, features }: EditorToolbarProps) {
   );
   const aiReady = aiReadiness?.ready ?? false;
 
-  const writingStats = useQuery(api.analytics.writingStats.getEditorStats, {});
-  const sessionStartWords = useEditorStore((s) => s.sessionStartWords);
-
-  const stats = useMemo(() => {
-    const words = countWords(content);
-    if (words === 0) return { words: 0, readTime: 0 };
-    return {
-      words,
-      readTime: Math.max(1, Math.ceil(words / 238)),
-    };
-  }, [content]);
-  const sessionWords = Math.max(0, stats.words - sessionStartWords);
-
   return (
     <TooltipProvider>
-      <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border/40 bg-background px-3 py-1.5">
+      <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-y-1 border-b border-border/40 bg-background px-3 py-1.5">
         <div className="flex items-center gap-0.5">
           <ToolbarButton
             icon={Undo2}
@@ -303,44 +290,7 @@ export function EditorToolbar({ target, features }: EditorToolbarProps) {
         </div>
 
         <div className="flex items-center gap-2">
-          <AnimatePresence mode="wait">
-            {stats.words > 0 && (
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <motion.span
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      className="hidden cursor-default text-[11px] tabular-nums text-muted-foreground/60 lg:inline"
-                    />
-                  }
-                >
-                  {stats.words.toLocaleString()} words
-                  {sessionWords > 0 && (
-                    <span className="ml-1 font-medium text-emerald-600/80">
-                      +{sessionWords.toLocaleString()}
-                    </span>
-                  )}
-                </TooltipTrigger>
-                <TooltipContent side="bottom" className="text-xs">
-                  <span className="tabular-nums">
-                    {sessionWords.toLocaleString()} words this session
-                    {writingStats && (
-                      <>
-                        {" · "}
-                        {writingStats.wordsToday.toLocaleString()} today
-                        {writingStats.dailyWordGoal !== null &&
-                          ` / ${writingStats.dailyWordGoal.toLocaleString()} goal`}
-                        {writingStats.currentStreak > 0 &&
-                          ` · ${writingStats.currentStreak}-day streak`}
-                      </>
-                    )}
-                  </span>
-                </TooltipContent>
-              </Tooltip>
-            )}
-          </AnimatePresence>
+          <WordStats />
 
           <SprintControl />
 
@@ -418,6 +368,76 @@ export function EditorToolbar({ target, features }: EditorToolbarProps) {
         />
       )}
     </TooltipProvider>
+  );
+}
+
+function useThrottledWordCount(): number {
+  const [words, setWords] = useState(0);
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const update = () => {
+      timer = null;
+      setWords(countWords(useEditorStore.getState().content));
+    };
+    timer = setTimeout(update, 0);
+    const unsubscribe = useEditorStore.subscribe((state, prev) => {
+      if (state.content !== prev.content && timer === null) {
+        timer = setTimeout(update, WORD_COUNT_THROTTLE_MS);
+      }
+    });
+    return () => {
+      unsubscribe();
+      if (timer !== null) clearTimeout(timer);
+    };
+  }, []);
+  return words;
+}
+
+function WordStats() {
+  const words = useThrottledWordCount();
+  const writingStats = useQuery(api.analytics.writingStats.getEditorStats, {});
+  const sessionStartWords = useEditorStore((s) => s.sessionStartWords);
+  const sessionWords = Math.max(0, words - sessionStartWords);
+
+  return (
+    <AnimatePresence mode="wait">
+      {words > 0 && (
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <motion.span
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="hidden cursor-default text-[11px] tabular-nums text-muted-foreground/60 lg:inline"
+              />
+            }
+          >
+            {words.toLocaleString()} words
+            {sessionWords > 0 && (
+              <span className="ml-1 font-medium text-emerald-600/80">
+                +{sessionWords.toLocaleString()}
+              </span>
+            )}
+          </TooltipTrigger>
+          <TooltipContent side="bottom" className="text-xs">
+            <span className="tabular-nums">
+              {sessionWords.toLocaleString()} words this session
+              {writingStats && (
+                <>
+                  {" · "}
+                  {writingStats.wordsToday.toLocaleString()} today
+                  {writingStats.dailyWordGoal !== null &&
+                    ` / ${writingStats.dailyWordGoal.toLocaleString()} goal`}
+                  {writingStats.currentStreak > 0 &&
+                    ` · ${writingStats.currentStreak}-day streak`}
+                </>
+              )}
+            </span>
+          </TooltipContent>
+        </Tooltip>
+      )}
+    </AnimatePresence>
   );
 }
 

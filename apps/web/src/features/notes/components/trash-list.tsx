@@ -41,7 +41,7 @@ export function TrashList() {
   if (status === "LoadingFirstPage") return <ListMessage>Loading</ListMessage>;
 
   return (
-    <>
+    <div className="mx-auto w-full max-w-3xl">
       {results.length === 0 ? (
         <ListMessage>Trash is empty</ListMessage>
       ) : (
@@ -74,6 +74,36 @@ export function TrashList() {
           if (!pending) return;
           purge({ noteId: pending.noteId }).catch(() => {
             toast.error("Couldn't delete the note");
+          });
+        }}
+      />
+    </div>
+  );
+}
+
+export function EmptyTrashButton() {
+  const emptyTrash = useMutation(api.cms.notes.notes.emptyTrash);
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="text-destructive hover:text-destructive"
+        onClick={() => setOpen(true)}
+      >
+        <Trash2 />
+        Empty trash
+      </Button>
+      <ConfirmActionDialog
+        open={open}
+        onOpenChange={setOpen}
+        title="Empty trash?"
+        description="Every note in the trash will be deleted. This cannot be undone."
+        confirmLabel="Empty trash"
+        onConfirm={() => {
+          emptyTrash({}).catch(() => {
+            toast.error("Couldn't empty the trash");
           });
         }}
       />

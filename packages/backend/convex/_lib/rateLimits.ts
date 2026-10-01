@@ -266,6 +266,12 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     period: MINUTE,
     capacity: 15,
   },
+  "notes:refs": {
+    kind: "token bucket",
+    rate: 60,
+    period: MINUTE,
+    capacity: 20,
+  },
   "notes:convert": {
     kind: "fixed window",
     rate: 10,

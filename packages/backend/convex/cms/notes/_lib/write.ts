@@ -12,6 +12,7 @@ import {
   requireOwnedGroup,
   requireOwnedNote,
 } from "./access";
+import { topOfColumn } from "./board";
 import { adjustGroupCount, adjustNoteStats, countLiveNote } from "./counters";
 import {
   appendText,
@@ -21,11 +22,13 @@ import {
   type NoteSource,
   type NoteStatus,
   normalizeTitle,
+  searchText,
   statsDelta,
   statusPatch,
   taskFields,
 } from "./model";
 import { purgeNote, purgeTrashedNotes } from "./purge";
+import { setSearchTrashed, writeSearchText } from "./search";
 
 async function limit(
   ctx: MutationCtx,
@@ -114,6 +117,7 @@ async function touchNote(
     source: args.source,
     updatedAt: args.now,
   });
+  await writeSearchText(ctx, note, args.content);
   await recordWords(ctx, args.source, note.userId, wordCount - note.wordCount);
   return rev;
 }
@@ -143,6 +147,7 @@ export async function createNoteForUser(
   const status = args.status ?? (args.dueDate !== undefined ? "todo" : null);
   const wordCount = countWords(content);
   const rev = 1;
+  const boardPosition = await topOfColumn(ctx, user._id, status ?? undefined);
   const noteId = await ctx.db.insert("notes", {
     userId: user._id,
     title: normalizeTitle(args.title ?? ""),
@@ -153,6 +158,7 @@ export async function createNoteForUser(
     ...(status !== null && args.dueDate !== undefined
       ? { dueDate: args.dueDate }
       : {}),
+    boardPosition,
     rev,
     writer: args.writer,
     source: args.source,
@@ -165,6 +171,12 @@ export async function createNoteForUser(
     content,
     trashed: false,
     rev: 1,
+  });
+  await ctx.db.insert("note_search", {
+    noteId,
+    userId: user._id,
+    trashed: false,
+    text: searchText(content),
   });
   await countLiveNote(
     ctx,
@@ -184,7 +196,7 @@ export async function saveNoteForUser(
   user: Doc<"users">,
   args: {
     noteId: Id<"notes">;
-    content: string;
+    content?: string;
     title?: string;
     writer: string;
     flush?: boolean;
@@ -194,8 +206,15 @@ export async function saveNoteForUser(
   await limit(ctx, user, "notes:save");
   const note = await requireLiveNote(ctx, user, args.noteId);
   assertBaseRev(note, args.writer, args.baseRev);
-  assertNoteSize(args.content);
-  await writeBody(ctx, note, args.content);
+  let content = args.content;
+  if (content === undefined) {
+    if (args.flush !== true) {
+      throw new Error("content is required unless flush is true");
+    }
+  } else {
+    assertNoteSize(content);
+    await writeBody(ctx, note, content);
+  }
 
   const title =
     args.title === undefined ? note.title : normalizeTitle(args.title);
@@ -208,8 +227,9 @@ export async function saveNoteForUser(
   });
   if (!touched) return { rev: note.rev, touched };
 
+  content ??= (await loadContentRow(ctx, note._id))?.content ?? "";
   const rev = await touchNote(ctx, note, {
-    content: args.content,
+    content,
     title,
     writer: args.writer,
     source: "app",
@@ -306,6 +326,13 @@ export async function updateNoteForUser(
     nextStatus = "todo";
   }
   Object.assign(patch, statusPatch(note, nextStatus, now));
+  if ((nextStatus ?? undefined) !== note.status) {
+    patch.boardPosition = await topOfColumn(
+      ctx,
+      user._id,
+      nextStatus ?? undefined,
+    );
+  }
   await adjustNoteStats(
     ctx,
     user._id,
@@ -324,20 +351,12 @@ export async function updateNoteForUser(
     const wordCount = countWords(args.content);
     patch.excerpt = buildExcerpt(args.content);
     patch.wordCount = wordCount;
+    await writeSearchText(ctx, note, args.content);
     await recordWords(ctx, args.source, user._id, wordCount - note.wordCount);
   }
 
   await ctx.db.patch(note._id, patch);
   return { rev, bodyRev };
-}
-
-async function setContentTrashed(
-  ctx: MutationCtx,
-  noteId: Id<"notes">,
-  trashed: boolean,
-): Promise<void> {
-  const row = await loadContentRow(ctx, noteId);
-  if (row && row.trashed !== trashed) await ctx.db.patch(row._id, { trashed });
 }
 
 export async function trashNoteForUser(
@@ -349,7 +368,7 @@ export async function trashNoteForUser(
   const note = await requireOwnedNote(ctx, user, noteId);
   if (note.trashedAt !== undefined) return null;
   await ctx.db.patch(note._id, { trashedAt: Date.now() });
-  await setContentTrashed(ctx, note._id, true);
+  await setSearchTrashed(ctx, note._id, true);
   await countLiveNote(ctx, note, "remove");
   return null;
 }
@@ -366,7 +385,7 @@ export async function restoreNoteForUser(
     note.groupId === undefined ? null : await ctx.db.get(note.groupId);
   const groupId = group?._id;
   await ctx.db.patch(note._id, { trashedAt: undefined, groupId });
-  await setContentTrashed(ctx, note._id, false);
+  await setSearchTrashed(ctx, note._id, false);
   await countLiveNote(
     ctx,
     {

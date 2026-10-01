@@ -12,24 +12,30 @@ const LINK_SCAN_LIMIT = 50;
 
 export async function linksForNote(
   ctx: { db: QueryCtx["db"] },
+  user: Doc<"users">,
   noteId: Id<"notes">,
 ): Promise<NoteLink[]> {
   const edges = await ctx.db
     .query("note_links")
     .withIndex("by_noteId", (q) => q.eq("noteId", noteId))
     .take(LINK_SCAN_LIMIT);
-  const links: NoteLink[] = [];
-  for (const edge of edges) {
-    const doc = await ctx.db.get(edge.documentId);
-    if (!doc || doc.trashedAt !== undefined) continue;
-    links.push({
-      documentId: doc._id,
-      title: doc.title,
-      projectId: doc.projectId,
-      status: doc.status,
-    });
-  }
-  return links;
+  const docs = await Promise.all(
+    edges
+      .filter((edge) => edge.userId === user._id)
+      .map((edge) => ctx.db.get(edge.documentId)),
+  );
+  return docs.flatMap((doc) =>
+    doc && doc.userId === user._id && doc.trashedAt === undefined
+      ? [
+          {
+            documentId: doc._id,
+            title: doc.title,
+            projectId: doc.projectId,
+            status: doc.status,
+          },
+        ]
+      : [],
+  );
 }
 
 export async function notesForDocument(
@@ -37,21 +43,22 @@ export async function notesForDocument(
   user: Doc<"users">,
   documentId: Id<"documents">,
 ): Promise<NoteRow[]> {
-  const doc = await ctx.db.get(documentId);
-  if (!doc || doc.userId !== user._id) return [];
   const edges = await ctx.db
     .query("note_links")
     .withIndex("by_documentId", (q) => q.eq("documentId", documentId))
     .take(LINK_SCAN_LIMIT);
-  const rows: NoteRow[] = [];
-  for (const edge of edges) {
-    const note = await ctx.db.get(edge.noteId);
-    if (!note || note.userId !== user._id || note.trashedAt !== undefined) {
-      continue;
-    }
-    rows.push(toNoteRow(note));
-  }
-  return rows.sort((a, b) => b.updatedAt - a.updatedAt);
+  const notes = await Promise.all(
+    edges
+      .filter((edge) => edge.userId === user._id)
+      .map((edge) => ctx.db.get(edge.noteId)),
+  );
+  return notes
+    .flatMap((note) =>
+      note && note.userId === user._id && note.trashedAt === undefined
+        ? [toNoteRow(note)]
+        : [],
+    )
+    .sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
 async function requireLinkableDocument(

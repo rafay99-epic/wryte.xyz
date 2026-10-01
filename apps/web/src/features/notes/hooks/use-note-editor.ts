@@ -122,10 +122,10 @@ export function useNoteEditor(noteId: Id<"notes">) {
   }, [metaRev]);
 
   const onSave = useCallback(
-    async (c: string, t: string, { flush }: SaveOptions) => {
+    async (c: string, t: string, { flush, contentChanged }: SaveOptions) => {
       await saveNote({
         noteId,
-        content: c,
+        ...(flush && !contentChanged ? {} : { content: c }),
         title: t,
         writer: EDITOR_SESSION_ID,
         baseRev: baseRevRef.current,

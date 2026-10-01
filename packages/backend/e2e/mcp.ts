@@ -762,6 +762,14 @@ async function main(): Promise<void> {
         content: "First line from the e2e run.",
         group: groupName,
         documentIds: [documentId],
+        refs: [
+          { kind: "pr", url: "https://github.com/acme/app/pull/12" },
+          {
+            kind: "comment",
+            text: "Cover the empty state too.",
+            author: "lead",
+          },
+        ],
       }),
     );
     const noteId = field(data(createdNote), "noteId");
@@ -812,6 +820,62 @@ async function main(): Promise<void> {
         ),
       fetched,
     );
+    const refs = list(field(fetched, "refs"));
+    check(
+      "create attaches refs and get returns them",
+      refs.length === 2 &&
+        refs.some(
+          (ref) =>
+            field(ref, "kind") === "pr" &&
+            field(ref, "url") === "https://github.com/acme/app/pull/12",
+        ) &&
+        refs.some(
+          (ref) =>
+            field(ref, "kind") === "comment" &&
+            field(ref, "author") === "lead" &&
+            typeof field(ref, "refId") === "string",
+        ),
+      refs,
+    );
+    const badRef = await client.call("wryte_notes_update", {
+      noteId,
+      refs: [{ kind: "pr", url: "javascript:alert(1)" }],
+    });
+    check(
+      "refuses a ref with a non-http url",
+      refusedWith(badRef, "http"),
+      badRef,
+    );
+    const moreRefs = data(
+      await client.call("wryte_notes_update", {
+        noteId,
+        refs: [
+          { kind: "pr", url: "https://github.com/acme/app/pull/12" },
+          { kind: "issue", url: "https://github.com/acme/app/issues/34" },
+        ],
+      }),
+    );
+    const withIssue = data(await client.call("wryte_notes_get", { noteId }));
+    check(
+      "update adds new refs and skips duplicates",
+      list(field(moreRefs, "refIds")).length === 1 &&
+        list(field(withIssue, "refs")).length === 3,
+      { moreRefs, refs: field(withIssue, "refs") },
+    );
+    const plain = data(
+      await client.call("wryte_notes_list", {
+        status: "notes",
+        group: groupName,
+      }),
+    );
+    check(
+      'list status "notes" returns notes without a status',
+      list(field(plain, "notes")).some(
+        (row) =>
+          field(row, "noteId") === noteId && field(row, "status") === undefined,
+      ),
+      plain,
+    );
 
     const stale = await client.call("wryte_notes_update", {
       noteId,
@@ -856,6 +920,20 @@ async function main(): Promise<void> {
         field(asTodo, "dueDate") === "2030-01-15",
       asTodo,
     );
+    const todoBoard = await (await authed()).query(
+      api.cms.notes.board.board,
+      {},
+    );
+    check(
+      "a status change puts the card on top of its board column",
+      todoBoard.columns.todo[0]?._id === noteId &&
+        Object.values(todoBoard.columns.todo[0]?.refCounts ?? {}).reduce(
+          (sum, count) => sum + count,
+          0,
+        ) === 3 &&
+        !todoBoard.columns.notes.some((card) => card._id === noteId),
+      todoBoard.columns.todo.slice(0, 2),
+    );
     const dueSoon = data(
       await client.call("wryte_notes_list", {
         status: "todo",
@@ -882,11 +960,16 @@ async function main(): Promise<void> {
       await client.call("wryte_notes_update", { noteId, status: "done" }),
     );
     const asDone = data(await client.call("wryte_notes_get", { noteId }));
+    const doneBoard = await (await authed()).query(
+      api.cms.notes.board.board,
+      {},
+    );
     check(
-      "marks it done",
+      "marks it done at the top of the Done column",
       typeof field(done, "rev") === "number" &&
         field(asDone, "status") === "done" &&
-        typeof field(asDone, "completedAt") === "number",
+        typeof field(asDone, "completedAt") === "number" &&
+        doneBoard.columns.done[0]?._id === noteId,
       asDone,
     );
     const rev = field(asDone, "rev");

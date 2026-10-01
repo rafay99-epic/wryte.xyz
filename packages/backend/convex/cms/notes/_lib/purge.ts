@@ -2,6 +2,9 @@ import { internal } from "../../../_generated/api";
 import type { Doc, Id } from "../../../_generated/dataModel";
 import type { MutationCtx } from "../../../_generated/server";
 import { countLiveNote } from "./counters";
+import { MAX_NOTE_REFS } from "./model";
+import { deleteRefRows } from "./refs";
+import { deleteSearchRows } from "./search";
 
 export const NOTE_PURGE_BATCH = 20;
 
@@ -19,6 +22,8 @@ export async function purgeNote(
     .withIndex("by_noteId", (q) => q.eq("noteId", note._id))
     .unique();
   if (content) await ctx.db.delete(content._id);
+  await deleteSearchRows(ctx, note._id, 2);
+  await deleteRefRows(ctx, note._id, MAX_NOTE_REFS * 2);
   await ctx.scheduler.runAfter(0, internal.media.noteMedia._purgeForNote, {
     noteId: note._id,
   });
@@ -69,6 +74,12 @@ export async function wipeNoteRows(
     await ctx.db.delete(row._id);
   }
   left -= content.length;
+  if (left <= 0) return 0;
+
+  left -= await deleteSearchRows(ctx, noteId, left);
+  if (left <= 0) return 0;
+
+  left -= await deleteRefRows(ctx, noteId, left);
   if (left <= 0) return 0;
 
   await ctx.db.delete(noteId);

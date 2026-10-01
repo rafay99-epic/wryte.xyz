@@ -1,57 +1,63 @@
 "use client";
 
 import { todayKey } from "@wryte/logic/lib/notes/dates";
-import { resolveView } from "@wryte/logic/lib/notes/views";
+import { noteIdFromPath, resolveGroupId } from "@wryte/logic/lib/notes/views";
 import { cn } from "@wryte/logic/lib/utils";
 import { useNotesViewStore } from "@wryte/logic/stores/notes-view-store";
-import { type ReactNode, Suspense, useState } from "react";
-import {
-  NotesListHeaderFallback,
-  NotesListPane,
-} from "./components/notes-list-pane";
-import { NotesRail } from "./components/notes-rail";
+import { usePathname } from "next/navigation";
+import { type ReactNode, useCallback, useState } from "react";
+import { BoardHeader } from "./components/board-header";
+import { NotePanel } from "./components/note-panel";
+import { NotesBoard } from "./components/notes-board";
+import { TrashList } from "./components/trash-list";
 import { NotesRailContext, useNotesRail } from "./hooks/use-notes-rail";
-
-const NOTE_OPEN = "max-lg:group-has-[[data-note-open]]/notes:hidden";
+import { useOpenNote } from "./hooks/use-open-note";
 
 export function NotesShell({ children }: { children: ReactNode }) {
   const railData = useNotesRail();
-  const storedView = useNotesViewStore((state) => state.view);
-  const navOpen = useNotesViewStore((state) => state.navOpen);
-  const view = resolveView(storedView, railData.groupsById);
+  const selectedId = noteIdFromPath(usePathname());
+  const open = useOpenNote();
+  const close = useCallback(() => open(null), [open]);
+  const storedGroupId = useNotesViewStore((state) => state.groupId);
+  const trash = useNotesViewStore((state) => state.trash);
+  const groupId = resolveGroupId(storedGroupId, railData.groupsById);
   const [today] = useState(todayKey);
 
   return (
     <NotesRailContext value={railData}>
-      <div className="group/notes flex h-full min-h-0 overflow-hidden bg-background">
-        <nav
-          aria-label="Note views"
+      <div className="flex h-full min-h-0 overflow-hidden bg-background">
+        <section
+          aria-label="Notes board"
           className={cn(
-            "flex w-52 shrink-0 flex-col border-r border-border/50",
-            navOpen ? "max-lg:w-full max-lg:border-r-0" : "max-lg:hidden",
-            NOTE_OPEN,
+            "flex min-w-0 flex-1 flex-col",
+            selectedId && "max-lg:hidden",
           )}
         >
-          <NotesRail view={view} />
-        </nav>
-        <section
-          aria-label="Notes"
-          className={cn(
-            "flex w-80 shrink-0 flex-col border-r border-border/50",
-            navOpen ? "max-lg:hidden" : "max-lg:w-full max-lg:border-r-0",
-            NOTE_OPEN,
+          {trash ? (
+            <>
+              <BoardHeader groupId={groupId} trash count={null} />
+              <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-6 slim-scrollbar">
+                <TrashList />
+              </div>
+            </>
+          ) : (
+            <NotesBoard
+              key={groupId ?? "all"}
+              groupId={groupId}
+              selectedId={selectedId}
+              today={today}
+            />
           )}
-        >
-          <Suspense fallback={<NotesListHeaderFallback />}>
-            <NotesListPane view={view} today={today} />
-          </Suspense>
         </section>
-        <section
-          aria-label="Note"
-          className="flex min-w-0 flex-1 flex-col max-lg:hidden max-lg:group-has-[[data-note-open]]/notes:flex"
-        >
-          {children}
-        </section>
+        {selectedId && (
+          <aside
+            aria-label="Note"
+            className="flex min-h-0 w-full min-w-0 shrink-0 flex-col overflow-hidden lg:w-[480px] lg:border-l lg:border-white/[0.08] xl:w-[560px]"
+          >
+            <NotePanel noteId={selectedId} onClose={close} />
+          </aside>
+        )}
+        {children}
       </div>
     </NotesRailContext>
   );

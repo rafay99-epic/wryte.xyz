@@ -37,3 +37,11 @@ export function dueLabel(dueDate: string, today: string): string {
     ...(sameYear ? {} : { year: "numeric" }),
   });
 }
+
+export function dueTone(
+  task: { status?: NoteStatus | undefined; dueDate?: string | undefined },
+  today: string,
+): "overdue" | "today" | "later" {
+  if (isOverdue(task, today)) return "overdue";
+  return task.dueDate === today && task.status !== "done" ? "today" : "later";
+}

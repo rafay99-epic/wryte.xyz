@@ -203,7 +203,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       icon: NotebookPen,
       category: "action",
       onSelect: () => {
-        void createNote({ kind: "all" }, "note");
+        void createNote("notes");
       },
     });
 
@@ -214,7 +214,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       icon: ListTodo,
       category: "action",
       onSelect: () => {
-        void createNote({ kind: "all" }, "task");
+        void createNote("todo");
       },
     });
 

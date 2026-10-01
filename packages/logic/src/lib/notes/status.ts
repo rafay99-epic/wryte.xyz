@@ -12,16 +12,6 @@ export const NOTE_STATUS_LABELS: Record<NoteStatus, string> = {
   done: "Done",
 };
 
-const NEXT_STATUS: Record<NoteStatus, NoteStatus> = {
-  todo: "doing",
-  doing: "done",
-  done: "todo",
-};
-
-export function nextStatus(status: NoteStatus): NoteStatus {
-  return NEXT_STATUS[status];
-}
-
 export function isNoteStatus(value: string): value is NoteStatus {
   return NOTE_STATUSES.some((status) => status === value);
 }

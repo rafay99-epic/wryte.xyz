@@ -28,6 +28,7 @@ import {
   buildExcerpt,
   CONTENT_SEARCH_LIMIT,
   extractSnippet,
+  loadContentRow,
   MIN_CONTENT_TERM,
   readContent,
   readContentById,
@@ -847,7 +848,7 @@ function bodyMetadata(
 export const autosaveBody = mutation({
   args: {
     documentId: v.id("documents"),
-    content: v.string(),
+    content: v.optional(v.string()),
     title: v.optional(v.string()),
     flush: v.optional(v.boolean()),
     writer: v.optional(v.string()),
@@ -856,6 +857,9 @@ export const autosaveBody = mutation({
   handler: async (ctx, args) => {
     const key = await getRateLimitKey(ctx);
     await rateLimiter.limit(ctx, "documents:update", { key, throws: true });
+    if (args.content === undefined && args.flush !== true) {
+      throw new Error("content is required unless flush is true");
+    }
 
     const user = await getCurrentUser(ctx);
     const document = await verifyDocumentOwnership(
@@ -864,11 +868,13 @@ export const autosaveBody = mutation({
       user._id,
     );
 
-    const byteLength = new TextEncoder().encode(args.content).byteLength;
-    if (byteLength > MAX_CONTENT_BYTES) {
-      throw new Error(
-        `Document content is too large (max ${String(Math.round(MAX_CONTENT_BYTES / 1024))} KB).`,
-      );
+    if (args.content !== undefined) {
+      const byteLength = new TextEncoder().encode(args.content).byteLength;
+      if (byteLength > MAX_CONTENT_BYTES) {
+        throw new Error(
+          `Document content is too large (max ${String(Math.round(MAX_CONTENT_BYTES / 1024))} KB).`,
+        );
+      }
     }
 
     const openConflict = await ctx.db
@@ -883,13 +889,18 @@ export const autosaveBody = mutation({
       );
     }
 
-    const contentId = await writeEditorContent(ctx, {
-      documentId: args.documentId,
-      projectId: document.projectId,
-      userId: user._id,
-      content: args.content,
-      ...(document.contentId ? { contentId: document.contentId } : {}),
-    });
+    const stored =
+      args.content === undefined ? await loadContentRow(ctx, document) : null;
+    const content = args.content ?? stored?.content ?? "";
+    const contentId =
+      stored?._id ??
+      (await writeEditorContent(ctx, {
+        documentId: args.documentId,
+        projectId: document.projectId,
+        userId: user._id,
+        content,
+        ...(document.contentId ? { contentId: document.contentId } : {}),
+      }));
 
     const now = Date.now();
     const touch = shouldTouch({
@@ -899,7 +910,7 @@ export const autosaveBody = mutation({
       titleChanged: false,
     });
     if (touch && (args.flush === true || args.writer !== undefined)) {
-      const body = bodyMetadata(document, args.content, contentId);
+      const body = bodyMetadata(document, content, contentId);
       await ctx.db.patch(args.documentId, {
         ...body.fields,
         ...(args.title !== undefined ? { title: args.title } : {}),
@@ -907,7 +918,7 @@ export const autosaveBody = mutation({
         contentWriter: args.writer,
         updatedAt: now,
       });
-      await syncDocumentLinks(ctx, document, args.content);
+      await syncDocumentLinks(ctx, document, content);
       await scheduleWordActivity(ctx, {
         userId: user._id,
         projectId: document.projectId,

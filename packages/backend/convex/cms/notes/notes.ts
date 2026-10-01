@@ -15,6 +15,7 @@ import {
   noteRowValidator,
   noteStatusValidator,
   searchHitValidator,
+  taskRowValidator,
   trashedNoteRowValidator,
 } from "./_lib/model";
 import { purgeNote, purgeTrashedNotes } from "./_lib/purge";
@@ -64,9 +65,9 @@ export const trashList = query({
 export const tasks = query({
   args: {},
   returns: v.object({
-    todo: v.array(noteRowValidator),
-    doing: v.array(noteRowValidator),
-    done: v.array(noteRowValidator),
+    todo: v.array(taskRowValidator),
+    doing: v.array(taskRowValidator),
+    done: v.array(taskRowValidator),
   }),
   handler: async (ctx) => {
     const user = await getAuthedUserOrNull(ctx);
@@ -131,7 +132,7 @@ export const create = mutation({
 export const save = mutation({
   args: {
     noteId: v.id("notes"),
-    content: v.string(),
+    content: v.optional(v.string()),
     title: v.optional(v.string()),
     writer: v.string(),
     flush: v.optional(v.boolean()),

@@ -2,13 +2,11 @@
 
 import { api } from "@wryte/backend/_generated/api";
 import type { NoteMeta } from "@wryte/backend/cms/notes/_lib/model";
-import { getColorClasses } from "@wryte/logic/lib/board-colors";
 import {
   isNoteStatus,
   NOTE_STATUS_LABELS,
   NOTE_STATUSES,
 } from "@wryte/logic/lib/notes/status";
-import { NOTES_PATH, notePath } from "@wryte/logic/lib/notes/views";
 import { cn } from "@wryte/logic/lib/utils";
 import { useEditorStore } from "@wryte/logic/stores/editor-store";
 import { Button } from "@wryte/ui/button";
@@ -28,76 +26,85 @@ import {
 } from "@wryte/ui/select";
 import { useMutation } from "convex/react";
 import {
-  ArrowLeft,
   FileOutput,
   ImageIcon,
   MoreHorizontal,
   Pin,
   Trash2,
+  X,
 } from "lucide-react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useShallow } from "zustand/react/shallow";
 import { useNoteUpdate } from "../hooks/use-note-update";
 import { useNotesRailData } from "../hooks/use-notes-rail";
+import { useOpenNote } from "../hooks/use-open-note";
 import { ConvertToArticleDialog } from "./convert-to-article-dialog";
 import { DueDateInput } from "./due-date-input";
+import { GroupDot } from "./group-filter";
 import { LinkedArticles } from "./linked-articles";
+import { AddRefButton, NoteRefList } from "./note-refs";
 import { StatusIcon } from "./status-icon";
 
 const NONE = "none";
 
-const PICKER_CLASS = "h-7 border-border/60 text-xs";
+const PICKER_CLASS = "h-8 border-white/10 bg-white/[0.03] text-xs";
 
 export function NoteHeader({
   meta,
   flushNow,
+  onClose,
 }: {
   meta: NoteMeta;
   flushNow: () => Promise<void>;
+  onClose: () => void;
 }) {
   const noteId = meta._id;
   const update = useNoteUpdate();
   const [convertOpen, setConvertOpen] = useState(false);
 
   return (
-    <header className="shrink-0 border-b border-border/50 px-3 py-2 sm:px-4">
-      <div className="flex items-center gap-1.5">
-        <Link
-          href={NOTES_PATH}
-          aria-label="Back to notes"
-          className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground lg:hidden"
-        >
-          <ArrowLeft className="size-4" />
-        </Link>
-        <TitleInput focusOnMount={meta.title === ""} flushNow={flushNow} />
-        <SaveState />
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label="Pin note"
-          aria-pressed={meta.pinned === true}
-          title={meta.pinned ? "Unpin" : "Pin"}
-          onClick={() => void update({ noteId, pinned: !meta.pinned })}
-        >
-          <Pin
-            className={cn(meta.pinned && "text-foreground")}
-            fill={meta.pinned ? "currentColor" : "none"}
-          />
-        </Button>
-        <NoteMenu meta={meta} flushNow={flushNow} />
-      </div>
-      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-        <GroupPicker meta={meta} />
+    <header className="shrink-0 px-6 pt-5 pb-3">
+      <div className="flex flex-wrap items-center gap-2">
         <StatusPicker meta={meta} />
+        <GroupPicker meta={meta} />
         <DueDateInput
           value={meta.dueDate}
           label="Due date"
           onChange={(dueDate) => void update({ noteId, dueDate })}
         />
+        <div className="ml-auto flex items-center gap-0.5">
+          <SaveState />
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Pin note"
+            aria-pressed={meta.pinned === true}
+            title={meta.pinned ? "Unpin" : "Pin"}
+            onClick={() => void update({ noteId, pinned: !meta.pinned })}
+          >
+            <Pin
+              className={cn(meta.pinned && "text-foreground")}
+              fill={meta.pinned ? "currentColor" : "none"}
+            />
+          </Button>
+          <NoteMenu meta={meta} flushNow={flushNow} onClose={onClose} />
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Close note"
+            title="Close (Esc)"
+            onClick={onClose}
+          >
+            <X />
+          </Button>
+        </div>
+      </div>
+      <TitleInput focusOnMount={meta.title === ""} flushNow={flushNow} />
+      <div className="mt-2 flex flex-wrap items-center gap-1">
         <LinkedArticles noteId={noteId} />
+        <AddRefButton noteId={noteId} />
         <Button
           variant="ghost"
           size="xs"
@@ -108,6 +115,7 @@ export function NoteHeader({
           Convert to article
         </Button>
       </div>
+      <NoteRefList noteId={noteId} />
       <ConvertToArticleDialog
         open={convertOpen}
         onOpenChange={setConvertOpen}
@@ -150,7 +158,7 @@ function TitleInput({
           event.currentTarget.blur();
         }
       }}
-      className="min-w-0 flex-1 bg-transparent px-1 text-lg font-semibold text-foreground outline-none placeholder:text-muted-foreground/60"
+      className="mt-4 w-full bg-transparent text-xl font-semibold text-foreground outline-none placeholder:text-muted-foreground/60 placeholder:italic"
     />
   );
 }
@@ -208,18 +216,6 @@ function GroupPicker({ meta }: { meta: NoteMeta }) {
   );
 }
 
-function GroupDot({ color }: { color: string | undefined }) {
-  return (
-    <span
-      aria-hidden
-      className={cn(
-        "size-2 shrink-0 rounded-full",
-        color ? getColorClasses(color).dot : "bg-border",
-      )}
-    />
-  );
-}
-
 function StatusPicker({ meta }: { meta: NoteMeta }) {
   const update = useNoteUpdate();
   return (
@@ -265,11 +261,14 @@ function StatusPicker({ meta }: { meta: NoteMeta }) {
 function NoteMenu({
   meta,
   flushNow,
+  onClose,
 }: {
   meta: NoteMeta;
   flushNow: () => Promise<void>;
+  onClose: () => void;
 }) {
   const router = useRouter();
+  const open = useOpenNote();
   const trash = useMutation(api.cms.notes.notes.trash);
   const restore = useMutation(api.cms.notes.notes.restore);
   const noteId = meta._id;
@@ -278,13 +277,13 @@ function NoteMenu({
     try {
       await flushNow();
       await trash({ noteId });
-      router.push(NOTES_PATH);
+      onClose();
       toast("Moved to trash", {
         action: {
           label: "Undo",
           onClick: () => {
             restore({ noteId })
-              .then(() => router.push(notePath(noteId)))
+              .then(() => open(noteId))
               .catch(() => toast.error("Couldn't restore the note"));
           },
         },

@@ -820,6 +820,15 @@ export default defineSchema({
     taskOpenedAt: v.optional(v.number()),
     completedAt: v.optional(v.number()),
     pinned: v.optional(v.boolean()),
+    boardPosition: v.optional(v.number()),
+    refCounts: v.optional(
+      v.object({
+        pr: v.number(),
+        issue: v.number(),
+        comment: v.number(),
+        link: v.number(),
+      }),
+    ),
     rev: v.number(),
     writer: v.string(),
     source: v.union(v.literal("app"), v.literal("mcp")),
@@ -854,6 +863,19 @@ export default defineSchema({
       "trashedAt",
       "completedAt",
     ])
+    .index("by_userId_and_trashedAt_and_status_and_boardPosition", [
+      "userId",
+      "trashedAt",
+      "status",
+      "boardPosition",
+    ])
+    .index("by_userId_and_trashedAt_and_groupId_and_status_and_boardPosition", [
+      "userId",
+      "trashedAt",
+      "groupId",
+      "status",
+      "boardPosition",
+    ])
     .index("by_trashedAt", ["trashedAt"])
     .searchIndex("search_title", {
       searchField: "title",
@@ -866,12 +888,34 @@ export default defineSchema({
     content: v.string(),
     trashed: v.boolean(),
     rev: v.optional(v.number()),
+  }).index("by_noteId", ["noteId"]),
+
+  note_search: defineTable({
+    noteId: v.id("notes"),
+    userId: v.id("users"),
+    trashed: v.boolean(),
+    text: v.string(),
   })
     .index("by_noteId", ["noteId"])
-    .searchIndex("search_content", {
-      searchField: "content",
+    .searchIndex("search_text", {
+      searchField: "text",
       filterFields: ["userId", "trashed"],
     }),
+
+  note_refs: defineTable({
+    noteId: v.id("notes"),
+    userId: v.id("users"),
+    kind: v.union(
+      v.literal("pr"),
+      v.literal("issue"),
+      v.literal("comment"),
+      v.literal("link"),
+    ),
+    url: v.optional(v.string()),
+    text: v.optional(v.string()),
+    author: v.optional(v.string()),
+    createdAt: v.number(),
+  }).index("by_noteId", ["noteId"]),
 
   note_links: defineTable({
     noteId: v.id("notes"),

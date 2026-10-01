@@ -4,17 +4,21 @@ import type { QueryCtx } from "../../../_generated/server";
 import { loadContentRow, loadOwnedNote } from "./access";
 import { linksForNote, notesForDocument } from "./links";
 import {
+  type BoardColumn,
   type NoteLink,
   type NoteMeta,
+  type NoteRef,
   type NoteRow,
-  type NoteStatus,
   type SearchHit,
   snippet,
+  type TaskRow,
   type TrashedNoteRow,
   toNoteMeta,
   toNoteRow,
+  toTaskRow,
   toTrashedNoteRow,
 } from "./model";
+import { refsForNote } from "./refs";
 
 const TASK_LIMIT = 200;
 const DONE_LIMIT = 50;
@@ -35,7 +39,7 @@ export async function listNotesForUser(
   args: {
     paginationOpts: PaginationOptions;
     groupId?: Id<"note_groups">;
-    status?: NoteStatus;
+    status?: BoardColumn;
     dueBefore?: string;
     linkedDocumentId?: Id<"documents">;
   },
@@ -46,11 +50,40 @@ export async function listNotesForUser(
       page: rows.filter(
         (row) =>
           (args.groupId === undefined || row.groupId === args.groupId) &&
-          (args.status === undefined || row.status === args.status),
+          (args.status === undefined ||
+            (row.status ?? "notes") === args.status),
       ),
       isDone: true,
       continueCursor: "",
     };
+  }
+
+  if (args.status === "notes") {
+    const groupId = args.groupId;
+    const result = await (groupId === undefined
+      ? ctx.db
+          .query("notes")
+          .withIndex(
+            "by_userId_and_trashedAt_and_status_and_boardPosition",
+            (q) =>
+              q
+                .eq("userId", user._id)
+                .eq("trashedAt", undefined)
+                .eq("status", undefined),
+          )
+      : ctx.db
+          .query("notes")
+          .withIndex(
+            "by_userId_and_trashedAt_and_groupId_and_status_and_boardPosition",
+            (q) =>
+              q
+                .eq("userId", user._id)
+                .eq("trashedAt", undefined)
+                .eq("groupId", groupId)
+                .eq("status", undefined),
+          )
+    ).paginate(args.paginationOpts);
+    return mapPage(result, toNoteRow);
   }
 
   const status = args.status;
@@ -133,20 +166,20 @@ async function openTasks(
   ctx: DbCtx,
   userId: Id<"users">,
   status: "todo" | "doing",
-): Promise<NoteRow[]> {
+): Promise<TaskRow[]> {
   const notes = await ctx.db
     .query("notes")
     .withIndex("by_userId_and_trashedAt_and_status_and_dueDate", (q) =>
       q.eq("userId", userId).eq("trashedAt", undefined).eq("status", status),
     )
     .take(TASK_LIMIT);
-  return notes.map(toNoteRow);
+  return notes.map(toTaskRow);
 }
 
 export async function tasksForUser(
   ctx: DbCtx,
   user: Doc<"users">,
-): Promise<{ todo: NoteRow[]; doing: NoteRow[]; done: NoteRow[] }> {
+): Promise<{ todo: TaskRow[]; doing: TaskRow[]; done: TaskRow[] }> {
   const [todo, doing, done] = await Promise.all([
     openTasks(ctx, user._id, "todo"),
     openTasks(ctx, user._id, "doing"),
@@ -161,7 +194,7 @@ export async function tasksForUser(
       .order("desc")
       .take(DONE_LIMIT),
   ]);
-  return { todo, doing, done: done.map(toNoteRow) };
+  return { todo, doing, done: done.map(toTaskRow) };
 }
 
 async function loadLiveNote(
@@ -202,18 +235,21 @@ export async function getNoteForUser(
   content: string;
   bodyRev: number;
   links: NoteLink[];
+  refs: NoteRef[];
 } | null> {
   const note = await loadLiveNote(ctx, user, noteId);
   if (!note) return null;
-  const [row, links] = await Promise.all([
+  const [row, links, refs] = await Promise.all([
     loadContentRow(ctx, note._id),
-    linksForNote(ctx, note._id),
+    linksForNote(ctx, user, note._id),
+    refsForNote(ctx, user, note._id),
   ]);
   return {
     meta: toNoteMeta(note),
     content: row?.content ?? "",
     bodyRev: row?.rev ?? 0,
     links,
+    refs,
   };
 }
 
@@ -236,17 +272,20 @@ export async function searchNotesForUser(
       )
       .take(SEARCH_LIMIT),
     ctx.db
-      .query("note_content")
-      .withSearchIndex("search_content", (q) =>
-        q.search("content", query).eq("userId", user._id).eq("trashed", false),
+      .query("note_search")
+      .withSearchIndex("search_text", (q) =>
+        q.search("text", query).eq("userId", user._id).eq("trashed", false),
       )
       .take(SEARCH_LIMIT),
   ]);
 
+  const notes = await Promise.all(
+    byContent.map((row) => ctx.db.get(row.noteId)),
+  );
   const hits: SearchHit[] = [];
   const seen = new Set<Id<"notes">>();
-  for (const row of byContent) {
-    const note = await ctx.db.get(row.noteId);
+  for (const [index, row] of byContent.entries()) {
+    const note = notes[index];
     if (!note || note.userId !== user._id || note.trashedAt !== undefined) {
       continue;
     }
@@ -254,7 +293,7 @@ export async function searchNotesForUser(
     hits.push({
       noteId: note._id,
       title: note.title,
-      snippet: snippet(row.content, query),
+      snippet: snippet(row.text, query),
       ...(note.status !== undefined ? { status: note.status } : {}),
     });
   }

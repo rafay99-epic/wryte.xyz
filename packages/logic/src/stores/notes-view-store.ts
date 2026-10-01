@@ -1,16 +1,16 @@
-import type { NotesView } from "@wryte/logic/lib/notes/views";
+import type { Id } from "@wryte/backend/_generated/dataModel";
 import { create } from "zustand";
 
 type NotesViewState = {
-  view: NotesView;
-  navOpen: boolean;
-  setView: (view: NotesView) => void;
-  setNavOpen: (open: boolean) => void;
+  groupId: Id<"note_groups"> | null;
+  trash: boolean;
+  setGroupId: (groupId: Id<"note_groups"> | null) => void;
+  setTrash: (trash: boolean) => void;
 };
 
 export const useNotesViewStore = create<NotesViewState>()((set) => ({
-  view: { kind: "all" },
-  navOpen: false,
-  setView: (view) => set({ view, navOpen: false }),
-  setNavOpen: (navOpen) => set({ navOpen }),
+  groupId: null,
+  trash: false,
+  setGroupId: (groupId) => set({ groupId, trash: false }),
+  setTrash: (trash) => set({ trash }),
 }));

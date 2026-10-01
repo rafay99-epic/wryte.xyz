@@ -10,12 +10,18 @@ import {
   normalizeGroupName,
 } from "../../cms/notes/_lib/groups";
 import { setNoteLinks } from "../../cms/notes/_lib/links";
-import { type NoteRow, noteStatusValidator } from "../../cms/notes/_lib/model";
+import {
+  boardColumnValidator,
+  type NoteRow,
+  noteStatusValidator,
+  refInputValidator,
+} from "../../cms/notes/_lib/model";
 import {
   getNoteForUser,
   listNotesForUser,
   searchNotesForUser,
 } from "../../cms/notes/_lib/read";
+import { addRefs } from "../../cms/notes/_lib/refs";
 import {
   appendToNoteForUser,
   createNoteForUser,
@@ -81,14 +87,17 @@ export const list = agentQuery({
   args: {
     caller: mcpCallerValidator,
     group: v.optional(v.string()),
-    status: v.optional(noteStatusValidator),
+    status: v.optional(boardColumnValidator),
     dueBefore: v.optional(v.string()),
     linkedDocumentId: v.optional(v.id("documents")),
     cursor: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const user = await requireCaller(ctx, args.caller);
-    if (args.dueBefore !== undefined && args.status === undefined) {
+    if (
+      args.dueBefore !== undefined &&
+      (args.status === undefined || args.status === "notes")
+    ) {
       throw new Error(
         'dueBefore filters tasks: pass status too ("todo", "doing" or "done").',
       );
@@ -149,7 +158,7 @@ export const get = agentQuery({
     const maxChars = agentMaxChars(args.maxChars);
     const note = await getNoteForUser(ctx, user, args.noteId);
     if (!note) throw new Error("Note not found");
-    const { meta, content, bodyRev, links } = note;
+    const { meta, content, bodyRev, links, refs } = note;
     const group =
       meta.groupId === undefined ? null : await ctx.db.get(meta.groupId);
     return {
@@ -169,6 +178,7 @@ export const get = agentQuery({
       totalChars: content.length,
       ...clip(content, maxChars),
       links,
+      refs: refs.map(({ _id, ...ref }) => ({ refId: _id, ...ref })),
     };
   },
 });
@@ -194,6 +204,7 @@ export const create = agentMutation({
     status: v.optional(noteStatusValidator),
     dueDate: v.optional(v.string()),
     documentIds: v.optional(v.array(v.id("documents"))),
+    refs: v.optional(v.array(refInputValidator)),
   },
   handler: async (ctx, args) => {
     const user = await requireCaller(ctx, args.caller);
@@ -215,7 +226,13 @@ export const create = agentMutation({
     if (args.documentIds !== undefined && args.documentIds.length > 0) {
       await linkDocuments(ctx, user, noteId, args.documentIds);
     }
-    return { noteId, rev: bodyRev, url: noteUrl(noteId) };
+    const refIds = await addRefs(ctx, user, noteId, args.refs ?? []);
+    return {
+      noteId,
+      rev: bodyRev,
+      url: noteUrl(noteId),
+      ...(refIds.length > 0 ? { refIds } : {}),
+    };
   },
 });
 
@@ -230,6 +247,7 @@ export const update = agentMutation({
     dueDate: v.optional(v.union(v.string(), v.null())),
     group: v.optional(v.union(v.string(), v.null())),
     documentIds: v.optional(v.array(v.id("documents"))),
+    refs: v.optional(v.array(refInputValidator)),
   },
   handler: async (ctx, args) => {
     const user = await requireCaller(ctx, args.caller);
@@ -238,14 +256,15 @@ export const update = agentMutation({
       noteId,
       expectedRev,
       documentIds,
+      refs,
       ...fields
     } = args;
-    if (
-      documentIds === undefined &&
-      Object.values(fields).every((value) => value === undefined)
-    ) {
+    const hasFields = Object.values(fields).some(
+      (value) => value !== undefined,
+    );
+    if (documentIds === undefined && refs === undefined && !hasFields) {
       throw new Error(
-        "Nothing to update: pass title, content, status, dueDate, group or documentIds.",
+        "Nothing to update: pass title, content, status, dueDate, group, documentIds or refs.",
       );
     }
     if (fields.content !== undefined && expectedRev === undefined) {
@@ -277,7 +296,8 @@ export const update = agentMutation({
     if (documentIds !== undefined) {
       await linkDocuments(ctx, user, noteId, documentIds);
     }
-    return { rev: bodyRev };
+    const refIds = await addRefs(ctx, user, noteId, refs ?? []);
+    return { rev: bodyRev, ...(refIds.length > 0 ? { refIds } : {}) };
   },
 });
 

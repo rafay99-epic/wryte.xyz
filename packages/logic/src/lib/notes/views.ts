@@ -1,26 +1,15 @@
 import type { Id } from "@wryte/backend/_generated/dataModel";
 import type {
+  BoardColumn,
   GroupRow,
-  NoteRow,
   NoteStatus,
 } from "@wryte/backend/cms/notes/_lib/model";
 import { EDITOR_SESSION_ID } from "@wryte/logic/lib/editor/session";
-
-export type NotesView =
-  | { kind: "all" }
-  | { kind: "pinned" }
-  | { kind: "tasks" }
-  | { kind: "today" }
-  | { kind: "trash" }
-  | { kind: "group"; groupId: Id<"note_groups"> };
-
-export type NoteKind = "note" | "task";
 
 export type NewNoteArgs = {
   writer: string;
   groupId?: Id<"note_groups">;
   status?: NoteStatus;
-  dueDate?: string;
 };
 
 export const NOTES_PATH = "/notes";
@@ -33,56 +22,21 @@ export function notePath(noteId: string): string {
   return `${NOTES_PATH}/${noteId}`;
 }
 
-export function isTaskView(view: NotesView): boolean {
-  return view.kind === "tasks" || view.kind === "today";
-}
-
-export function sameView(a: NotesView, b: NotesView): boolean {
-  if (a.kind === "group" && b.kind === "group") return a.groupId === b.groupId;
-  return a.kind === b.kind;
-}
-
-export function resolveView(
-  view: NotesView,
-  groupsById: ReadonlyMap<Id<"note_groups">, GroupRow> | undefined,
-): NotesView {
-  if (view.kind !== "group" || !groupsById || groupsById.has(view.groupId)) {
-    return view;
-  }
-  return { kind: "all" };
-}
-
-export function viewLabel(
-  view: NotesView,
-  groupsById: ReadonlyMap<Id<"note_groups">, GroupRow> | undefined,
-): string {
-  switch (view.kind) {
-    case "all":
-      return "All notes";
-    case "pinned":
-      return "Pinned";
-    case "tasks":
-      return "Tasks";
-    case "today":
-      return "Due today";
-    case "trash":
-      return "Trash";
-    case "group":
-      return groupsById?.get(view.groupId)?.name ?? "Group";
-  }
+export function noteIdFromPath(pathname: string): string | null {
+  const prefix = `${NOTES_PATH}/`;
+  if (!pathname.startsWith(prefix)) return null;
+  const id = pathname.slice(prefix.length).split("/")[0];
+  return id ? decodeURIComponent(id) : null;
 }
 
 export function newNoteArgs(
-  view: NotesView,
-  kind: NoteKind,
-  today: string,
+  column: BoardColumn,
+  groupId: Id<"note_groups"> | null,
 ): NewNoteArgs {
-  const asTask = kind === "task";
   return {
     writer: EDITOR_SESSION_ID,
-    ...(view.kind === "group" ? { groupId: view.groupId } : {}),
-    ...(asTask ? { status: "todo" } : {}),
-    ...(asTask && view.kind === "today" ? { dueDate: today } : {}),
+    ...(groupId ? { groupId } : {}),
+    ...(column !== "notes" ? { status: column } : {}),
   };
 }
 
@@ -106,24 +60,12 @@ export function moveId<T>(
   return next;
 }
 
-function compareDue(a: NoteRow, b: NoteRow): number {
-  if (a.dueDate === b.dueDate) return b.updatedAt - a.updatedAt;
-  if (a.dueDate === undefined) return 1;
-  if (b.dueDate === undefined) return -1;
-  return a.dueDate < b.dueDate ? -1 : 1;
-}
-
-export function sortByDue(rows: readonly NoteRow[]): NoteRow[] {
-  return [...rows].sort(compareDue);
-}
-
-export function dueByToday(
-  tasks: { todo: readonly NoteRow[]; doing: readonly NoteRow[] },
-  today: string,
-): NoteRow[] {
-  return sortByDue(
-    [...tasks.doing, ...tasks.todo].filter(
-      (row) => row.dueDate !== undefined && row.dueDate <= today,
-    ),
-  );
+export function resolveGroupId(
+  groupId: Id<"note_groups"> | null,
+  groupsById: ReadonlyMap<Id<"note_groups">, GroupRow> | undefined,
+): Id<"note_groups"> | null {
+  if (groupId === null || !groupsById || groupsById.has(groupId)) {
+    return groupId;
+  }
+  return null;
 }

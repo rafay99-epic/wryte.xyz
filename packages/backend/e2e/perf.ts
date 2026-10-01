@@ -24,7 +24,10 @@ if (!secretKey.startsWith("sk_test_")) {
 const WRITER = "perf-tab";
 const TYPING_SAVES = 25;
 const ARTICLE_SAVES = 20;
+const BOARD_NOTES = 200;
 const BUDGET = {
+  boardBytes: 20_000,
+  flushArgBytes: 1_024,
   listBytes: 20_000,
   metaBytes: 1_500,
   railBytes: 10_000,
@@ -122,8 +125,65 @@ function noteIdOf(value: unknown): string {
   throw new Error("MCP create returned no noteId");
 }
 
+function deploymentGuard(): void {
+  if (!(process.env["CONVEX_DEPLOYMENT"] ?? "").startsWith("local:")) {
+    throw new Error("Refusing to run: CONVEX_DEPLOYMENT must be local.");
+  }
+}
+
+function tokenIdentifier(jwt: string): string {
+  const payload: unknown = JSON.parse(
+    Buffer.from(jwt.split(".")[1] ?? "", "base64url").toString("utf8"),
+  );
+  if (
+    typeof payload === "object" &&
+    payload !== null &&
+    "iss" in payload &&
+    "sub" in payload &&
+    typeof payload.iss === "string" &&
+    typeof payload.sub === "string"
+  ) {
+    return `${payload.iss}|${payload.sub}`;
+  }
+  throw new Error("Session token has no iss/sub");
+}
+
+function resetLimit(name: string, key: string): void {
+  deploymentGuard();
+  const run = Bun.spawnSync(
+    [
+      "bunx",
+      "convex",
+      "run",
+      "--component",
+      "rateLimiter",
+      "lib:resetRateLimit",
+      JSON.stringify({ name, key }),
+    ],
+    { cwd: `${import.meta.dir}/..`, stdout: "ignore", stderr: "pipe" },
+  );
+  if (run.exitCode !== 0) {
+    throw new Error(`Could not reset ${name}: ${run.stderr.toString()}`);
+  }
+}
+
+async function throttled<T>(
+  items: T[],
+  limits: { name: string; every: number }[],
+  key: string,
+  fn: (item: T) => Promise<void>,
+): Promise<void> {
+  for (const [index, item] of items.entries()) {
+    for (const limit of limits) {
+      if (index % limit.every === 0) resetLimit(limit.name, key);
+    }
+    await fn(item);
+  }
+}
+
 async function notesSuite(client: ConvexClient): Promise<void> {
   console.info("notes: typing does not fan out");
+  const word = `zq${Date.now().toString(36)}perf`;
   const body = "# Perf note\n\n".concat(
     "Some realistic note text. ".repeat(200),
   );
@@ -141,6 +201,7 @@ async function notesSuite(client: ConvexClient): Promise<void> {
   });
   const meta = await watch(client, api.cms.notes.notes.getMeta, { noteId });
   const rail = await watch(client, api.cms.notes.groups.rail, {});
+  const board = await watch(client, api.cms.notes.board.board, {});
   const calendar = await watch(client, api.cms.notes.calendar.month, {
     from: `${month}-01`,
     to: `${month}-31`,
@@ -153,6 +214,7 @@ async function notesSuite(client: ConvexClient): Promise<void> {
   let content = body;
   for (let i = 0; i < TYPING_SAVES; i++) {
     content = typed(content, i);
+    if (i === 3) content = `${content} ${word}`;
     const result = await timed(
       () =>
         client.mutation(api.cms.notes.notes.save, {
@@ -167,32 +229,60 @@ async function notesSuite(client: ConvexClient): Promise<void> {
   }
   await sleep(400);
   check(
-    `${String(TYPING_SAVES)} autosaves re-ran 0 list/meta/rail/calendar subscriptions`,
-    list.updates + meta.updates + rail.updates + calendar.updates === 0,
+    `${String(TYPING_SAVES)} autosaves re-ran 0 list/meta/rail/calendar/board subscriptions`,
+    list.updates +
+      meta.updates +
+      rail.updates +
+      calendar.updates +
+      board.updates ===
+      0,
     {
       list: list.updates,
       meta: meta.updates,
       rail: rail.updates,
       calendar: calendar.updates,
+      board: board.updates,
     },
+  );
+  const stale = await client.query(api.cms.notes.notes.search, {
+    query: word,
+  });
+  check(
+    `${String(TYPING_SAVES)} autosaves wrote the search index 0 times`,
+    !stale.some((hit) => hit.noteId === noteId),
+    stale,
   );
   check(
     `save latency ${stats(saveTimes)}`,
     percentile(saveTimes, 95) < BUDGET.saveP95Ms,
   );
 
-  const flush = await client.mutation(api.cms.notes.notes.save, {
-    noteId,
-    content,
-    writer: WRITER,
-    flush: true,
-  });
+  const flushArgs = { noteId, writer: WRITER, flush: true };
+  const flush = await client.mutation(api.cms.notes.notes.save, flushArgs);
   await sleep(400);
-  check("flush touches the note once", flush.touched && meta.updates === 1, {
-    touched: flush.touched,
-    meta: meta.updates,
-  });
+  check(
+    `flush without content sends ${String(bytes(flushArgs))} B and touches once`,
+    bytes(flushArgs) < BUDGET.flushArgBytes &&
+      flush.touched &&
+      meta.updates === 1,
+    { touched: flush.touched, meta: meta.updates },
+  );
   check("flush refreshes the list once", list.updates === 1, list.updates);
+  check("flush refreshes the board once", board.updates === 1, board.updates);
+  const fresh = await client.query(api.cms.notes.notes.search, {
+    query: word,
+  });
+  check(
+    "the flush indexes the typed text for search",
+    fresh.some((hit) => hit.noteId === noteId && hit.snippet.includes(word)),
+    fresh,
+  );
+  const stored = await client.query(api.cms.notes.notes.getBody, { noteId });
+  check(
+    "the flush kept the saved body",
+    stored?.content === content,
+    stored?.content.length,
+  );
   check(
     `list page ${String(list.lastBytes)} B, meta ${String(meta.lastBytes)} B, rail ${String(rail.lastBytes)} B`,
     list.lastBytes < BUDGET.listBytes &&
@@ -204,7 +294,7 @@ async function notesSuite(client: ConvexClient): Promise<void> {
     meta.lastBytes < bytes(content) / 10,
   );
 
-  for (const w of [list, meta, rail, calendar]) w.stop();
+  for (const w of [list, meta, rail, calendar, board]) w.stop();
 
   console.info("notes: stale editor saves never overwrite other writers");
   const before = await client.query(api.cms.notes.notes.getMeta, { noteId });
@@ -262,6 +352,117 @@ async function notesSuite(client: ConvexClient): Promise<void> {
   await client.mutation(api.cms.notes.notes.purge, { noteId });
 }
 
+const COLUMNS = ["notes", "todo", "doing", "done"] as const;
+
+async function purgeNotes(
+  client: ConvexClient,
+  key: string,
+  ids: Id<"notes">[],
+): Promise<void> {
+  await throttled(ids, [{ name: "notes:trash", every: 7 }], key, async (id) => {
+    await client.mutation(api.cms.notes.notes.trash, { noteId: id });
+    await client.mutation(api.cms.notes.notes.purge, { noteId: id });
+  });
+}
+
+async function boardSuite(client: ConvexClient, key: string): Promise<void> {
+  console.info(`board: ${String(BOARD_NOTES)} notes, drag is one small write`);
+  const ids: Id<"notes">[] = [];
+  try {
+    const seeds = Array.from({ length: BOARD_NOTES }, (_, i) => i);
+    await throttled(
+      seeds,
+      [{ name: "notes:create", every: 25 }],
+      key,
+      async (i) => {
+        const column = COLUMNS[i % COLUMNS.length] ?? "notes";
+        ids.push(
+          await client.mutation(api.cms.notes.notes.create, {
+            title: `Perf board ${String(i)}`,
+            content: `Card ${String(i)} body.`,
+            writer: WRITER,
+            ...(column === "notes" ? {} : { status: column }),
+          }),
+        );
+      },
+    );
+
+    const board = await watch(client, api.cms.notes.board.board, {});
+    check(
+      `board payload ${String(board.lastBytes)} B for ${String(BOARD_NOTES)} notes`,
+      board.lastBytes < BUDGET.boardBytes,
+    );
+
+    const before = await client.query(api.cms.notes.board.board, {});
+    const card = before.columns.todo[2];
+    const above = before.columns.doing[0];
+    const below = before.columns.doing[1];
+    if (!card || !above || !below) throw new Error("Board seed is missing");
+
+    const moveTimes: number[] = [];
+    const moved = await timed(
+      () =>
+        client.mutation(api.cms.notes.board.move, {
+          noteId: card._id,
+          to: "doing",
+          beforeId: above._id,
+          afterId: below._id,
+          writer: WRITER,
+        }),
+      moveTimes,
+    );
+    await sleep(400);
+    check(
+      `a drag is one move (${stats(moveTimes)}) and re-runs the board once`,
+      board.updates === 1,
+      board.updates,
+    );
+    const after = await client.query(api.cms.notes.board.board, {});
+    const doing = after.columns.doing.slice(0, 3).map((row) => row._id);
+    check(
+      "the card lands between its neighbours with the new status",
+      doing.join() === [above._id, card._id, below._id].join() &&
+        after.columns.doing[1]?.status === "doing" &&
+        after.columns.doing[1]?.boardPosition === moved.boardPosition &&
+        !after.columns.todo.some((row) => row._id === card._id),
+      { doing, moved },
+    );
+
+    await client.mutation(api.cms.notes.board.move, {
+      noteId: card._id,
+      to: "doing",
+      beforeId: null,
+      afterId: above._id,
+      writer: WRITER,
+    });
+    const top = await client.query(api.cms.notes.board.board, {});
+    check(
+      "moving above the first card puts it on top",
+      top.columns.doing[0]?._id === card._id,
+    );
+
+    const last = top.columns.todo.at(-1);
+    const page =
+      last?.boardPosition === undefined
+        ? { cards: [], more: false }
+        : await client.query(api.cms.notes.board.column, {
+            status: "todo",
+            after: last.boardPosition,
+            limit: 50,
+          });
+    const shown = new Set(top.columns.todo.map((row) => row._id));
+    check(
+      `load more returns the next ${String(page.cards.length)} todo cards`,
+      top.more.todo &&
+        page.cards.length > 0 &&
+        page.cards.every((row) => !shown.has(row._id)),
+    );
+    board.stop();
+  } finally {
+    await purgeNotes(client, key, ids);
+  }
+}
+
 async function articleSuite(client: ConvexClient): Promise<void> {
   console.info("articles: autosave no longer echoes the body");
   const projects = await client.query(api.cms.projects.list, {});
@@ -311,14 +512,16 @@ async function articleSuite(client: ConvexClient): Promise<void> {
     meta.lastBytes < legacy.lastBytes / 5,
   );
 
-  await client.mutation(api.cms.documents.autosaveBody, {
-    documentId,
-    content,
-    writer: WRITER,
-    flush: true,
-  });
+  const flushArgs = { documentId, writer: WRITER, flush: true };
+  await client.mutation(api.cms.documents.autosaveBody, flushArgs);
   await sleep(400);
-  check("flush bumps the editor meta once", meta.updates === 1, meta.updates);
+  check(
+    `flush without content sends ${String(bytes(flushArgs))} B and bumps the editor meta once`,
+    bytes(flushArgs) < BUDGET.flushArgBytes && meta.updates === 1,
+    meta.updates,
+  );
+  const saved = await client.query(api.cms.documents.getBody, { documentId });
+  check("the article flush kept the saved body", saved?.content === content);
 
   meta.stop();
   legacy.stop();
@@ -397,6 +600,7 @@ async function main(): Promise<void> {
   }
   try {
     await notesSuite(client);
+    await boardSuite(client, tokenIdentifier(await token()));
     await articleSuite(client);
     await mcpSuite(token);
     const purge = await client.query(api.cms.notes.notes.trashList, {

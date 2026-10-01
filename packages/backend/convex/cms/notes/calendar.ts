@@ -24,7 +24,6 @@ function eventFor(
     kind,
     ...timing,
     ...(note.status !== undefined ? { status: note.status } : {}),
-    ...(note.groupId !== undefined ? { groupId: note.groupId } : {}),
   };
 }
 

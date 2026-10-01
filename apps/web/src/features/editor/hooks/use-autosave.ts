@@ -9,11 +9,11 @@ import { toast } from "sonner";
 import { useShallow } from "zustand/react/shallow";
 
 const DEBOUNCE_MS = 3000;
-const RECOVERY_WRITE_MS = 2000;
+const RECOVERY_WRITE_MS = 10_000;
 const MAX_WAIT_MS = 30_000;
 const FAILURE_THRESHOLD = 3;
 
-export type SaveOptions = { flush: boolean };
+export type SaveOptions = { flush: boolean; contentChanged: boolean };
 
 type SaveFn = (
   content: string,
@@ -74,7 +74,6 @@ export function useAutosave({
   const saveSeqRef = useRef(0);
   const lastSavedRef = useRef<SavedSnapshot>({ content, title, targetId });
   const firstDirtyAtRef = useRef<number | null>(null);
-  const prevTargetIdRef = useRef(targetId);
   const isDirtyRef = useRef(isDirty);
 
   useEffect(() => {
@@ -83,10 +82,7 @@ export function useAutosave({
 
   useEffect(() => {
     latestRef.current = { content, title, targetId };
-    if (prevTargetIdRef.current !== targetId) {
-      prevTargetIdRef.current = targetId;
-      if (!isDirty) lastSavedRef.current = { content, title, targetId };
-    }
+    if (!isDirty) lastSavedRef.current = { content, title, targetId };
   }, [content, title, targetId, isDirty]);
 
   useEffect(() => {
@@ -101,7 +97,7 @@ export function useAutosave({
   }, []);
 
   const performSave = useCallback(
-    async (options: SaveOptions): Promise<SaveResult> => {
+    async ({ flush }: { flush: boolean }): Promise<SaveResult> => {
       if (!isMountedRef.current) return NOOP_RESULT;
       if (latestRef.current.targetId !== targetId) return NOOP_RESULT;
       if (!useEditorStore.getState().isDirty) return NOOP_RESULT;
@@ -124,10 +120,15 @@ export function useAutosave({
         return { committed: true, wrote: false };
       }
 
+      const contentChanged =
+        saved.targetId !== targetId || saved.content !== snapshotContent;
       const seq = ++saveSeqRef.current;
       setSaving(true);
       try {
-        await onSaveRef.current(snapshotContent, snapshotTitle, options);
+        await onSaveRef.current(snapshotContent, snapshotTitle, {
+          flush,
+          contentChanged,
+        });
 
         if (seq !== saveSeqRef.current) return { committed: true, wrote: true };
 
@@ -265,14 +266,17 @@ export function useAutosave({
         !(saved.targetId === id && saved.content === c && saved.title === t);
       if (hasUnsavedEdits) {
         flushPendingRef.current = false;
-        void flushFn(c, t, { flush: true }).catch((err) => {
+        const contentChanged = saved.targetId !== id || saved.content !== c;
+        void flushFn(c, t, { flush: true, contentChanged }).catch((err) => {
           console.error("[Autosave] Flush-on-unmount failed:", err);
         });
       } else if (flushPendingRef.current) {
         flushPendingRef.current = false;
-        void flushFn(c, t, { flush: true }).catch((err) => {
-          console.error("[Autosave] Metadata flush-on-unmount failed:", err);
-        });
+        void flushFn(c, t, { flush: true, contentChanged: false }).catch(
+          (err) => {
+            console.error("[Autosave] Metadata flush-on-unmount failed:", err);
+          },
+        );
       }
     };
   }, [enabled]);
@@ -294,7 +298,10 @@ export function useAutosave({
     if (!flushPendingRef.current || saved.targetId !== targetId) return;
     flushPendingRef.current = false;
     try {
-      await onSaveRef.current(saved.content, saved.title, { flush: true });
+      await onSaveRef.current(saved.content, saved.title, {
+        flush: true,
+        contentChanged: false,
+      });
     } catch (err) {
       flushPendingRef.current = true;
       console.error("[Autosave] Flush failed:", err);

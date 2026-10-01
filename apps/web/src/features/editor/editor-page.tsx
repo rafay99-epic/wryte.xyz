@@ -191,11 +191,11 @@ function ArticleEditor({ documentId }: { documentId: Id<"documents"> }) {
   }, [reload, applyMain]);
 
   const onSave = useCallback(
-    async (c: string, t: string, { flush }: SaveOptions) => {
+    async (c: string, t: string, { flush, contentChanged }: SaveOptions) => {
       if (activeDraftId === null) {
         await autosaveBody({
           documentId,
-          content: c,
+          ...(flush && !contentChanged ? {} : { content: c }),
           title: t,
           writer: EDITOR_SESSION_ID,
           ...(flush ? { flush: true } : {}),

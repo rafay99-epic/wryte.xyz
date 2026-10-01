@@ -1,6 +1,4 @@
 import { api } from "@wryte/backend/_generated/api";
-import type { Id } from "@wryte/backend/_generated/dataModel";
-import type { NoteStatus } from "@wryte/backend/cms/notes/_lib/model";
 import { EDITOR_SESSION_ID } from "@wryte/logic/lib/editor/session";
 import { useMutation } from "convex/react";
 import type { FunctionArgs } from "convex/server";
@@ -26,22 +24,3 @@ export function useNoteUpdate() {
     [update],
   );
 }
-
-export function useNoteRowActions() {
-  const update = useNoteUpdate();
-  const onStatusChange = useCallback(
-    (noteId: Id<"notes">, status: NoteStatus) => {
-      void update({ noteId, status });
-    },
-    [update],
-  );
-  const onDueChange = useCallback(
-    (noteId: Id<"notes">, dueDate: string | null) => {
-      void update({ noteId, dueDate });
-    },
-    [update],
-  );
-  return { onStatusChange, onDueChange };
-}
-
-export type NoteRowActions = ReturnType<typeof useNoteRowActions>;

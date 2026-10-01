@@ -13,7 +13,11 @@ import {
   researchItemValidator,
   researchTypeValidator,
 } from "../cms/documentResearch";
-import { noteStatusValidator } from "../cms/notes/_lib/model";
+import {
+  boardColumnValidator,
+  noteStatusValidator,
+  refInputValidator,
+} from "../cms/notes/_lib/model";
 import { DEFAULT_NOTE_CHARS } from "./agentInput";
 import { SCOPES, type WryteToolMetadata } from "./scopes";
 
@@ -36,7 +40,7 @@ const NOTES_TRASH = {
 
 const NOTES_BODY = {
   scopes: [SCOPES.notes],
-  auditArgs: { redact: ["content"] },
+  auditArgs: { redact: ["content", "refs"] },
 } satisfies WryteToolMetadata;
 
 const NOTES_APPEND = {
@@ -425,12 +429,12 @@ export const tools: McpToolRegistration[] = [
   defineMcpQuery({
     name: "wryte_notes_list",
     description:
-      "List the user's private notes, newest first, 25 per page: title, excerpt, status, due date, group. No bodies; read one with wryte_notes_get. Filter by group name, status, dueBefore (YYYY-MM-DD, needs status) or a linked post. Page with continueCursor.",
+      'List the user\'s private notes, 25 per page: title, excerpt, status, due date, group. No bodies; read one with wryte_notes_get. Filter by group name, status ("todo", "doing", "done", or "notes" for plain notes without a status, in board order), dueBefore (YYYY-MM-DD, needs a task status) or a linked post. Page with continueCursor.',
     fn: internal.mcp.handlers.notes.list,
     args: {
       caller: mcpCallerValidator,
       group: v.optional(v.string()),
-      status: v.optional(noteStatusValidator),
+      status: v.optional(boardColumnValidator),
       dueBefore: v.optional(v.string()),
       linkedDocumentId: v.optional(v.id("documents")),
       cursor: v.optional(v.string()),
@@ -451,7 +455,7 @@ export const tools: McpToolRegistration[] = [
 
   defineMcpQuery({
     name: "wryte_notes_get",
-    description: `One note: metadata, rev, group, linked posts and body. The body is cut at maxChars (default ${String(DEFAULT_NOTE_CHARS)}); truncated says so and totalChars gives the full length. Keep rev for wryte_notes_update.`,
+    description: `One note: metadata, rev, group, linked posts, refs (PRs, issues, comments, links) and body. The body is cut at maxChars (default ${String(DEFAULT_NOTE_CHARS)}); truncated says so and totalChars gives the full length. Keep rev for wryte_notes_update.`,
     fn: internal.mcp.handlers.notes.get,
     args: {
       caller: mcpCallerValidator,
@@ -474,7 +478,7 @@ export const tools: McpToolRegistration[] = [
   defineMcpMutation({
     name: "wryte_notes_create",
     description:
-      'Create a private note. Notes are never published. group is a name, found or created; use "Work log" for session logs. status (todo, doing, done) and dueDate (YYYY-MM-DD) make it a task. documentIds links up to 20 posts. Returns noteId, rev and the note\'s web path.',
+      'Create a private note. Notes are never published; they live on the user\'s board (columns Notes, To do, Doing, Done) and new ones go to the top of their column. group is a name, found or created; use "Work log" for session logs. status (todo, doing, done) and dueDate (YYYY-MM-DD) make it a task. refs attaches up to 20 references: {kind: "pr"|"issue"|"link", url} or {kind: "comment", text, author?, url?}. File follow-ups as tasks: wryte_notes_create { title, group, status: "todo", content, refs: [{kind: "pr", url}, {kind: "comment", text, author}] }. documentIds links up to 20 posts. Returns noteId, rev and the note\'s web path.',
     fn: internal.mcp.handlers.notes.create,
     args: {
       caller: mcpCallerValidator,
@@ -484,6 +488,7 @@ export const tools: McpToolRegistration[] = [
       status: v.optional(noteStatusValidator),
       dueDate: v.optional(v.string()),
       documentIds: v.optional(v.array(v.id("documents"))),
+      refs: v.optional(v.array(refInputValidator)),
     },
     identityArg: "caller",
     metadata: NOTES_BODY,
@@ -492,7 +497,7 @@ export const tools: McpToolRegistration[] = [
   defineMcpMutation({
     name: "wryte_notes_update",
     description:
-      "Change a note's title, status, dueDate, group or linked posts; null clears status, dueDate or group. Replacing content needs expectedRev from wryte_notes_get and is refused if the user edited since. Prefer wryte_notes_append for adding text. documentIds replaces the whole link set.",
+      "Change a note's title, status, dueDate, group, linked posts or refs; null clears status, dueDate or group. Changing status moves the card to the top of that board column (status null moves it back to Notes). Replacing content needs expectedRev from wryte_notes_get and is refused if the user edited since. Prefer wryte_notes_append for adding text. documentIds replaces the whole link set; refs adds references (duplicates are skipped, at most 20 per note).",
     fn: internal.mcp.handlers.notes.update,
     args: {
       caller: mcpCallerValidator,
@@ -504,6 +509,7 @@ export const tools: McpToolRegistration[] = [
       dueDate: v.optional(v.union(v.string(), v.null())),
       group: v.optional(v.union(v.string(), v.null())),
       documentIds: v.optional(v.array(v.id("documents"))),
+      refs: v.optional(v.array(refInputValidator)),
     },
     identityArg: "caller",
     metadata: NOTES_BODY,

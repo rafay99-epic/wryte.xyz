@@ -75,8 +75,9 @@ function ConvertForm({
     IMAGE_MARKDOWN.test(useEditorStore.getState().content),
   );
 
-  const initialTitle = useEditorStore.getState().title.trim() || meta.title;
-  const [title, setTitle] = useState(initialTitle);
+  const [title, setTitle] = useState(
+    () => useEditorStore.getState().title.trim() || meta.title,
+  );
   const [slug, setSlug] = useState<string | null>(null);
   const [projectId, setProjectId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);

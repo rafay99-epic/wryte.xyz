@@ -2,7 +2,6 @@ import { v } from "convex/values";
 import { mutation, query } from "../../_generated/server";
 import { getAuthedUserOrNull, getCurrentUser } from "../../_lib/auth";
 import { rateLimiter } from "../../_lib/rateLimits";
-import { loadOwnedNote } from "./_lib/access";
 import { linksForNote, notesForDocument, setNoteLinks } from "./_lib/links";
 import { noteLinkValidator, noteRowValidator } from "./_lib/model";
 
@@ -12,9 +11,7 @@ export const forNote = query({
   handler: async (ctx, args) => {
     const user = await getAuthedUserOrNull(ctx);
     if (!user) return [];
-    const note = await loadOwnedNote(ctx, user, args.noteId);
-    if (!note) return [];
-    return await linksForNote(ctx, note._id);
+    return await linksForNote(ctx, user, args.noteId);
   },
 });
 

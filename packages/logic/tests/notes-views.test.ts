@@ -1,15 +1,17 @@
 import assert from "node:assert/strict";
 import type { Id } from "@wryte/backend/_generated/dataModel";
-import type { NoteRow } from "@wryte/backend/cms/notes/_lib/model";
-import { dayOffset, dueLabel, isOverdue } from "@wryte/logic/lib/notes/dates";
-import { nextStatus } from "@wryte/logic/lib/notes/status";
 import {
-  dueByToday,
+  dayOffset,
+  dueLabel,
+  dueTone,
+  isOverdue,
+} from "@wryte/logic/lib/notes/dates";
+import {
   groupLookup,
   moveId,
   newNoteArgs,
-  resolveView,
-  sortByDue,
+  noteIdFromPath,
+  resolveGroupId,
 } from "@wryte/logic/lib/notes/views";
 
 const today = "2026-10-01";
@@ -33,65 +35,43 @@ assert.equal(
 assert.equal(isOverdue({ status: "todo", dueDate: today }, today), false);
 assert.equal(isOverdue({ dueDate: "2026-09-30" }, today), false);
 
-assert.equal(nextStatus("todo"), "doing");
-assert.equal(nextStatus("doing"), "done");
-assert.equal(nextStatus("done"), "todo");
+assert.equal(
+  dueTone({ status: "todo", dueDate: "2026-09-30" }, today),
+  "overdue",
+);
+assert.equal(dueTone({ status: "doing", dueDate: today }, today), "today");
+assert.equal(dueTone({ status: "done", dueDate: today }, today), "later");
+assert.equal(
+  dueTone({ status: "todo", dueDate: "2026-10-09" }, today),
+  "later",
+);
 
 assert.deepEqual(moveId(["a", "b", "c"], 0, 1), ["b", "a", "c"]);
 assert.deepEqual(moveId(["a", "b", "c"], 2, -2), ["c", "a", "b"]);
 assert.deepEqual(moveId(["a", "b", "c"], 0, -1), ["a", "b", "c"]);
 assert.deepEqual(moveId(["a", "b", "c"], 2, 1), ["a", "b", "c"]);
 
+assert.equal(noteIdFromPath("/notes"), null);
+assert.equal(noteIdFromPath("/notes/"), null);
+assert.equal(noteIdFromPath("/notes/abc123"), "abc123");
+assert.equal(noteIdFromPath("/notesx/abc"), null);
+
 const groupId = "g1" as Id<"note_groups">;
+const note = newNoteArgs("notes", groupId);
+assert.equal(note.groupId, groupId);
+assert.equal(note.status, undefined);
+const task = newNoteArgs("todo", null);
+assert.equal(task.status, "todo");
+assert.equal("groupId" in task, false);
+assert.equal(newNoteArgs("doing", null).status, "doing");
+
 const groups = groupLookup([
   { _id: groupId, name: "Work", sortOrder: 0, noteCount: 3 },
 ]);
-assert.deepEqual(resolveView({ kind: "group", groupId }, groups), {
-  kind: "group",
-  groupId,
-});
-assert.deepEqual(
-  resolveView({ kind: "group", groupId: "gone" as Id<"note_groups"> }, groups),
-  { kind: "all" },
-);
-
-const note = newNoteArgs({ kind: "group", groupId }, "note", today);
-assert.equal(note.groupId, groupId);
-assert.equal(note.status, undefined);
-assert.equal(newNoteArgs({ kind: "all" }, "task", today).status, "todo");
-const dueToday = newNoteArgs({ kind: "today" }, "task", today);
-assert.equal(dueToday.status, "todo");
-assert.equal(dueToday.dueDate, today);
-assert.equal(newNoteArgs({ kind: "today" }, "note", today).dueDate, undefined);
-
-function row(id: string, dueDate?: string, updatedAt = 0): NoteRow {
-  return {
-    _id: id as Id<"notes">,
-    title: id,
-    excerpt: "",
-    wordCount: 0,
-    updatedAt,
-    status: "todo",
-    ...(dueDate !== undefined ? { dueDate } : {}),
-  };
-}
-
-assert.deepEqual(
-  sortByDue([row("none"), row("late", "2026-10-05"), row("soon", today)]).map(
-    (r) => r._id,
-  ),
-  ["soon", "late", "none"],
-);
-
-assert.deepEqual(
-  dueByToday(
-    {
-      todo: [row("overdue", "2026-09-20"), row("future", "2026-10-09")],
-      doing: [row("now", today), row("undated")],
-    },
-    today,
-  ).map((r) => r._id),
-  ["overdue", "now"],
-);
+const gone = "gone" as Id<"note_groups">;
+assert.equal(resolveGroupId(groupId, groups), groupId);
+assert.equal(resolveGroupId(gone, groups), null);
+assert.equal(resolveGroupId(gone, undefined), gone);
+assert.equal(resolveGroupId(null, groups), null);
 
 console.info("notes-views: all assertions passed");
