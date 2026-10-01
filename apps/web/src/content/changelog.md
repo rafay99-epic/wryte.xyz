@@ -7,6 +7,36 @@ entry body rendered on /changelog. Append new entries at the top —
 `bun run changelog:new` does this for you.
 
 <!-- changelog-entry
+slug: notes-board-agent-follow-ups-and-share-links
+title: Notes: a board for your notes, tasks and agent follow-ups
+date: 2026-10-02
+category: website
+build: unreleased
+version: 1.8.0
+description: A dedicated Notes board with tasks, groups, refs and images, MCP tools so agents can file follow-ups, public share links, and lighter saves for notes and articles.
+-->
+## What's new
+
+- **Notes board.** A new Notes page with four columns: Notes, To do, Doing, Done. Drag a card to change its status or reorder it; click it to open the note in a split panel beside the board. Notes use the same editor as articles, with autosave and images.
+- **Tasks and groups.** Any note can be a task with a due date. Group notes, filter the board by group, and see opened, due, overdue and finished tasks on the calendar. Words you type in notes count toward your streak.
+- **Refs.** Attach pull requests, issues, comments and links to a note. Cards show how many of each.
+- **Agents file follow-ups.** Eleven new MCP tools let an agent create, search, update and append notes, file a to-do in a group with its PR, issue and review comment attached, and move it across the board. Turn it on with the new Notes capability in Settings → MCP Server.
+- **Share links.** Share one note, a selection of notes or a whole group as a public read-only link that always shows the latest version. Links can expire and be revoked, and agents can create them too.
+- **Linked notes and convert to article.** Link notes to articles, see them in the article's research panel, and turn a note into an article draft.
+- **Notes images.** Upload to your own bucket or reuse a bucket one of your projects already has, without copying its keys.
+
+## Fixes
+
+- Typing in an article no longer sends the whole body back to every open tab and to the desktop app, and leaving a note or article without changes no longer re-uploads it.
+- A second tab or an agent can no longer overwrite text you just typed in a note.
+- MCP rate limits are more generous, and a tripped limit now says exactly how many seconds to wait.
+- Updated Next.js to 16.3.8 for a security fix, along with other dependency updates.
+
+## Upgrading
+
+Existing MCP connections keep working. Enable **Notes** in Settings → MCP Server to give agents the notes tools, then restart your client to pick them up.
+
+<!-- changelog-entry
 slug: mcp-agents-write-drafts-not-main
 title: Agents write drafts, you write Main
 date: 2026-09-29

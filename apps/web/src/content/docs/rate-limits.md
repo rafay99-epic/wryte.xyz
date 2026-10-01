@@ -28,7 +28,11 @@ agent fleet could starve the web app of write throughput.
 ## Hitting a limit
 
 You get **HTTP 429** with a `Retry-After` header in seconds. Well-behaved
-clients back off on their own.
+clients back off on their own. A per-tool limit inside a call returns the error
+`Rate limited: retry in N s`, so an agent knows exactly how long to wait.
+
+Notes tools use generous token buckets so a busy agent rarely waits: for example
+600 appends and 240 creates a minute, with bursts of 120 and 60.
 
 Rejections happen *before* the request reaches the tool layer, so a burst costs
 almost nothing and can't inflate the audit log. That ordering is deliberate:
