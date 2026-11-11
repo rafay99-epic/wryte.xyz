@@ -3,7 +3,7 @@ import type { Id } from "@wryte/backend/_generated/dataModel";
 import type { ConfigFormat } from "@wryte/backend/_lib/configFiles";
 import { useSaveShortcut } from "@wryte/logic/hooks/use-save-shortcut";
 import { applyConfigEdit, type ConfigEdit } from "@wryte/logic/lib/config/edit";
-import { parseConfig } from "@wryte/logic/lib/config/parse";
+import { parseConfig, usesJsonComments } from "@wryte/logic/lib/config/parse";
 import { useAction, useMutation } from "convex/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -43,7 +43,13 @@ export function useConfigDocument({
   );
   const [busy, setBusy] = useState<Busy>(null);
 
-  const parsed = useMemo(() => parseConfig(text, format), [text, format]);
+  const [jsonComments] = useState(
+    () => format === "json" && usesJsonComments(source.remote.content),
+  );
+  const parsed = useMemo(
+    () => parseConfig(text, format, { jsonComments }),
+    [text, format, jsonComments],
+  );
   const unsaved = text !== savedText;
   const unpublished = text !== remote.content;
 
@@ -139,14 +145,19 @@ export function useConfigDocument({
     void save();
   });
 
-  const pending = useRef({ text, unsaved, persist });
+  const pending = useRef({ text, unsaved, persist, path });
   useEffect(() => {
-    pending.current = { text, unsaved, persist };
+    pending.current = { text, unsaved, persist, path };
   });
   useEffect(() => {
     return () => {
       const latest = pending.current;
-      if (latest.unsaved) void latest.persist(latest.text).catch(() => {});
+      if (!latest.unsaved) return;
+      void latest.persist(latest.text).catch((error: unknown) => {
+        toast.error(
+          errorText(error, `Couldn't save your edits to ${latest.path}`),
+        );
+      });
     };
   }, []);
 

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { applyConfigEdit } from "../src/lib/config/edit";
-import { parseConfig } from "../src/lib/config/parse";
+import { parseConfig, usesJsonComments } from "../src/lib/config/parse";
 import { listConfigFolders } from "../src/lib/config/tree";
 import { OpaqueValue } from "../src/lib/config/value";
 
@@ -101,6 +101,46 @@ describe("applyConfigEdit", () => {
     expect(moved.indexOf("Django")).toBeLessThan(moved.indexOf("React"));
   });
 
+  test("yaml: a scalar edit leaves every other byte alone", () => {
+    const source =
+      "---\r\ntitle: 'Hello'\r\nlist:\r\n- one\r\n- two\r\ntags: [a, b]\r\ncount: 3\r\n";
+    const title = applyConfigEdit(source, "yaml", {
+      kind: "set",
+      path: ["title"],
+      value: "it's: new",
+    });
+    expect(title).toBe(source.replace("'Hello'", "'it''s: new'"));
+
+    const count = applyConfigEdit(source, "yaml", {
+      kind: "set",
+      path: ["count"],
+      value: 4,
+    });
+    expect(count).toBe(source.replace("count: 3", "count: 4"));
+  });
+
+  test("yaml: list edits keep line endings, list indent and flow style", () => {
+    const source = "title: x\r\nlist:\r\n- one\r\n- two\r\ntags: [a, b]\r\n";
+    const next = applyConfigEdit(source, "yaml", {
+      kind: "insert",
+      path: ["list"],
+      index: 2,
+      value: "three",
+    });
+    expect(next).toBe(source.replace("- two\r\n", "- two\r\n- three\r\n"));
+  });
+
+  test("json: moving a missing item fails instead of dropping one", () => {
+    expect(() =>
+      applyConfigEdit(JSON_TEXT, "json", {
+        kind: "move",
+        path: ["stack"],
+        from: 5,
+        to: 0,
+      }),
+    ).toThrow();
+  });
+
   test("toml: edits keep comments and dates", () => {
     const next = applyConfigEdit(TOML_TEXT, "toml", {
       kind: "insert",
@@ -132,6 +172,16 @@ describe("parseConfig", () => {
 
   test("rejects comments in json", () => {
     expect(parseConfig('{ "a": 1 } // note', "json").ok).toBe(false);
+  });
+
+  test("accepts json comments only when asked", () => {
+    const source = '{\n  // build\n  "target": "ES2022",\n}\n';
+    expect(usesJsonComments(source)).toBe(true);
+    expect(usesJsonComments('{ "a": }')).toBe(false);
+    expect(parseConfig(source, "json", { jsonComments: true })).toEqual({
+      ok: true,
+      value: { target: "ES2022" },
+    });
   });
 
   test("reports yaml and toml errors", () => {

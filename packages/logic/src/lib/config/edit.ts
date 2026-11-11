@@ -9,7 +9,15 @@ import {
   modify,
   parse as parseJson,
 } from "jsonc-parser";
-import { isMap, isSeq, parseDocument } from "yaml";
+import {
+  Document,
+  isMap,
+  isScalar,
+  isSeq,
+  parseDocument,
+  Scalar,
+  type ToStringOptions,
+} from "yaml";
 import { type ConfigPath, type EditableValue, isPlainObject } from "./value";
 
 export type ConfigEdit =
@@ -100,13 +108,58 @@ function editJson(text: string, edit: ConfigEdit): string {
     return change(text, [...edit.path, edit.index], edit.value, true);
   }
   const moved: unknown = arrayAt(parseJson(text), edit.path)[edit.from];
+  if (moved === undefined) throw new Error("Config path does not exist");
   const without = change(text, [...edit.path, edit.from], undefined);
   return change(without, [...edit.path, edit.to], moved, true);
+}
+
+const INLINE_YAML_SCALARS = new Set<string>([
+  Scalar.PLAIN,
+  Scalar.QUOTE_SINGLE,
+  Scalar.QUOTE_DOUBLE,
+]);
+
+function yamlStyle(text: string): ToStringOptions {
+  const indent = /^( +)\S/m.exec(text)?.[1]?.length ?? 2;
+  return {
+    lineWidth: 0,
+    indent: Math.min(indent, 8),
+    indentSeq: !/^( *)[^\s#-][^\n]*:[ \t]*(?:#[^\n]*)?\r?\n\1- /m.test(text),
+    flowCollectionPadding: !/[[{][^\s\]}]/.test(text),
+  };
+}
+
+function spliceYamlScalar(
+  text: string,
+  document: Document.Parsed,
+  path: ConfigPath,
+  value: EditableValue,
+): string | null {
+  if (typeof value === "object" && value !== null) return null;
+  const node: unknown = document.getIn(path, true);
+  if (!isScalar(node) || !node.range || !node.type) return null;
+  if (!INLINE_YAML_SCALARS.has(node.type)) return null;
+  const [start, end] = node.range;
+  if (end <= start) return null;
+
+  const replacement = new Scalar(value);
+  if (typeof value === "string") replacement.type = node.type;
+  const rendered = new Document(replacement)
+    .toString({ lineWidth: 0 })
+    .trimEnd();
+  if (rendered.includes("\n")) return null;
+
+  const next = text.slice(0, start) + rendered + text.slice(end);
+  const check = parseDocument(next);
+  if (check.errors.length > 0 || check.getIn(path) !== value) return null;
+  return next;
 }
 
 function editYaml(text: string, edit: ConfigEdit): string {
   const document = parseDocument(text);
   if (edit.kind === "set") {
+    const spliced = spliceYamlScalar(text, document, edit.path, edit.value);
+    if (spliced !== null) return spliced;
     document.setIn(edit.path, edit.value);
   } else if (edit.kind === "remove") {
     document.deleteIn(edit.path);
@@ -122,7 +175,8 @@ function editYaml(text: string, edit: ConfigEdit): string {
   if (!isMap(document.contents) && !isSeq(document.contents)) {
     throw new Error("The document root cannot be edited");
   }
-  return document.toString({ lineWidth: 0 });
+  const output = document.toString(yamlStyle(text));
+  return text.includes("\r\n") ? output.replace(/\r?\n/g, "\r\n") : output;
 }
 
 function editToml(text: string, edit: ConfigEdit): string {

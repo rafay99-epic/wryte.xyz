@@ -40,11 +40,18 @@ function lineAt(text: string, offset: number): number {
   return line;
 }
 
-function parseJsonConfig(text: string): ConfigParseResult {
+export type ConfigParseOptions = { jsonComments: boolean };
+
+const STRICT: ConfigParseOptions = { jsonComments: false };
+
+function parseJsonConfig(
+  text: string,
+  options: ConfigParseOptions,
+): ConfigParseResult {
   const errors: ParseError[] = [];
   const raw: unknown = parseJson(text, errors, {
-    disallowComments: true,
-    allowTrailingComma: false,
+    disallowComments: !options.jsonComments,
+    allowTrailingComma: options.jsonComments,
     allowEmptyContent: false,
   });
   const first = errors[0];
@@ -88,11 +95,19 @@ function parseTomlConfig(text: string): ConfigParseResult {
   }
 }
 
+export function usesJsonComments(text: string): boolean {
+  return (
+    !parseJsonConfig(text, STRICT).ok &&
+    parseJsonConfig(text, { jsonComments: true }).ok
+  );
+}
+
 export function parseConfig(
   text: string,
   format: ConfigFormat,
+  options: ConfigParseOptions = STRICT,
 ): ConfigParseResult {
-  if (format === "json") return parseJsonConfig(text);
+  if (format === "json") return parseJsonConfig(text, options);
   if (format === "yaml") return parseYamlConfig(text);
   return parseTomlConfig(text);
 }

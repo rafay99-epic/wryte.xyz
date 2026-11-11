@@ -27,7 +27,7 @@ type NodeProps<Value> = {
 };
 
 function fieldId(path: ConfigPath): string {
-  return `config-${path.join(".")}`;
+  return `config-${path.map((key) => encodeURIComponent(key)).join("/")}`;
 }
 
 function isNested(value: ConfigValue): value is ConfigValue[] | ConfigObject {
