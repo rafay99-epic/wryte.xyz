@@ -10,7 +10,7 @@ export type ConfigFormat = "json" | "yaml" | "toml";
 
 export const MAX_CONFIG_BYTES = 512 * 1024;
 
-export const MAX_CONFIG_DRAFTS = 200;
+export const MAX_CONFIG_DRAFTS = 25;
 
 const FORMAT_BY_EXTENSION: Record<string, ConfigFormat> = {
   json: "json",
@@ -46,6 +46,7 @@ export function isBrowsableConfigPath(path: string): boolean {
   return segments.every(
     (segment) =>
       segment !== "" &&
+      segment === segment.trim() &&
       !segment.startsWith(".") &&
       !SKIPPED_SEGMENTS.has(segment.toLowerCase()),
   );
@@ -64,6 +65,7 @@ export function requireConfigFilePath(
   if (
     !root ||
     !format ||
+    path.includes("\\") ||
     !isConfigFileInRoot(normalizeConfigPath(root), path)
   ) {
     throw new Error("That file is outside this project's config folder.");

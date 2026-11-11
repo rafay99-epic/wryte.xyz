@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import {
@@ -15,6 +16,8 @@ import {
   normalizeConfigPath,
   requireConfigFilePath,
 } from "../_lib/configFiles";
+
+const DRAFT_DISCARD_BATCH = 24;
 
 const draftValidator = v.object({
   content: v.string(),
@@ -75,6 +78,38 @@ async function folderDrafts(
     .take(MAX_CONFIG_DRAFTS);
 }
 
+async function discardDraftsOutsideFolder(
+  ctx: MutationCtx,
+  projectId: Id<"projects">,
+  root: string,
+): Promise<void> {
+  const before = await ctx.db
+    .query("config_drafts")
+    .withIndex("by_projectId_and_path", (q) =>
+      root === ""
+        ? q.eq("projectId", projectId)
+        : q.eq("projectId", projectId).lt("path", `${root}/`),
+    )
+    .take(DRAFT_DISCARD_BATCH);
+  const after =
+    root === "" || before.length === DRAFT_DISCARD_BATCH
+      ? []
+      : await ctx.db
+          .query("config_drafts")
+          .withIndex("by_projectId_and_path", (q) =>
+            q.eq("projectId", projectId).gte("path", `${root}0`),
+          )
+          .take(DRAFT_DISCARD_BATCH - before.length);
+  for (const draft of [...before, ...after]) await ctx.db.delete(draft._id);
+  if (before.length + after.length === DRAFT_DISCARD_BATCH) {
+    await ctx.scheduler.runAfter(
+      0,
+      internal.cms.configFiles._discardDraftsOutsideFolder,
+      { projectId },
+    );
+  }
+}
+
 export const listDrafts = query({
   args: { projectId: v.id("projects") },
   returns: v.array(v.object({ path: v.string(), updatedAt: v.number() })),
@@ -123,6 +158,22 @@ export const setFolder = mutation({
     } else {
       await ctx.db.patch(project._id, { configPath: root, updatedAt: now });
     }
+    await discardDraftsOutsideFolder(ctx, project._id, root);
+    return null;
+  },
+});
+
+export const _discardDraftsOutsideFolder = internalMutation({
+  args: { projectId: v.id("projects") },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const project = await ctx.db.get(args.projectId);
+    if (!project) return null;
+    await discardDraftsOutsideFolder(
+      ctx,
+      project._id,
+      normalizeConfigPath(project.configPath ?? ""),
+    );
     return null;
   },
 });

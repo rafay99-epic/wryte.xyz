@@ -2,6 +2,7 @@
 
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
+import { useAuthedQuery } from "@wryte/logic/hooks/use-authed-query";
 import {
   filesUnder,
   listConfigFolders,
@@ -28,9 +29,14 @@ export function FolderPicker({
   onPicked: () => void;
 }) {
   const list = useConfigFileList(projectId, "");
+  const drafts = useAuthedQuery(api.cms.configFiles.listDrafts, { projectId });
   const setFolder = useMutation(api.cms.configFiles.setFolder);
   const [selected, setSelected] = useState(current);
   const [saving, setSaving] = useState(false);
+  const discardCount =
+    selected && selected !== current && drafts
+      ? drafts.filter((draft) => !draft.path.startsWith(`${selected}/`)).length
+      : 0;
 
   const files = list.data?.files;
   const folders = useMemo(() => listConfigFolders(files ?? []), [files]);
@@ -64,6 +70,11 @@ export function FolderPicker({
             and check its files before confirming.
           </p>
         </div>
+        {discardCount > 0 && (
+          <p className="text-xs text-destructive">
+            {`Switching discards ${String(discardCount)} unpublished ${discardCount === 1 ? "edit" : "edits"} in other folders.`}
+          </p>
+        )}
         {onCancel && (
           <Button variant="ghost" size="sm" onClick={onCancel}>
             Cancel

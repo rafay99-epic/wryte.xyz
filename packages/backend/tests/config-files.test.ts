@@ -21,6 +21,9 @@ for (const path of [
   ".github",
   "node_modules/pkg",
   "src/Node_Modules/pkg",
+  "src/ config",
+  "src /config",
+  "src/config\t",
 ]) {
   assert.equal(isBrowsableConfigPath(path), false, path);
 }
@@ -29,6 +32,10 @@ assert.equal(requireConfigFilePath("src/config", "src/config/a.json"), "json");
 assert.equal(
   requireConfigFilePath("/src/config/", "src/config/deep/b.yaml"),
   "yaml",
+);
+assert.equal(
+  requireConfigFilePath("src/config", "src/config/my site.json"),
+  "json",
 );
 
 const rejected: [string | undefined, string][] = [
@@ -43,6 +50,11 @@ const rejected: [string | undefined, string][] = [
   ["src/config", "src/config/a.md"],
   ["src/config", "src/config"],
   ["src/config", "package.json"],
+  ["src/config", "src/config/ a.json"],
+  ["src/config", "src/config/a.json "],
+  ["src/config", "src/config/sub /a.json"],
+  ["src/config", "src/config\\a.json"],
+  ["src/config", "src/config/sub\\a.json"],
 ];
 for (const [root, path] of rejected) {
   assert.throws(
