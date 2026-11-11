@@ -9,7 +9,7 @@ import {
 } from "../_generated/server";
 import { getAuthedUserOrNull, getCurrentUser } from "../_lib/auth";
 import {
-  isConfigFileInRoot,
+  isBrowsableConfigPath,
   MAX_CONFIG_BYTES,
   MAX_CONFIG_DRAFTS,
   normalizeConfigPath,
@@ -104,14 +104,8 @@ export const setFolder = mutation({
   handler: async (ctx, args) => {
     const project = await requireOwnedProject(ctx, args.projectId);
     const root = normalizeConfigPath(args.path);
-    if (root.split("/").includes("..")) {
-      throw new Error("Pick a folder inside the repository.");
-    }
-    const drafts = await projectDrafts(ctx, project._id);
-    for (const draft of drafts) {
-      if (!isConfigFileInRoot(root, draft.path)) {
-        await ctx.db.delete(draft._id);
-      }
+    if (root !== "" && !isBrowsableConfigPath(root)) {
+      throw new Error("That folder can't be used for config files.");
     }
     const now = Date.now();
     if (root === "") {
