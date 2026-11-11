@@ -160,7 +160,8 @@ function StringControl({
   value: string;
   onChange: (value: string) => void;
 }) {
-  if (value.includes("\n") || value.length > 80) {
+  const [multiline] = useState(() => value.includes("\n") || value.length > 80);
+  if (multiline || value.includes("\n")) {
     return (
       <Textarea
         id={id}
@@ -222,6 +223,15 @@ function ListField({
   onEdit,
 }: NodeProps<ConfigValue[]> & { name: string }) {
   const last = value[value.length - 1];
+  const [openItems, setOpenItems] = useState(() =>
+    value.map(() => value.length <= 3),
+  );
+  const reshape = (change: (items: boolean[]) => void) =>
+    setOpenItems((current) => {
+      const next = value.map((_, index) => current[index] ?? false);
+      change(next);
+      return next;
+    });
   return (
     <section className="pt-2">
       <div className="mb-2 flex items-center gap-2">
@@ -233,14 +243,15 @@ function ListField({
           variant="ghost"
           size="xs"
           className="ml-auto"
-          onClick={() =>
+          onClick={() => {
+            reshape((items) => items.push(true));
             onEdit({
               kind: "insert",
               path,
               index: value.length,
               value: last === undefined ? "" : blankLike(last),
-            })
-          }
+            });
+          }}
         >
           <Plus />
           Add
@@ -251,10 +262,18 @@ function ListField({
           const itemPath = [...path, index];
           const actions = (
             <ItemActions
-              listPath={path}
               index={index}
               count={value.length}
-              onEdit={onEdit}
+              onMove={(to) => {
+                reshape((items) =>
+                  items.splice(to, 0, ...items.splice(index, 1)),
+                );
+                onEdit({ kind: "move", path, from: index, to });
+              }}
+              onRemove={() => {
+                reshape((items) => items.splice(index, 1));
+                onEdit({ kind: "remove", path: itemPath });
+              }}
             />
           );
           if (!isNested(item)) {
@@ -274,7 +293,12 @@ function ListField({
               value={item}
               onEdit={onEdit}
               index={index}
-              startOpen={value.length <= 3}
+              open={openItems[index] ?? false}
+              onOpenChange={(open) =>
+                reshape((items) => {
+                  items[index] = open;
+                })
+              }
               actions={actions}
             />
           );
@@ -289,18 +313,23 @@ function NestedItem({
   value,
   onEdit,
   index,
-  startOpen,
+  open,
+  onOpenChange,
   actions,
 }: NodeProps<ConfigValue[] | ConfigObject> & {
   index: number;
-  startOpen: boolean;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   actions: ReactNode;
 }) {
-  const [open, setOpen] = useState(startOpen);
   return (
     <details
       open={open}
-      onToggle={(event) => setOpen(event.currentTarget.open)}
+      onToggle={(event) => {
+        if (event.currentTarget.open !== open) {
+          onOpenChange(event.currentTarget.open);
+        }
+      }}
     >
       <summary className="flex cursor-pointer items-center gap-2 py-1 text-sm">
         <span className="font-mono text-xs text-muted-foreground">
@@ -325,18 +354,16 @@ function NestedItem({
 }
 
 function ItemActions({
-  listPath,
   index,
   count,
-  onEdit,
+  onMove,
+  onRemove,
 }: {
-  listPath: ConfigPath;
   index: number;
   count: number;
-  onEdit: OnEdit;
+  onMove: (to: number) => void;
+  onRemove: () => void;
 }) {
-  const move = (to: number) =>
-    onEdit({ kind: "move", path: listPath, from: index, to });
   return (
     <div className="flex shrink-0 items-center">
       <Button
@@ -346,7 +373,7 @@ function ItemActions({
         disabled={index === 0}
         onClick={(event) => {
           event.preventDefault();
-          move(index - 1);
+          onMove(index - 1);
         }}
       >
         <ArrowUp />
@@ -358,7 +385,7 @@ function ItemActions({
         disabled={index === count - 1}
         onClick={(event) => {
           event.preventDefault();
-          move(index + 1);
+          onMove(index + 1);
         }}
       >
         <ArrowDown />
@@ -369,7 +396,7 @@ function ItemActions({
         aria-label="Remove"
         onClick={(event) => {
           event.preventDefault();
-          onEdit({ kind: "remove", path: [...listPath, index] });
+          onRemove();
         }}
       >
         <Trash2 />
