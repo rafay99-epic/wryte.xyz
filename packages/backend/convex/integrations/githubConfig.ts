@@ -12,6 +12,7 @@ import {
   normalizeConfigPath,
   requireConfigFilePath,
 } from "../_lib/configFiles";
+import { parseConfigSyntax, usesJsonComments } from "../_lib/configSyntax";
 import { resolveCommitClient } from "../_lib/githubApp";
 import {
   type OwnedGithubProject,
@@ -144,7 +145,7 @@ export const publish = action({
       throws: true,
     });
     const target = await resolveOwnedGithubProject(ctx, args.projectId);
-    requireConfigFilePath(target.project.configPath, args.path);
+    const format = requireConfigFilePath(target.project.configPath, args.path);
 
     const draft = await ctx.runQuery(internal.cms.configFiles._getDraft, {
       projectId: args.projectId,
@@ -164,6 +165,16 @@ export const publish = action({
     if (!current) throw new Error("That file no longer exists on GitHub.");
     if (current.sha !== draft.baseSha && !args.overwrite) {
       return { status: "conflict" };
+    }
+
+    const syntax = parseConfigSyntax(draft.content, format, {
+      jsonComments: format === "json" && usesJsonComments(current.content),
+    });
+    if (!syntax.ok) {
+      const where = syntax.line === null ? "" : `Line ${String(syntax.line)}: `;
+      throw new Error(
+        `This file has a syntax error and can't be published. ${where}${syntax.message}`,
+      );
     }
 
     if (current.content === draft.content) {
