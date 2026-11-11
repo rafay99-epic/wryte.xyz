@@ -47,7 +47,7 @@ export function isBrowsableConfigPath(path: string): boolean {
     (segment) =>
       segment !== "" &&
       !segment.startsWith(".") &&
-      !SKIPPED_SEGMENTS.has(segment),
+      !SKIPPED_SEGMENTS.has(segment.toLowerCase()),
   );
 }
 

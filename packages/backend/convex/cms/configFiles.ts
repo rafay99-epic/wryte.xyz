@@ -10,7 +10,6 @@ import {
 import { getAuthedUserOrNull, getCurrentUser } from "../_lib/auth";
 import {
   isBrowsableConfigPath,
-  isConfigFileInRoot,
   MAX_CONFIG_BYTES,
   MAX_CONFIG_DRAFTS,
   normalizeConfigPath,
@@ -59,13 +58,20 @@ function draftByPath(
     .unique();
 }
 
-function projectDrafts(
+async function folderDrafts(
   ctx: QueryCtx,
-  projectId: Id<"projects">,
+  project: Doc<"projects">,
 ): Promise<Doc<"config_drafts">[]> {
-  return ctx.db
+  const root = normalizeConfigPath(project.configPath ?? "");
+  if (root === "") return [];
+  return await ctx.db
     .query("config_drafts")
-    .withIndex("by_projectId_and_path", (q) => q.eq("projectId", projectId))
+    .withIndex("by_projectId_and_path", (q) =>
+      q
+        .eq("projectId", project._id)
+        .gte("path", `${root}/`)
+        .lt("path", `${root}0`),
+    )
     .take(MAX_CONFIG_DRAFTS);
 }
 
@@ -75,7 +81,7 @@ export const listDrafts = query({
   handler: async (ctx, args) => {
     const project = await ownedProjectOrNull(ctx, args.projectId);
     if (!project) return [];
-    const drafts = await projectDrafts(ctx, args.projectId);
+    const drafts = await folderDrafts(ctx, project);
     return drafts.map((draft) => ({
       path: draft.path,
       updatedAt: draft.updatedAt,
@@ -145,12 +151,8 @@ export const saveDraft = mutation({
       });
       return null;
     }
-    const root = normalizeConfigPath(project.configPath ?? "");
-    const drafts = await projectDrafts(ctx, project._id);
-    const inFolder = drafts.filter((draft) =>
-      isConfigFileInRoot(root, draft.path),
-    );
-    if (inFolder.length >= MAX_CONFIG_DRAFTS) {
+    const drafts = await folderDrafts(ctx, project);
+    if (drafts.length >= MAX_CONFIG_DRAFTS) {
       throw new Error(
         "Too many unpublished config files. Publish or discard some first.",
       );

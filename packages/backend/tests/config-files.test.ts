@@ -15,7 +15,13 @@ assert.equal(configFormatFromPath("data/json"), null);
 assert.equal(normalizeConfigPath(" /src\\config/ "), "src/config");
 
 assert.equal(isBrowsableConfigPath("src/config"), true);
-for (const path of ["..", "src/../secrets", ".github", "node_modules/pkg"]) {
+for (const path of [
+  "..",
+  "src/../secrets",
+  ".github",
+  "node_modules/pkg",
+  "src/Node_Modules/pkg",
+]) {
   assert.equal(isBrowsableConfigPath(path), false, path);
 }
 
