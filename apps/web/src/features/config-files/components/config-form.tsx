@@ -26,6 +26,8 @@ type NodeProps<Value> = {
   onEdit: OnEdit;
 };
 
+const DECIMAL_NUMBER = /^-?(?:\d+\.?\d*|\.\d+)$/;
+
 function fieldId(path: ConfigPath): string {
   return `config-${path.map((key) => encodeURIComponent(key)).join("/")}`;
 }
@@ -206,8 +208,7 @@ function NumberControl({
       onChange={(event) => {
         const next = event.target.value;
         setDraft(next);
-        const parsed = Number(next);
-        if (next.trim() !== "" && Number.isFinite(parsed)) onChange(parsed);
+        if (DECIMAL_NUMBER.test(next)) onChange(Number(next));
       }}
       className="max-w-40 font-mono"
     />
