@@ -361,6 +361,15 @@ code.hljs {
 .dark .hljs-string {
   color: #96d0ff;
 }
+.code-data .hljs-string {
+  color: #116329;
+}
+.dark .code-data .hljs-string {
+  color: #8ddb8c;
+}
+.code-data .hljs-punctuation {
+  color: var(--muted-foreground);
+}
 .dark .hljs-built_in,
 .dark .hljs-symbol {
   color: #f69d50;

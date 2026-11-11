@@ -174,6 +174,7 @@ export function useConfigDocument({
 
   return {
     text,
+    baseText: remote.content,
     setText,
     parsed,
     unsaved,

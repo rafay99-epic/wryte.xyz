@@ -84,3 +84,27 @@ export function itemLabel(value: ConfigValue, index: number): string {
 export function isHexColor(value: string): boolean {
   return /^#(?:[0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(value);
 }
+
+const MAX_INLINE_COLUMNS = 4;
+
+export function inlineColumns(items: readonly ConfigValue[]): string[] | null {
+  const columns: string[] = [];
+  for (const item of items) {
+    if (!isConfigObject(item)) return null;
+    for (const [key, child] of Object.entries(item)) {
+      if (Array.isArray(child) || isConfigObject(child)) return null;
+      if (!columns.includes(key)) columns.push(key);
+    }
+  }
+  if (columns.length === 0 || columns.length > MAX_INLINE_COLUMNS) return null;
+  return columns;
+}
+
+export function itemSummary(value: ConfigValue): string {
+  if (!isConfigObject(value)) return "";
+  const texts = Object.values(value).filter(
+    (child): child is string =>
+      typeof child === "string" && child.trim() !== "",
+  );
+  return texts.slice(1, 3).join(" · ");
+}

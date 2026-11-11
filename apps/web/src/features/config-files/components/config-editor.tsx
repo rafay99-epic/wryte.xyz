@@ -2,15 +2,17 @@
 
 import type { Id } from "@wryte/backend/_generated/dataModel";
 import type { ConfigFormat } from "@wryte/backend/_lib/configFiles";
+import { diffLines } from "@wryte/logic/lib/config/diff";
 import { cn } from "@wryte/logic/lib/utils";
 import { Button } from "@wryte/ui/button";
 import { Skeleton } from "@wryte/ui/skeleton";
 import { Loader2 } from "lucide-react";
-import { useState } from "react";
+import { type ReactNode, useDeferredValue, useMemo, useState } from "react";
 import { CodeEditor } from "@/components/code/code-editor";
 import { ConfirmActionDialog } from "@/components/settings/confirm-action-dialog";
 import { useConfigDocument } from "../hooks/use-config-document";
 import { type ConfigSource, useConfigSource } from "../hooks/use-config-source";
+import { ConfigDiff } from "./config-diff";
 import { ConfigForm } from "./config-form";
 
 type FileTarget = {
@@ -19,12 +21,11 @@ type FileTarget = {
   format: ConfigFormat;
 };
 
-type ViewMode = "code" | "split" | "form";
+type Pane = "diff" | "source";
 
-const VIEW_MODES: { id: ViewMode; label: string }[] = [
-  { id: "code", label: "Code" },
-  { id: "split", label: "Split" },
-  { id: "form", label: "Form" },
+const PANES: { id: Pane; label: string }[] = [
+  { id: "diff", label: "Diff" },
+  { id: "source", label: "Source" },
 ];
 
 const FORMAT_LABEL: Record<ConfigFormat, string> = {
@@ -33,44 +34,78 @@ const FORMAT_LABEL: Record<ConfigFormat, string> = {
   toml: "TOML",
 };
 
-export function ConfigEditor(target: FileTarget) {
+export function ConfigToolbar({
+  switcher,
+  children,
+}: {
+  switcher: ReactNode;
+  children?: ReactNode;
+}) {
+  return (
+    <div className="flex min-h-10 flex-wrap items-center gap-x-3 gap-y-1 border-b border-border px-2 py-1">
+      {switcher}
+      {children}
+    </div>
+  );
+}
+
+export function ConfigEditor({
+  switcher,
+  ...target
+}: FileTarget & { switcher: ReactNode }) {
   const { source, error } = useConfigSource(target.projectId, target.path);
   if (error) {
     return (
-      <p className="p-6 text-sm text-destructive">
-        {error.message || "Couldn't load this file from GitHub."}
-      </p>
+      <>
+        <ConfigToolbar switcher={switcher} />
+        <p className="p-4 text-sm text-destructive">
+          {error.message || "Couldn't load this file from GitHub."}
+        </p>
+      </>
     );
   }
   if (!source) {
     return (
-      <div className="space-y-3 p-6">
-        <Skeleton className="h-6 w-64" />
-        <Skeleton className="h-64 w-full" />
-      </div>
+      <>
+        <ConfigToolbar switcher={switcher} />
+        <div className="space-y-2 p-4">
+          <Skeleton className="h-5 w-64" />
+          <Skeleton className="h-5 w-80" />
+          <Skeleton className="h-5 w-56" />
+        </div>
+      </>
     );
   }
-  return <LoadedConfigEditor {...target} source={source} />;
+  return <LoadedConfigEditor {...target} switcher={switcher} source={source} />;
 }
 
 function LoadedConfigEditor({
   source,
+  switcher,
   ...target
-}: FileTarget & { source: ConfigSource }) {
+}: FileTarget & { source: ConfigSource; switcher: ReactNode }) {
   const doc = useConfigDocument({ ...target, source });
-  const [view, setView] = useState<ViewMode>("split");
+  const [chosenPane, setChosenPane] = useState<Pane>("diff");
   const [confirmingDiscard, setConfirmingDiscard] = useState(false);
 
-  const status = doc.unsaved
-    ? "Unsaved"
-    : doc.unpublished
-      ? "Saved, not published"
-      : "In sync with GitHub";
+  const pane = doc.parsed.ok ? chosenPane : "source";
+  const deferredText = useDeferredValue(doc.text);
+  const hunks = useMemo(
+    () => diffLines(doc.baseText, deferredText),
+    [doc.baseText, deferredText],
+  );
+
+  const changes = `${String(hunks.length)} ${hunks.length === 1 ? "change" : "changes"}`;
+  const status = !doc.unpublished
+    ? "In sync with GitHub"
+    : `${changes}, ${doc.unsaved ? "unsaved" : "saved"}`;
+  const validity = doc.parsed.ok
+    ? `Valid ${FORMAT_LABEL[target.format]}`
+    : `${doc.parsed.line === null ? "" : `Line ${String(doc.parsed.line)}: `}${doc.parsed.message}`;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-border px-4 py-2">
-        <span className="truncate font-mono text-xs">{target.path}</span>
+      <ConfigToolbar switcher={switcher}>
         <span className="text-xs text-muted-foreground">{status}</span>
         <span
           className={cn(
@@ -78,25 +113,24 @@ function LoadedConfigEditor({
             doc.parsed.ok ? "text-muted-foreground" : "text-destructive",
           )}
         >
-          {doc.parsed.ok
-            ? `Valid ${FORMAT_LABEL[target.format]}`
-            : `${doc.parsed.line === null ? "" : `Line ${String(doc.parsed.line)}: `}${doc.parsed.message}`}
+          {validity}
         </span>
         <div className="ml-auto flex items-center gap-1">
-          {VIEW_MODES.map((mode) => (
+          {PANES.map((option) => (
             <Button
-              key={mode.id}
-              variant={view === mode.id ? "secondary" : "ghost"}
+              key={option.id}
+              variant={pane === option.id ? "secondary" : "ghost"}
               size="xs"
-              aria-pressed={view === mode.id}
-              onClick={() => setView(mode.id)}
+              aria-pressed={pane === option.id}
+              disabled={!doc.parsed.ok}
+              onClick={() => setChosenPane(option.id)}
             >
-              {mode.label}
+              {option.label}
             </Button>
           ))}
           <Button
             variant="ghost"
-            size="sm"
+            size="xs"
             className="ml-2"
             disabled={!doc.unpublished || doc.busy !== null}
             onClick={() => setConfirmingDiscard(true)}
@@ -105,7 +139,7 @@ function LoadedConfigEditor({
           </Button>
           <Button
             variant="outline"
-            size="sm"
+            size="xs"
             disabled={!doc.unsaved || doc.busy !== null}
             onClick={() => void doc.save()}
           >
@@ -113,7 +147,7 @@ function LoadedConfigEditor({
             Save
           </Button>
           <Button
-            size="sm"
+            size="xs"
             disabled={!doc.unpublished || !doc.parsed.ok || doc.busy !== null}
             onClick={() => void doc.publish(false)}
           >
@@ -121,10 +155,10 @@ function LoadedConfigEditor({
             Publish
           </Button>
         </div>
-      </div>
+      </ConfigToolbar>
 
       {doc.conflict && (
-        <div className="flex flex-wrap items-center gap-3 border-b border-border px-4 py-2 text-xs">
+        <div className="flex flex-wrap items-center gap-3 border-b border-border px-3 py-1.5 text-xs">
           <span>
             This file changed on GitHub after you started editing. Publishing
             replaces the GitHub version with yours.
@@ -148,37 +182,29 @@ function LoadedConfigEditor({
         </div>
       )}
 
-      <div
-        className={cn(
-          "grid min-h-0 flex-1 grid-cols-1",
-          view === "split" && "lg:grid-cols-2",
-        )}
-      >
-        {view !== "form" && (
-          <div
-            className={cn(
-              "min-h-0 p-3",
-              view === "split" && "lg:border-r lg:border-border",
-            )}
-          >
+      <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-2 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:grid-rows-1">
+        <div className="min-h-0 overflow-y-auto border-b border-border slim-scrollbar lg:border-b-0 lg:border-r">
+          {doc.parsed.ok ? (
+            <ConfigForm value={doc.parsed.value} onEdit={doc.edit} />
+          ) : (
+            <p className="p-4 text-xs text-muted-foreground">
+              Fix the syntax error in the source to edit this file as a form.
+            </p>
+          )}
+        </div>
+        {pane === "diff" ? (
+          <div className="min-h-0 overflow-auto slim-scrollbar">
+            <ConfigDiff hunks={hunks} language={target.format} />
+          </div>
+        ) : (
+          <div className="min-h-0 p-2">
             <CodeEditor
               value={doc.text}
               onChange={doc.setText}
               language={target.format}
               invalid={!doc.parsed.ok}
+              lineNumbers
             />
-          </div>
-        )}
-        {view !== "code" && (
-          <div className="min-h-0 overflow-y-auto p-4 slim-scrollbar">
-            {doc.parsed.ok ? (
-              <ConfigForm value={doc.parsed.value} onEdit={doc.edit} />
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                Fix the syntax error in the code pane to edit this file as a
-                form.
-              </p>
-            )}
           </div>
         )}
       </div>

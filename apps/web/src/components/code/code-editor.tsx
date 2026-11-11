@@ -1,68 +1,13 @@
 "use client";
 
-import type { AnimationLanguage } from "@wryte/backend/_lib/animationChecks";
-import type { ConfigFormat } from "@wryte/backend/_lib/configFiles";
 import { cn } from "@wryte/logic/lib/utils";
-import ini from "highlight.js/lib/languages/ini";
-import javascript from "highlight.js/lib/languages/javascript";
-import json from "highlight.js/lib/languages/json";
-import typescript from "highlight.js/lib/languages/typescript";
-import yaml from "highlight.js/lib/languages/yaml";
-import { createLowlight } from "lowlight";
-import type { ReactNode, RefObject } from "react";
+import type { RefObject } from "react";
 import { useMemo, useRef } from "react";
+import { type CodeLanguage, HighlightedCode } from "./highlighted-code";
 
-export type CodeLanguage = AnimationLanguage | ConfigFormat;
-
-const GRAMMARS = { ini, javascript, json, typescript, yaml };
-
-const GRAMMAR_BY_LANGUAGE: Record<CodeLanguage, keyof typeof GRAMMARS> = {
-  tsx: "typescript",
-  jsx: "javascript",
-  json: "json",
-  yaml: "yaml",
-  toml: "ini",
-};
-
-const lowlight = createLowlight(GRAMMARS);
-
-type HastRoot = ReturnType<typeof lowlight.highlight>;
-type HastElement = Extract<HastRoot["children"][number], { type: "element" }>;
-type HastNode = HastRoot["children"][number] | HastElement["children"][number];
-
-const TYPOGRAPHY =
-  "font-mono text-xs leading-relaxed whitespace-pre-wrap break-words [tab-size:2]";
-const BOX = "px-2.5 py-2";
-
-function className(node: HastElement): string | undefined {
-  const value = node.properties["className"];
-  if (Array.isArray(value)) return value.join(" ");
-  return typeof value === "string" ? value : undefined;
-}
-
-function render(nodes: readonly HastNode[], prefix: string): ReactNode[] {
-  return nodes.map((node, index) => {
-    const key = `${prefix}.${String(index)}`;
-    if (node.type === "text") return node.value;
-    if (node.type !== "element") return null;
-    return (
-      <span key={key} className={className(node)}>
-        {render(node.children, key)}
-      </span>
-    );
-  });
-}
-
-function highlight(source: string, language: CodeLanguage): ReactNode[] {
-  const grammar = GRAMMAR_BY_LANGUAGE[language];
-  let tree: HastRoot;
-  try {
-    tree = lowlight.highlight(grammar, source);
-  } catch {
-    return [source];
-  }
-  return render(tree.children, "t");
-}
+const TYPOGRAPHY = "font-mono text-xs leading-relaxed [tab-size:2]";
+const WRAPPED = "whitespace-pre-wrap break-words px-2.5 py-2";
+const NUMBERED = "whitespace-pre pl-12 pr-2.5 pt-2 pb-8";
 
 export function CodeEditor({
   value,
@@ -71,6 +16,7 @@ export function CodeEditor({
   rows,
   id,
   invalid,
+  lineNumbers = false,
   textareaRef,
 }: {
   value: string;
@@ -79,10 +25,17 @@ export function CodeEditor({
   rows?: number;
   id?: string;
   invalid?: boolean;
+  lineNumbers?: boolean;
   textareaRef?: RefObject<HTMLTextAreaElement | null>;
 }) {
   const preRef = useRef<HTMLPreElement>(null);
-  const tokens = useMemo(() => highlight(value, language), [value, language]);
+  const gutterRef = useRef<HTMLPreElement>(null);
+  const layout = lineNumbers ? NUMBERED : WRAPPED;
+  const gutter = useMemo(() => {
+    if (!lineNumbers) return "";
+    const count = value.split("\n").length;
+    return Array.from({ length: count }, (_, index) => index + 1).join("\n");
+  }, [lineNumbers, value]);
 
   return (
     <div
@@ -94,16 +47,28 @@ export function CodeEditor({
           : "border-input ring-ring/50 focus-within:border-ring",
       )}
     >
+      {lineNumbers && (
+        <pre
+          ref={gutterRef}
+          aria-hidden="true"
+          className={cn(
+            "pointer-events-none absolute inset-y-0 left-0 m-0 w-10 select-none overflow-hidden pt-2 pb-8 text-right text-muted-foreground/50",
+            TYPOGRAPHY,
+          )}
+        >
+          {gutter}
+        </pre>
+      )}
       <pre
         ref={preRef}
         aria-hidden="true"
         className={cn(
           "hljs pointer-events-none absolute inset-0 m-0 overflow-hidden bg-transparent",
           TYPOGRAPHY,
-          BOX,
+          layout,
         )}
       >
-        {tokens}
+        <HighlightedCode source={value} language={language} />
       </pre>
       <textarea
         id={id}
@@ -111,12 +76,15 @@ export function CodeEditor({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         onScroll={(event) => {
-          const pre = preRef.current;
-          if (!pre) return;
-          pre.scrollTop = event.currentTarget.scrollTop;
-          pre.scrollLeft = event.currentTarget.scrollLeft;
+          const { scrollTop, scrollLeft } = event.currentTarget;
+          if (preRef.current) {
+            preRef.current.scrollTop = scrollTop;
+            preRef.current.scrollLeft = scrollLeft;
+          }
+          if (gutterRef.current) gutterRef.current.scrollTop = scrollTop;
         }}
         rows={rows}
+        wrap={lineNumbers ? "off" : "soft"}
         spellCheck={false}
         autoCapitalize="off"
         autoCorrect="off"
@@ -124,8 +92,9 @@ export function CodeEditor({
         className={cn(
           "relative block w-full resize-none bg-transparent text-transparent caret-foreground outline-none",
           rows === undefined && "h-full",
+          lineNumbers && "overflow-auto slim-scrollbar",
           TYPOGRAPHY,
-          BOX,
+          layout,
         )}
       />
     </div>

@@ -1,8 +1,9 @@
 import { describe, expect, test } from "bun:test";
+import { diffLines } from "../src/lib/config/diff";
 import { applyConfigEdit } from "../src/lib/config/edit";
 import { parseConfig, usesJsonComments } from "../src/lib/config/parse";
 import { listConfigFolders } from "../src/lib/config/tree";
-import { OpaqueValue } from "../src/lib/config/value";
+import { inlineColumns, OpaqueValue } from "../src/lib/config/value";
 
 const JSON_TEXT = `{
 \t"10": "first",
@@ -265,4 +266,50 @@ test("listConfigFolders counts files per folder and subtree", () => {
     ["src/config/flags", 1, 1],
     ["src/config/site", 1, 1],
   ]);
+});
+
+describe("diffLines", () => {
+  const base = ["a", "b", "c", "d", "e", "f", "g", "h"].join("\n");
+
+  test("returns nothing for identical text", () => {
+    expect(diffLines(base, base)).toEqual([]);
+  });
+
+  test("groups a changed line with its context and numbers both sides", () => {
+    const hunks = diffLines(base, base.replace("d", "D"), 1);
+    expect(hunks).toEqual([
+      {
+        newStart: 4,
+        lines: [
+          { kind: "context", text: "c", oldLine: 3, newLine: 3 },
+          { kind: "remove", text: "d", oldLine: 4, newLine: null },
+          { kind: "add", text: "D", oldLine: null, newLine: 4 },
+          { kind: "context", text: "e", oldLine: 5, newLine: 5 },
+        ],
+      },
+    ]);
+  });
+
+  test("keeps distant edits in separate hunks and handles pure inserts", () => {
+    const next = ["a", "new", "b", "c", "d", "e", "f", "g", "H"].join("\n");
+    const hunks = diffLines(base, next, 1);
+    expect(hunks.map((hunk) => hunk.newStart)).toEqual([2, 9]);
+    expect(hunks[0]?.lines.map((line) => line.kind)).toEqual([
+      "context",
+      "add",
+      "context",
+    ]);
+  });
+});
+
+test("inlineColumns picks lists of small flat objects", () => {
+  expect(
+    inlineColumns([
+      { label: "Years", value: "4+" },
+      { label: "Tech", note: 1 },
+    ]),
+  ).toEqual(["label", "value", "note"]);
+  expect(inlineColumns([{ a: 1, b: 2, c: 3, d: 4, e: 5 }])).toBeNull();
+  expect(inlineColumns([{ a: [1] }])).toBeNull();
+  expect(inlineColumns(["x"])).toBeNull();
 });
