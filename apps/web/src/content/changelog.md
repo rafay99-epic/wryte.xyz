@@ -7,6 +7,25 @@ entry body rendered on /changelog. Append new entries at the top —
 `bun run changelog:new` does this for you.
 
 <!-- changelog-entry
+slug: config-files-json-yaml-toml
+title: Edit your repo's config files
+date: 2026-11-12
+category: website
+build: unreleased
+version: 1.9.0
+description: A Config page per project for editing JSON, YAML and TOML files from your repo in a form beside a live diff, saved as drafts and committed to GitHub on publish.
+-->
+## What's new
+
+- **Config page.** Pick the repo folder that holds your config files and edit JSON, YAML and TOML from Wryte. Each file opens in a compact form beside a live diff of what will be committed, with the full source one click away.
+- **Edits keep your formatting.** Form edits patch the source text, so comments, key order, indentation and line endings stay as they were.
+- **Drafts, then publish.** Changes save as drafts and commit to GitHub when you publish. A file with a syntax error can't be published.
+
+## Fixes
+
+- Updated Next.js to 16.4.6 for security fixes, along with other dependency updates.
+
+<!-- changelog-entry
 slug: notes-board-agent-follow-ups-and-share-links
 title: Notes: a board for your notes, tasks and agent follow-ups
 date: 2026-10-02
