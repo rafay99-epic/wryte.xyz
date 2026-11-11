@@ -130,15 +130,44 @@ describe("applyConfigEdit", () => {
     expect(next).toBe(source.replace("- two\r\n", "- two\r\n- three\r\n"));
   });
 
-  test("json: moving a missing item fails instead of dropping one", () => {
-    expect(() =>
-      applyConfigEdit(JSON_TEXT, "json", {
-        kind: "move",
-        path: ["stack"],
-        from: 5,
-        to: 0,
-      }),
-    ).toThrow();
+  test("yaml: list edits take the indent from keys, not comments or block text", () => {
+    const source =
+      "# top\ncode: |-\n      deep text\nmeta:\n    # note\n  keep: true\nlist:\n  - a\n";
+    const next = applyConfigEdit(source, "yaml", {
+      kind: "insert",
+      path: ["list"],
+      index: 1,
+      value: "b",
+    });
+    expect(next).toBe(`${source}  - b\n`);
+  });
+
+  test("yaml: a moved or removed item takes its own comment with it", () => {
+    const source =
+      "stack:\n    - name: React # frontend\n    # backend\n    - name: Django\nflags:\n  on: true\n";
+    const moved = applyConfigEdit(source, "yaml", {
+      kind: "move",
+      path: ["stack"],
+      from: 1,
+      to: 0,
+    });
+    expect(moved).toBe(
+      "stack:\n    # backend\n    - name: Django\n    - name: React # frontend\nflags:\n  on: true\n",
+    );
+    const removed = applyConfigEdit(source, "yaml", {
+      kind: "remove",
+      path: ["stack", 1],
+    });
+    expect(removed).toBe(
+      "stack:\n    - name: React # frontend\nflags:\n  on: true\n",
+    );
+  });
+
+  test("moving a missing item fails in every format", () => {
+    const move = { kind: "move", path: ["stack"], from: 5, to: 0 } as const;
+    expect(() => applyConfigEdit(JSON_TEXT, "json", move)).toThrow();
+    expect(() => applyConfigEdit(YAML_TEXT, "yaml", move)).toThrow();
+    expect(() => applyConfigEdit(TOML_TEXT, "toml", move)).toThrow();
   });
 
   test("toml: edits keep comments and dates", () => {

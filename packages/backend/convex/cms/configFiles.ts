@@ -10,6 +10,7 @@ import {
 import { getAuthedUserOrNull, getCurrentUser } from "../_lib/auth";
 import {
   isBrowsableConfigPath,
+  isConfigFileInRoot,
   MAX_CONFIG_BYTES,
   MAX_CONFIG_DRAFTS,
   normalizeConfigPath,
@@ -144,8 +145,12 @@ export const saveDraft = mutation({
       });
       return null;
     }
+    const root = normalizeConfigPath(project.configPath ?? "");
     const drafts = await projectDrafts(ctx, project._id);
-    if (drafts.length >= MAX_CONFIG_DRAFTS) {
+    const inFolder = drafts.filter((draft) =>
+      isConfigFileInRoot(root, draft.path),
+    );
+    if (inFolder.length >= MAX_CONFIG_DRAFTS) {
       throw new Error(
         "Too many unpublished config files. Publish or discard some first.",
       );
