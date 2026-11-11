@@ -585,6 +585,17 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     rate: 10,
     period: MINUTE,
   },
+  "github:configRead": {
+    kind: "token bucket",
+    rate: 60,
+    period: MINUTE,
+    capacity: 30,
+  },
+  "github:configPublish": {
+    kind: "fixed window",
+    rate: 20,
+    period: MINUTE,
+  },
   "github:deleteFile": {
     kind: "fixed window",
     rate: 20,

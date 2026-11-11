@@ -12,6 +12,7 @@ import { useQuery } from "convex/react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowLeft,
+  Braces,
   CalendarDays,
   Clapperboard,
   Database,
@@ -276,6 +277,11 @@ export function AppSidebar() {
                   href={`/projects/${activeProjectId}/media`}
                   icon={ImageIcon}
                   label="Media"
+                />
+                <NavLink
+                  href={`/projects/${activeProjectId}/config`}
+                  icon={Braces}
+                  label="Config"
                 />
                 {animationsNavEnabled && (
                   <NavLink
