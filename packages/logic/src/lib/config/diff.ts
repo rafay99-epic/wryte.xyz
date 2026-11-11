@@ -85,6 +85,26 @@ export function diffLines(base: string, next: string, context = 2): DiffHunk[] {
   if (base === next) return [];
   const before = splitLines(base);
   const after = splitLines(next);
+  if (
+    before.length === after.length &&
+    before.every((line, i) => line === after[i])
+  ) {
+    const line = before.length + 1;
+    const endsBase = base.endsWith("\n");
+    return [
+      {
+        newStart: line,
+        lines: [
+          {
+            kind: endsBase ? "remove" : "add",
+            text: "",
+            oldLine: endsBase ? line : null,
+            newLine: endsBase ? null : line,
+          },
+        ],
+      },
+    ];
+  }
 
   let head = 0;
   const shortest = Math.min(before.length, after.length);
@@ -127,9 +147,8 @@ export function diffLines(base: string, next: string, context = 2): DiffHunk[] {
   });
 
   for (const hunk of hunks) {
-    const added = hunk.lines.find((line) => line.kind === "add");
-    const removed = hunk.lines.find((line) => line.kind === "remove");
-    hunk.newStart = added?.newLine ?? removed?.oldLine ?? 1;
+    const first = hunk.lines.findIndex((line) => line.kind !== "context");
+    hunk.newStart = (hunk.lines[first - 1]?.newLine ?? 0) + 1;
   }
   return hunks;
 }

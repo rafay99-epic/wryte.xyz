@@ -3,6 +3,7 @@
 import { Octokit } from "@octokit/rest";
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
+import type { ActionCtx } from "../_generated/server";
 import { action } from "../_generated/server";
 import { withAttribution } from "../_lib/commitAttribution";
 import {
@@ -18,7 +19,7 @@ import {
   type OwnedGithubProject,
   resolveOwnedGithubProject,
 } from "../_lib/githubProject";
-import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
+import { rateLimiter } from "../_lib/rateLimits";
 
 const MAX_LISTED_FILES = 2000;
 
@@ -36,6 +37,18 @@ function errorStatus(error: unknown): number | undefined {
     return error.status;
   }
   return undefined;
+}
+
+async function limitCaller(
+  ctx: ActionCtx,
+  name: "github:configRead" | "github:configPublish",
+): Promise<void> {
+  const identity = await ctx.auth.getUserIdentity();
+  if (!identity) throw new Error("Not authenticated");
+  await rateLimiter.limit(ctx, name, {
+    key: identity.tokenIdentifier,
+    throws: true,
+  });
 }
 
 async function readRepoFile(
@@ -71,10 +84,7 @@ export const listFiles = action({
     truncated: v.boolean(),
   }),
   handler: async (ctx, args) => {
-    await rateLimiter.limit(ctx, "github:configRead", {
-      key: await getRateLimitKey(ctx),
-      throws: true,
-    });
+    await limitCaller(ctx, "github:configRead");
     const target = await resolveOwnedGithubProject(ctx, args.projectId);
     const octokit = new Octokit({ auth: target.token });
     const root = normalizeConfigPath(args.root ?? "");
@@ -109,10 +119,7 @@ export const readFile = action({
   args: { projectId: v.id("projects"), path: v.string() },
   returns: v.object({ content: v.string(), sha: v.string() }),
   handler: async (ctx, args) => {
-    await rateLimiter.limit(ctx, "github:configRead", {
-      key: await getRateLimitKey(ctx),
-      throws: true,
-    });
+    await limitCaller(ctx, "github:configRead");
     const target = await resolveOwnedGithubProject(ctx, args.projectId);
     requireConfigFilePath(target.project.configPath, args.path);
     const file = await readRepoFile(
@@ -140,10 +147,7 @@ export const publish = action({
     v.object({ status: v.literal("conflict") }),
   ),
   handler: async (ctx, args): Promise<PublishResult> => {
-    await rateLimiter.limit(ctx, "github:configPublish", {
-      key: await getRateLimitKey(ctx),
-      throws: true,
-    });
+    await limitCaller(ctx, "github:configPublish");
     const target = await resolveOwnedGithubProject(ctx, args.projectId);
     const format = requireConfigFilePath(target.project.configPath, args.path);
 

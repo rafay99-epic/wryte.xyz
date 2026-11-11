@@ -290,6 +290,22 @@ describe("diffLines", () => {
     ]);
   });
 
+  test("a trailing newline change is still a change", () => {
+    expect(diffLines("a\nb\n", "a\nb")).toEqual([
+      {
+        newStart: 3,
+        lines: [{ kind: "remove", text: "", oldLine: 3, newLine: null }],
+      },
+    ]);
+    expect(diffLines("a", "a\n")[0]?.lines[0]?.kind).toBe("add");
+  });
+
+  test("a removal after an earlier insert is labelled by its new position", () => {
+    const next = ["a", "new", "b", "c", "d", "e", "f", "h"].join("\n");
+    const hunks = diffLines(base, next, 1);
+    expect(hunks.map((hunk) => hunk.newStart)).toEqual([2, 8]);
+  });
+
   test("keeps distant edits in separate hunks and handles pure inserts", () => {
     const next = ["a", "new", "b", "c", "d", "e", "f", "g", "H"].join("\n");
     const hunks = diffLines(base, next, 1);
