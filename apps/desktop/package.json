@@ -12,12 +12,12 @@
     "dev:dist": "WRYTE_FLAVOR=dev electron-builder"
   },
   "dependencies": {
-    "electron-updater": "^6.8.9"
+    "electron-updater": "^6.8.11"
   },
   "devDependencies": {
-    "@types/node": "^26.6.3",
-    "electron": "^43.7.7",
-    "electron-builder": "^26.15.3",
+    "@types/node": "^26.6.6",
+    "electron": "^43.8.8",
+    "electron-builder": "^26.18.0",
     "typescript": "^7.0.2"
   }
 }

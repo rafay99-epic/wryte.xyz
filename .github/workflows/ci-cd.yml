@@ -146,7 +146,10 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run lint
       - run: bun run type
-      - run: bun audit
+      # `bun run audit` ignores three advisories with no usable fix yet:
+      # @effect/platform (pinned exactly by uploadthing), minimatch 10 (the fix
+      # is 11, which @electron/asar cannot take), deepmerge (no fixed release).
+      - run: bun run audit
 
   # ── PATH B: Create draft release ─────────────────────────────────────
   # Version is auto-derived: package.json version + run number.
