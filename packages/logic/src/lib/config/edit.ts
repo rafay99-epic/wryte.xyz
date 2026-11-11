@@ -83,7 +83,7 @@ function applyToValue(root: unknown, edit: ConfigEdit): void {
 }
 
 function jsonFormatting(text: string): FormattingOptions {
-  const indent = /^([ \t]+)\S/m.exec(text)?.[1] ?? "  ";
+  const indent = /^([ \t]+)(?!\/\/|\/\*|\*)\S/m.exec(text)?.[1] ?? "  ";
   return {
     insertSpaces: !indent.startsWith("\t"),
     tabSize: indent.startsWith("\t") ? 1 : indent.length,
@@ -247,6 +247,9 @@ function spliceYamlList(
 
 function editYaml(text: string, edit: ConfigEdit): string {
   const document = parseDocument(text);
+  if (document.errors.length > 0) {
+    throw new Error("This YAML file has errors and can't be edited as a form");
+  }
   const spliced =
     edit.kind === "set"
       ? spliceYamlScalar(text, document, edit.path, edit.value)

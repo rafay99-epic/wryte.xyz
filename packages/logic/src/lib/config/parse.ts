@@ -72,7 +72,10 @@ function parseYamlConfig(text: string): ConfigParseResult {
   if (first) {
     return {
       ok: false,
-      message: first.message.split("\n")[0] ?? "Invalid YAML",
+      message:
+        first.code === "MULTIPLE_DOCS"
+          ? "Files with more than one YAML document can't be edited here"
+          : (first.message.split("\n")[0] ?? "Invalid YAML"),
       line: first.linePos?.[0].line ?? null,
     };
   }

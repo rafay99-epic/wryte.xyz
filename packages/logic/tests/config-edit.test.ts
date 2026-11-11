@@ -163,6 +163,29 @@ describe("applyConfigEdit", () => {
     );
   });
 
+  test("yaml: a multi-document file is refused, never truncated", () => {
+    const source = "a: 1\nlist: [x, y]\n---\nb: 2\n";
+    expect(parseConfig(source, "yaml")).toEqual({
+      ok: false,
+      message: "Files with more than one YAML document can't be edited here",
+      line: 3,
+    });
+    expect(() =>
+      applyConfigEdit(source, "yaml", { kind: "set", path: ["a"], value: 5 }),
+    ).toThrow();
+  });
+
+  test("json: indent comes from the first property, not a comment", () => {
+    const source = '{\n      // note\n  "list": [\n    1\n  ]\n}\n';
+    const next = applyConfigEdit(source, "json", {
+      kind: "insert",
+      path: ["list"],
+      index: 1,
+      value: 2,
+    });
+    expect(next).toBe(source.replace("    1\n", "    1,\n    2\n"));
+  });
+
   test("moving a missing item fails in every format", () => {
     const move = { kind: "move", path: ["stack"], from: 5, to: 0 } as const;
     expect(() => applyConfigEdit(JSON_TEXT, "json", move)).toThrow();
