@@ -48,6 +48,7 @@ export default defineSchema({
     contentPath: v.optional(v.string()),
     mediaPath: v.optional(v.string()),
     animationsPath: v.optional(v.string()),
+    configPath: v.optional(v.string()),
     animationsEnabled: v.optional(v.boolean()),
     animationLanguage: v.optional(v.union(v.literal("tsx"), v.literal("jsx"))),
     animationChecks: v.optional(
@@ -708,6 +709,15 @@ export default defineSchema({
       searchField: "name",
       filterFields: ["projectId"],
     }),
+
+  config_drafts: defineTable({
+    projectId: v.id("projects"),
+    userId: v.id("users"),
+    path: v.string(),
+    content: v.string(),
+    baseSha: v.string(),
+    updatedAt: v.number(),
+  }).index("by_projectId_and_path", ["projectId", "path"]),
 
   animations: defineTable({
     projectId: v.id("projects"),

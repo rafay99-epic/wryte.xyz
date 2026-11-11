@@ -1,14 +1,30 @@
 "use client";
 
 import type { AnimationLanguage } from "@wryte/backend/_lib/animationChecks";
+import type { ConfigFormat } from "@wryte/backend/_lib/configFiles";
 import { cn } from "@wryte/logic/lib/utils";
+import ini from "highlight.js/lib/languages/ini";
 import javascript from "highlight.js/lib/languages/javascript";
+import json from "highlight.js/lib/languages/json";
 import typescript from "highlight.js/lib/languages/typescript";
+import yaml from "highlight.js/lib/languages/yaml";
 import { createLowlight } from "lowlight";
 import type { ReactNode, RefObject } from "react";
 import { useMemo, useRef } from "react";
 
-const lowlight = createLowlight({ javascript, typescript });
+export type CodeLanguage = AnimationLanguage | ConfigFormat;
+
+const GRAMMARS = { ini, javascript, json, typescript, yaml };
+
+const GRAMMAR_BY_LANGUAGE: Record<CodeLanguage, keyof typeof GRAMMARS> = {
+  tsx: "typescript",
+  jsx: "javascript",
+  json: "json",
+  yaml: "yaml",
+  toml: "ini",
+};
+
+const lowlight = createLowlight(GRAMMARS);
 
 type HastRoot = ReturnType<typeof lowlight.highlight>;
 type HastElement = Extract<HastRoot["children"][number], { type: "element" }>;
@@ -37,8 +53,8 @@ function render(nodes: readonly HastNode[], prefix: string): ReactNode[] {
   });
 }
 
-function highlight(source: string, language: AnimationLanguage): ReactNode[] {
-  const grammar = language === "jsx" ? "javascript" : "typescript";
+function highlight(source: string, language: CodeLanguage): ReactNode[] {
+  const grammar = GRAMMAR_BY_LANGUAGE[language];
   let tree: HastRoot;
   try {
     tree = lowlight.highlight(grammar, source);
@@ -59,8 +75,8 @@ export function CodeEditor({
 }: {
   value: string;
   onChange: (value: string) => void;
-  language: AnimationLanguage;
-  rows: number;
+  language: CodeLanguage;
+  rows?: number;
   id?: string;
   invalid?: boolean;
   textareaRef?: RefObject<HTMLTextAreaElement | null>;
@@ -72,6 +88,7 @@ export function CodeEditor({
     <div
       className={cn(
         "relative rounded-lg border bg-transparent transition-colors focus-within:ring-3",
+        rows === undefined && "h-full",
         invalid
           ? "border-destructive ring-destructive/20 focus-within:border-destructive"
           : "border-input ring-ring/50 focus-within:border-ring",
@@ -106,6 +123,7 @@ export function CodeEditor({
         aria-invalid={invalid}
         className={cn(
           "relative block w-full resize-none bg-transparent text-transparent caret-foreground outline-none",
+          rows === undefined && "h-full",
           TYPOGRAPHY,
           BOX,
         )}

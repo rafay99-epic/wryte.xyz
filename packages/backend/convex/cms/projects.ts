@@ -35,6 +35,7 @@ const projectFields = {
   contentPath: v.optional(v.string()),
   mediaPath: v.optional(v.string()),
   animationsPath: v.optional(v.string()),
+  configPath: v.optional(v.string()),
   animationsEnabled: v.optional(v.boolean()),
   animationLanguage: v.optional(v.union(v.literal("tsx"), v.literal("jsx"))),
   animationChecks: v.optional(
@@ -709,6 +710,11 @@ function looseProjectTables(
       db
         .query("snippets")
         .withIndex("by_project", (q) => q.eq("projectId", projectId))
+        .take(n),
+    (n) =>
+      db
+        .query("config_drafts")
+        .withIndex("by_projectId_and_path", (q) => q.eq("projectId", projectId))
         .take(n),
     (n) =>
       db

@@ -1,6 +1,7 @@
 import { api } from "@wryte/backend/_generated/api";
 import type { Id } from "@wryte/backend/_generated/dataModel";
 import { useAuthedQuery } from "@wryte/logic/hooks/use-authed-query";
+import { useSaveShortcut } from "@wryte/logic/hooks/use-save-shortcut";
 import type { BodySnapshot } from "@wryte/logic/lib/editor/body-sync";
 import type { NoteEditorTarget } from "@wryte/logic/lib/editor/features";
 import { EDITOR_SESSION_ID } from "@wryte/logic/lib/editor/session";
@@ -14,7 +15,6 @@ import {
   useAutosave,
 } from "@/features/editor/hooks/use-autosave";
 import { useBodySync } from "@/features/editor/hooks/use-body-sync";
-import { useSaveShortcut } from "@/features/editor/hooks/use-save-shortcut";
 
 export function useNoteEditor(noteId: Id<"notes">) {
   const convex = useConvex();

@@ -37,12 +37,12 @@ import {
   type DeletableAnimation,
   DeleteAnimationDialog,
 } from "@/components/animations/delete-animation-dialog";
+import { CodeEditor } from "@/components/code/code-editor";
 import { useAnimationChecks } from "../hooks/use-animation-checks";
 import {
   AnimationCheckBadge,
   AnimationDiagnostics,
 } from "./animation-diagnostics";
-import { CodeEditor } from "./code-editor";
 
 type AnimationInsertDialogProps = {
   open: boolean;

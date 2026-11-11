@@ -1,3 +1,13 @@
+export const configKeys = {
+  all: ["config"] as const,
+
+  files: (projectId: string, root: string) =>
+    [...configKeys.all, "files", projectId, root] as const,
+
+  file: (projectId: string, path: string) =>
+    [...configKeys.all, "file", projectId, path] as const,
+};
+
 export const githubKeys = {
   all: ["github"] as const,
 

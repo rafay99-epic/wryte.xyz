@@ -23,6 +23,7 @@ import {
 } from "../_lib/commitAttribution";
 import { coerceFrontmatterArrays } from "../_lib/frontmatter";
 import { type CommitAuthor, resolveCommitClient } from "../_lib/githubApp";
+import { parseRepoString, resolveToken } from "../_lib/githubProject";
 import { buildPublishedUrl } from "../_lib/publishedUrl";
 import { getRateLimitKey, rateLimiter } from "../_lib/rateLimits";
 import { importPool } from "../_pools/import";
@@ -194,14 +195,6 @@ function shouldStampPubDate(
 
 function getFileExtension(contentFormat?: string): string {
   return contentFormat === "mdx" ? ".mdx" : ".md";
-}
-
-function parseRepoString(repo: string): { owner: string; repo: string } {
-  const parts = repo.split("/");
-  if (parts.length !== 2 || !parts[0] || !parts[1]) {
-    throw new Error(`Invalid repo format: "${repo}". Expected "owner/repo".`);
-  }
-  return { owner: parts[0], repo: parts[1] };
 }
 
 function normalizeRepoPath(path: string): string {
@@ -421,19 +414,6 @@ async function describeWriteFailure(
       : " (could not read OAuth scopes from GitHub response)";
     return `${owner}/${repoName} is not visible to GitHub user @${actingAs}${scopeHint}. Fixes: (a) add \`repo\` scope to your Clerk GitHub OAuth provider config and reconnect GitHub, (b) sign in with the GitHub account that owns this repo, or (c) set a Personal Access Token with \`repo\` scope in Settings.`;
   }
-}
-
-async function resolveToken(
-  ctx: ActionCtx,
-  userId: Id<"users">,
-): Promise<string> {
-  const token = await getGithubToken(ctx, userId);
-  if (!token) {
-    throw new Error(
-      "No GitHub access token available. Reconnect GitHub in Settings or set a Personal Access Token.",
-    );
-  }
-  return token;
 }
 
 export const publishToGithub = internalAction({

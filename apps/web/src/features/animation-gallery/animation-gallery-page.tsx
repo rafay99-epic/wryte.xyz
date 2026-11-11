@@ -46,11 +46,11 @@ import {
   type DeletableAnimation,
   DeleteAnimationDialog,
 } from "@/components/animations/delete-animation-dialog";
+import { CodeEditor } from "@/components/code/code-editor";
 import {
   AnimationCheckBadge,
   AnimationDiagnostics,
 } from "@/features/editor/components/animation-diagnostics";
-import { CodeEditor } from "@/features/editor/components/code-editor";
 import { useAnimationChecks } from "@/features/editor/hooks/use-animation-checks";
 
 const COMPILE_DEBOUNCE_MS = 400;
